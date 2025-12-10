@@ -10,6 +10,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Zap, Trophy, Flame, Activity, ChevronDown, ChevronUp, LogOut } from 'lucide-react';
 import type { WeeklyPlan } from '@/lib/api/weeklyPlan';
 import type { WeeklySummary } from '@/lib/api/dailyLog';
+import WelcomeBanner from '@/components/ui/WelcomeBanner';
+
 
 
 interface MonthlyDataPoint {
@@ -51,6 +53,8 @@ export default function HomePage() {
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
   const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
+  const [monthlyLogData, setMonthlyLogData] = useState<number | null>(null);
+
   const [noPlanError, setNoPlanError] = useState('');
   const [expandedSections, setExpandedSections] = useState({
     weeklyPerformance: false,
@@ -61,6 +65,8 @@ export default function HomePage() {
   });
   const [logDateFilter, setLogDateFilter] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedDayLog, setSelectedDayLog] = useState<DailySummary | null>(null);
+  const [upcomingPlan, setUpcomingPlan] = useState<WeeklyPlan | null>(null);
+  const [showWelcomeBanner, setShowWelcomeBanner] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -86,12 +92,12 @@ export default function HomePage() {
           dailyLogAPI.getSummary("monthly", today.toISOString().split('T')[0])
 
         ]);
-        console.log((monthlyRes.data.data as MonthlySummary).dailyBreakdown);
-        setMonthlyData((monthlyRes.data.data as MonthlySummary).dailyBreakdown.map(item=>({
-          date:item.date,
-          points:item.points,
-          activitiesCount:item.activityCount,
-        })as MonthlyDataPoint));
+        setMonthlyData((monthlyRes.data.data as MonthlySummary).dailyBreakdown.map(item => ({
+          date: item.date,
+          points: item.points,
+          activitiesCount: item.activityCount,
+        }) as MonthlyDataPoint));
+        setMonthlyLogData((monthlyRes.data.data as MonthlySummary ).totalDaysLogged);
         setWeeklyPlan(planRes.data.data);
         setSummary(summaryRes.data.data as WeeklySummary);
         if (dailyRes?.data?.data) {
@@ -103,6 +109,21 @@ export default function HomePage() {
         const errorMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
         if (errorMessage === 'No active weekly plan found') {
           setNoPlanError('No active weekly plan found. Create a weekly plan to track your activity goals.');
+
+          // Check for upcoming plan for new users
+          try {
+            const upcomingRes = await weeklyPlanAPI.Upcomming();
+            if (upcomingRes.data.data) {
+              setUpcomingPlan(upcomingRes.data.data);
+              // Check if user hasn't seen the welcome banner (you can use localStorage)
+              const hasSeenWelcome = localStorage.getItem('hasSeenWelcomeBanner');
+              if (hasSeenWelcome === 'false') {
+                setShowWelcomeBanner(true);
+              }
+            }
+          } catch (upcomingError) {
+            console.log('No upcoming plan found:', upcomingError);
+          }
         }
       }
     };
@@ -129,6 +150,11 @@ export default function HomePage() {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
+  const handleCloseWelcomeBanner = () => {
+    setShowWelcomeBanner(false);
+    localStorage.setItem('hasSeenWelcomeBanner', 'true');
+  };
+
   const stats = {
     points: summary?.totalPoints || 0,
     rank: 3, // This would come from leaderboard API
@@ -138,6 +164,15 @@ export default function HomePage() {
 
   return (
     <MainLayout>
+      {/* Welcome Banner for New Users */}
+      {showWelcomeBanner && upcomingPlan && (
+        <WelcomeBanner
+          userName={user?.name || 'there'}
+          weekStart={upcomingPlan.weekStart}
+          onClose={handleCloseWelcomeBanner}
+        />
+      )}
+
       <div className="p-4 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -245,140 +280,7 @@ export default function HomePage() {
         </div>
 
         {/* Monthly Points Chart */}
-        <Card className="border-indigo-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="font-semibold text-gray-900">Monthly Points</h3>
-                <p className="text-xs text-gray-600">Last 30 days performance</p>
-              </div>
-              <div className="text-right">
-                <div className="text-lg font-bold text-indigo-600">
-                  {monthlyData.reduce((sum, d) => sum + d.points, 0).toFixed(2)}
-                </div>
-                <div className="text-xs text-gray-600">Total Points</div>
-              </div>
-            </div>
-
-            {/* Chart */}
-            <div className="relative h-40 flex items-end gap-0.5 pb-6">
-              {monthlyData.map((dataPoint, index) => {
-                const maxPoints = Math.max(...monthlyData.map(d => d.points));
-                const heightPercentage = (dataPoint.points / maxPoints) * 100;
-                const isToday = index === monthlyData.length - 1;
-                const isWeekend = new Date(dataPoint.date).getDay() % 6 === 0;
-
-                // Calculate activity trend line position
-                const maxActivities = Math.max(...monthlyData.map(d => d.activitiesCount));
-                const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
-
-                return (
-                  <div key={index} className="flex-1 flex flex-col items-center justify-end relative" style={{ height: '100%' }}>
-                    {/* Activity count circle - positioned independently */}
-                    <div
-                      className="absolute left-1/2 transform -translate-x-1/2 z-10"
-                      style={{ bottom: `${activityHeightPercentage}%` }}
-                    >
-                      <div className="w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
-                    </div>
-
-                    {/* Bar */}
-                    <div className="w-full relative group flex items-end" style={{ height: '100%' }}>
-                      <div
-                        className={`w-full rounded-t-sm transition-all duration-300 ${isToday
-                          ? 'bg-indigo-500 opacity-90'
-                          : isWeekend
-                            ? 'bg-indigo-400 opacity-80'
-                            : 'bg-indigo-400 opacity-70'
-                          } hover:opacity-100 cursor-pointer`}
-                        style={{ height: `${Math.max(heightPercentage, 5)}%` }}
-                      >
-                        {/* Tooltip */}
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap z-20">
-                          <div className="font-semibold">{dataPoint.points} pts</div>
-                          <div className="text-gray-300">
-                            {dataPoint.activitiesCount} activities
-                          </div>
-                          <div className="text-gray-300">
-                            {new Date(dataPoint.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </div>
-                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Day labels - show every 5th day */}
-                    {index % 5 === 0 && (
-                      <div className="text-xs text-gray-500 absolute" style={{ bottom: 0 }}>
-                        {dataPoint.day}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Line connecting activity circles */}
-              <svg className="absolute inset-0 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ height: 'calc(100% - 24px)', width: '100%' }}>
-                {/* Line */}
-                <polyline
-                  points={monthlyData.map((dataPoint, index) => {
-                    const maxActivities = Math.max(...monthlyData.map(d => d.activitiesCount));
-                    const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
-                    const totalBars = monthlyData.length;
-                    const barWidth = 100 / totalBars;
-                    const x = (index * barWidth) + (barWidth / 2);
-                    const y = 100 - activityHeightPercentage;
-                    return `${x},${y}`;
-                  }).join(' ')}
-                  fill="none"
-                  stroke="#ef4444"
-                  strokeWidth="0.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
-            </div>
-
-            {/* Legend */}
-            <div className="flex items-center justify-center gap-4 mt-3 text-xs flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 bg-indigo-400 opacity-70 rounded"></div>
-                <span className="text-gray-600">Points (bars)</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="flex items-center gap-1">
-                  <div className="w-2.5 h-0.5 bg-red-500"></div>
-                  <div className="w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></div>
-                  <div className="w-2.5 h-0.5 bg-red-500"></div>
-                </div>
-                <span className="text-gray-600">Activities (line)</span>
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t">
-              <div className="text-center">
-                <div className="text-lg font-bold text-gray-900">
-                  {(monthlyData.reduce((sum, d) => sum + d.points, 0) / monthlyData.length).toFixed(2)}
-                </div>
-                <div className="text-xs text-gray-600">Daily Avg</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-green-600">
-                  {Math.max(...monthlyData.map(d => d.points)).toFixed(2)}
-                </div>
-                <div className="text-xs text-gray-600">Best Day</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-blue-600">
-                  {Math.max(...monthlyData.map(d => d.activitiesCount))}
-                </div>
-                <div className="text-xs text-gray-600">Max Activities</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        
 
         {/* AI Insights */}
         <Card className="border-purple-200">
@@ -425,20 +327,153 @@ export default function HomePage() {
               onClick={() => toggleSection('weeklyPerformance')}
               className="w-full p-4 flex items-center justify-between"
             >
-              <span className="font-semibold text-gray-900">Weekly Performance</span>
+              <span className="font-semibold text-gray-900">Monthly Performance</span>
               {expandedSections.weeklyPerformance ? (
                 <ChevronUp className="w-5 h-5 text-gray-500" />
               ) : (
                 <ChevronDown className="w-5 h-5 text-gray-500" />
               )}
             </button>
-            {expandedSections.weeklyPerformance && (
-              <CardContent className="px-4 pb-4">
-                <div className="h-40 bg-gray-50 rounded-lg flex items-center justify-center">
-                  <p className="text-gray-500 text-sm">Performance chart will be displayed here</p>
+            {expandedSections.weeklyPerformance &&( monthlyLogData !== null ? (
+
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Monthly Points</h3>
+                    <p className="text-xs text-gray-600">Last 30 days performance</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-indigo-600">
+                      {monthlyData.reduce((sum, d) => sum + d.points, 0).toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-600">Total Points</div>
+                  </div>
+                </div>
+
+                {/* Chart */}
+                <div className="relative h-40 flex items-end gap-0.5 pb-6">
+                  {monthlyData.map((dataPoint, index) => {
+                    const maxPoints = Math.max(...monthlyData.map(d => d.points));
+                    const heightPercentage = (dataPoint.points / maxPoints) * 100;
+                    const isToday = index === monthlyData.length - 1;
+                    const isWeekend = new Date(dataPoint.date).getDay() % 6 === 0;
+
+                    // Calculate activity trend line position
+                    const maxActivities = Math.max(...monthlyData.map(d => d.activitiesCount));
+                    const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
+
+                    return (
+                      <div key={index} className="flex-1 flex flex-col items-center justify-end relative" style={{ height: '100%' }}>
+                        {/* Activity count circle - positioned independently */}
+                        <div
+                          className="absolute left-1/2 transform -translate-x-1/2 z-10"
+                          style={{ bottom: `${activityHeightPercentage}%` }}
+                        >
+                          <div className="w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
+                        </div>
+
+                        {/* Bar */}
+                        <div className="w-full relative group flex items-end" style={{ height: '100%' }}>
+                          <div
+                            className={`w-full rounded-t-sm transition-all duration-300 ${isToday
+                              ? 'bg-indigo-500 opacity-90'
+                              : isWeekend
+                                ? 'bg-indigo-400 opacity-80'
+                                : 'bg-indigo-400 opacity-70'
+                              } hover:opacity-100 cursor-pointer`}
+                            style={{ height: `${Math.max(heightPercentage, 5)}%` }}
+                          >
+                            {/* Tooltip */}
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap z-20">
+                              <div className="font-semibold">{dataPoint.points} pts</div>
+                              <div className="text-gray-300">
+                                {dataPoint.activitiesCount} activities
+                              </div>
+                              <div className="text-gray-300">
+                                {new Date(dataPoint.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </div>
+                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Day labels - show every 5th day */}
+                        {index % 5 === 0 && (
+                          <div className="text-xs text-gray-500 absolute" style={{ bottom: 0 }}>
+                            {dataPoint.day}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Line connecting activity circles */}
+                  <svg className="absolute inset-0 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ height: 'calc(100% - 24px)', width: '100%' }}>
+                    {/* Line */}
+                    <polyline
+                      points={monthlyData.map((dataPoint, index) => {
+                        const maxActivities = Math.max(...monthlyData.map(d => d.activitiesCount));
+                        const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
+                        const totalBars = monthlyData.length;
+                        const barWidth = 100 / totalBars;
+                        const x = (index * barWidth) + (barWidth / 2);
+                        const y = 100 - activityHeightPercentage;
+                        return `${x},${y}`;
+                      }).join(' ')}
+                      fill="none"
+                      stroke="#ef4444"
+                      strokeWidth="0.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </svg>
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center justify-center gap-4 mt-3 text-xs flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 bg-indigo-400 opacity-70 rounded"></div>
+                    <span className="text-gray-600">Points (bars)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
+                      <div className="w-2.5 h-0.5 bg-red-500"></div>
+                      <div className="w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></div>
+                      <div className="w-2.5 h-0.5 bg-red-500"></div>
+                    </div>
+                    <span className="text-gray-600">Activities (line)</span>
+                  </div>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-gray-900">
+                      {(monthlyData.reduce((sum, d) => sum + d.points, 0) / monthlyData.length).toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-600">Daily Avg</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-green-600">
+                      {Math.max(...monthlyData.map(d => d.points)).toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-600">Best Day</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-blue-600">
+                      {Math.max(...monthlyData.map(d => d.activitiesCount))}
+                    </div>
+                    <div className="text-xs text-gray-600">Max Activities</div>
+                  </div>
                 </div>
               </CardContent>
-            )}
+
+            ):( <CardContent className="px-4 pb-4">
+                <div className="h-40 bg-gray-50 rounded-lg flex items-center justify-center">
+                  <p className="text-gray-500 text-sm">Complete Your Tasks to see monthly chart</p>
+                </div>
+              </CardContent>))}
           </Card>
 
           {/* Activity Goals */}
