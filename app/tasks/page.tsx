@@ -114,6 +114,20 @@ export default function TasksPage() {
       const response = await dailyLogAPI.submit(submitData);
       setSuccess(`Daily log submitted! Points earned: ${response.data.data.totalPoints}`);
       
+      if(response.status===201){
+        // Update weeklyPlan to mark all activities as logged for today
+        setWeeklyPlan(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            activities: prev.activities.map(activity => ({
+              ...activity,
+              TodayLogged: true
+            }))
+          };
+        });
+      }
+      
       // Reset form
       const resetValues: Record<string, number> = {};
       weeklyPlan?.activities.forEach((activity) => {

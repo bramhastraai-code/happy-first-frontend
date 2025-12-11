@@ -10,6 +10,7 @@ interface User {
   city?: string;
   locationPin?: string;
   dateOfBirth?: string;
+  createdAt?: string;
   profile?: {
     health?: string;
     family?: string;

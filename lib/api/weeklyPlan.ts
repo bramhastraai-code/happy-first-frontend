@@ -5,7 +5,7 @@ export interface WeeklyPlanActivity {
  activity: string;
   cadence: 'daily' | 'weekly';
   targetValue: number;
-  achievedUnits?: number;
+  achieved?: number;
   dailyTargets?: number;
   label?: string;
   pendingUnits?: number;

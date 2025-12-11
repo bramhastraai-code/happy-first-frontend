@@ -4,9 +4,20 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Share2, Copy, Mail, MessageCircle } from 'lucide-react';
+import {authAPI} from '@/lib/api/auth';
+import { useEffect, useState } from 'react';
 
 export default function ReferralPage() {
-  const referralLink = 'www.happyfirstclub.com/john5270';
+  const [referralCode, setReferralCode] = useState('');
+  useEffect(() => {
+    authAPI.userInfo().then((response) => {
+      setReferralCode(response.data.data.referralCode);
+    }).catch((error) => {
+      console.error('Error fetching user info:', error);
+    });
+  }, []);
+
+  const referralLink = `https://happyfirst.vercel.app/register?ref=${referralCode}`;
   
   const handleCopyLink = () => {
     navigator.clipboard.writeText(referralLink);
@@ -141,18 +152,18 @@ export default function ReferralPage() {
           <Card className="bg-gradient-to-br from-purple-50 to-blue-50">
             <CardContent className="p-4">
               <h3 className="font-semibold text-gray-900 mb-3">Your Impact</h3>
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-2 gap-4 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-purple-600">12</p>
+                  <p className="text-2xl font-bold text-purple-600">{12}  </p>
                   <p className="text-xs text-gray-600">Referrals</p>
                 </div>
-                <div>
+                {/* <div>
                   <p className="text-2xl font-bold text-blue-600">8</p>
                   <p className="text-xs text-gray-600">Active</p>
-                </div>
+                </div> */}
                 <div>
-                  <p className="text-2xl font-bold text-green-600">240</p>
-                  <p className="text-xs text-gray-600">Points</p>
+                  <p className="text-2xl font-bold text-green-600">{240}</p>
+                  <p className="text-xs text-gray-600">Happy Points</p>
                 </div>
               </div>
             </CardContent>
