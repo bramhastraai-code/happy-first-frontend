@@ -115,16 +115,20 @@ export default function HomePage() {
             const upcomingRes = await weeklyPlanAPI.Upcomming();
             if (upcomingRes.data.data) {
               setUpcomingPlan(upcomingRes.data.data);
-              // Check if user hasn't seen the welcome banner (you can use localStorage)
-              const hasSeenWelcome = localStorage.getItem('hasSeenWelcomeBanner');
-              if (hasSeenWelcome === 'false') {
-                setShowWelcomeBanner(true);
-              }
             }
           } catch (upcomingError) {
             console.log('No upcoming plan found:', upcomingError);
           }
         }
+      }
+      
+      // Check if user was created today and show welcome banner
+      const isUserCreatedToday = user?.createdAt 
+        ? new Date(user.createdAt).toDateString() === new Date().toDateString()
+        : false;
+      
+      if (isUserCreatedToday&& localStorage.getItem('hasSeenWelcomeBanner')!=null&&localStorage.getItem('hasSeenWelcomeBanner')==='false') {
+        setShowWelcomeBanner(true);
       }
     };
     fetchData();
@@ -165,10 +169,9 @@ export default function HomePage() {
   return (
     <MainLayout>
       {/* Welcome Banner for New Users */}
-      {showWelcomeBanner && upcomingPlan && (
+      {showWelcomeBanner  && (
         <WelcomeBanner
           userName={user?.name || 'there'}
-          weekStart={upcomingPlan.weekStart}
           onClose={handleCloseWelcomeBanner}
         />
       )}

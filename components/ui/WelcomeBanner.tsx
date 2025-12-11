@@ -6,17 +6,16 @@ import { X, Sparkles, Target, Trophy, Calendar, ChevronRight } from 'lucide-reac
 
 interface WelcomeBannerProps {
   userName: string;
-  weekStart: string;
   onClose: () => void;
 }
 
-export default function WelcomeBanner({ userName, weekStart, onClose }: WelcomeBannerProps) {
+export default function WelcomeBanner({ userName, onClose }: WelcomeBannerProps) {
   const [currentStep, setCurrentStep] = useState(0);
 
   const tourSteps = [
     {
       title: '🎉 Welcome to Your Wellness Journey!',
-      description: `Hi ${userName}! Your personalized weekly plan will start on ${new Date(weekStart).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}. Let's give you a quick tour!`,
+      description: `Hi ${userName}! Your personalized weekly plan will started. Let's give you a quick tour!`,
       icon: Sparkles,
       color: 'from-blue-500 to-purple-500',
     },
