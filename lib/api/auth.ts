@@ -79,4 +79,6 @@ export const authAPI = {
     api.post('/userAuth/send-welcome-message', { phoneNumber, countryCode }),
 
   userInfo: () => api.get('/userAuth/user-info'),
+
+  referralStats: () => api.get('/userAuth/referralStats'),
 };

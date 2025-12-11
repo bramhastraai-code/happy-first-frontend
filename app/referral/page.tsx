@@ -6,16 +6,26 @@ import { Button } from '@/components/ui/button';
 import { Share2, Copy, Mail, MessageCircle } from 'lucide-react';
 import {authAPI} from '@/lib/api/auth';
 import { useEffect, useState } from 'react';
+import {UpdateProfileData} from '@/lib/api/auth';
+
 
 export default function ReferralPage() {
   const [referralCode, setReferralCode] = useState('');
+  const [referralStats, setReferralStats] = useState<{totalReferrals: number; referredUsers:UpdateProfileData[] ; HappyPoints: number}>({totalReferrals: 0, referredUsers: [], HappyPoints: 0});
   useEffect(() => {
     authAPI.userInfo().then((response) => {
       setReferralCode(response.data.data.referralCode);
     }).catch((error) => {
       console.error('Error fetching user info:', error);
     });
+    authAPI.referralStats().then((response)=>{
+      setReferralStats(response.data.data);
+    }).catch((error)=>{
+      console.error('Error fetching referral stats:', error);
+    }
+    );
   }, []);
+
 
   const referralLink = `https://happyfirst.vercel.app/register?ref=${referralCode}`;
   
@@ -154,7 +164,7 @@ export default function ReferralPage() {
               <h3 className="font-semibold text-gray-900 mb-3">Your Impact</h3>
               <div className="grid grid-cols-2 gap-4 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-purple-600">{12}  </p>
+                  <p className="text-2xl font-bold text-purple-600">{referralStats?.totalReferrals}  </p>
                   <p className="text-xs text-gray-600">Referrals</p>
                 </div>
                 {/* <div>
@@ -162,7 +172,7 @@ export default function ReferralPage() {
                   <p className="text-xs text-gray-600">Active</p>
                 </div> */}
                 <div>
-                  <p className="text-2xl font-bold text-green-600">{240}</p>
+                  <p className="text-2xl font-bold text-green-600">{referralStats?.HappyPoints}</p>
                   <p className="text-xs text-gray-600">Happy Points</p>
                 </div>
               </div>
