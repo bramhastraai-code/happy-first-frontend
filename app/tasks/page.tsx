@@ -492,7 +492,7 @@ export default function TasksPage() {
 
             <Button
               type="submit"
-              disabled={loading || progress.completed === 0}
+              disabled={loading||weeklyPlan?.activities.every(activity => activity.TodayLogged)||Object.values(activities).every(value => value === 0) && Object.values(checkboxActivities).every(checked => !checked)}
               className="w-full bg-blue-600 hover:bg-blue-700"
             >
               {loading ? 'Submitting...' : 'Submit Daily Log'}
