@@ -1,45 +1,38 @@
 import api from './axios';
 
-export interface LeaderboardUser {
+export interface LeaderboardEntry {
   rank: number;
-  userId: string;
-  name: string;
-  weeklyPoints?: number;
-  totalPoints?: number;
-  activitiesCompleted?: number;
-  streak?: number;
-  weeksActive?: number;
-  longestStreak?: number;
-  totalReferrals?: number;
-  activeReferrals?: number;
-  referralPoints?: number;
+  value: number;
+  user: {
+    _id: string;
+    name: string;
+  };
 }
 
 export const leaderboardAPI = {
-  getWeekly: (limit?: number) => {
-    const params = limit ? { limit } : {};
+  getWeekly: (activity: string) => {
+    const params: { activity?: string; date?:string} = {};
+    if (activity != null) params.activity = activity;
+    params.date = new Date().toISOString().split('T')[0];
+
     return api.get<{
       success: boolean;
       message: string;
-      data: LeaderboardUser[];
-    }>('/leaderboard/weekly', { params });
+      data:LeaderboardEntry[];
+
+    }>('/leaderboard/get', { params });
   },
   
-  getAllTime: (limit?: number) => {
-    const params = limit ? { limit } : {};
+  getAllTime: (activity: string) => {
+    const params: {  activity?: string ,date?:string,logType?: string} = {};
+    if (activity!=null) params.activity = activity;
+    params.date = new Date().toISOString().split('T')[0];
+    params.logType='daily';
+
     return api.get<{
       success: boolean;
       message: string;
-      data: LeaderboardUser[];
-    }>('/leaderboard/all-time', { params });
-  },
-  
-  getReferral: (limit?: number) => {
-    const params = limit ? { limit } : {};
-    return api.get<{
-      success: boolean;
-      message: string;
-      data: LeaderboardUser[];
-    }>('/leaderboard/referral', { params });
+      data:LeaderboardEntry[];
+    }>('/leaderboard/get', {params });
   },
 };

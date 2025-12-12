@@ -17,6 +17,7 @@ export default function TasksPage() {
   const { accessToken, user, isHydrated } = useAuthStore();
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
   const [activities, setActivities] = useState<Record<string, number>>({});
+  const [checkboxActivities, setCheckboxActivities] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -47,13 +48,21 @@ export default function TasksPage() {
         
         // Initialize activity values
         const initialValues: Record<string, number> = {};
+        const initialCheckboxValues: Record<string, boolean> = {};
         planResponse.data.data.activities.forEach((activity: WeeklyPlanActivity) => {
           const activityId = typeof activity.activity === 'object' 
             ? activity.activity 
             : activity.activity;
-          initialValues[activityId] = 0;
+          
+          // Check if it's a weekly activity with "days" unit
+          if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
+            initialCheckboxValues[activityId] = false;
+          } else {
+            initialValues[activityId] = 0;
+          }
         });
         setActivities(initialValues);
+        setCheckboxActivities(initialCheckboxValues);
         
         // Set summaries
         if (dailyResponse?.data?.data) {
@@ -78,10 +87,17 @@ export default function TasksPage() {
   useEffect(() => {
     const updateTimer = () => {
       const now = new Date();
-      const midnight = new Date();
-      midnight.setHours(24, 0, 0, 0);
+      const next6AM = new Date();
       
-      const diff = midnight.getTime() - now.getTime();
+      // Set to 6 AM today
+      next6AM.setHours(6, 0, 0, 0);
+      
+      // If current time is past 6 AM, set to 6 AM tomorrow
+      if (now.getTime() >= next6AM.getTime()) {
+        next6AM.setDate(next6AM.getDate() + 1);
+      }
+      
+      const diff = next6AM.getTime() - now.getTime();
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
@@ -102,13 +118,22 @@ export default function TasksPage() {
     setSuccess('');
 
     try {
+      // Combine numeric activities and checkbox activities
+      const numericActivities = Object.entries(activities)
+        .filter(([, value]) => value > 0)
+        .map(([activityId, value]) => ({
+          activityId,
+          value,
+        }));
+      
+      const checkboxActivityEntries = Object.entries(checkboxActivities)
+        .map(([activityId, checked]) => ({
+          activityId,
+          value: checked ? 1 : 0,
+        }));
+      
       const submitData: SubmitDailyLogData = {
-        activities: Object.entries(activities)
-          .filter(([, value]) => value > 0)
-          .map(([activityId, value]) => ({
-            activityId,
-            value,
-          })),
+        activities: [...numericActivities, ...checkboxActivityEntries],
       };
 
       const response = await dailyLogAPI.submit(submitData);
@@ -130,13 +155,20 @@ export default function TasksPage() {
       
       // Reset form
       const resetValues: Record<string, number> = {};
+      const resetCheckboxValues: Record<string, boolean> = {};
       weeklyPlan?.activities.forEach((activity) => {
         const activityId = typeof activity.activity === 'object' 
           ? activity.activity 
           : activity.activity;
-        resetValues[activityId] = 0;
+        
+        if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
+          resetCheckboxValues[activityId] = false;
+        } else {
+          resetValues[activityId] = 0;
+        }
       });
       setActivities(resetValues);
+      setCheckboxActivities(resetCheckboxValues);
     } catch (err: unknown) {
       setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to submit daily log');
     } finally {
@@ -149,9 +181,37 @@ export default function TasksPage() {
     setActivities((prev) => ({ ...prev, [activityId]: numValue }));
   };
 
+  const handleCheckboxChange = (activityId: string, checked: boolean) => {
+    setCheckboxActivities((prev) => ({ ...prev, [activityId]: checked }));
+  };
+
   const getTodayProgress = () => {
-    const completed = Object.values(activities).filter((v) => v > 0).length;
-    const total = weeklyPlan?.activities.length || 0;
+    if (!weeklyPlan) {
+      return { completed: 0, total: 0, percentage: 0 };
+    }
+
+    let completed = 0;
+    const total = weeklyPlan.activities.length;
+
+    weeklyPlan.activities.forEach((activity) => {
+      const activityId = typeof activity.activity === 'object' 
+        ? activity.activity 
+        : activity.activity;
+      
+      if(activity.cadence=="daily"&&activity.achieved &&activity.achieved>=activity.targetValue){
+        completed += 1;
+      }
+      if(activity.cadence==="weekly" && activity.unit.toLowerCase()==="days" && activity.achieved==1){
+        completed += 1;
+      }
+      if(activity.cadence==="weekly" && activity.unit.toLowerCase()!=="days"){
+        const dailyTarget = activity.targetValue / 7;
+        if(activity.achieved&&activity.achieved>=dailyTarget){
+          completed += 1;
+        }
+      }
+    });
+
     return { completed, total, percentage: total > 0 ? (completed / total) * 100 : 0 };
   };
 
@@ -201,7 +261,7 @@ export default function TasksPage() {
         </Card>
 
         {/* Score Cards */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* <div className="grid grid-cols-2 gap-3">
           <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
             <CardContent className="p-4 text-center">
               <div className="text-sm text-green-700 mb-1 font-medium">Today&apos;s Score</div>
@@ -220,9 +280,9 @@ export default function TasksPage() {
               <div className="text-xs text-purple-600 mt-1">{weeklySummary?.totalDaysLogged || 0} days logged</div>
             </CardContent>
           </Card>
-        </div>
+        </div> */}
 
-        {/* Status Cards */}
+        {/* Status Cards
         <div className="grid grid-cols-2 gap-3">
           <Card className="bg-white">
             <CardContent className="p-4 text-center">
@@ -238,10 +298,10 @@ export default function TasksPage() {
               <div className="text-2xl font-bold text-green-600">Safe ✓</div>
             </CardContent>
           </Card>
-        </div>
+        </div> */}
 
         {/* Streak Alerts */}
-        <div className="space-y-2">
+        {/* <div className="space-y-2">
           <h3 className="font-semibold text-gray-900 text-sm">⚠️ Streak Alerts</h3>
           <Card className="bg-red-50 border-red-200">
             <CardContent className="p-3">
@@ -267,7 +327,7 @@ export default function TasksPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </div> */}
 
         {/* Upcoming Plans Section */}
         <Card 
@@ -290,7 +350,7 @@ export default function TasksPage() {
 
         {/* Today's Tasks Form */}
         <div className="space-y-2">
-          <h3 className="font-semibold text-gray-900">📋 Today&apos;s Tasks</h3>
+          <h3 className="font-semibold text-gray-900">📋 Submit Daily Logs</h3>
           
           {noPlanError && (
             <Card className="bg-yellow-50 border-yellow-200">
@@ -352,36 +412,76 @@ export default function TasksPage() {
                     <div className="flex items-center gap-2">
                       {activity.TodayLogged ? (
                         <>
-                          <div className="flex-1 relative">
-                            <Input
-                              type="number"
-                              disabled
-                              value={activities[activityId] || 0}
-                              className="flex-1 bg-gray-100 cursor-not-allowed opacity-60"
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <Lock className="w-5 h-5 text-gray-500" />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-gray-600 min-w-20">
-                            <Timer className="w-4 h-4" />
-                            <span className="font-mono">{timeUntilMidnight}</span>
-                          </div>
+                          {activity.cadence === 'weekly' && activityData?.unit.toLowerCase() === 'days' ? (
+                            <>
+                              <div className="flex-1 flex items-center gap-2 bg-gray-100 p-3 rounded-md opacity-60">
+                                <input
+                                  type="checkbox"
+                                  disabled
+                                  checked={checkboxActivities[activityId] || false}
+                                  className="w-5 h-5 cursor-not-allowed"
+                                />
+                                <span className="text-sm text-gray-600">Done for today</span>
+                                <Lock className="w-4 h-4 text-gray-500 ml-auto" />
+                              </div>
+                              <div className="flex items-center gap-1 text-xs text-gray-600 min-w-20">
+                                <Timer className="w-4 h-4" />
+                                <span className="font-mono">{timeUntilMidnight}</span>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex-1 relative">
+                                <Input
+                                  type="number"
+                                  disabled
+                                  value={activities[activityId] || 0}
+                                  className="flex-1 bg-gray-100 cursor-not-allowed opacity-60"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                  <Lock className="w-5 h-5 text-gray-500" />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 text-xs text-gray-600 min-w-20">
+                                <Timer className="w-4 h-4" />
+                                <span className="font-mono">{timeUntilMidnight}</span>
+                              </div>
+                            </>
+                          )}
                         </>
                       ) : (
                         <>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="any"
-                            value={activities[activityId] || 0}
-                            onChange={(e) => handleActivityChange(activityId, e.target.value)}
-                            placeholder={`Enter ${activityData?.unit}`}
-                            className="flex-1"
-                          />
-                          <span className="text-sm text-gray-600 min-w-20 text-right">
-                            {activity.cadence=="daily"?`${activity.pointsPerUnit?.toFixed(2)} pts/Day`:`${(activity.pointsPerUnit!).toFixed(2)} pts/${activityData?.unit} (weekly)`}
-                          </span>
+                          {activity.cadence === 'weekly' && activityData?.unit.toLowerCase() === 'days' ? (
+                            <>
+                              <div className="flex-1 flex items-center gap-2 bg-blue-50 p-3 rounded-md border border-blue-200">
+                                <input
+                                  type="checkbox"
+                                  checked={checkboxActivities[activityId] || false}
+                                  onChange={(e) => handleCheckboxChange(activityId, e.target.checked)}
+                                  className="w-5 h-5 cursor-pointer accent-blue-600"
+                                />
+                                <span className="text-sm text-gray-700">Done for today</span>
+                              </div>
+                              <span className="text-sm text-gray-600 min-w-20 text-right">
+                                {(activity.pointsPerUnit!).toFixed(2)} pts/day
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={activities[activityId] || 0}
+                                onChange={(e) => handleActivityChange(activityId, e.target.value)}
+                                placeholder={`Enter ${activityData?.unit}`}
+                                className="flex-1"
+                              />
+                              <span className="text-sm text-gray-600 min-w-20 text-right">
+                                {activity.cadence=="daily"?`${activity.pointsPerUnit?.toFixed(2)} pts/Day`:`${(activity.pointsPerUnit!).toFixed(2)} pts/${activityData?.unit} (weekly)`}
+                              </span>
+                            </>
+                          )}
                         </>
                       )}
                     </div>

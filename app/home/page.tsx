@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore ,getCookie,setCookie} from '@/lib/store/authStore';
+import { useAuthStore, getCookie, setCookie } from '@/lib/store/authStore';
 import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
 import { dailyLogAPI, type DailySummary, type MonthlySummary } from '@/lib/api/dailyLog';
 import MainLayout from '@/components/layout/MainLayout';
@@ -11,6 +11,7 @@ import { Zap, Trophy, Flame, Activity, ChevronDown, ChevronUp, LogOut } from 'lu
 import type { WeeklyPlan } from '@/lib/api/weeklyPlan';
 import type { WeeklySummary } from '@/lib/api/dailyLog';
 import WelcomeBanner from '@/components/ui/WelcomeBanner';
+import LeaderboardPage from '@/components/ui/leaderboard/page';
 
 
 
@@ -57,8 +58,9 @@ export default function HomePage() {
 
   const [noPlanError, setNoPlanError] = useState('');
   const [expandedSections, setExpandedSections] = useState({
-    weeklyPerformance: false,
+    weeklyPerformance: true,
     activityGoals: false,
+    pendingActivities: true,
     leaderboard: false,
     logTracker: false,
     recommendations: false,
@@ -97,7 +99,7 @@ export default function HomePage() {
           points: item.points,
           activitiesCount: item.activityCount,
         }) as MonthlyDataPoint));
-        setMonthlyLogData((monthlyRes.data.data as MonthlySummary ).totalDaysLogged);
+        setMonthlyLogData((monthlyRes.data.data as MonthlySummary).totalDaysLogged);
         setWeeklyPlan(planRes.data.data);
         setSummary(summaryRes.data.data as WeeklySummary);
         if (dailyRes?.data?.data) {
@@ -121,13 +123,13 @@ export default function HomePage() {
           }
         }
       }
-      
+
       // Check if user was created today and show welcome banner
-      const isUserCreatedToday = user?.createdAt 
+      const isUserCreatedToday = user?.createdAt
         ? new Date(user.createdAt).toDateString() === new Date().toDateString()
         : false;
-      
-      if (isUserCreatedToday&& getCookie('hasSeenWelcomeBanner')!=null&&getCookie('hasSeenWelcomeBanner')==='false') {
+
+      if (isUserCreatedToday && getCookie('hasSeenWelcomeBanner') != null && getCookie('hasSeenWelcomeBanner') === 'false') {
         setShowWelcomeBanner(true);
       }
     };
@@ -169,7 +171,7 @@ export default function HomePage() {
   return (
     <MainLayout>
       {/* Welcome Banner for New Users */}
-      {showWelcomeBanner  && (
+      {showWelcomeBanner && (
         <WelcomeBanner
           userName={user?.name || 'there'}
           onClose={handleCloseWelcomeBanner}
@@ -283,7 +285,120 @@ export default function HomePage() {
         </div>
 
         {/* Monthly Points Chart */}
-        
+
+
+        {/* Pending Activities */}
+        <Card>
+          {expandedSections.pendingActivities && (
+            <CardContent className="p-4 space-y-3">
+              <h1 className="text-lg font-semibold text-gray-900 mb-2">Pending Activities</h1>
+              {noPlanError ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                  <div className="text-3xl mb-2">⏳</div>
+                  <h3 className="font-semibold text-yellow-900 text-sm mb-1">No Pending Activities</h3>
+                  <p className="text-xs text-yellow-700">Create a weekly plan to see pending activities.</p>
+                </div>
+              ) : weeklyPlan ? (
+                weeklyPlan.activities.filter(activity => {
+                  if (activity.cadence === 'daily') {
+                    return activity.targetValue*7 - (activity.achievedUnits || 0) > 0;
+                  } else if (activity.cadence === 'weekly') {
+                    return activity.targetValue - (activity.achievedUnits || 0) > 0;
+                  }
+                  return false;
+                }).length > 0 ? (
+                  weeklyPlan.activities
+                    .filter(activity => {
+                      if (activity.cadence === 'daily') {
+                        return activity.targetValue*7 - (activity.achievedUnits || 0) > 0;
+                      } else if (activity.cadence === 'weekly') {
+                        return activity.targetValue - (activity.achievedUnits || 0) > 0;
+                      }
+                      return false;
+                    })
+                    .map((activity, index) => {
+                      const activityData = typeof activity === 'object' ? activity : null;
+                      const remaining = activity.cadence === 'daily' ? activity.targetValue*7 - (activity.achievedUnits || 0) : activity.targetValue - (activity.achievedUnits || 0);
+                      const progressPercentage = Math.min(
+                        Math.round(((activity.achievedUnits || 0) / (activity.cadence=="daily" ? activity.targetValue*7 : activity.targetValue)) * 100),
+                        100
+                      );
+
+                      // Calculate remaining weeks
+                      const weekEnd = new Date(weeklyPlan.weekEnd);
+                      const today = new Date();
+                      const remainingDays = Math.max(0, Math.ceil((weekEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+                      const remainingWeeks = (remainingDays / 7).toFixed(1);
+
+                      return (
+                        <div key={index} className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">⏳</span>
+                              <div>
+                                <p className="font-medium text-sm text-gray-900">{activityData?.label || 'Activity'}</p>
+                                <p className="text-xs text-gray-600">
+                                  {activity.cadence === 'daily' ? 'Daily' : 'Weekly'} • {activityData?.unit}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold text-orange-600">
+                                { remaining} {activityData?.unit} left
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {remainingWeeks} week{parseFloat(remainingWeeks) !== 1 ? 's' : ''} remaining
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600">Progress</span>
+                              <span className="font-medium text-gray-900">
+                                {activity.achievedUnits || 0} / {activity.cadence === 'daily' ? activity.targetValue*7 : activity.targetValue} ({progressPercentage}%)
+                              </span>
+                            </div>
+                            <div className="h-2 bg-orange-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-300"
+                                style={{ width: `${progressPercentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+
+                          {activity.cadence === 'daily' && activity.dailyTargets && (
+                            <div className="mt-3 pt-3 border-t border-orange-200">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-600">Daily target</span>
+                                <span className="font-medium text-orange-700">
+                                  {activity.dailyTargets*7} {activityData?.unit}/day
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {activity.pendingUnits !== undefined && activity.pendingUnits > 0 && (
+                            <div className="mt-2 flex items-center gap-1 text-xs text-orange-700">
+                              <span className="font-medium">⚠️ {activity.pendingUnits} {activityData?.unit} pending</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                ) : (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                    <div className="text-3xl mb-2">🎉</div>
+                    <h3 className="font-semibold text-green-900 text-sm mb-1">All Caught Up!</h3>
+                    <p className="text-xs text-green-700">You&apos;ve completed all your activities for this week.</p>
+                  </div>
+                )
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-4">Loading pending activities...</p>
+              )}
+            </CardContent>
+          )}
+        </Card>
 
         {/* AI Insights */}
         <Card className="border-purple-200">
@@ -337,7 +452,7 @@ export default function HomePage() {
                 <ChevronDown className="w-5 h-5 text-gray-500" />
               )}
             </button>
-            {expandedSections.weeklyPerformance &&( monthlyLogData !== null ? (
+            {expandedSections.weeklyPerformance && (monthlyLogData !== null ? (
 
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-4">
@@ -472,11 +587,11 @@ export default function HomePage() {
                 </div>
               </CardContent>
 
-            ):( <CardContent className="px-4 pb-4">
-                <div className="h-40 bg-gray-50 rounded-lg flex items-center justify-center">
-                  <p className="text-gray-500 text-sm">Complete Your Tasks to see monthly chart</p>
-                </div>
-              </CardContent>))}
+            ) : (<CardContent className="px-4 pb-4">
+              <div className="h-40 bg-gray-50 rounded-lg flex items-center justify-center">
+                <p className="text-gray-500 text-sm">Complete Your Tasks to see monthly chart</p>
+              </div>
+            </CardContent>))}
           </Card>
 
           {/* Activity Goals */}
@@ -557,10 +672,16 @@ export default function HomePage() {
               <span className="font-semibold text-gray-900">Leaderboard</span>
               {expandedSections.leaderboard ? (
                 <ChevronUp className="w-5 h-5 text-gray-500" />
+
               ) : (
                 <ChevronDown className="w-5 h-5 text-gray-500" />
               )}
             </button>
+            {expandedSections.leaderboard && (
+              <CardContent className="px-4 pb-4">
+                <LeaderboardPage />
+              </CardContent>
+            )}
           </Card>
 
           {/* Log Tracker */}

@@ -23,6 +23,17 @@ export interface LoginData {
   password: string;
 }
 
+export interface RequestLoginOTPData {
+  phoneNumber: string;
+  countryCode: string;
+}
+
+export interface VerifyLoginOTPData {
+  phoneNumber: string;
+  countryCode: string;
+  otp: string;
+}
+
 export interface UpdateProfileData {
   name?: string;
   email?: string;
@@ -68,6 +79,10 @@ export const authAPI = {
   verifyOTP: (data: VerifyOTPData) => api.post('/userAuth/verify-otp', data),
   
   login: (data: LoginData) => api.post('/userAuth/login', data),
+  
+  requestLoginOTP: (data: RequestLoginOTPData) => api.post('/userAuth/req-login-otp', data),
+  
+  verifyLoginOTP: (data: VerifyLoginOTPData) => api.post('/userAuth/login-otp-verify', data),
   
   refresh: () => api.post('/userAuth/refresh'),
   
