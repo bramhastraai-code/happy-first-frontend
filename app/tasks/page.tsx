@@ -478,23 +478,12 @@ export default function TasksPage() {
                               <Input
                                 type="number"
                                 min={0}
-                                max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                max={100000}
                                 step="any"
                                 value={activities[activityId] || 0}
                                 onChange={(e) => {
                                   // Allow free typing without clamping
                                   handleActivityChange(activityId, e.target.value);
-                                }}
-                                onBlur={(e) => {
-                                  const maxVal = activityData?.values.find(v=>v.tier===1)?.maxVal || 100000;
-                                  const inputValue = parseFloat(e.target.value);
-                                  
-                                  // Only validate and clamp when user finishes typing
-                                  if (isNaN(inputValue) || inputValue < 0) {
-                                    handleActivityChange(activityId, '0');
-                                  } else if (inputValue > maxVal) {
-                                    handleActivityChange(activityId, maxVal.toString());
-                                  }
                                 }}
                                 placeholder={`Enter ${activityData?.unit}`}
                                 className="flex-1"
