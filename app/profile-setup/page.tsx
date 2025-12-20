@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authAPI } from '@/lib/api/auth';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,9 @@ export default function ProfileSetupPage() {
       challenges: '',
       goals: '',
       likes: '',
+      personalCare: '',
       dislikes: '',
+      medicalConditions: '',
       unitsPreference: {
         distance: 'km' as 'km' | 'miles',
         volume: 'L' as 'L' | 'oz',
@@ -34,6 +36,25 @@ export default function ProfileSetupPage() {
       tone: 'coach' as 'soft' | 'coach' | 'strict',
     },
   });
+
+  useEffect(() => {
+    // Optionally, fetch existing profile data to pre-fill the form
+    const fetchProfile = async () => {
+      try {
+        const data = await authAPI.userInfo();
+        if (data.data.data.profile) {
+          setProfileData((prev) => ({
+            ...prev,
+            profile: { ...prev.profile, ...data.data.data.profile },
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile data:', error);
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   const handleNext = async () => {
     if (step === 1) {
@@ -114,6 +135,37 @@ export default function ProfileSetupPage() {
                     })
                   }
                   placeholder="Married with 2 kids"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Personal Care Routine
+                </label>
+                <Input
+                  value={profileData.profile.personalCare}
+                  onChange={(e) =>
+                    setProfileData({
+                      ...profileData,
+                      profile: { ...profileData.profile, personalCare: e.target.value },
+                    })
+                  }
+                  placeholder="Daily skincare routine"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Medical Conditions
+                </label>
+                <Input
+                  value={profileData.profile.medicalConditions}
+                  onChange={(e) =>
+                    setProfileData({
+                      ...profileData,
+                      profile: { ...profileData.profile, medicalConditions: e.target.value },
+                    })
+                  }
+                  placeholder="Diabetes, asthma"
                 />
               </div>
 

@@ -12,6 +12,7 @@ import type { WeeklyPlan } from '@/lib/api/weeklyPlan';
 import type { WeeklySummary } from '@/lib/api/dailyLog';
 import WelcomeBanner from '@/components/ui/WelcomeBanner';
 import LeaderboardPage from '@/components/ui/leaderboard/page';
+import { authAPI } from '@/lib/api/auth';
 
 
 
@@ -55,6 +56,7 @@ export default function HomePage() {
   const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
   const [monthlyLogData, setMonthlyLogData] = useState<number | null>(null);
+  const [userData, setUser] = useState<typeof user | null>(null);
 
   const [noPlanError, setNoPlanError] = useState('');
   const [expandedSections, setExpandedSections] = useState({
@@ -87,11 +89,12 @@ export default function HomePage() {
     const fetchData = async () => {
       try {
         const today = new Date();
-        const [planRes, summaryRes, dailyRes, monthlyRes] = await Promise.all([
+        const [planRes, summaryRes, dailyRes, monthlyRes,userInfo] = await Promise.all([
           weeklyPlanAPI.getCurrent(),
           dailyLogAPI.getSummary('weekly', today.toISOString().split('T')[0]),
           dailyLogAPI.getSummary('daily', today.toISOString().split('T')[0]).catch(() => null),
-          dailyLogAPI.getSummary("monthly", today.toISOString().split('T')[0])
+          dailyLogAPI.getSummary("monthly", today.toISOString().split('T')[0]),
+          authAPI.userInfo(),
 
         ]);
         setMonthlyData((monthlyRes.data.data as MonthlySummary).dailyBreakdown.map(item => ({
@@ -102,6 +105,7 @@ export default function HomePage() {
         setMonthlyLogData((monthlyRes.data.data as MonthlySummary).totalDaysLogged);
         setWeeklyPlan(planRes.data.data);
         setSummary(summaryRes.data.data as WeeklySummary);
+        setUser(userInfo.data.data);
         if (dailyRes?.data?.data) {
           setDailySummary(dailyRes.data.data as DailySummary);
         }
@@ -190,7 +194,7 @@ export default function HomePage() {
                 Hello, <span className="font-semibold text-gray-900">{user?.name}</span>
               </p>
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-600">Week 47</span>
+                <span className="text-gray-600">{new Date().toDateString()}</span>
                 <span className="flex items-center gap-1 text-green-600">
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>
                   Live
@@ -207,6 +211,64 @@ export default function HomePage() {
             <span>Logout</span>
           </button>
         </div>
+
+        {/* Profile Completion Banner */}
+        {userData && (() => {
+          // Calculate profile completion percentage
+          const profileFields = [
+            userData.profile?.profession,
+            userData.profile?.challenges,
+            userData.profile?.goals,
+            userData.profile?.likes,
+            userData.profile?.personalCare,
+            userData.profile?.dislikes,
+            userData.profile?.medicalConditions,
+            userData.profile?.health,
+            userData.profile?.family,
+            userData.profile?.schedule,
+          ];
+          const completedFields = profileFields.filter(field => field !== null && field !== undefined && field !== '').length;
+          const completionPercentage = Math.round((completedFields / profileFields.length) * 100);
+          
+          return completionPercentage < 100 ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <span className="text-yellow-600 text-xl">⚠️</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-yellow-900 mb-1">
+                      Profile {completionPercentage}% Complete
+                    </p>
+                    <p className="text-xs text-yellow-700">
+                      Complete your profile to get personalized recommendations
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => router.push('/profile-setup')}
+                  className="px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-lg hover:bg-yellow-700 transition-colors whitespace-nowrap ml-3"
+                >
+                  Complete Profile
+                </button>
+              </div>
+              
+              {/* Progress Bar */}
+              <div className="space-y-1">
+                <div className="h-2 bg-yellow-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-yellow-600 rounded-full transition-all duration-300"
+                    style={{ width: `${completionPercentage}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-yellow-700">
+                  {completedFields} of {profileFields.length} fields completed
+                </p>
+              </div>
+            </div>
+          ) : null;
+        })()}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
