@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { authAPI } from '@/lib/api/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {useAuthStore} from '@/lib/store/authStore'
 
 function RegisterForm() {
+  const {setProfiles,setSelectedProfile} = useAuthStore();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState<'phone' | 'details'>('phone');
@@ -48,9 +50,11 @@ function RegisterForm() {
     setError('');
 
     try {
-      await authAPI.register(formData);
+      const response = await authAPI.register(formData);
       // After registration, go to OTP verification
       // Encode country code to properly handle + sign in URL
+      setProfiles(response.data.data.profiles);
+      setSelectedProfile(response.data.data.profiles[0] || null);
       router.push(`/verify-otp?phone=${formData.phoneNumber}&country=${encodeURIComponent(formData.countryCode)}`);
     } catch (err) {
       setError((err as any).response?.data?.message || 'Registration failed');

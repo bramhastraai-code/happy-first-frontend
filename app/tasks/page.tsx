@@ -24,6 +24,7 @@ export default function TasksPage() {
   const [error, setError] = useState('');
   const [noPlanError, setNoPlanError] = useState('');
   const [timeUntilMidnight, setTimeUntilMidnight] = useState('');
+  const [isAfter6PM, setIsAfter6PM] = useState(false);
   const [userData, setUserData] = useState(null);
 
   useEffect(() => { 
@@ -93,22 +94,36 @@ export default function TasksPage() {
   useEffect(() => {
     const updateTimer = () => {
       const now = new Date();
-      const next6AM = new Date();
+      const currentHour = now.getHours();
       
-      // Set to 6 AM today
-      next6AM.setHours(6, 0, 0, 0);
-      
-      // If current time is past 6 AM, set to 6 AM tomorrow
-      if (now.getTime() >= next6AM.getTime()) {
+      // Check if it's after 6 PM (18:00)
+      const after6PM = currentHour >= 18;
+      setIsAfter6PM(after6PM);
+
+      if (after6PM) {
+        // After 6 PM, show time until 6 AM next day (when logs reset)
+        const next6AM = new Date();
         next6AM.setDate(next6AM.getDate() + 1);
+        next6AM.setHours(18, 0, 0, 0);
+        
+        const diff = next6AM.getTime() - now.getTime();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        setTimeUntilMidnight(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+      } else {
+        // Before 6 PM, show time until 6 PM today
+        const next6PM = new Date();
+        next6PM.setHours(18, 0, 0, 0);
+        
+        const diff = next6PM.getTime() - now.getTime();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        setTimeUntilMidnight(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
       }
-      
-      const diff = next6AM.getTime() - now.getTime();
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      
-      setTimeUntilMidnight(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
     };
 
     updateTimer();
@@ -266,74 +281,7 @@ export default function TasksPage() {
           </CardContent>
         </Card>
 
-        {/* Score Cards */}
-        {/* <div className="grid grid-cols-2 gap-3">
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-            <CardContent className="p-4 text-center">
-              <div className="text-sm text-green-700 mb-1 font-medium">Today&apos;s Score</div>
-              <div className="text-3xl font-bold text-green-900">
-                {dailySummary?.totalPoints.toFixed(2) || 0}
-              </div>
-              <div className="text-xs text-green-600 mt-1">points earned</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-            <CardContent className="p-4 text-center">
-              <div className="text-sm text-purple-700 mb-1 font-medium">Week Score</div>
-              <div className="text-3xl font-bold text-purple-900">
-                {weeklySummary?.totalPoints.toFixed(2) || 0}
-              </div>
-              <div className="text-xs text-purple-600 mt-1">{weeklySummary?.totalDaysLogged || 0} days logged</div>
-            </CardContent>
-          </Card>
-        </div> */}
-
-        {/* Status Cards
-        <div className="grid grid-cols-2 gap-3">
-          <Card className="bg-white">
-            <CardContent className="p-4 text-center">
-              <div className="text-sm text-gray-600 mb-1">Completed</div>
-              <div className="text-2xl font-bold text-blue-600">
-                {progress.completed}/{progress.total * 7}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-white">
-            <CardContent className="p-4 text-center">
-              <div className="text-sm text-gray-600 mb-1">Streak</div>
-              <div className="text-2xl font-bold text-green-600">Safe ✓</div>
-            </CardContent>
-          </Card>
-        </div> */}
-
-        {/* Streak Alerts */}
-        {/* <div className="space-y-2">
-          <h3 className="font-semibold text-gray-900 text-sm">⚠️ Streak Alerts</h3>
-          <Card className="bg-red-50 border-red-200">
-            <CardContent className="p-3">
-              <div className="flex items-start gap-2">
-                <span className="text-lg">🏃</span>
-                <div className="flex-1">
-                  <p className="font-medium text-red-900 text-sm">Runs</p>
-                  <p className="text-xs text-red-700">Run today or lose 5-day streak!</p>
-                </div>
-                <span className="text-xs font-semibold bg-red-100 text-red-700 px-2 py-1 rounded">2d left</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-yellow-50 border-yellow-200">
-            <CardContent className="p-3">
-              <div className="flex items-start gap-2">
-                <span className="text-lg">😴</span>
-                <div className="flex-1">
-                  <p className="font-medium text-yellow-900 text-sm">Sleep</p>
-                  <p className="text-xs text-yellow-700">7 hrs needed to maintain streak</p>
-                </div>
-                <span className="text-xs font-semibold bg-yellow-100 text-yellow-700 px-2 py-1 rounded">1d left</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div> */}
+       
 
         {/* Upcoming Plans Section */}
         <Card 
@@ -416,7 +364,47 @@ export default function TasksPage() {
                       </span> */}
                     </div>
                     <div className="flex items-center gap-2">
-                      {activity.TodayLogged ? (
+                      {!isAfter6PM ? (
+                        <>
+                          {activity.cadence === 'weekly' && activityData?.unit.toLowerCase() === 'days' ? (
+                            <>
+                              <div className="flex-1 flex items-center gap-2 bg-orange-50 p-3 rounded-md border border-orange-200 opacity-60">
+                                <input
+                                  type="checkbox"
+                                  disabled
+                                  checked={false}
+                                  className="w-5 h-5 cursor-not-allowed"
+                                />
+                                <span className="text-sm text-orange-700">Available after 6 PM</span>
+                                <Lock className="w-4 h-4 text-orange-500 ml-auto" />
+                              </div>
+                              <div className="flex items-center gap-1 text-xs text-orange-600 min-w-20">
+                                <Timer className="w-4 h-4" />
+                                <span className="font-mono">{timeUntilMidnight}</span>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex-1 relative">
+                                <Input
+                                  type="number"
+                                  disabled
+                                  value=""
+                                  placeholder="Available after 6 PM"
+                                  className="flex-1 bg-orange-50 border-orange-200 cursor-not-allowed opacity-60 placeholder:text-orange-700"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                  <Lock className="w-5 h-5 text-orange-500" />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 text-xs text-orange-600 min-w-20">
+                                <Timer className="w-4 h-4" />
+                                <span className="font-mono">{timeUntilMidnight}</span>
+                              </div>
+                            </>
+                          )}
+                        </>
+                      ) : activity.TodayLogged ? (
                         <>
                           {activity.cadence === 'weekly' && activityData?.unit.toLowerCase() === 'days' ? (
                             <>
@@ -478,7 +466,16 @@ export default function TasksPage() {
                               <Input
                                 type="number"
                                 min={0}
-                                max={100000}
+                                max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                onBlur={(e) => {
+                                  // Clamp value on blur
+                                  let val = parseFloat(e.target.value) || 0;
+                                  if (val < 0) val = 0;
+                                  if (val > (activityData?.values.find(v=>v.tier===1)?.maxVal || 100000)) {
+                                    val = activityData?.values.find(v=>v.tier===1)?.maxVal || 100000;
+                                  }
+                                  handleActivityChange(activityId, val.toString());
+                                }}
                                 step="any"
                                 value={activities[activityId] || 0}
                                 onChange={(e) => {
@@ -501,12 +498,28 @@ export default function TasksPage() {
               );
             })}
 
+            {!isAfter6PM && (
+              <Card className="bg-orange-50 border-orange-200 mb-3">
+                <CardContent className="p-4 text-center">
+                  <div className="text-3xl mb-2">🕒</div>
+                  <h3 className="font-semibold text-orange-900 mb-1">Log Submission Restricted</h3>
+                  <p className="text-sm text-orange-700 mb-2">
+                    Daily logs can only be submitted after 6:00 PM
+                  </p>
+                  <div className="flex items-center justify-center gap-2 text-orange-800">
+                    <Timer className="w-5 h-5" />
+                    <span className="font-mono font-semibold text-lg">{timeUntilMidnight}</span>
+                    <span className="text-sm">until 6 PM</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             <Button
               type="submit"
-              disabled={loading||weeklyPlan?.activities.every(activity => activity.TodayLogged)||Object.values(activities).every(value => value === 0) && Object.values(checkboxActivities).every(checked => !checked)}
-              className="w-full bg-blue-600 hover:bg-blue-700"
+              disabled={!isAfter6PM || loading||weeklyPlan?.activities.every(activity => activity.TodayLogged)||Object.values(activities).every(value => value === 0) && Object.values(checkboxActivities).every(checked => !checked)}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {loading ? 'Submitting...' : 'Submit Daily Log'}
+              {loading ? 'Submitting...' : !isAfter6PM ? 'Available After 6 PM' : 'Submit Daily Log'}
             </Button>
           </form>
           )}

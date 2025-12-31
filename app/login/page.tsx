@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setUser, setAccessToken } = useAuthStore();
+  const { setUser, setAccessToken , setProfiles} = useAuthStore();
 
   const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
   const [otpSent, setOtpSent] = useState(false);
@@ -34,12 +34,13 @@ export default function LoginPage() {
         countryCode: formData.countryCode,
         password: formData.password,
       });
-      const { user, accessToken } = response.data.data;
+      const { user, accessToken, profiles } = response.data.data;
 
       setUser(user);
+      setProfiles(profiles);
       setAccessToken(accessToken);
 
-      router.push('/home');
+      router.push('/select-profile');
     } catch (err) {
       setError((err as any).response?.data?.message || 'Login failed');
     } finally {
@@ -78,12 +79,13 @@ export default function LoginPage() {
         countryCode: formData.countryCode,
         otp: formData.otp,
       });
-      const { user, accessToken } = response.data.data;
+      const { user,profiles, accessToken } = response.data.data;
 
       setUser(user);
+      setProfiles(profiles);
       setAccessToken(accessToken);
 
-      router.push('/home');
+      router.push('/select-profile');
     } catch (err) {
       setError((err as any).response?.data?.message || 'Invalid OTP');
     } finally {

@@ -6,15 +6,18 @@ import { authAPI } from '@/lib/api/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { useAuthStore,Profile } from '@/lib/store/authStore';
+
+
 
 export default function ProfileSetupPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const { selectedProfile,setProfiles,setSelectedProfile,profiles } = useAuthStore();
   
   const [profileData, setProfileData] = useState({
-    timezone: 'Asia/Kolkata',
-    reminderTime: '21:00',
+    reminderTime: selectedProfile?.reminderTime || '08:00',
     profile: {
       health: '',
       family: '',
@@ -39,22 +42,29 @@ export default function ProfileSetupPage() {
 
   useEffect(() => {
     // Optionally, fetch existing profile data to pre-fill the form
-    const fetchProfile = async () => {
-      try {
-        const data = await authAPI.userInfo();
-        if (data.data.data.profile) {
-          setProfileData((prev) => ({
-            ...prev,
-            profile: { ...prev.profile, ...data.data.data.profile },
-          }));
-        }
-      } catch (error) {
-        console.error('Failed to fetch profile data:', error);
-      }
-    };
-
-    fetchProfile();
-  }, []);
+    if (selectedProfile) {
+      setProfileData((prev) => ({
+        ...prev,
+        reminderTime: prev.reminderTime,
+        profile: selectedProfile.profile ? {
+          ...prev.profile,
+          ...selectedProfile.profile,
+          unitsPreference: {
+            distance: (selectedProfile.profile.unitsPreference?.distance === 'km' || selectedProfile.profile.unitsPreference?.distance === 'miles') 
+              ? selectedProfile.profile.unitsPreference.distance 
+              : prev.profile.unitsPreference.distance,
+            volume: (selectedProfile.profile.unitsPreference?.volume === 'L' || selectedProfile.profile.unitsPreference?.volume === 'oz')
+              ? selectedProfile.profile.unitsPreference.volume
+              : prev.profile.unitsPreference.volume,
+            steps: prev.profile.unitsPreference.steps,
+          },
+        } : prev.profile,
+        preferences: selectedProfile.preferences ? {
+          tone: selectedProfile.preferences.tone || prev.preferences.tone,
+        } : prev.preferences,
+      }));
+    }
+  }, [selectedProfile]);
 
   const handleNext = async () => {
     if (step === 1) {
@@ -68,7 +78,9 @@ export default function ProfileSetupPage() {
     setLoading(true);
     try {
       // Update profile
-      await authAPI.updateProfile(profileData);
+      const response = await authAPI.updateProfile(profileData);
+      setProfiles(response.data.data.profiles); // Update profiles in the store
+      setSelectedProfile(response.data.data.profiles?.find((profile: Profile) => profile._id === selectedProfile?._id) || null); // Update selected profile
 
       router.push('/home');
     } catch (error) {

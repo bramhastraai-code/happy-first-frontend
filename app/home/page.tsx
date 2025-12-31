@@ -13,6 +13,10 @@ import type { WeeklySummary } from '@/lib/api/dailyLog';
 import WelcomeBanner from '@/components/ui/WelcomeBanner';
 import LeaderboardPage from '@/components/ui/leaderboard/page';
 import { authAPI } from '@/lib/api/auth';
+import { ProfileBadge } from '@/components/ui/ProfileBadge';
+import { ProfileSwitcher } from '@/components/ui/ProfileSwitcher';
+import { Settings } from 'lucide-react';
+import { DateTime } from 'luxon';
 
 
 
@@ -23,40 +27,57 @@ interface MonthlyDataPoint {
   activitiesCount: number;
 }
 
-// Generate deterministic monthly data (last 30 days)
-//  async function  generateMonthlyData( ): Promise<MonthlyDataPoint[]> {
-
-//   const data: MonthlyDataPoint[] = [];
-
-//   for (let i = 29; i >= 0; i--) {
-//     const date = new Date(today);
-//     date.setDate(date.getDate() - i);
-
-//     // Use deterministic data based on date to avoid hydration mismatch
-//     const seed = date.getDate() + date.getMonth() * 31;
-//     const points = 20 + (seed % 50); // Deterministic points between 20-70
-//     const activitiesCount = 1 + (seed % 7); // Activities count between 1-7
-
-//     data.push({
-//       date: date.toISOString().split('T')[0],
-//       points: points,
-//       day: date.getDate(),
-//       activitiesCount: activitiesCount,
-//     });
-//   }
-
-//   return data;
-// };
+interface WeeklyDataPoint {
+  weekLabel: string;
+  weekStart: string;
+  weekEnd: string;
+  totalPoints: number;
+  avgActivities: number;
+  daysCount: number;
+}
 
 export default function HomePage() {
   const router = useRouter();
-  const { user, accessToken, isHydrated, logout } = useAuthStore();
+  const { user, accessToken, isHydrated, logout,selectedProfile } = useAuthStore();
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
   const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
   const [monthlyLogData, setMonthlyLogData] = useState<number | null>(null);
   const [userData, setUser] = useState<typeof user | null>(null);
+  const [weeklyData, setWeeklyData] = useState<WeeklyDataPoint[]>([]);
+  const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
+
+  // Convert monthly data to weekly groups (Monday to Sunday)
+  const groupDataByWeeks = (data: MonthlyDataPoint[]): WeeklyDataPoint[] => {
+    const weeks: Map<string, MonthlyDataPoint[]> = new Map();
+    
+    data.forEach(point => {
+      const date = DateTime.fromISO(point.date);
+      // Get Monday of the week
+      const weekStart = date.startOf('week');
+      const weekKey = weekStart.toFormat('yyyy-MM-dd');
+      
+      if (!weeks.has(weekKey)) {
+        weeks.set(weekKey, []);
+      }
+      weeks.get(weekKey)!.push(point);
+    });
+    
+    return Array.from(weeks.entries()).map(([weekKey, points]) => {
+      const weekStart = DateTime.fromISO(weekKey);
+      const weekEnd = weekStart.endOf('week');
+      
+      return {
+        weekLabel: `Week ${weekStart.toFormat('MMM dd')}`,
+        weekStart: weekStart.toFormat('MMM dd'),
+        weekEnd: weekEnd.toFormat('MMM dd'),
+        totalPoints: points.reduce((sum, p) => sum + p.points, 0),
+        avgActivities: points.reduce((sum, p) => sum + p.activitiesCount, 0) / points.length,
+        daysCount: points.length
+      };
+    });
+  };
 
   const [noPlanError, setNoPlanError] = useState('');
   const [expandedSections, setExpandedSections] = useState({
@@ -84,24 +105,30 @@ export default function HomePage() {
     if (!accessToken || !user) {
       router.push('/login');
       return;
-    }
+    } 
 
     const fetchData = async () => {
       try {
         const today = new Date();
+        console.log(today);
+        const localDateString = DateTime.local().toFormat('yyyy-MM-dd');
+        console.log(localDateString);
+        
         const [planRes, summaryRes, dailyRes, monthlyRes,userInfo] = await Promise.all([
           weeklyPlanAPI.getCurrent(),
-          dailyLogAPI.getSummary('weekly', today.toISOString().split('T')[0]),
-          dailyLogAPI.getSummary('daily', today.toISOString().split('T')[0]).catch(() => null),
-          dailyLogAPI.getSummary("monthly", today.toISOString().split('T')[0]),
+          dailyLogAPI.getSummary('weekly', localDateString),
+          dailyLogAPI.getSummary('daily', localDateString).catch(() => null),
+          dailyLogAPI.getSummary("monthly", localDateString),
           authAPI.userInfo(),
 
         ]);
-        setMonthlyData((monthlyRes.data.data as MonthlySummary).dailyBreakdown.map(item => ({
+        const monthlyDataPoints = (monthlyRes.data.data as MonthlySummary).dailyBreakdown.map(item => ({
           date: item.date,
           points: item.points,
           activitiesCount: item.activityCount,
-        }) as MonthlyDataPoint));
+        }) as MonthlyDataPoint);
+        setMonthlyData(monthlyDataPoints);
+        setWeeklyData(groupDataByWeeks(monthlyDataPoints));
         setMonthlyLogData((monthlyRes.data.data as MonthlySummary).totalDaysLogged);
         setWeeklyPlan(planRes.data.data);
         setSummary(summaryRes.data.data as WeeklySummary);
@@ -138,7 +165,7 @@ export default function HomePage() {
       }
     };
     fetchData();
-  }, [accessToken, user, router, isHydrated]);
+  }, [accessToken, user, router, isHydrated,selectedProfile]);
 
   useEffect(() => {
     if (!accessToken || !logDateFilter) return;
@@ -154,7 +181,7 @@ export default function HomePage() {
     };
 
     fetchDayLog();
-  }, [logDateFilter, accessToken]);
+  }, [logDateFilter, accessToken, selectedProfile]);
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -167,13 +194,10 @@ export default function HomePage() {
 
   const stats = {
     points: summary?.totalPoints || 0,
-    rank: 3, // This would come from leaderboard API
-    streak: 16, // This would come from user data
-    efficiency: 88, // This would be calculated
   };
 
   return (
-    <MainLayout>
+    <MainLayout >
       {/* Welcome Banner for New Users */}
       {showWelcomeBanner && (
         <WelcomeBanner
@@ -182,7 +206,7 @@ export default function HomePage() {
         />
       )}
 
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-4 ">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -190,9 +214,12 @@ export default function HomePage() {
               {user?.name?.charAt(0) || 'U'}
             </div>
             <div>
-              <p className="text-sm text-gray-600">
-                Hello, <span className="font-semibold text-gray-900">{user?.name}</span>
-              </p>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-sm text-gray-600">
+                  Hello, 
+                </p>
+                <ProfileBadge />
+              </div>
               <div className="flex items-center gap-2 text-xs">
                 <span className="text-gray-600">{new Date().toDateString()}</span>
                 <span className="flex items-center gap-1 text-green-600">
@@ -202,73 +229,30 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="Logout"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Hide ProfileSwitcher and Logout on mobile (< 520px) */}
+            <div className="hidden min-[520px]:flex items-center gap-2">
+              <ProfileSwitcher />
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Logout"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Logout</span>
+              </button>
+            </div>
+            <button
+              onClick={() => router.push('/settings')}
+              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Settings"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Profile Completion Banner */}
-        {userData && (() => {
-          // Calculate profile completion percentage
-          const profileFields = [
-            userData.profile?.profession,
-            userData.profile?.challenges,
-            userData.profile?.goals,
-            userData.profile?.likes,
-            userData.profile?.personalCare,
-            userData.profile?.dislikes,
-            userData.profile?.medicalConditions,
-            userData.profile?.health,
-            userData.profile?.family,
-            userData.profile?.schedule,
-          ];
-          const completedFields = profileFields.filter(field => field !== null && field !== undefined && field !== '').length;
-          const completionPercentage = Math.round((completedFields / profileFields.length) * 100);
-          
-          return completionPercentage < 100 ? (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                    <span className="text-yellow-600 text-xl">⚠️</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-yellow-900 mb-1">
-                      Profile {completionPercentage}% Complete
-                    </p>
-                    <p className="text-xs text-yellow-700">
-                      Complete your profile to get personalized recommendations
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => router.push('/profile-setup')}
-                  className="px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-lg hover:bg-yellow-700 transition-colors whitespace-nowrap ml-3"
-                >
-                  Complete Profile
-                </button>
-              </div>
-              
-              {/* Progress Bar */}
-              <div className="space-y-1">
-                <div className="h-2 bg-yellow-200 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-yellow-600 rounded-full transition-all duration-300"
-                    style={{ width: `${completionPercentage}%` }}
-                  ></div>
-                </div>
-                <p className="text-xs text-yellow-700">
-                  {completedFields} of {profileFields.length} fields completed
-                </p>
-              </div>
-            </div>
-          ) : null;
-        })()}
+
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
@@ -308,42 +292,6 @@ export default function HomePage() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Streak Card
-          <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-cyan-700">Streak</span>
-                <Flame className="w-4 h-4 text-cyan-600" />
-              </div>
-              <div className="text-3xl font-bold text-cyan-900 mb-1">{stats.streak}</div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-cyan-700">Best: 28</span>
-                <span className="text-cyan-600 font-medium">+12</span>
-              </div>
-              <div className="mt-2 h-1.5 bg-cyan-200 rounded-full overflow-hidden">
-                <div className="h-full bg-cyan-600 rounded-full" style={{ width: '57%' }}></div>
-              </div>
-            </CardContent>
-          </Card> */}
-
-          {/* Efficiency Card
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-700">Efficiency</span>
-                <Activity className="w-4 h-4 text-blue-600" />
-              </div>
-              <div className="text-3xl font-bold text-blue-900 mb-1">{stats.efficiency}</div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-blue-700">Daily Avg</span>
-                <span className="text-blue-600 font-medium">Excellent</span>
-              </div>
-              <div className="mt-2 h-1.5 bg-blue-200 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-600 rounded-full" style={{ width: '88%' }}></div>
-              </div>
-            </CardContent>
-          </Card> */}
         </div>
 
         {/* Monthly Points Chart */}
@@ -361,36 +309,32 @@ export default function HomePage() {
                   <p className="text-xs text-yellow-700">Create a weekly plan to see pending activities.</p>
                 </div>
               ) : weeklyPlan ? (
-                weeklyPlan.activities.filter(activity => {
-                  if (activity.cadence === 'daily') {
-                    return activity.targetValue*7 - (activity.achievedUnits || 0) > 0;
-                  } else if (activity.cadence === 'weekly') {
-                    return activity.targetValue - (activity.achievedUnits || 0) > 0;
-                  }
-                  return false;
-                }).length > 0 ? (
-                  weeklyPlan.activities
-                    .filter(activity => {
-                      if (activity.cadence === 'daily') {
-                        return activity.targetValue*7 - (activity.achievedUnits || 0) > 0;
-                      } else if (activity.cadence === 'weekly') {
-                        return activity.targetValue - (activity.achievedUnits || 0) > 0;
-                      }
-                      return false;
-                    })
-                    .map((activity, index) => {
+                <>
+                  {weeklyPlan.activities.filter(activity => {
+                    if (activity.cadence === 'daily') {
+                      return true;
+                    } else if (activity.cadence === 'weekly') {
+                      return activity.targetValue - (activity.achievedUnits || 0) > 0;
+                    }
+                    return false;
+                  }).length > 0 ? (
+                    weeklyPlan.activities
+                      .filter(activity => {
+                        if (activity.cadence === 'daily') {
+                          return true;
+                        } else if (activity.cadence === 'weekly') {
+                          return activity.targetValue - (activity.achievedUnits || 0) > 0;
+                        }
+                        return false;
+                      })
+                      .map((activity, index) => {
                       const activityData = typeof activity === 'object' ? activity : null;
-                      const remaining = activity.cadence === 'daily' ? activity.targetValue*7 - (activity.achievedUnits || 0) : activity.targetValue - (activity.achievedUnits || 0);
-                      const progressPercentage = Math.min(
-                        Math.round(((activity.achievedUnits || 0) / (activity.cadence=="daily" ? activity.targetValue*7 : activity.targetValue)) * 100),
-                        100
-                      );
-
                       // Calculate remaining weeks
                       const weekEnd = new Date(weeklyPlan.weekEnd);
                       const today = new Date();
                       const remainingDays = Math.max(0, Math.ceil((weekEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
                       const remainingWeeks = (remainingDays / 7).toFixed(1);
+                      const remaining = activity.cadence === 'daily' ? activity.targetValue*remainingDays - ((activity.TodayLogged) ? (activity.targetValue):( 0)) :activity.targetValue - (activity.achievedUnits || 0);
 
                       return (
                         <div key={index} className="bg-orange-50 border border-orange-200 rounded-lg p-4">
@@ -409,12 +353,12 @@ export default function HomePage() {
                                 { remaining} {activityData?.unit} left
                               </p>
                               <p className="text-xs text-gray-500">
-                                {remainingWeeks} week{parseFloat(remainingWeeks) !== 1 ? 's' : ''} remaining
+                                {remainingDays-(activity.TodayLogged?1 :0)} Day{parseFloat(remainingWeeks) !== 1 ? 's' : ''} remaining
                               </p>
                             </div>
                           </div>
 
-                          <div className="space-y-2">
+                          {/* <div className="space-y-2">
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-gray-600">Progress</span>
                               <span className="font-medium text-gray-900">
@@ -427,7 +371,7 @@ export default function HomePage() {
                                 style={{ width: `${progressPercentage}%` }}
                               ></div>
                             </div>
-                          </div>
+                          </div> */}
 
                           {activity.cadence === 'daily' && activity.dailyTargets && (
                             <div className="mt-3 pt-3 border-t border-orange-200">
@@ -440,21 +384,72 @@ export default function HomePage() {
                             </div>
                           )}
 
-                          {activity.pendingUnits !== undefined && activity.pendingUnits > 0 && (
+                          {/* {activity.pendingUnits !== undefined && activity.pendingUnits > 0 && (
                             <div className="mt-2 flex items-center gap-1 text-xs text-orange-700">
                               <span className="font-medium">⚠️ {activity.pendingUnits} {activityData?.unit} pending</span>
                             </div>
-                          )}
+                          )} */}
                         </div>
                       );
                     })
-                ) : (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                    <div className="text-3xl mb-2">🎉</div>
-                    <h3 className="font-semibold text-green-900 text-sm mb-1">All Caught Up!</h3>
-                    <p className="text-xs text-green-700">You&apos;ve completed all your activities for this week.</p>
-                  </div>
-                )
+                  ) : (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                      <div className="text-3xl mb-2">🎉</div>
+                      <h3 className="font-semibold text-green-900 text-sm mb-1">All Caught Up!</h3>
+                      <p className="text-xs text-green-700">You&apos;ve completed all your activities for this week.</p>
+                    </div>
+                  )}
+                  
+                  {/* Completed Activities Section */}
+                  {weeklyPlan.activities.filter(activity => {
+                    return activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) <= 0;
+                  }).length > 0 && (
+                    <div className="mt-6">
+                      <h2 className="text-lg font-semibold text-gray-900 mb-3">Completed Activities</h2>
+                      {weeklyPlan.activities
+                        .filter(activity => {
+                          return activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) <= 0;
+                        })
+                        .map((activity, index) => {
+                          const activityData = typeof activity === 'object' ? activity : null;
+                          
+                          return (
+                            <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4 mb-3">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-2xl">✅</span>
+                                  <div>
+                                    <p className="font-medium text-sm text-gray-900">{activityData?.label || 'Activity'}</p>
+                                    <p className="text-xs text-gray-600">
+                                      Weekly • {activityData?.unit}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm font-semibold text-green-600">
+                                    Completed!
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {activity.achievedUnits || 0} / {activity.targetValue} {activityData?.unit}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <div className="h-2 bg-green-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-300"
+                                    style={{ width: '100%' }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      }
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="text-sm text-gray-500 text-center py-4">Loading pending activities...</p>
               )}
@@ -519,82 +514,112 @@ export default function HomePage() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="font-semibold text-gray-900">Monthly Points</h3>
-                    <p className="text-xs text-gray-600">Last 30 days performance</p>
+                    <h3 className="font-semibold text-gray-900">{viewMode === 'week' ? 'Weekly Distribution' : 'Daily Performance'}</h3>
+                    <p className="text-xs text-gray-600">{viewMode === 'week' ? 'Recent weeks (Mon-Sun)' : 'Last 30 days'}</p>
                   </div>
-                  <div className="text-right">
-                    <div className="text-lg font-bold text-indigo-600">
-                      {monthlyData.reduce((sum, d) => sum + d.points, 0).toFixed(2)}
+                  <div className="flex items-center gap-3">
+                    {/* View Toggle */}
+                    <div className="flex bg-gray-100 rounded-lg p-1">
+                      <button
+                        onClick={() => setViewMode('day')}
+                        className={`px-3 py-1 text-xs font-medium rounded transition-all ${
+                          viewMode === 'day'
+                            ? 'bg-white text-indigo-600 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Day
+                      </button>
+                      <button
+                        onClick={() => setViewMode('week')}
+                        className={`px-3 py-1 text-xs font-medium rounded transition-all ${
+                          viewMode === 'week'
+                            ? 'bg-white text-indigo-600 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Week
+                      </button>
                     </div>
-                    <div className="text-xs text-gray-600">Total Points</div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-indigo-600">
+                        {viewMode === 'week' 
+                          ? weeklyData.reduce((sum, w) => sum + w.totalPoints, 0).toFixed(1)
+                          : monthlyData.reduce((sum, d) => sum + d.points, 0).toFixed(1)
+                        }
+                      </div>
+                      <div className="text-xs text-gray-600">Total Points</div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Chart */}
-                <div className="relative h-40 flex items-end gap-0.5 pb-6">
-                  {monthlyData.map((dataPoint, index) => {
-                    const maxPoints = Math.max(...monthlyData.map(d => d.points));
-                    const heightPercentage = (dataPoint.points / maxPoints) * 100;
-                    const isToday = index === monthlyData.length - 1;
-                    const isWeekend = new Date(dataPoint.date).getDay() % 6 === 0;
+                {/* Chart - Conditional Day/Week View */}
+                {viewMode === 'week' ? (
+                  /* Weekly View */
+                <div className="relative h-48 flex items-end gap-2 pb-10">
+                  {weeklyData.map((week, index) => {
+                    const maxPoints = Math.max(...weeklyData.map(w => w.totalPoints));
+                    const heightPercentage = (week.totalPoints / maxPoints) * 100;
+                    const isCurrentWeek = index === weeklyData.length - 1;
 
                     // Calculate activity trend line position
-                    const maxActivities = Math.max(...monthlyData.map(d => d.activitiesCount));
-                    const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
+                    const maxActivities = Math.max(...weeklyData.map(w => w.avgActivities));
+                    const activityHeightPercentage = (week.avgActivities / maxActivities) * 100;
 
                     return (
                       <div key={index} className="flex-1 flex flex-col items-center justify-end relative" style={{ height: '100%' }}>
-                        {/* Activity count circle - positioned independently */}
+                        {/* Activity avg circle - positioned independently */}
                         <div
                           className="absolute left-1/2 transform -translate-x-1/2 z-10"
                           style={{ bottom: `${activityHeightPercentage}%` }}
                         >
-                          <div className="w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
+                          <div className="w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-md"></div>
                         </div>
 
                         {/* Bar */}
                         <div className="w-full relative group flex items-end" style={{ height: '100%' }}>
                           <div
-                            className={`w-full rounded-t-sm transition-all duration-300 ${isToday
-                              ? 'bg-indigo-500 opacity-90'
-                              : isWeekend
-                                ? 'bg-indigo-400 opacity-80'
-                                : 'bg-indigo-400 opacity-70'
-                              } hover:opacity-100 cursor-pointer`}
-                            style={{ height: `${Math.max(heightPercentage, 5)}%` }}
+                            className={`w-full rounded-t-lg transition-all duration-300 ${
+                              isCurrentWeek
+                                ? 'bg-gradient-to-t from-indigo-600 to-indigo-500 opacity-95 shadow-lg'
+                                : 'bg-gradient-to-t from-indigo-500 to-indigo-400 opacity-75'
+                            } hover:opacity-100 cursor-pointer hover:shadow-xl`}
+                            style={{ height: `${Math.max(heightPercentage, 8)}%` }}
                           >
                             {/* Tooltip */}
-                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap z-20">
-                              <div className="font-semibold">{dataPoint.points} pts</div>
-                              <div className="text-gray-300">
-                                {dataPoint.activitiesCount} activities
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs py-2 px-3 rounded-lg whitespace-nowrap z-20 shadow-xl">
+                              <div className="font-bold text-sm mb-1">{week.totalPoints.toFixed(1)} pts</div>
+                              <div className="text-gray-300 text-xs">
+                                {week.weekStart} - {week.weekEnd}
                               </div>
-                              <div className="text-gray-300">
-                                {new Date(dataPoint.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              <div className="text-gray-300 text-xs mt-1">
+                                Avg: {week.avgActivities.toFixed(1)} activities/day
+                              </div>
+                              <div className="text-gray-300 text-xs">
+                                {week.daysCount} days logs
                               </div>
                               <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
                             </div>
                           </div>
                         </div>
 
-                        {/* Day labels - show every 5th day */}
-                        {index % 5 === 0 && (
-                          <div className="text-xs text-gray-500 absolute" style={{ bottom: 0 }}>
-                            {dataPoint.day}
-                          </div>
-                        )}
+                        {/* Week labels */}
+                        <div className="text-[10px] text-gray-600 absolute font-medium text-center" style={{ bottom: '-28px', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
+                          <div>{week.weekStart.split(' ')[0]}</div>
+                          <div className="text-[9px] text-gray-500">{week.weekStart.split(' ')[1]}</div>
+                        </div>
                       </div>
                     );
                   })}
 
                   {/* Line connecting activity circles */}
-                  <svg className="absolute inset-0 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ height: 'calc(100% - 24px)', width: '100%' }}>
+                  <svg className="absolute inset-0 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ height: 'calc(100% - 40px)', width: '100%' }}>
                     {/* Line */}
                     <polyline
-                      points={monthlyData.map((dataPoint, index) => {
-                        const maxActivities = Math.max(...monthlyData.map(d => d.activitiesCount));
-                        const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
-                        const totalBars = monthlyData.length;
+                      points={weeklyData.map((week, index) => {
+                        const maxActivities = Math.max(...weeklyData.map(w => w.avgActivities));
+                        const activityHeightPercentage = (week.avgActivities / maxActivities) * 100;
+                        const totalBars = weeklyData.length;
                         const barWidth = 100 / totalBars;
                         const x = (index * barWidth) + (barWidth / 2);
                         const y = 100 - activityHeightPercentage;
@@ -602,50 +627,180 @@ export default function HomePage() {
                       }).join(' ')}
                       fill="none"
                       stroke="#ef4444"
-                      strokeWidth="0.8"
+                      strokeWidth="1"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       vectorEffect="non-scaling-stroke"
                     />
                   </svg>
                 </div>
+                ) : (
+                  /* Daily View */
+                  <div className="relative h-48 flex items-end gap-0.5 pb-8">
+                    {monthlyData.map((dataPoint, index) => {
+                      const maxPoints = Math.max(...monthlyData.map(d => d.points));
+                      const heightPercentage = (dataPoint.points / maxPoints) * 100;
+                      const isToday = index === monthlyData.length - 1;
+                      const isWeekend = new Date(dataPoint.date).getDay() % 6 === 0;
+
+                      // Calculate activity trend line position
+                      const maxActivities = Math.max(...monthlyData.map(d => d.activitiesCount));
+                      const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
+
+                      return (
+                        <div key={index} className="flex-1 flex flex-col items-center justify-end relative" style={{ height: '100%' }}>
+                          {/* Activity count circle - positioned independently */}
+                          <div
+                            className="absolute left-1/2 transform -translate-x-1/2 z-10"
+                            style={{ bottom: `${activityHeightPercentage}%` }}
+                          >
+                            <div className="w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
+                          </div>
+
+                          {/* Bar */}
+                          <div className="w-full relative group flex items-end" style={{ height: '100%' }}>
+                            <div
+                              className={`w-full rounded-t-sm transition-all duration-300 ${
+                                isToday
+                                  ? 'bg-indigo-500 opacity-90'
+                                  : isWeekend
+                                    ? 'bg-indigo-400 opacity-80'
+                                    : 'bg-indigo-400 opacity-70'
+                              } hover:opacity-100 cursor-pointer`}
+                              style={{ height: `${Math.max(heightPercentage, 5)}%` }}
+                            >
+                              {/* Tooltip */}
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap z-20">
+                                <div className="font-semibold">{dataPoint.points.toFixed(1)} pts</div>
+                                <div className="text-gray-300">
+                                  {dataPoint.activitiesCount} activities
+                                </div>
+                                <div className="text-gray-300">
+                                  {new Date(dataPoint.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </div>
+                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Day labels - show every 5th day */}
+                          {index % 5 === 0 && (
+                            <div className="text-[10px] text-gray-600 absolute font-medium" style={{ bottom: '-22px' }}>
+                              {dataPoint.day}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Line connecting activity circles */}
+                    <svg className="absolute inset-0 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ height: 'calc(100% - 32px)', width: '100%' }}>
+                      {/* Line */}
+                      <polyline
+                        points={monthlyData.map((dataPoint, index) => {
+                          const maxActivities = Math.max(...monthlyData.map(d => d.activitiesCount));
+                          const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
+                          const totalBars = monthlyData.length;
+                          const barWidth = 100 / totalBars;
+                          const x = (index * barWidth) + (barWidth / 2);
+                          const y = 100 - activityHeightPercentage;
+                          return `${x},${y}`;
+                        }).join(' ')}
+                        fill="none"
+                        stroke="#ef4444"
+                        strokeWidth="0.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </svg>
+                  </div>
+                )}
 
                 {/* Legend */}
                 <div className="flex items-center justify-center gap-4 mt-3 text-xs flex-wrap">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-indigo-400 opacity-70 rounded"></div>
-                    <span className="text-gray-600">Points (bars)</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex items-center gap-1">
-                      <div className="w-2.5 h-0.5 bg-red-500"></div>
-                      <div className="w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></div>
-                      <div className="w-2.5 h-0.5 bg-red-500"></div>
-                    </div>
-                    <span className="text-gray-600">Activities (line)</span>
-                  </div>
+                  {viewMode === 'week' ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 bg-indigo-500 opacity-75 rounded"></div>
+                        <span className="text-gray-600">Weekly Points</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2.5 h-0.5 bg-red-500"></div>
+                          <div className="w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></div>
+                          <div className="w-2.5 h-0.5 bg-red-500"></div>
+                        </div>
+                        <span className="text-gray-600">Avg Activities/Day</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-2 bg-gray-300 rounded-sm"></div>
+                        <span className="text-gray-600">Mon-Sun</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 bg-indigo-400 opacity-70 rounded"></div>
+                        <span className="text-gray-600">Daily Points</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2.5 h-0.5 bg-red-500"></div>
+                          <div className="w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></div>
+                          <div className="w-2.5 h-0.5 bg-red-500"></div>
+                        </div>
+                        <span className="text-gray-600">Activities Count</span>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t">
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-gray-900">
-                      {(monthlyData.reduce((sum, d) => sum + d.points, 0) / monthlyData.length).toFixed(2)}
-                    </div>
-                    <div className="text-xs text-gray-600">Daily Avg</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-green-600">
-                      {Math.max(...monthlyData.map(d => d.points)).toFixed(2)}
-                    </div>
-                    <div className="text-xs text-gray-600">Best Day</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-blue-600">
-                      {Math.max(...monthlyData.map(d => d.activitiesCount))}
-                    </div>
-                    <div className="text-xs text-gray-600">Max Activities</div>
-                  </div>
+                  {viewMode === 'week' ? (
+                    <>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-gray-900">
+                          {weeklyData.length > 0 ? (weeklyData.reduce((sum, w) => sum + w.totalPoints, 0) / weeklyData.length).toFixed(1) : 0}
+                        </div>
+                        <div className="text-xs text-gray-600">Weekly Avg</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-green-600">
+                          {weeklyData.length > 0 ? Math.max(...weeklyData.map(w => w.totalPoints)).toFixed(1) : 0}
+                        </div>
+                        <div className="text-xs text-gray-600">Best Week</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-blue-600">
+                          {weeklyData.length}
+                        </div>
+                        <div className="text-xs text-gray-600">Total Weeks</div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-gray-900">
+                          {monthlyData.length > 0 ? (monthlyData.reduce((sum, d) => sum + d.points, 0) / monthlyData.length).toFixed(1) : 0}
+                        </div>
+                        <div className="text-xs text-gray-600">Daily Avg</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-green-600">
+                          {monthlyData.length > 0 ? Math.max(...monthlyData.map(d => d.points)).toFixed(1) : 0}
+                        </div>
+                        <div className="text-xs text-gray-600">Best Day</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-blue-600">
+                          {monthlyData.length > 0 ? Math.max(...monthlyData.map(d => d.activitiesCount)) : 0}
+                        </div>
+                        <div className="text-xs text-gray-600">Max Activities</div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </CardContent>
 
@@ -769,11 +924,11 @@ export default function HomePage() {
                     type="date"
                     value={logDateFilter}
                     onChange={(e) => setLogDateFilter(e.target.value)}
-                    max={new Date().toISOString().split('T')[0]}
+                    max={DateTime.local().toFormat('yyyy-MM-dd')}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <button
-                    onClick={() => setLogDateFilter(new Date().toISOString().split('T')[0])}
+                    onClick={() => setLogDateFilter(DateTime.local().toFormat('yyyy-MM-dd'))}
                     className="px-3 py-2 text-xs font-medium text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                   >
                     Today
@@ -833,7 +988,7 @@ export default function HomePage() {
                               <div>
                                 <p className="font-medium text-sm text-gray-900">{activity.activity}</p>
                                 <p className="text-xs text-gray-600">
-                                  {activity.achieved} / {activity.target} {activity.unit}
+                                  {activity.cadance === 'daily' ? `${activity.achieved} / ${activity.target} • ${activity.unit} ` : activity.unit==='days' ? (activity.achieved ? `Completed for ${logDateFilter} ` : `Not Completed for ${logDateFilter}`) : ((activity.achieved>0&&activity.pointsEarned==0)?`${activity.achieved} ${activity.unit} /No Left  `:`${activity.achieved} / ${activity.target} • ${activity.unit} `)}  {activity.cadance === 'daily' ? '(Daily)' : `(Weekly)`}
                                 </p>
                               </div>
                             </div>
@@ -842,16 +997,16 @@ export default function HomePage() {
                                 +{activity.pointsEarned.toFixed(2)} pts
                               </p>
                               <p className="text-xs text-gray-500">
-                                {activity.status}
+                               {activity.cadance==='weekly'&& (activity.achieved>0&&activity.pointsEarned==0)? "Already":""} {activity.status}
                               </p>
                             </div>
                           </div>
-                          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          {activity.cadance=="weekly"&&(activity.achieved>0&&activity.pointsEarned==0) ?(<></>):(<div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-green-500 rounded-full transition-all"
                               style={{ width: `${Math.min(activity.achieved / activity.target * 100, 100)}%` }}
                             ></div>
-                          </div>
+                          </div>)}
                         </div>
                       ))}
                     </div>
@@ -864,21 +1019,6 @@ export default function HomePage() {
               </CardContent>
             )}
           </Card>
-
-          {/* Smart Recommendations */}
-          {/* <Card>
-            <button
-              onClick={() => toggleSection('recommendations')}
-              className="w-full p-4 flex items-center justify-between"
-            >
-              <span className="font-semibold text-gray-900">Smart Recommendations</span>
-              {expandedSections.recommendations ? (
-                <ChevronUp className="w-5 h-5 text-gray-500" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-gray-500" />
-              )}
-            </button>
-          </Card> */}
         </div>
       </div>
     </MainLayout>

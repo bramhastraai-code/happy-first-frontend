@@ -18,6 +18,7 @@ export interface DailySummary {
     achieved: number;
     activity: string;
     pointsAllocated: number;
+    cadance: "daily" | "weekly";
     target: number;
     pointsEarned: number;
     unit: string;

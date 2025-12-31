@@ -4,40 +4,32 @@ import { useState, useEffect, use } from 'react';
 import { leaderboardAPI, LeaderboardEntry } from '@/lib/api/leaderboard';
 import { activityAPI, Activity } from '@/lib/api/activity';
 import { authAPI } from '@/lib/api/auth';
+import { useAuthStore } from '@/lib/store/authStore';
 
 type LeaderboardType = 'daily' | 'weekly';
 
 export default function LeaderboardPage() {
-  const [activeTab, setActiveTab] = useState<LeaderboardType>('daily');
+  const { selectedProfile } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<LeaderboardType>('weekly');
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [selectedActivity, setSelectedActivity] = useState<string>(activities.length > 0 ? activities[0]._id : '');
+  const [selectedActivity, setSelectedActivity] = useState<string>( '');
   const [userId, setUserId] = useState<string>('');
   const [userRank, setUserRank] = useState<LeaderboardEntry|null>(null);
+  
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const response = await authAPI.userInfo();  
-        setUserId(response.data.data._id);
 
-      } catch (err) {
-        console.error('Error fetching user:', err);
-      }
-    };
-    fetchUser();
-  }, []);
+    
   useEffect(() => {
     
     fetchActivity();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+
   useEffect(() => {
-    if (selectedActivity === '') {
-      return;
-    }
     fetchLeaderboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedActivity, activeTab]);
@@ -45,7 +37,7 @@ export default function LeaderboardPage() {
     const response = await activityAPI.getList();
     console.log(response);
     setActivities(response.data.data);
-    setSelectedActivity(response.data.data[0]._id);
+    setSelectedActivity("");
   }
 
   const fetchLeaderboard = async () => {
@@ -64,7 +56,7 @@ export default function LeaderboardPage() {
       if (response.data?.data) {
         setLeaderboardData(response.data.data);
         if(response.data.data){
-          const rank = response.data.data.find(entry => entry.user._id === userId) || null;
+          const rank = response.data.data.find(entry => entry.user._id === selectedProfile?._id) || null;
           setUserRank(rank);
         }
       }
@@ -125,41 +117,19 @@ export default function LeaderboardPage() {
         {/* Leaderboard List */}
         {!loading && !error && (
           <div className="space-y-3">
-            {/* Daily/Weekly Toggle */}
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => setActiveTab('daily')}
-                className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${activeTab === 'daily'
-                    ? 'bg-linear-to-r from-purple-500 to-pink-500 text-white shadow-lg'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-              >
-                Daily
-              </button>
-              <button
-                onClick={() => setActiveTab('weekly')}
-                className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${activeTab === 'weekly'
-                    ? 'bg-linear-to-r from-purple-500 to-pink-500 text-white shadow-lg'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-              >
-                Weekly
-              </button>
-            </div>
-
             <select
               onChange={(e) => setSelectedActivity(e.target.value)}
               className="mb-4 p-2 border border-gray-300 rounded-lg"
               value={selectedActivity}
             >
-              {activities.map((activity, index) => {
+              {[(<option key={"key"} value="" >All Activities</option>), ...activities.map((activity, index) => {
                 if (index == 0)
                   return <option key={activity._id} value={activity._id} >{activity.name}</option>
                 else
                   return <option key={activity._id} value={activity._id}>{activity.name}</option>
               }
 
-              )}
+              )]}
             </select>
 
             {leaderboardData.map((entry, index) => (
@@ -236,8 +206,30 @@ export default function LeaderboardPage() {
                 <p className="text-2xl font-bold">{leaderboardData.length}</p>
               </div>
             </div>
-            {userRank==null&&
-              <p className="mt-2 text-sm">You are not ranked yet. Start completing activities to get on the leaderboard!</p>}
+            {userRank==null?
+              (<p className="mt-2 text-sm">You are not ranked yet. Start completing activities to get on the leaderboard!</p>):
+              (<div className="mt-4 flex items-center  justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg ${userRank.rank <= 3 ? getRankColor(userRank.rank) : 'bg-gray-400'
+                    }`}>
+                    {userRank.rank <= 3 ? ( 
+                      <span className="text-2xl">{getRankIcon(userRank.rank)}</span>
+                    ) : (
+                      `#${userRank.rank}`
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-md font-semibold">{userRank.user.name}</h3>
+                  </div>
+                </div>  
+                <div className="text-right">
+                  <div className="text-2xl font-bold bg-linear-to-r from-yellow-400 to-red-500 bg-clip-text text-transparent">
+                    {userRank.value.toFixed(2)}
+                  </div>
+                  <p className="text-xs">{activities.find(activity => activity._id === selectedActivity)?.baseUnit}</p>
+                </div>
+              </div>)
+            }
           </div>
         )}
       </div>

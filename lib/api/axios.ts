@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { getCookie,useAuthStore } from '../store/authStore';
-const {logout} = useAuthStore.getState();
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
@@ -17,6 +16,11 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Get the selected profile from the store on each request
+    const { selectedProfile } = useAuthStore.getState();
+    if(selectedProfile){
+      config.params={...config.params,profile:selectedProfile._id};
+    }
     return config;
   },
   (error) => {
@@ -30,7 +34,14 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Don't handle 401 errors on login/register endpoints
+    const isAuthEndpoint = originalRequest.url?.includes('/userAuth/login') || 
+                          originalRequest.url?.includes('/userAuth/register') ||
+                          originalRequest.url?.includes('/userAuth/verify-otp') ||
+                          originalRequest.url?.includes('/userAuth/req-login-otp') ||
+                          originalRequest.url?.includes('/userAuth/login-otp-verify');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {
@@ -47,6 +58,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         // Refresh failed, redirect to login
+        const { logout } = useAuthStore.getState();
         logout();
         if (typeof window !== 'undefined') {
           window.location.href = '/login';

@@ -1,5 +1,10 @@
-import { date } from 'zod';
+import { DateTime } from 'luxon';
 import api from './axios';
+import { useAuthStore } from '@/lib/store/authStore';
+ const { profiles } = useAuthStore.getState();
+
+
+
 
 export interface WeeklyPlanActivity {
  activity: string;
@@ -43,16 +48,18 @@ export interface CreateWeeklyPlanData {
 }
 
 export const weeklyPlanAPI = {
+ 
   getOptions: () => api.get('/weeklyPlan/options'),
   
   create: (data: CreateWeeklyPlanData) => api.post('/weeklyPlan/create', data),
   
   getCurrent: () => api.get<{ success: boolean; message: string; data: WeeklyPlan }>(
-    '/weeklyPlan/current',{params:{date: new Date().toISOString().split('T')[0]}}
+    '/weeklyPlan/current',{params:{date: DateTime.local().toFormat('yyyy-MM-dd')}}
   ),
   Upcomming: () => api.get<{ success: boolean; message: string; data: WeeklyPlan }>(
     '/weeklyPlan/upcoming'
   ),
 
-  firstSetup: (activities:CreateWeeklyPlanData) => api.post('/weeklyPlan/firstTimeSetup', activities),
+  firstSetup: (activities:CreateWeeklyPlanData) => api.post('/weeklyPlan/firstTimeSetup', activities, {params: {profile: profiles?.[0]?._id}}),
+  repeatLastWeek: () => api.post('/weeklyPlan/repeatLastWeek', {}, {params: {profile: profiles?.[0]?._id}}),
 };

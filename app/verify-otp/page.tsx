@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 function VerifyOTPContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setUser, setAccessToken } = useAuthStore();
+  const { setUser, setAccessToken,setProfiles } = useAuthStore();
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -69,8 +69,9 @@ function VerifyOTPContent() {
         otp: otpCode,
       });
 
-      const { user, accessToken } = response.data.data;
+      const { user,profiles, accessToken } = response.data.data;
       setUser(user);
+      setProfiles(profiles);
       setAccessToken(accessToken);
 
       // Redirect to activity selection (mandatory step)
