@@ -64,6 +64,64 @@ export interface MonthlySummary {
   totalDaysLogged: number;
 }
 
+export interface MissedDay {
+  date: string;
+  reason: string;
+  pointsLost: number;
+  target: number;
+  achieved: number;
+  unit: string;
+}
+
+export interface PartialDay {
+  date: string;
+  reason: string;
+  pointsLost: number;
+  target: number;
+  achieved: number;
+  unit: string;
+}
+
+export interface DailyActivityLoss {
+  activity: string;
+  activityId: string;
+  cadence: 'daily';
+  potentialPoints: number;
+  earnedPoints: number;
+  pointsLost: number;
+  missedDays: MissedDay[];
+  partialDays: PartialDay[];
+  unit: string;
+}
+
+export interface WeeklyActivityLoss {
+  activity: string;
+  activityId: string;
+  cadence: 'weekly';
+  potentialPoints: number;
+  earnedPoints: number;
+  pointsLost: number;
+  target: number;
+  achieved: number;
+  unit: string;
+  reason: string;
+  daysLogged: number;
+}
+
+export interface PointLossesData {
+  weekStart: string;
+  weekEnd: string;
+  totalPotentialPoints: number;
+  totalPointsEarned: number;
+  totalPointsLost: number;
+  lossPercentage: string;
+  pointLossDetails: (DailyActivityLoss | WeeklyActivityLoss)[];
+  summary: {
+    activitiesWithLosses: number;
+    totalActivities: number;
+  };
+}
+
 export const dailyLogAPI = {
   submit: (data: SubmitDailyLogData) => api.post('/dailyLog/web', data),
   
@@ -74,5 +132,14 @@ export const dailyLogAPI = {
       message: string;
       data: DailySummary | WeeklySummary| MonthlySummary;
     }>('/dailyLog/summary', { params });
+  },
+
+  getPointLosses: (weekStart?: string) => {
+    const params = weekStart ? { weekStart } : {};
+    return api.get<{
+      success: boolean;
+      message: string;
+      data: PointLossesData;
+    }>('/dailyLog/point-losses', { params });
   },
 };

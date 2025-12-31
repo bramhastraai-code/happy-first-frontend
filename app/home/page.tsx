@@ -31,6 +31,7 @@ interface WeeklyDataPoint {
   weekLabel: string;
   weekStart: string;
   weekEnd: string;
+  weekStartISO: string;
   totalPoints: number;
   avgActivities: number;
   daysCount: number;
@@ -72,6 +73,7 @@ export default function HomePage() {
         weekLabel: `Week ${weekStart.toFormat('MMM dd')}`,
         weekStart: weekStart.toFormat('MMM dd'),
         weekEnd: weekEnd.toFormat('MMM dd'),
+        weekStartISO: weekKey,
         totalPoints: points.reduce((sum, p) => sum + p.points, 0),
         avgActivities: points.reduce((sum, p) => sum + p.activitiesCount, 0) / points.length,
         daysCount: points.length
@@ -579,6 +581,7 @@ export default function HomePage() {
                         {/* Bar */}
                         <div className="w-full relative group flex items-end" style={{ height: '100%' }}>
                           <div
+                            onClick={() => router.push(`/week-analysis?weekStart=${week.weekStartISO}`)}
                             className={`w-full rounded-t-lg transition-all duration-300 ${
                               isCurrentWeek
                                 ? 'bg-gradient-to-t from-indigo-600 to-indigo-500 opacity-95 shadow-lg'
@@ -597,6 +600,9 @@ export default function HomePage() {
                               </div>
                               <div className="text-gray-300 text-xs">
                                 {week.daysCount} days logs
+                              </div>
+                              <div className="text-xs text-blue-300 mt-1 border-t border-gray-700 pt-1">
+                                Click to see detailed analysis
                               </div>
                               <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
                             </div>
