@@ -9,7 +9,7 @@ export function ProfileSwitcher() {
   const router = useRouter();
   const { user, needsProfileSelection, setProfileSelectedInSession,profiles } = useAuthStore();
 
-  if (profiles?.length === 0) {
+  if (!profiles || profiles.length <= 1) {
     return null;
   }
 

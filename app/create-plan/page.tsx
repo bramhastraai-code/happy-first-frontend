@@ -9,7 +9,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Lock, Calendar, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Lock, Calendar, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from 'lucide-react';
 
 interface SelectedActivity {
   activityId: string;
@@ -37,6 +37,7 @@ export default function CreatePlanPage() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [currentDay, setCurrentDay] = useState('');
   const [tiers, setTiers] = useState<number>(1);
+  const [repeatLoading, setRepeatLoading] = useState(false);
 
   useEffect(() => {
     // Wait for hydration before checking auth
@@ -68,7 +69,7 @@ export default function CreatePlanPage() {
       setCurrentDay(dayNames[dayOfWeek]);
       
       // Unlock on Friday (5), Saturday (6), Sunday (0)
-      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0;
+      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 1;
       setIsUnlocked(unlocked);
 
       if (unlocked) {
@@ -81,8 +82,8 @@ export default function CreatePlanPage() {
 
   const fetchActivities = async () => {
     try {
-      const response = await activityAPI.getlistTiers();
-      setActivities(response.data.data.activities);
+      const response = await weeklyPlanAPI.getOptions();
+      setActivities(response.data.data);
       setTiers(response.data.data.tier);
     } catch (error) {
       console.error('Failed to fetch activities:', error);
@@ -129,6 +130,23 @@ export default function CreatePlanPage() {
   const handleBack = () => {
     setStep('select');
     setError('');
+  };
+
+  const handleRepeatLastWeek = async () => {
+    setRepeatLoading(true);
+    setError('');
+
+    try {
+      await weeklyPlanAPI.repeatLastWeek();
+      // Redirect to upcoming page after successfully repeating last week's plan
+      router.replace('/upcoming');
+    } catch (error: unknown) {
+      console.error('Failed to repeat last week:', error);
+      const errorMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(errorMessage || 'Failed to repeat last week\'s plan. You may not have a previous plan.');
+    } finally {
+      setRepeatLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -277,6 +295,39 @@ export default function CreatePlanPage() {
         {/* Step 1: Select Activities */}
         {step === 'select' && (
           <div className="space-y-4">
+            {/* Repeat Last Week Button */}
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <RefreshCw className="w-5 h-5 text-purple-600 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-purple-900 mb-1">
+                    Repeat Last Week
+                  </h3>
+                  <p className="text-xs text-purple-700 mb-3">
+                    Use the same activities and targets from your previous week
+                  </p>
+                  <Button
+                    onClick={handleRepeatLastWeek}
+                    disabled={repeatLoading}
+                    variant="outline"
+                    className="w-full sm:w-auto border-purple-300 text-purple-700 hover:bg-purple-100"
+                  >
+                    {repeatLoading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Repeat Last Week
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-sm text-blue-900">
                 <span className="font-semibold">Selected: {selectedActivities.length}</span> / Minimum: 4

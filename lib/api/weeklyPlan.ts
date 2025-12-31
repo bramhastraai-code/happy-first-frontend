@@ -61,4 +61,5 @@ export const weeklyPlanAPI = {
   ),
 
   firstSetup: (activities:CreateWeeklyPlanData) => api.post('/weeklyPlan/firstTimeSetup', activities, {params: {profile: profiles?.[0]?._id}}),
+  repeatLastWeek: () => api.post('/weeklyPlan/repeatLastWeek', {}, {params: {profile: profiles?.[0]?._id}}),
 };
