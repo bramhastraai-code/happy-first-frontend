@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import { dailyLogAPI, type PointLossesData, type DailyActivityLoss, type WeeklyActivityLoss } from '@/lib/api/dailyLog';
@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, TrendingDown, AlertCircle, Calendar, Target, Zap, BarChart3, Clock, XCircle, AlertTriangle } from 'lucide-react';
 import { DateTime } from 'luxon';
 
-export default function WeekAnalysisPage() {
+function WeekAnalysisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { accessToken, isHydrated, selectedProfile } = useAuthStore();
@@ -450,5 +450,22 @@ export default function WeekAnalysisPage() {
         )}
       </div>
     </MainLayout>
+  );
+}
+
+export default function WeekAnalysisPage() {
+  return (
+    <Suspense fallback={
+      <MainLayout>
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </MainLayout>
+    }>
+      <WeekAnalysisContent />
+    </Suspense>
   );
 }
