@@ -12,6 +12,9 @@ import { Input } from '@/components/ui/input';
 import { Activity, Calendar, ChevronRight, Lock, Timer } from 'lucide-react';
 import type { WeeklyPlan, WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
+import GuidedTour from '@/components/ui/GuidedTour';
+import { tasksTourSteps } from '@/lib/utils/tourSteps';
+import { HelpCircle } from 'lucide-react';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -26,6 +29,13 @@ export default function TasksPage() {
   const [timeUntilMidnight, setTimeUntilMidnight] = useState('');
   const [isAfter6PM, setIsAfter6PM] = useState(false);
   const [userData, setUserData] = useState(null);
+  const [runTour, setRunTour] = useState(false);
+  const [showTourButton, setShowTourButton] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => { 
      const fetchUser =async()=>{
@@ -238,11 +248,36 @@ export default function TasksPage() {
 
   const progress = getTodayProgress();
 
+  const handleStartTour = () => {
+    setRunTour(true);
+    setShowTourButton(false);
+  };
+
+  const handleTourFinish = () => {
+    setRunTour(false);
+    setShowTourButton(true);
+  };
+
   return (
     <MainLayout>
+      {/* Guided Tour - Only render on client */}
+      {isMounted && <GuidedTour run={runTour} onFinish={handleTourFinish} steps={tasksTourSteps} />}
+
+      {/* Tour Start Button - Only render on client */}
+      {isMounted && showTourButton && (
+        <button
+          onClick={handleStartTour}
+          className="fixed bottom-20 right-4 z-50 flex items-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg transition-all hover:scale-105"
+          title="Start Tour"
+        >
+          <HelpCircle className="w-5 h-5" />
+          <span className="font-medium">Start Tour</span>
+        </button>
+      )}
+
       <div className="p-4 space-y-4">
         {/* Header */}
-        <div className="text-center">
+        <div className="tasks-header text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Daily Tasks</h1>
           <p className="text-sm text-gray-600">
             {new Date().toLocaleDateString('en-US', { 
@@ -303,7 +338,7 @@ export default function TasksPage() {
         </Card>
 
         {/* Today's Tasks Form */}
-        <div className="space-y-2">
+        <div className="weekly-activities space-y-2">
           <h3 className="font-semibold text-gray-900">📋 Submit Daily Logs</h3>
           
           {noPlanError && (

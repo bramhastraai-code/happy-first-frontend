@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Lock, Calendar, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from 'lucide-react';
+import GuidedTour from '@/components/ui/GuidedTour';
+import { createPlanTourSteps } from '@/lib/utils/tourSteps';
+import { HelpCircle } from 'lucide-react';
 
 interface SelectedActivity {
   activityId: string;
@@ -38,6 +41,13 @@ export default function CreatePlanPage() {
   const [currentDay, setCurrentDay] = useState('');
   const [tiers, setTiers] = useState<number>(1);
   const [repeatLoading, setRepeatLoading] = useState(false);
+  const [runTour, setRunTour] = useState(false);
+  const [showTourButton, setShowTourButton] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     // Wait for hydration before checking auth
@@ -147,6 +157,16 @@ export default function CreatePlanPage() {
     } finally {
       setRepeatLoading(false);
     }
+  };
+
+  const handleStartTour = () => {
+    setRunTour(true);
+    setShowTourButton(false);
+  };
+
+  const handleTourFinish = () => {
+    setRunTour(false);
+    setShowTourButton(true);
   };
 
   const handleSubmit = async () => {
@@ -261,9 +281,24 @@ export default function CreatePlanPage() {
 
   return (
     <MainLayout>
+      {/* Guided Tour - Only render on client */}
+      {isMounted && <GuidedTour run={runTour} onFinish={handleTourFinish} steps={createPlanTourSteps} />}
+
+      {/* Tour Start Button - Only render on client */}
+      {isMounted && showTourButton && (
+        <button
+          onClick={handleStartTour}
+          className="fixed bottom-20 right-4 z-50 flex items-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg transition-all hover:scale-105"
+          title="Start Tour"
+        >
+          <HelpCircle className="w-5 h-5" />
+          <span className="font-medium">Start Tour</span>
+        </button>
+      )}
+
       <div className="p-4 max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
+        <div className="create-plan-header mb-6">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl font-bold text-gray-900">
               {step === 'select' ? 'Select Activities' : 'Configure Your Plan'}
