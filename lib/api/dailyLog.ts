@@ -10,6 +10,11 @@ export interface SubmitDailyLogData {
   activities: DailyLogActivity[];
 }
 
+export interface SubmitPreviousDailyLogData {
+  date: string;
+  activities: DailyLogActivity[];
+}
+
 export interface DailySummary {
   date: string;
 
@@ -124,6 +129,8 @@ export interface PointLossesData {
 
 export const dailyLogAPI = {
   submit: (data: SubmitDailyLogData) => api.post('/dailyLog/web', data),
+  
+  submitPrevious: (data: SubmitPreviousDailyLogData) => api.post('/dailyLog/previous', data),
   
   getSummary: (period: 'daily' | 'weekly'|'monthly', date?: string) => {
     const params = date ? { period, date } : { period };

@@ -9,7 +9,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Activity, Calendar, ChevronRight, Lock, Timer } from 'lucide-react';
+import { Activity, Calendar, ChevronRight, Lock, Timer, Clock } from 'lucide-react';
 import type { WeeklyPlan, WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import GuidedTour from '@/components/ui/GuidedTour';
@@ -336,6 +336,25 @@ export default function TasksPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Submit Previous Day Log Section */}
+        {<Card 
+          className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push('/previous-log')}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Clock className="w-6 h-6 text-orange-600" />
+                <div>
+                  <h3 className="font-semibold text-orange-900">Submit Yesterday&apos;s Log</h3>
+                  <p className="text-xs text-orange-700">Submit missed logs before 6:00 PM</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-orange-600" />
+            </div>
+          </CardContent>
+        </Card>}
 
         {/* Today's Tasks Form */}
         <div className="weekly-activities space-y-2">
