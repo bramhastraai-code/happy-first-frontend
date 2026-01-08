@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore, getCookie, setCookie } from '@/lib/store/authStore';
 import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
-import { dailyLogAPI, type DailySummary, type MonthlySummary } from '@/lib/api/dailyLog';
+import { dailyLogAPI, type DailySummary, type MonthlySummary, type StreakData } from '@/lib/api/dailyLog';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Zap, Trophy, Flame, Activity, ChevronDown, ChevronUp, LogOut } from 'lucide-react';
@@ -40,7 +40,25 @@ interface WeeklyDataPoint {
 }
 
 export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </MainLayout>
+    }>
+      <HomePageContent />
+    </Suspense>
+  );
+}
+
+function HomePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, accessToken, isHydrated, logout, selectedProfile } = useAuthStore();
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
@@ -50,6 +68,7 @@ export default function HomePage() {
   const [userData, setUser] = useState<typeof user | null>(null);
   const [weeklyData, setWeeklyData] = useState<WeeklyDataPoint[]>([]);
   const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
+  const [streakData, setStreakData] = useState<StreakData | null>(null);
 
   // Convert monthly data to weekly groups (Monday to Sunday)
   const groupDataByWeeks = (data: MonthlyDataPoint[]): WeeklyDataPoint[] => {
@@ -102,7 +121,22 @@ export default function HomePage() {
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    
+    // Check if there's a date query parameter from calendar navigation after mount
+    const dateParam = searchParams.get('date');
+    if (dateParam && isHydrated) {
+      setLogDateFilter(dateParam);
+      setExpandedSections(prev => ({ ...prev, logTracker: true }));
+      
+      // Scroll to log tracker after a short delay
+      setTimeout(() => {
+        const logTrackerElement = document.querySelector('.log-tracker');
+        if (logTrackerElement) {
+          logTrackerElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 500);
+    }
+  }, [searchParams, isHydrated]);
 
   const handleLogout = () => {
     logout();
@@ -170,6 +204,17 @@ export default function HomePage() {
           authAPI.userInfo(),
 
         ]);
+        
+        // Fetch streak data if selectedProfile is available
+        if (selectedProfile?._id) {
+          try {
+            const streakRes = await dailyLogAPI.getStreaks(selectedProfile._id);
+            setStreakData(streakRes.data.data);
+          } catch (error) {
+            console.error('Failed to fetch streak data:', error);
+          }
+        }
+        
         const monthlyDataPoints = (monthlyRes.data.data as MonthlySummary).dailyBreakdown.map(item => ({
           date: item.date,
           points: item.points,
@@ -320,23 +365,29 @@ export default function HomePage() {
 
         {/* Stats Grid */}
         <div className="stats-grid grid grid-cols-2 gap-3">
-          {/* Today's Score Card */}
-          <Card className="bg-gradient-to-br from-pink-50 to-pink-100 border-pink-200">
+          {/* Current Streak Card */}
+          <Card 
+            className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => router.push('/streak-calendar')}
+          >
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-pink-700">Today&apos;s Score</span>
-                <Zap className="w-4 h-4 text-pink-600" />
+                <span className="text-sm font-medium text-orange-700">Streak</span>
+                <Flame className="w-4 h-4 text-orange-600" />
               </div>
-              <div className="text-3xl font-bold text-pink-900 mb-1">{dailySummary?.totalPoints.toFixed(2) || 0}</div>
+              <div className="text-3xl font-bold text-orange-900 mb-1">
+                {streakData?.overallStreak.currentStreak || 0} <Flame className="w-4 h-4 text-orange-600" />
+              </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-pink-700">Points earned</span>
+                <span className="text-orange-700">
+                  {streakData?.overallStreak.currentStreak === 1 ? 'day' : 'days'} in a row
+                </span>
               </div>
-              {/* <div className="mt-2 h-1.5 bg-pink-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-pink-600 rounded-full"
-                  style={{ width: `${Math.min((dailySummary?.totalPoints || 0), 100)}%` }}
-                ></div>
-              </div> */}
+              <div className="mt-2 pt-2 border-t border-orange-200">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-orange-600">Best: {streakData?.overallStreak.longestStreak || 0} days 🏆</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -371,88 +422,97 @@ export default function HomePage() {
                 </div>
               ) : weeklyPlan ? (
                 <>
-                  {weeklyPlan.activities.filter(activity => {
-                    if (activity.cadence === 'daily') {
-                      return true;
-                    } else if (activity.cadence === 'weekly') {
-                      return activity.targetValue - (activity.achievedUnits || 0) > 0;
-                    }
-                    return false;
-                  }).length > 0 ? (
-                    weeklyPlan.activities
-                      .filter(activity => {
-                        if (activity.cadence === 'daily') {
-                          return true;
-                        } else if (activity.cadence === 'weekly') {
-                          return activity.targetValue - (activity.achievedUnits || 0) > 0;
-                        }
-                        return false;
-                      })
-                      .map((activity, index) => {
-                        const activityData = typeof activity === 'object' ? activity : null;
-                        // Calculate remaining weeks
-                        const weekEnd = new Date(weeklyPlan.weekEnd);
-                        const today = new Date();
-                        const remainingDays = Math.max(0, Math.ceil((weekEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-                        const remainingWeeks = (remainingDays / 7).toFixed(1);
-                        const remaining = activity.cadence === 'daily' ? activity.targetValue * remainingDays - ((activity.TodayLogged) ? (activity.targetValue) : (0)) : activity.targetValue - (activity.achievedUnits || 0);
+                  {/* Check if there are any pending activities */}
+                  {(weeklyPlan.activities.filter(activity => activity.cadence === 'daily').length > 0 ||
+                    weeklyPlan.activities.filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0).length > 0) ? (
+                    <>
+                      {/* Daily Activities Section */}
+                      {weeklyPlan.activities.filter(activity => activity.cadence === 'daily').length > 0 && (
+                        <div className="space-y-3">
+                          <h2 className="text-md font-semibold text-gray-800 flex items-center gap-2">
+                            <span className="text-blue-600">📅</span> Daily Activities
+                          </h2>
+                          {weeklyPlan.activities
+                            .filter(activity => activity.cadence === 'daily')
+                            .map((activity, index) => {
+                              const activityData = typeof activity === 'object' ? activity : null;
+                              const weekEnd = new Date(weeklyPlan.weekEnd);
+                              const today = new Date();
+                              const remainingDays = Math.max(0, Math.ceil((weekEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+                              const remaining = activity.targetValue * remainingDays - ((activity.TodayLogged) ? (activity.targetValue) : (0));
 
-                        return (
-                          <div key={index} className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-2xl">⏳</span>
-                                <div>
-                                  <p className="font-medium text-sm text-gray-900">{activityData?.label || 'Activity'}</p>
-                                  <p className="text-xs text-gray-600">
-                                    {activity.cadence === 'daily' ? 'Daily' : 'Weekly'} • {activityData?.unit}
-                                  </p>
+                              return (
+                                <div key={index} className={`${activity.TodayLogged ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'} rounded-lg p-4`}>
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-2xl">{activity.TodayLogged ? '✅' : '⏳'}</span>
+                                      <div>
+                                        <p className="font-medium text-sm text-gray-900">{activityData?.label || 'Activity'}</p>
+                                        <p className="text-xs text-gray-600">
+                                          Daily • {activityData?.unit}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      {activity.TodayLogged ? (
+                                        <p className="text-sm font-semibold text-green-600">
+                                          Done Today!
+                                        </p>
+                                      ) : (
+                                        <p className="text-sm font-semibold text-blue-600">
+                                          {activity.targetValue} {activityData?.unit}/day
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-sm font-semibold text-orange-600">
-                                  {remaining} {activityData?.unit} left
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {remainingDays - (activity.TodayLogged ? 1 : 0)} Day{parseFloat(remainingWeeks) !== 1 ? 's' : ''} remaining
-                                </p>
-                              </div>
-                            </div>
+                              );
+                            })}
+                        </div>
+                      )}
 
-                            {/* <div className="space-y-2">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-600">Progress</span>
-                              <span className="font-medium text-gray-900">
-                                {activity.achievedUnits || 0} / {activity.cadence === 'daily' ? activity.targetValue*7 : activity.targetValue} ({progressPercentage}%)
-                              </span>
-                            </div>
-                            <div className="h-2 bg-orange-100 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-300"
-                                style={{ width: `${progressPercentage}%` }}
-                              ></div>
-                            </div>
-                          </div> */}
+                      {/* Weekly Activities Section */}
+                      {weeklyPlan.activities.filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0).length > 0 && (
+                        <div className="space-y-3 mt-6">
+                          <h2 className="text-md font-semibold text-gray-800 flex items-center gap-2">
+                            <span className="text-orange-600">📊</span> Weekly Activities
+                          </h2>
+                          {weeklyPlan.activities
+                            .filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0)
+                            .map((activity, index) => {
+                              const activityData = typeof activity === 'object' ? activity : null;
+                              const weekEnd = new Date(weeklyPlan.weekEnd);
+                              const today = new Date();
+                              const remainingDays = Math.max(0, Math.ceil((weekEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+                              const remaining = activity.targetValue - (activity.achievedUnits || 0);
 
-                            {activity.cadence === 'daily' && activity.dailyTargets && (
-                              <div className="mt-3 pt-3 border-t border-orange-200">
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-600">Daily target</span>
-                                  <span className="font-medium text-orange-700">
-                                    {activity.dailyTargets * 7} {activityData?.unit}/day
-                                  </span>
+                              return (
+                                <div key={index} className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-2xl">⏳</span>
+                                      <div>
+                                        <p className="font-medium text-sm text-gray-900">{activityData?.label || 'Activity'}</p>
+                                        <p className="text-xs text-gray-600">
+                                          Weekly • {activityData?.unit}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-sm font-semibold text-orange-600">
+                                        {remaining} {activityData?.unit} left
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {remainingDays} Day{remainingDays !== 1 ? 's' : ''} remaining
+                                      </p>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-
-                            {/* {activity.pendingUnits !== undefined && activity.pendingUnits > 0 && (
-                            <div className="mt-2 flex items-center gap-1 text-xs text-orange-700">
-                              <span className="font-medium">⚠️ {activity.pendingUnits} {activityData?.unit} pending</span>
-                            </div>
-                          )} */}
-                          </div>
-                        );
-                      })
+                              );
+                            })}
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
                       <div className="text-3xl mb-2">🎉</div>

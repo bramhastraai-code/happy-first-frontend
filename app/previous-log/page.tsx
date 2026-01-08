@@ -65,7 +65,7 @@ export default function PreviousLogPage() {
                 // Check if selected date is yesterday
                 if (selected.getTime() === yesterday.getTime()) {
                     // Check if it's before 6 PM TODAY
-                    if (currentHour < 18) {
+                    if (currentHour < 22) {
                         setCanSubmit(true);
                         const minutesLeft = 60 - now.getMinutes();
                         const hoursLeft = 18 - currentHour - 1 + (minutesLeft === 60 ? 1 : 0);
@@ -285,7 +285,7 @@ export default function PreviousLogPage() {
                 </Card>
 
                 {/* Selected Date Display */}
-                <Card className="border-blue-500 bg-blue-50">
+                {!logAlreadyExists && canSubmit && (<Card className="border-blue-500 bg-blue-50">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <Calendar className="w-5 h-5 text-blue-600" />
@@ -312,10 +312,10 @@ export default function PreviousLogPage() {
                             </div>
                         </div>
                     </CardContent>
-                </Card>
+                </Card>)}
 
                 {/* Activities Form */}
-                {selectedDate && weeklyPlan && !logAlreadyExists && (
+                {selectedDate && weeklyPlan && !logAlreadyExists && canSubmit && (
                     <div className="space-y-4">
                         <h2 className="text-lg font-semibold text-gray-900">Log Your Activities</h2>
 
@@ -420,7 +420,7 @@ export default function PreviousLogPage() {
                 )}
 
                 {/* Submit Button */}
-                {selectedDate && weeklyPlan && !logAlreadyExists && (
+                {selectedDate && weeklyPlan && !logAlreadyExists && canSubmit && (
                     <Button
                         onClick={handleSubmit}
                         disabled={loading || !canSubmit || checkingLog}

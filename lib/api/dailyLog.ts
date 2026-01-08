@@ -127,6 +127,102 @@ export interface PointLossesData {
   };
 }
 
+export interface StreakData {
+  overallStreak: {
+    currentStreak: number;
+    longestStreak: number;
+    lastLoggedDate: string;
+    totalDaysLogged: number;
+  };
+  activityStreaks: Array<{
+    activityId: string;
+    activityName: string;
+    currentStreak: number;
+    longestStreak: number;
+    totalDaysLogged: number;
+  }>;
+}
+
+export interface CalendarDay {
+  date: string;
+  day: number;
+  dayOfWeek: string;
+  dayOfWeekShort: string;
+  hasLog: boolean;
+  isToday: boolean;
+  isFuture: boolean;
+}
+
+export interface ActivityCalendarDay extends CalendarDay {
+  value: number;
+  pointsEarned: number;
+  unit: string | null;
+}
+
+export interface CalendarData {
+  month: number;
+  year: number;
+  monthName: string;
+  monthStart: string;
+  monthEnd: string;
+  calendarDays: CalendarDay[];
+  statistics: {
+    totalDays: number;
+    daysLogged: number;
+    daysNotLogged: number;
+    completionPercentage: string;
+  };
+  pagination: {
+    currentMonth: number;
+    currentYear: number;
+    previousMonth: {
+      month: number;
+      year: number;
+    };
+    nextMonth: {
+      month: number;
+      year: number;
+      available: boolean;
+    };
+    canGoPrevious: boolean;
+    canGoNext: boolean;
+  };
+}
+
+export interface ActivityCalendarData {
+  activityId: string;
+  activityName: string;
+  month: number;
+  year: number;
+  monthName: string;
+  monthStart: string;
+  monthEnd: string;
+  calendarDays: ActivityCalendarDay[];
+  statistics: {
+    totalDays: number;
+    daysLogged: number;
+    daysNotLogged: number;
+    completionPercentage: string;
+    totalValue: number;
+    totalPoints: number;
+  };
+  pagination: {
+    currentMonth: number;
+    currentYear: number;
+    previousMonth: {
+      month: number;
+      year: number;
+    };
+    nextMonth: {
+      month: number;
+      year: number;
+      available: boolean;
+    };
+    canGoPrevious: boolean;
+    canGoNext: boolean;
+  };
+}
+
 export const dailyLogAPI = {
   submit: (data: SubmitDailyLogData) => api.post('/dailyLog/web', data),
   
@@ -148,5 +244,35 @@ export const dailyLogAPI = {
       message: string;
       data: PointLossesData;
     }>('/dailyLog/point-losses', { params });
+  },
+
+  getStreaks: (profileId: string) => {
+    return api.get<{
+      success: boolean;
+      message: string;
+      data: StreakData;
+    }>(`/dailyLog/streaks/${profileId}`);
+  },
+
+  getCalendar: (profileId: string, month?: number, year?: number) => {
+    const params: { month?: number; year?: number } = {};
+    if (month !== undefined) params.month = month;
+    if (year !== undefined) params.year = year;
+    return api.get<{
+      success: boolean;
+      message: string;
+      data: CalendarData;
+    }>(`/dailyLog/calendar/${profileId}`, { params });
+  },
+
+  getActivityCalendar: (profileId: string, activityId: string, month?: number, year?: number) => {
+    const params: { month?: number; year?: number } = {};
+    if (month !== undefined) params.month = month;
+    if (year !== undefined) params.year = year;
+    return api.get<{
+      success: boolean;
+      message: string;
+      data: ActivityCalendarData;
+    }>(`/dailyLog/calendar/activity/${profileId}/${activityId}`, { params });
   },
 };

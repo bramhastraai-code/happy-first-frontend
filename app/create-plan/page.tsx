@@ -13,6 +13,7 @@ import { Lock, Calendar, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from '
 import GuidedTour from '@/components/ui/GuidedTour';
 import { createPlanTourSteps } from '@/lib/utils/tourSteps';
 import { HelpCircle } from 'lucide-react';
+import { all } from 'axios';
 
 interface SelectedActivity {
   activityId: string;
@@ -27,6 +28,7 @@ interface SelectedActivity {
       minVal:number;
     }
   ]
+  allowedCadence: ('daily' | 'weekly')[];
 }
 
 export default function CreatePlanPage() {
@@ -79,7 +81,7 @@ export default function CreatePlanPage() {
       setCurrentDay(dayNames[dayOfWeek]);
       
       // Unlock on Friday (5), Saturday (6), Sunday (0)
-      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0;
+      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 4;
       setIsUnlocked(unlocked);
 
       if (unlocked) {
@@ -114,7 +116,8 @@ export default function CreatePlanPage() {
           cadence: activity.allowedCadence[0],
           targetValue: activity.values.find(v=>v.tier===tiers)?.minVal || 0,
           baseUnit: activity.baseUnit,
-          values:activity.values
+          values:activity.values,
+          allowedCadence: activity.allowedCadence,
         },
       ]);
     }
@@ -445,8 +448,13 @@ export default function CreatePlanPage() {
                         }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
+                        {selectedActivities.map((act) => (
+                          act.activityId === activity.activityId && act.allowedCadence.map((cadenceOption) => (
+                            <option key={cadenceOption} value={cadenceOption}>
+                              {cadenceOption.charAt(0).toUpperCase() + cadenceOption.slice(1)}
+                            </option>
+                          ))
+                        ))}
                       </select>
                     </div>
 
