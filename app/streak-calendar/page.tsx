@@ -313,6 +313,21 @@ export default function StreakCalendarPage() {
 
             {/* Calendar Grid */}
             <div className="grid grid-cols-7 gap-2">
+              {/* Add empty cells for days before the first day of the month */}
+              {(() => {
+                const firstDay = (activityCalendarData?.calendarDays || calendarData?.calendarDays)?.[0];
+                if (!firstDay) return null;
+                
+                // Get the day of week (0 = Sunday, 6 = Saturday)
+                const firstDayOfWeek = new Date(firstDay.date).getDay();
+                
+                // Add empty cells for days before the first day
+                return Array.from({ length: firstDayOfWeek }).map((_, index) => (
+                  <div key={`empty-${index}`} className="aspect-square" />
+                ));
+              })()}
+              
+              {/* Actual calendar days */}
               {(activityCalendarData?.calendarDays || calendarData?.calendarDays)?.map((day: any) => (
                 <div
                   key={day.date}
