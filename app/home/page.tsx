@@ -315,7 +315,7 @@ function HomePageContent() {
         />
       )}
 
-      <div className="p-4 space-y-4 ">
+      <div className="p-3 space-y-6 max-w-7xl mx-auto">
         {/* Header */}
         <div className="welcome-banner flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -324,16 +324,16 @@ function HomePageContent() {
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <p className="text-sm text-gray-600">
-                  Hello,
+                <p className="text-sm font-medium text-gray-500">
+                  Welcome back,
                 </p>
                 <ProfileBadge />
               </div>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-600">{new Date().toDateString()}</span>
-                <span className="flex items-center gap-1 text-green-600">
-                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  Live
+              <div className="flex items-center gap-3 text-xs">
+                <span className="text-gray-600 font-medium">{new Date().toDateString()}</span>
+                <span className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Active
                 </span>
               </div>
             </div>
@@ -344,16 +344,16 @@ function HomePageContent() {
               <ProfileSwitcher />
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-all border border-red-200 hover:border-red-300"
                 title="Logout"
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="w-4 h-4" />
                 <span>Logout</span>
               </button>
             </div>
             <button
               onClick={() => router.push('/settings')}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2.5 text-gray-500 hover:bg-gray-50 rounded-lg transition-all border border-gray-200 hover:border-gray-300"
               title="Settings"
             >
               <Settings className="w-5 h-5" />
@@ -408,10 +408,15 @@ function HomePageContent() {
         </div>
 
         {/* Pending Activities */}
-        <Card className="pending-activities border-0 shadow-sm">
+        <Card className="pending-activities bg-white border-gray-200 shadow-sm">
           {expandedSections.pendingActivities && (
-            <CardContent className="p-5 space-y-4">
-              <h1 className="text-xl font-bold text-gray-900 mb-4 tracking-tight">Pending Activities</h1>
+            <CardContent className="p-6 space-y-5">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-md">
+                  <span className="text-white text-lg">📋</span>
+                </div>
+                <h1 className="text-xl font-bold text-gray-900 tracking-tight">Pending Activities</h1>
+              </div>
               {noPlanError ? (
                 <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg p-5 text-center">
                   <div className="text-4xl mb-3">⏳</div>
@@ -704,55 +709,68 @@ function HomePageContent() {
         </Card>
 
         {/* AI Insights */}
-        <Card className="border-purple-200">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
-                <span className="text-purple-600 text-xs">✨</span>
+        <Card className="bg-white border-gray-200 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-md">
+                <span className="text-white text-lg">✨</span>
               </div>
-              <h3 className="font-semibold text-gray-900">AI Insights</h3>
+              <h3 className="font-bold text-gray-900 text-lg">AI Insights</h3>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">🎯</span>
-                  <span className="text-xs font-medium text-blue-900">Rank Up Alert</span>
-                  <span className="ml-auto text-xs font-semibold text-white bg-green-500 px-2 py-0.5 rounded-full">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🎯</span>
+                    <span className="text-sm font-bold text-blue-900">Rank Up Alert</span>
+                  </div>
+                  <span className="text-xs font-bold text-white bg-emerald-500 px-2.5 py-1 rounded-full shadow-sm">
                     92%
                   </span>
                 </div>
-                <p className="text-xs text-blue-800 mb-2">
-                  Only 7 points away from #2. Focus on running +10km this week.
+                <p className="text-xs text-blue-800 mb-3 leading-relaxed">
+                  Only 7 points away from #2 spot. Focus on running +10km this week.
                 </p>
-                <p className="text-xs text-blue-600">→ Increase run frequency to 4x/week</p>
-              </div>
-              <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">⚠️</span>
-                  <span className="text-xs font-medium text-yellow-900">Streak Risk</span>
+                <div className="flex items-center gap-2 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
+                  <span>→</span>
+                  <span>Increase run frequency to 4x/week</span>
                 </div>
-                <p className="text-xs text-yellow-800 mb-2">
-                  Sleep streak at risk. Miss streak reset.
+              </div>
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">⚠️</span>
+                  <span className="text-sm font-bold text-amber-900">Streak Risk</span>
+                </div>
+                <p className="text-xs text-amber-800 mb-3 leading-relaxed">
+                  Sleep streak at risk. Complete today to maintain momentum.
                 </p>
-                <p className="text-xs text-yellow-600">→ Target 7+ hours tonight</p>
+                <div className="flex items-center gap-2 text-xs font-medium text-amber-700 bg-amber-100 rounded-lg px-3 py-2">
+                  <span>→</span>
+                  <span>Target 7+ hours tonight</span>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Expandable Sections */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           {/* Weekly Performance */}
-          <Card className="weekly-performance">
+          <Card className="weekly-performance bg-white border-gray-200 shadow-sm">
             <button
               onClick={() => toggleSection('weeklyPerformance')}
-              className="w-full p-4 flex items-center justify-between"
+              className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
             >
-              <span className="font-semibold text-gray-900">Monthly Performance</span>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-md">
+                  <span className="text-white text-lg">📊</span>
+                </div>
+                <span className="font-bold text-gray-900 text-lg">Monthly Performance</span>
+              </div>
               {expandedSections.weeklyPerformance ? (
-                <ChevronUp className="w-5 h-5 text-gray-500" />
+                <ChevronUp className="w-5 h-5 text-gray-400" />
               ) : (
-                <ChevronDown className="w-5 h-5 text-gray-500" />
+                <ChevronDown className="w-5 h-5 text-gray-400" />
               )}
             </button>
             {expandedSections.weeklyPerformance && (monthlyLogData !== null ? (
@@ -1048,37 +1066,41 @@ function HomePageContent() {
           </Card>
 
           {/* Leaderboard */}
-          <Card className="leaderboard-section">
+          <Card className="leaderboard-section bg-white border-gray-200 shadow-sm">
             <button
               onClick={() => toggleSection('leaderboard')}
-              className="w-full p-4 flex items-center justify-between"
+              className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
             >
-              <span className="font-semibold text-gray-900">Leaderboard</span>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center shadow-md">
+                  <Trophy className="w-5 h-5 text-white" />
+                </div>
+                <span className="font-bold text-gray-900 text-lg">Leaderboard</span>
+              </div>
               {expandedSections.leaderboard ? (
-                <ChevronUp className="w-5 h-5 text-gray-500" />
-
+                <ChevronUp className="w-5 h-5 text-gray-400" />
               ) : (
-                <ChevronDown className="w-5 h-5 text-gray-500" />
+                <ChevronDown className="w-5 h-5 text-gray-400" />
               )}
             </button>
             {expandedSections.leaderboard && (
-              <CardContent className="px-4 pb-4">
+              <CardContent className="px-5 pb-5">
                 <LeaderboardPage />
               </CardContent>
             )}
           </Card>
 
           {/* Log Tracker */}
-          <Card className="log-tracker border-0 shadow-sm">
+          <Card className="log-tracker bg-white border-gray-200 shadow-sm">
             <button
               onClick={() => toggleSection('logTracker')}
-              className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-lg"
+              className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-md">
                   <Calendar className="w-5 h-5 text-white" />
                 </div>
-                <span className="font-semibold text-gray-900 text-base">Daily Log Tracker</span>
+                <span className="font-bold text-gray-900 text-lg">Daily Log Tracker</span>
               </div>
               {expandedSections.logTracker ? (
                 <ChevronUp className="w-5 h-5 text-gray-400" />

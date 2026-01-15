@@ -66,6 +66,7 @@ export interface UpdateProfileData {
     challenges?: string;
     goals?: string;
     likes?: string;
+    weight?: number;
     dislikes?: string;
     medicalConditions?: string;
     unitsPreference?: {

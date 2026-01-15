@@ -67,7 +67,7 @@ export default function PreviousLogPage() {
                 // Check if selected date is yesterday
                 if (selected.getTime() === yesterday.getTime()) {
                     // Check if it's before 6 PM TODAY
-                    if (currentHour < 22) {
+                    if (currentHour < 18) {
                         setCanSubmit(true);
                         const minutesLeft = 60 - now.getMinutes();
                         const hoursLeft = 18 - currentHour - 1 + (minutesLeft === 60 ? 1 : 0);

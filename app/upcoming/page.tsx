@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar, ArrowLeft, TrendingUp, Target, Clock } from 'lucide-react';
 import type { WeeklyPlan } from '@/lib/api/weeklyPlan';
+import { activityAPI ,Activity} from '@/lib/api/activity';
 
 
 export default function UpcomingPage() {
@@ -16,6 +17,7 @@ export default function UpcomingPage() {
   const { accessToken, user, isHydrated } = useAuthStore();
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -30,6 +32,8 @@ export default function UpcomingPage() {
       try {
         setLoading(true);
         const response = await weeklyPlanAPI.Upcomming();
+        const activityResponse = await activityAPI.getList();
+        setActivities(activityResponse.data.data);
         setWeeklyPlan(response.data.data);
         setError('');
       } catch (err: unknown) {
@@ -44,21 +48,7 @@ export default function UpcomingPage() {
     fetchWeeklyPlan();
   }, [accessToken, user, router, isHydrated]);
 
-  const getActivityIcon = (label: string) => {
-    const icons: Record<string, string> = {
-      'Steps': '👣',
-      'Sleep': '😴',
-      'Water': '💧',
-      'Yoga': '🧘',
-      'Gym': '🏋️',
-      'Floors': '🏢',
-      'Running': '🏃',
-      'Cycling': '🚴',
-      'Swimming': '🏊',
-      'Meditation': '🧘‍♂️',
-    };
-    return icons[label] || '✅';
-  };
+  
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -231,7 +221,7 @@ export default function UpcomingPage() {
                           <div className="flex items-start justify-between">
                             <div className="flex items-start gap-3 flex-1">
                               <span className="text-2xl mt-1">
-                                {isSurprise ? '🎁' : getActivityIcon(activityData?.label || '')}
+                                {isSurprise ? '🎁' : activities.find(a => a._id === activityId)?.icon || '✅'}
                               </span>
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-1">
@@ -297,7 +287,7 @@ export default function UpcomingPage() {
                             <div className="flex items-start justify-between">
                               <div className="flex items-start gap-3 flex-1">
                                 <span className="text-2xl mt-1">
-                                  {isSurprise ? '🎁' : getActivityIcon(activityData?.label || '')}
+                                  {isSurprise ? '🎁' : activities.find(a => a._id === activityId)?.icon || '✅'}
                                 </span>
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 mb-1">

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import { activityAPI, type Activity } from '@/lib/api/activity';
 import { weeklyPlanAPI, type CreateWeeklyPlanData } from '@/lib/api/weeklyPlan';
+import { authAPI } from '@/lib/api/auth';
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +22,7 @@ interface SelectedActivity {
   cadence: 'daily' | 'weekly';
   targetValue: number;
   baseUnit: string;
+  icon: string;
   values:[
     {
       tier:number;
@@ -33,7 +35,7 @@ interface SelectedActivity {
 
 export default function CreatePlanPage() {
   const router = useRouter();
-  const { user, accessToken, isHydrated } = useAuthStore();
+  const { user, accessToken, isHydrated,selectedProfile } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<SelectedActivity[]>([]);
@@ -46,6 +48,10 @@ export default function CreatePlanPage() {
   const [runTour, setRunTour] = useState(false);
   const [showTourButton, setShowTourButton] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<'body' | 'mind' | 'soul'>('body');
+  const [targetOverlayActivity, setTargetOverlayActivity] = useState<Activity | null>(null);
+  const [weight, setWeight] = useState<number>(selectedProfile?.profile?.weight || 0);
+  const [showWeightOverlay, setShowWeightOverlay] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -81,7 +87,7 @@ export default function CreatePlanPage() {
       setCurrentDay(dayNames[dayOfWeek]);
       
       // Unlock on Friday (5), Saturday (6), Sunday (0)
-      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0|| dayOfWeek === 1;
+      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0|| dayOfWeek === 4;
       setIsUnlocked(unlocked);
 
       if (unlocked) {
@@ -107,22 +113,35 @@ export default function CreatePlanPage() {
     const exists = selectedActivities.find((a) => a.activityId === activity._id);
     if (exists) {
       setSelectedActivities(selectedActivities.filter((a) => a.activityId !== activity._id));
+      setTargetOverlayActivity(null);
     } else {
-      setSelectedActivities([
-        ...selectedActivities,
-        {
-          activityId: activity._id,
-          name: activity.name,
-          cadence: activity.allowedCadence[0],
-          targetValue: activity.values.find(v=>v.tier===tiers)?.minVal || 0,
-          baseUnit: activity.baseUnit,
-          values:activity.values,
-          allowedCadence: activity.allowedCadence,
-
-        },
-      ]);
+      // Open overlay for target selection instead of auto-adding
+      setTargetOverlayActivity(activity);
     }
   };
+
+  const confirmActivitySelection = (targetValue: number, cadence: 'daily' | 'weekly') => {
+    if (!targetOverlayActivity) return;
+    
+    setSelectedActivities([
+      ...selectedActivities,
+      {
+        activityId: targetOverlayActivity._id,
+        name: targetOverlayActivity.name,
+        cadence: cadence,
+        targetValue: targetValue,
+        baseUnit: targetOverlayActivity.baseUnit,
+        values: targetOverlayActivity.values,
+        allowedCadence: targetOverlayActivity.allowedCadence,
+        icon: targetOverlayActivity.icon,
+      },
+    ]);
+    setTargetOverlayActivity(null);
+  };
+
+  const filteredActivities = activities.filter(
+    (activity) => activity.category.toLowerCase() === selectedCategory.toLowerCase()
+  );
 
   const updateActivityTarget = (activityId: string, field: string, value: string | number) => {
     setSelectedActivities(
@@ -146,12 +165,33 @@ export default function CreatePlanPage() {
     setError('');
   };
 
-  const handleRepeatLastWeek = async () => {
+  const handleRepeatLastWeek = () => {
+    setShowWeightOverlay(true);
+    setError('');
+  };
+
+  const confirmRepeatWithWeight = async () => {
+    // Validate weight
+    if (!weight || weight <= 0) {
+      setError('Please enter your weight');
+      return;
+    }
+
     setRepeatLoading(true);
     setError('');
+    setShowWeightOverlay(false);
 
     try {
+      // Update profile with weight
+      await authAPI.updateProfile({
+        profile: {
+          weight: weight,
+        },
+      });
+
+      // Repeat last week's plan
       await weeklyPlanAPI.repeatLastWeek();
+      
       // Redirect to upcoming page after successfully repeating last week's plan
       router.replace('/upcoming');
     } catch (error: unknown) {
@@ -181,10 +221,23 @@ export default function CreatePlanPage() {
       return;
     }
 
+    // Validate weight
+    if (!weight || weight <= 0) {
+      setError('Please enter your weight');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
+      // Update profile with weight
+      await authAPI.updateProfile({
+        profile: {
+          weight: weight,
+        },
+      });
+
       // Create weekly plan with selected activities
       const planData: CreateWeeklyPlanData = {
         activities: selectedActivities.map((act) => ({
@@ -205,22 +258,6 @@ export default function CreatePlanPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getActivityEmoji = (name: string) => {
-    const emojiMap: { [key: string]: string } = {
-      'Steps': '👣',
-      'Running': '🏃',
-      'Cycling': '🚴',
-      'Swimming': '🏊',
-      'Yoga': '🧘',
-      'Meditation': '🧘‍♂️',
-      'Reading': '📚',
-      'Water': '💧',
-      'Sleep': '😴',
-      'Exercise': '💪',
-    };
-    return emojiMap[name] || '🎯';
   };
 
   // Locked state UI
@@ -258,6 +295,9 @@ export default function CreatePlanPage() {
                   </span>
                   <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
                     Sunday
+                  </span>
+                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                    Monday
                   </span>
                 </div>
                 <p className="text-xs text-blue-700">
@@ -334,6 +374,43 @@ export default function CreatePlanPage() {
         {/* Step 1: Select Activities */}
         {step === 'select' && (
           <div className="space-y-4">
+            {/* Category Selection */}
+            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Category</h3>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => setSelectedCategory('body')}
+                  className={`p-3 rounded-lg font-medium text-sm transition-all ${
+                    selectedCategory === 'body'
+                      ? 'bg-blue-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  💪 Body
+                </button>
+                <button
+                  onClick={() => setSelectedCategory('mind')}
+                  className={`p-3 rounded-lg font-medium text-sm transition-all ${
+                    selectedCategory === 'mind'
+                      ? 'bg-purple-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  🧠 Mind
+                </button>
+                <button
+                  onClick={() => setSelectedCategory('soul')}
+                  className={`p-3 rounded-lg font-medium text-sm transition-all ${
+                    selectedCategory === 'soul'
+                      ? 'bg-green-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  ✨ Soul
+                </button>
+              </div>
+            </div>
+
             {/* Repeat Last Week Button */}
             <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
@@ -374,7 +451,7 @@ export default function CreatePlanPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {activities.map((activity) => {
+              {filteredActivities.map((activity) => {
                 const isSelected = selectedActivities.some((a) => a.activityId === activity._id);
                 return (
                   <Card
@@ -388,7 +465,7 @@ export default function CreatePlanPage() {
                   >
                     <CardContent className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="text-3xl">{getActivityEmoji(activity.name)}</div>
+                        <div className="text-3xl">{activity.icon}</div>
                         <div className="flex-1">
                           <h3 className="font-semibold text-gray-900">{activity.name}</h3>
                           <p className="text-xs text-gray-600">{activity.baseUnit}</p>
@@ -429,7 +506,7 @@ export default function CreatePlanPage() {
               <Card key={activity.activityId}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3 mb-4">
-                    <div className="text-3xl">{getActivityEmoji(activity.name)}</div>
+                    <div className="text-3xl">{activity.icon}</div>
                     <div className="flex-1">
                       <h3 className="font-semibold text-gray-900 mb-1">{activity.name}</h3>
                       <p className="text-xs text-gray-600">Unit: {activity.baseUnit}</p>
@@ -503,6 +580,42 @@ export default function CreatePlanPage() {
               </Card>
             ))}
 
+            {/* Weight Input */}
+            <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200">
+              <CardContent className="p-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">⚖️</span>
+                    <h3 className="font-semibold text-gray-900">Your Weight</h3>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Please enter your current weight to help us personalize your plan
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Weight (kg)
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="1"
+                      max="500"
+                      value={weight || ''}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                        setWeight(value);
+                      }}
+                      placeholder="Enter your weight in kg"
+                      className="w-full"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Range: 1 - 500 kg
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <div className="flex gap-3 pt-4">
               <Button
                 onClick={handleBack}
@@ -513,7 +626,7 @@ export default function CreatePlanPage() {
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={loading}
+                disabled={loading || !weight || weight <= 0}
                 className="flex-1"
               >
                 {loading ? 'Creating Plan...' : 'Create Weekly Plan'}
@@ -522,6 +635,212 @@ export default function CreatePlanPage() {
           </div>
         )}
       </div>
+
+      {/* Weight Input Overlay for Repeat Last Week */}
+      {showWeightOverlay && (
+        <div
+          className="fixed inset-0 backdrop-blur-2xl bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={() => setShowWeightOverlay(false)}
+        >
+          <Card
+            className="w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardContent className="p-6">
+              <div className="mb-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-3xl">⚖️</span>
+                  <h3 className="text-xl font-bold text-gray-900">
+                    Enter Your Weight
+                  </h3>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Please update your current weight to personalize your weekly plan
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Weight (kg)
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="1"
+                    max="500"
+                    value={weight || ''}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                      setWeight(value);
+                    }}
+                    placeholder="Enter your weight in kg"
+                    className="w-full"
+                    autoFocus
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Range: 1 - 500 kg
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    onClick={() => setShowWeightOverlay(false)}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={confirmRepeatWithWeight}
+                    disabled={repeatLoading || !weight || weight <= 0}
+                    className="flex-1"
+                  >
+                    {repeatLoading ? 'Processing...' : 'Confirm & Repeat'}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Target Selection Overlay */}
+      {targetOverlayActivity && (
+        <div
+          className="fixed inset-0 backdrop-blur-2xl  bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={() => setTargetOverlayActivity(null)}
+        >
+          <Card
+            className="w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardContent className="p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="text-4xl">{targetOverlayActivity.icon}</div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-gray-900 mb-1">
+                    {targetOverlayActivity.name}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Set your target for this activity
+                  </p>
+                </div>
+              </div>
+
+              <TargetSelectionForm
+                activity={targetOverlayActivity}
+                tiers={tiers}
+                onConfirm={confirmActivitySelection}
+                onCancel={() => setTargetOverlayActivity(null)}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </MainLayout>
+  );
+}
+
+// Target Selection Form Component
+function TargetSelectionForm({
+  activity,
+  tiers,
+  onConfirm,
+  onCancel,
+}: {
+  activity: Activity;
+  tiers: number;
+  onConfirm: (targetValue: number, cadence: 'daily' | 'weekly') => void;
+  onCancel: () => void;
+}) {
+  const [targetValue, setTargetValue] = useState<number>(
+    activity.values.find(v => v.tier === tiers)?.minVal || 0
+  );
+  const [cadence, setCadence] = useState<'daily' | 'weekly'>(
+    activity.allowedCadence[0]
+  );
+
+  const minVal = activity.values.find(v => v.tier === tiers)?.minVal || 0;
+  const maxVal = activity.values.find(v => v.tier === tiers)?.maxVal || 100;
+
+  const handleConfirm = () => {
+    if (targetValue < minVal || targetValue > maxVal) {
+      return;
+    }
+    onConfirm(targetValue, cadence);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Cadence Selection */}
+      {activity.allowedCadence.length > 1 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Cadence
+          </label>
+          <select
+            value={cadence}
+            onChange={(e) => setCadence(e.target.value as 'daily' | 'weekly')}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {activity.allowedCadence.map((cadenceOption) => (
+              <option key={cadenceOption} value={cadenceOption}>
+                {cadenceOption.charAt(0).toUpperCase() + cadenceOption.slice(1)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Target Value */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Target Value ({activity.baseUnit})
+        </label>
+        <Input
+          type="number"
+          step="any"
+          min={minVal}
+          max={maxVal}
+          value={targetValue || ''}
+          onChange={(e) => {
+            const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+            setTargetValue(value);
+          }}
+          onBlur={(e) => {
+            const value = parseFloat(e.target.value);
+            if (isNaN(value) || value < minVal) {
+              setTargetValue(minVal);
+            } else if (value > maxVal) {
+              setTargetValue(maxVal);
+            }
+          }}
+          placeholder={`Enter target in ${activity.baseUnit}`}
+          className="w-full"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Range: {minVal} - {maxVal} {activity.baseUnit}
+        </p>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-3 pt-2">
+        <Button
+          onClick={onCancel}
+          variant="outline"
+          className="flex-1"
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleConfirm}
+          disabled={targetValue < minVal || targetValue > maxVal || !targetValue}
+          className="flex-1"
+        >
+          Confirm
+        </Button>
+      </div>
+    </div>
   );
 }

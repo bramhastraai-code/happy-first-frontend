@@ -10,6 +10,7 @@ interface lifestyle {
   goals: string;
   likes: string;
   dislikes: string;
+  weight?: number;
   medicalConditions: string;
   unitsPreference: {  
     distance: string;

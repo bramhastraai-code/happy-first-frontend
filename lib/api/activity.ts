@@ -6,6 +6,8 @@ export interface Activity {
   baseUnit: string;
   description: string;
   tier: number;
+  category: string;
+  icon: string;
   allowedCadence: ('daily' | 'weekly')[];
   values:[
     {

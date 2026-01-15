@@ -9,7 +9,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Activity, Calendar, ChevronRight, Lock, Timer, Clock } from 'lucide-react';
+import { Activity, Calendar, ChevronRight, Lock, Timer, Clock, TrendingUp, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { WeeklyPlan, WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import GuidedTour from '@/components/ui/GuidedTour';
@@ -17,6 +17,7 @@ import { tasksTourSteps } from '@/lib/utils/tourSteps';
 import { HelpCircle } from 'lucide-react';
 import CustomSlider from '@/components/ui/CustomSlider';
 import CustomNumericInput from '@/components/ui/CustomNumericInput';
+import { activityAPI, Activity as ActivityType } from '@/lib/api/activity';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function TasksPage() {
   const [activities, setActivities] = useState<Record<string, number>>({});
   const [checkboxActivities, setCheckboxActivities] = useState<Record<string, boolean>>({});
   const [pendingSliders, setPendingSliders] = useState<Record<string, boolean>>({});
+  const [actlist,setActlist] =useState<ActivityType[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
@@ -66,11 +68,13 @@ export default function TasksPage() {
 
     const fetchData = async () => {
       try {
-        const [planResponse,] = await Promise.all([
+        const [planResponse, activityResponse] = await Promise.all([
           weeklyPlanAPI.getCurrent(),
+          activityAPI.getList()
         ]);
         
         setWeeklyPlan(planResponse.data.data);
+        setActlist(activityResponse.data.data);
         setNoPlanError('');
         
         // Initialize activity values
@@ -291,41 +295,71 @@ export default function TasksPage() {
 
       <div className="p-4 space-y-4">
         {/* Header */}
-        <div className="tasks-header text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Daily Tasks</h1>
-          <p className="text-sm text-gray-600">
-            {new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
-          </p>
+        <div className="tasks-header">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Daily Tasks</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                {new Date().toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <div className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full font-medium">
+                Week {Math.ceil(new Date().getDate() / 7)}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Today's Progress */}
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="font-semibold text-blue-900 mb-1">Today&apos;s Progress</h2>
-                <div className="flex gap-4 text-sm">
-                  <span className="text-blue-700">
-                    <span className="font-bold text-2xl text-blue-900">{progress.completed}</span>
-                    <span className="text-blue-700">/{progress.total}</span>
-                  </span>
-                  <span className="text-blue-600 font-medium">
-                    {Math.round(progress.percentage)}%
-                  </span>
+        <Card className="border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-5 h-5 text-slate-600" />
+                  <h2 className="font-semibold text-slate-900 text-lg">Today&apos;s Progress</h2>
+                </div>
+                <div className="flex items-baseline gap-3">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-bold text-4xl text-slate-900">{progress.completed}</span>
+                    <span className="text-slate-500 text-lg font-medium">/ {progress.total}</span>
+                  </div>
+                  <div className="px-2.5 py-1 bg-blue-50 rounded-lg">
+                    <span className="text-blue-700 font-semibold text-sm">
+                      {Math.round(progress.percentage)}%
+                    </span>
+                  </div>
                 </div>
               </div>
-              <Activity className="w-8 h-8 text-blue-600" />
+              <div className={`p-3 rounded-xl ${
+                progress.percentage === 100 ? 'bg-green-100' : 
+                progress.percentage >= 50 ? 'bg-blue-100' : 'bg-slate-100'
+              }`}>
+                {progress.percentage === 100 ? (
+                  <CheckCircle2 className="w-7 h-7 text-green-600" />
+                ) : (
+                  <Activity className="w-7 h-7 text-blue-600" />
+                )}
+              </div>
             </div>
-            <div className="h-2 bg-blue-200 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-blue-600 rounded-full transition-all" 
-                style={{ width: `${progress.percentage}%` }}
-              ></div>
+            <div className="space-y-2">
+              <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    progress.percentage === 100 ? 'bg-green-500' : 'bg-blue-600'
+                  }`}
+                  style={{ width: `${progress.percentage}%` }}
+                ></div>
+              </div>
+              {progress.percentage === 100 && (
+                <p className="text-xs text-green-600 font-medium text-center">All tasks completed! 🎉</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -334,66 +368,76 @@ export default function TasksPage() {
 
         {/* Upcoming Plans Section */}
         <Card 
-          className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200 cursor-pointer hover:shadow-md transition-shadow"
+          className="border-slate-200 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group"
           onClick={() => router.push('/upcoming')}
         >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Calendar className="w-6 h-6 text-indigo-600" />
+                <div className="p-2 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors">
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                </div>
                 <div>
-                  <h3 className="font-semibold text-indigo-900">Upcoming Plans</h3>
-                  <p className="text-xs text-indigo-700">View and manage your weekly plans</p>
+                  <h3 className="font-semibold text-slate-900">Upcoming Plans</h3>
+                  <p className="text-xs text-slate-500">View and manage your weekly plans</p>
                 </div>
               </div>
-              <ChevronRight className="w-5 h-5 text-indigo-600" />
+              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
             </div>
           </CardContent>
         </Card>
 
         {/* Submit Previous Day Log Section */}
         {<Card 
-          className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 cursor-pointer hover:shadow-md transition-shadow"
+          className="border-slate-200 cursor-pointer hover:shadow-md hover:border-amber-300 transition-all group"
           onClick={() => router.push('/previous-log')}
         >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Clock className="w-6 h-6 text-orange-600" />
+                <div className="p-2 rounded-lg bg-amber-50 group-hover:bg-amber-100 transition-colors">
+                  <Clock className="w-5 h-5 text-amber-600" />
+                </div>
                 <div>
-                  <h3 className="font-semibold text-orange-900">Submit Yesterday&apos;s Log</h3>
-                  <p className="text-xs text-orange-700">Submit missed logs before 6:00 PM</p>
+                  <h3 className="font-semibold text-slate-900">Submit Yesterday&apos;s Log</h3>
+                  <p className="text-xs text-slate-500">Submit missed logs before 6:00 PM</p>
                 </div>
               </div>
-              <ChevronRight className="w-5 h-5 text-orange-600" />
+              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition-all" />
             </div>
           </CardContent>
         </Card>}
 
         {/* Today's Tasks Form */}
-        <div className="weekly-activities space-y-2">
-          <h3 className="font-semibold text-gray-900">📋 Submit Daily Logs</h3>
+        <div className="weekly-activities space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="h-1 w-1 rounded-full bg-blue-600"></div>
+            <h3 className="font-semibold text-slate-900 text-lg">Submit Daily Logs</h3>
+          </div>
           
           {noPlanError && (
-            <Card className="bg-yellow-50 border-yellow-200">
-              <CardContent className="p-4 text-center">
-                <div className="text-4xl mb-2">📅</div>
-                <h3 className="font-semibold text-yellow-900 mb-2">No Active Weekly Plan</h3>
-                <p className="text-sm text-yellow-700 mb-3">{noPlanError}</p>
-                
+            <Card className="border-amber-200 bg-amber-50">
+              <CardContent className="p-5 text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 mb-3">
+                  <AlertCircle className="w-6 h-6 text-amber-600" />
+                </div>
+                <h3 className="font-semibold text-slate-900 mb-2">No Active Weekly Plan</h3>
+                <p className="text-sm text-slate-600 leading-relaxed">{noPlanError}</p>
               </CardContent>
             </Card>
           )}
           
           {success && (
-            <div className="bg-green-50 text-green-700 p-3 rounded-lg text-sm border border-green-200">
-              {success}
+            <div className="bg-green-50 text-green-700 p-4 rounded-lg text-sm border border-green-200 flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+              <span>{success}</span>
             </div>
           )}
 
           {error && (
-            <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm border border-red-200">
-              {error}
+            <div className="bg-red-50 text-red-700 p-4 rounded-lg text-sm border border-red-200 flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
@@ -407,46 +451,42 @@ export default function TasksPage() {
               const isSurprise = activity?.isSurpriseActivity ||false;
               
               return (
-                <Card key={activityId} className={`${
+                <Card key={activityId} className={`border transition-all ${
                   isSurprise 
-                    ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-400 shadow-md relative'
-                    : ''
+                    ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300 shadow-sm hover:shadow-md relative'
+                    : 'border-slate-200 hover:border-slate-300 shadow-sm'
                 }`}>
                   {isSurprise && (
-                    <div className="absolute -top-2 -right-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg flex items-center gap-1 animate-pulse z-10">
-                      🎁 SURPRISE
+                    <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md flex items-center gap-1.5 z-10">
+                      ⭐ BONUS
                     </div>
                   )}
                   <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${
+                          isSurprise ? 'bg-amber-100' : 'bg-slate-100'
+                        }`}>
                           {isSurprise ? '🎁' : (
                             <>
-                              {activityData?.label === 'Steps' && '👣'}
-                              {activityData?.label === 'Sleep' && '😴'}
-                              {activityData?.label === 'Water' && '💧'}
-                              {activityData?.label === 'Yoga' && '🧘'}
-                              {activityData?.label === 'Gym' && '🏋️'}
-                              {activityData?.label === 'Floors' && '🏢'}
-                              {!['Steps', 'Sleep', 'Water', 'Yoga', 'Gym', 'Floors'].includes(activityData?.label || '') && '✅'}
+                              {actlist.find((act)=>act._id==activityData?.activity)?.icon }
                             </>
                           )}
-                        </span>
-                        <div>
-                          <p className={`font-medium text-sm ${isSurprise ? 'text-orange-900 font-semibold' : ''}`}>
-                            {isSurprise && '⭐ '}{activityData?.label}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-semibold text-sm mb-0.5 ${
+                            isSurprise ? 'text-amber-900' : 'text-slate-900'
+                          }`}>
+                            {activityData?.label}
                           </p>
-                          <p className={`text-xs ${isSurprise ? 'text-orange-700 font-medium' : 'text-gray-600'}`}>
+                          <p className={`text-xs ${
+                            isSurprise ? 'text-amber-700' : 'text-slate-500'
+                          }`}>
                             Target: {activity.targetValue} {activityData?.unit}
                             {activity.cadence === 'daily' ? '/day' : '/week'}
-                            {isSurprise && ' 🎉'}
                           </p>
                         </div>
                       </div>
-                      {/* <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                        High
-                      </span> */}
                     </div>
                     <div className="flex items-center gap-2">
                       {!isAfter6PM ? (
@@ -458,9 +498,9 @@ export default function TasksPage() {
                                 onChange={() => {}}
                                 disabled={true}
                               />
-                              <div className="flex items-center gap-1 text-xs text-orange-600 min-w-20">
-                                <Timer className="w-4 h-4" />
-                                <span className="font-mono">{timeUntilMidnight}</span>
+                              <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                <Timer className="w-3.5 h-3.5" />
+                                <span className="font-mono font-medium">{timeUntilMidnight}</span>
                               </div>
                             </>
                           ) : (
@@ -471,15 +511,15 @@ export default function TasksPage() {
                                   disabled
                                   value=""
                                   placeholder="Available after 6 PM"
-                                  className="flex-1 bg-orange-50 border-orange-200 cursor-not-allowed opacity-60 placeholder:text-orange-700"
+                                  className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 placeholder:text-slate-500 text-slate-600"
                                 />
                                 <div className="absolute inset-0 flex items-center justify-end pointer-events-none">
-                                  <Lock className="w-4 h-4 mr-3 text-orange-500" />
+                                  <Lock className="w-4 h-4 mr-3 text-slate-400" />
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1 text-xs text-orange-600 min-w-20">
-                                <Timer className="w-4 h-4" />
-                                <span className="font-mono">{timeUntilMidnight}</span>
+                              <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                <Timer className="w-3.5 h-3.5" />
+                                <span className="font-mono font-medium">{timeUntilMidnight}</span>
                               </div>
                             </>
                           )}
@@ -493,9 +533,9 @@ export default function TasksPage() {
                                 onChange={() => {}}
                                 disabled={true}
                               />
-                              <div className="flex items-center gap-1 text-xs text-gray-600 min-w-20">
-                                <Timer className="w-4 h-4" />
-                                <span className="font-mono">{timeUntilMidnight}</span>
+                              <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span className="font-medium">Logged</span>
                               </div>
                             </>
                           ) : (
@@ -506,15 +546,14 @@ export default function TasksPage() {
                                   disabled
                                   max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
                                   value={activities[activityId] || 0}
-                                  className="flex-1 bg-gray-100 cursor-not-allowed opacity-60"
+                                  className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 text-slate-600"
                                 />
                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                  <Lock className="w-5 h-5 text-gray-500" />
+                                  <CheckCircle2 className="w-5 h-5 text-green-500" />
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1 text-xs text-gray-600 min-w-20">
-                                <Timer className="w-4 h-4" />
-                                <span className="font-mono">{timeUntilMidnight}</span>
+                              <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                <span className="font-medium">Logged</span>
                               </div>
                             </>
                           )}
@@ -529,9 +568,10 @@ export default function TasksPage() {
                                 onPendingChange={(isPending) => handlePendingChange(activityId, isPending)}
                                 disabled={false}
                               />
-                              <span className="text-sm text-gray-600 min-w-20 text-right">
-                                {(activity.pointsPerUnit!).toFixed(2)} pts/day
-                              </span>
+                              <div className="text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md min-w-24 text-center">
+                                <span className="font-semibold text-slate-900">{(activity.pointsPerUnit!).toFixed(1)}</span>
+                                <span className="text-slate-500"> pts</span>
+                              </div>
                             </>
                           ) : (
                             <>
@@ -557,17 +597,18 @@ export default function TasksPage() {
             })}
 
             {!isAfter6PM && (
-              <Card className="bg-orange-50 border-orange-200 mb-3">
-                <CardContent className="p-4 text-center">
-                  <div className="text-3xl mb-2">🕒</div>
-                  <h3 className="font-semibold text-orange-900 mb-1">Log Submission Restricted</h3>
-                  <p className="text-sm text-orange-700 mb-2">
+              <Card className="bg-amber-50 border-amber-200 mb-3">
+                <CardContent className="p-5 text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 mb-3">
+                    <Timer className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <h3 className="font-semibold text-slate-900 mb-1">Log Submission Restricted</h3>
+                  <p className="text-sm text-slate-600 mb-3">
                     Daily logs can only be submitted after 6:00 PM
                   </p>
-                  <div className="flex items-center justify-center gap-2 text-orange-800">
-                    <Timer className="w-5 h-5" />
-                    <span className="font-mono font-semibold text-lg">{timeUntilMidnight}</span>
-                    <span className="text-sm">until 6 PM</span>
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-amber-200">
+                    <span className="text-xs text-slate-500 font-medium">Time remaining:</span>
+                    <span className="font-mono font-bold text-lg text-amber-700">{timeUntilMidnight}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -575,9 +616,14 @@ export default function TasksPage() {
             <Button
               type="submit"
               disabled={!isAfter6PM || loading||weeklyPlan?.activities.every(activity => activity.TodayLogged)||Object.values(activities).every(value => value === 0) && Object.values(checkboxActivities).every(checked => !checked) || Object.values(pendingSliders).some(isPending => isPending)}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed disabled:text-slate-500 transition-all py-6 font-semibold text-base shadow-sm hover:shadow"
             >
-              {loading ? 'Submitting...' : !isAfter6PM ? 'Available After 6 PM' : Object.values(pendingSliders).some(isPending => isPending) ? 'Please Complete All Sliders' : 'Submit Daily Log'}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  Submitting...
+                </span>
+              ) : !isAfter6PM ? 'Available After 6 PM' : Object.values(pendingSliders).some(isPending => isPending) ? 'Please Complete All Sliders' : 'Submit Daily Log'}
             </Button>
           </form>
           )}
