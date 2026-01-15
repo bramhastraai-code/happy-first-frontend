@@ -8,9 +8,10 @@ import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Calendar, ChevronRight, Clock, AlertCircle } from 'lucide-react';
 import type { WeeklyPlan, WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
+import CustomSlider from '@/components/ui/CustomSlider';
+import CustomNumericInput from '@/components/ui/CustomNumericInput';
 
 export default function PreviousLogPage() {
     const router = useRouter();
@@ -19,6 +20,7 @@ export default function PreviousLogPage() {
     const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
     const [activities, setActivities] = useState<Record<string, number>>({});
     const [checkboxActivities, setCheckboxActivities] = useState<Record<string, boolean>>({});
+    const [pendingSliders, setPendingSliders] = useState<Record<string, boolean>>({});
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
@@ -65,7 +67,7 @@ export default function PreviousLogPage() {
                 // Check if selected date is yesterday
                 if (selected.getTime() === yesterday.getTime()) {
                     // Check if it's before 6 PM TODAY
-                    if (currentHour < 18) {
+                    if (currentHour < 22) {
                         setCanSubmit(true);
                         const minutesLeft = 60 - now.getMinutes();
                         const hoursLeft = 18 - currentHour - 1 + (minutesLeft === 60 ? 1 : 0);
@@ -142,6 +144,7 @@ export default function PreviousLogPage() {
                     // Initialize activities state
                     const initialActivities: Record<string, number> = {};
                     const initialCheckboxActivities: Record<string, boolean> = {};
+                    const initialPendingSliders: Record<string, boolean> = {};
 
                     plan.activities.forEach((activity) => {
                         const activityId = typeof activity.activity === 'object'
@@ -150,6 +153,7 @@ export default function PreviousLogPage() {
 
                         if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
                             initialCheckboxActivities[activityId] = false;
+                            initialPendingSliders[activityId] = true;
                         } else {
                             initialActivities[activityId] = 0;
                         }
@@ -157,6 +161,7 @@ export default function PreviousLogPage() {
 
                     setActivities(initialActivities);
                     setCheckboxActivities(initialCheckboxActivities);
+                    setPendingSliders(initialPendingSliders);
                 }
             } catch (err: any) {
                 console.error('Error fetching weekly plan:', err);
@@ -181,6 +186,13 @@ export default function PreviousLogPage() {
         setCheckboxActivities((prev) => ({
             ...prev,
             [activityId]: checked,
+        }));
+    };
+
+    const handlePendingChange = (activityId: string, isPending: boolean) => {
+        setPendingSliders((prev) => ({
+            ...prev,
+            [activityId]: isPending,
         }));
     };
 
@@ -345,47 +357,28 @@ export default function PreviousLogPage() {
 
                                             {isCheckbox ? (
                                                 <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="checkbox"
-                                                        id={`activity-${activityId}`}
+                                                    <CustomSlider
                                                         checked={checkboxActivities[activityId] || false}
-                                                        onChange={(e) => handleCheckboxChange(activityId, e.target.checked)}
-                                                        className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                                                        onChange={(checked) => handleCheckboxChange(activityId, checked)}
+                                                        onPendingChange={(isPending) => handlePendingChange(activityId, isPending)}
+                                                        disabled={false}
                                                     />
-                                                    <label
-                                                        htmlFor={`activity-${activityId}`}
-                                                        className="text-sm text-gray-700 cursor-pointer"
-                                                    >
-                                                        Mark as completed for this day
-                                                    </label>
+                                                    <span className="text-sm text-gray-600 min-w-20 text-right">
+                                                        {(activity.pointsPerUnit || 0).toFixed(2)} pts/day
+                                                    </span>
                                                 </div>
                                             ) : (
-                                                <div className="space-y-2">
-                                                    <label className="block text-sm font-medium text-gray-700">
-                                                        Value ({activity.unit})
-                                                    </label>
-                                                    <Input
-                                                        type="number"
-                                                        min={0}
-                                                        max={activity.values?.find(v => v.tier === 1)?.maxVal || 100000}
-                                                        onBlur={(e) => {
-                                                            // Clamp value on blur
-                                                            let val = parseFloat(e.target.value) || 0;
-                                                            if (val < 0) val = 0;
-                                                            if (val > (activity.values?.find(v => v.tier === 1)?.maxVal || 100000)) {
-                                                                val = activity.values?.find(v => v.tier === 1)?.maxVal || 100000;
-                                                            }
-                                                            handleActivityChange(activityId, val.toString());
-                                                        }}
-                                                        step="any"
-                                                        value={activities[activityId] || 0}
-                                                        onChange={(e) => {
-                                                            // Allow free typing without clamping
-                                                            handleActivityChange(activityId, e.target.value);
-                                                        }}
-                                                        placeholder={`Enter ${activity.unit.toLowerCase()}`}
-                                                    />
-                                                </div>
+                                                <CustomNumericInput
+                                                    value={activities[activityId] || 0}
+                                                    onChange={(val) => handleActivityChange(activityId, val.toString())}
+                                                    min={0}
+                                                    max={activity.values?.find(v => v.tier === 1)?.maxVal || 100000}
+                                                    placeholder={`Enter ${activity.unit.toLowerCase()}`}
+                                                    unit={activity.unit || ''}
+                                                    pointsPerUnit={activity.pointsPerUnit || 0}
+                                                    cadence={activity.cadence}
+                                                    disabled={false}
+                                                />
                                             )}
                                         </div>
                                     </CardContent>
@@ -423,10 +416,10 @@ export default function PreviousLogPage() {
                 {selectedDate && weeklyPlan && !logAlreadyExists && canSubmit && (
                     <Button
                         onClick={handleSubmit}
-                        disabled={loading || !canSubmit || checkingLog}
+                        disabled={loading || !canSubmit || checkingLog || Object.values(pendingSliders).some(isPending => isPending)}
                         className="w-full bg-purple-600 hover:bg-purple-700 text-white py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {loading ? 'Submitting...' : checkingLog ? 'Checking...' : 'Submit Previous Day Log'}
+                        {loading ? 'Submitting...' : checkingLog ? 'Checking...' : Object.values(pendingSliders).some(isPending => isPending) ? 'Please Complete All Sliders' : 'Submit Previous Day Log'}
                     </Button>
                 )}
 
