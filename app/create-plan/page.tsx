@@ -35,7 +35,7 @@ interface SelectedActivity {
 
 export default function CreatePlanPage() {
   const router = useRouter();
-  const { user, accessToken, isHydrated } = useAuthStore();
+  const { user, accessToken, isHydrated,selectedProfile } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<SelectedActivity[]>([]);
@@ -50,7 +50,7 @@ export default function CreatePlanPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<'body' | 'mind' | 'soul'>('body');
   const [targetOverlayActivity, setTargetOverlayActivity] = useState<Activity | null>(null);
-  const [weight, setWeight] = useState<number>(user?.profile?.weight || 0);
+  const [weight, setWeight] = useState<number>(selectedProfile?.profile?.weight || 0);
   const [showWeightOverlay, setShowWeightOverlay] = useState(false);
 
   useEffect(() => {
