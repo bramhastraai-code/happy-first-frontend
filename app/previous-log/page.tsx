@@ -12,6 +12,7 @@ import { Calendar, ChevronRight, Clock, AlertCircle } from 'lucide-react';
 import type { WeeklyPlan, WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import CustomSlider from '@/components/ui/CustomSlider';
 import CustomNumericInput from '@/components/ui/CustomNumericInput';
+import { DateTime } from 'luxon';
 
 export default function PreviousLogPage() {
     const router = useRouter();
@@ -34,9 +35,10 @@ export default function PreviousLogPage() {
         setIsMounted(true);
 
         // Automatically set yesterday's date
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        setSelectedDate(yesterday.toISOString().split('T')[0]);
+        const yesterday = DateTime.now().setZone('local').minus({ days: 1 });
+        console.log(yesterday.toJSDate());
+        
+        setSelectedDate(yesterday.toISODate()||'');
     }, []);
 
     useEffect(() => {
@@ -67,6 +69,8 @@ export default function PreviousLogPage() {
                 // Check if selected date is yesterday
                 if (selected.getTime() === yesterday.getTime()) {
                     // Check if it's before 6 PM TODAY
+                    console.log(currentHour);
+                    
                     if (currentHour < 18) {
                         setCanSubmit(true);
                         const minutesLeft = 60 - now.getMinutes();
