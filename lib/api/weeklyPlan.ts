@@ -12,7 +12,7 @@ export interface WeeklyPlanActivity {
   targetValue: number;
   achieved?: number;
   achievedUnits?: number;
-  dailyTargets?: number;
+  dailyTarget?: number;
   label?: string;
   pendingUnits?: number;
   pointsAllocated?: number;

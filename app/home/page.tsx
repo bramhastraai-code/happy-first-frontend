@@ -445,8 +445,8 @@ function HomePageContent() {
                               return (
                                 <div key={index} className={`${
                                   isSurprise 
-                                    ? (activity.TodayLogged ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-400 shadow-md' : 'bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 shadow-md')
-                                    : (activity.TodayLogged ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200')
+                                    ? (activity.TodayLogged ?(activity.achieved||0)>0? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-400 shadow-md': 'bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 shadow-md' : 'bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 shadow-md')
+                                    : (activity.TodayLogged ?(activity.achieved||0)>0? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200')
                                 } rounded-lg p-4 relative`}>
                                   {isSurprise && (
                                     <div className="absolute -top-2 -right-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg flex items-center gap-1 animate-pulse">
@@ -455,7 +455,7 @@ function HomePageContent() {
                                   )}
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-2xl">{isSurprise ? (activity.TodayLogged ? '🎉' : '🎁') : (activity.TodayLogged ? '✅' : '⏳')}</span>
+                                      <span className="text-2xl">{isSurprise ? (activity.TodayLogged ? '🎉' : '🎁') : (activity.TodayLogged ?(activity.achieved||0)>0? '✅' :'❌': '⏳')}</span>
                                       <div>
                                         <p className={`font-medium text-sm ${isSurprise ? 'text-orange-900 font-semibold' : 'text-gray-900'}`}>
                                           {activityData?.label || 'Activity'}
@@ -467,8 +467,8 @@ function HomePageContent() {
                                     </div>
                                     <div className="text-right">
                                       {activity.TodayLogged ? (
-                                        <p className={`text-sm font-semibold ${isSurprise ? 'text-orange-600' : 'text-green-600'}`}>
-                                          {isSurprise ? '🌟 Done Today!' : 'Done Today!'}
+                                        <p className={`text-sm font-semibold ${(activity.achieved||0)>0?isSurprise ? 'text-orange-600' : 'text-green-600': 'text-red-600'}`}>
+                                          {(activity.achieved||0)>0? (activity.achieved||0)>=(activity.dailyTarget||0) ?  ' Done Today!' : 'Partial Done Today': ' Not Done Today!'}
                                         </p>
                                       ) : (
                                         <p className={`text-sm font-semibold ${isSurprise ? 'text-orange-600' : 'text-blue-600'}`}>

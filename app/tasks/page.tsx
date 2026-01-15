@@ -15,6 +15,8 @@ import { authAPI } from '@/lib/api/auth';
 import GuidedTour from '@/components/ui/GuidedTour';
 import { tasksTourSteps } from '@/lib/utils/tourSteps';
 import { HelpCircle } from 'lucide-react';
+import CustomSlider from '@/components/ui/CustomSlider';
+import CustomNumericInput from '@/components/ui/CustomNumericInput';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -22,6 +24,8 @@ export default function TasksPage() {
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
   const [activities, setActivities] = useState<Record<string, number>>({});
   const [checkboxActivities, setCheckboxActivities] = useState<Record<string, boolean>>({});
+  const [pendingSliders, setPendingSliders] = useState<Record<string, boolean>>({});
+
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -72,6 +76,7 @@ export default function TasksPage() {
         // Initialize activity values
         const initialValues: Record<string, number> = {};
         const initialCheckboxValues: Record<string, boolean> = {};
+        const initialPendingSliders: Record<string, boolean> = {};
         planResponse.data.data.activities.forEach((activity: WeeklyPlanActivity) => {
           const activityId = typeof activity.activity === 'object' 
             ? activity.activity 
@@ -80,12 +85,14 @@ export default function TasksPage() {
           // Check if it's a weekly activity with "days" unit
           if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
             initialCheckboxValues[activityId] = false;
+            initialPendingSliders[activityId] = true; // Start as pending
           } else {
             initialValues[activityId] = 0;
           }
         });
         setActivities(initialValues);
         setCheckboxActivities(initialCheckboxValues);
+        setPendingSliders(initialPendingSliders);
         
         // Set summaries
       } catch (err: unknown) {
@@ -161,7 +168,7 @@ export default function TasksPage() {
         .map(([activityId, checked]) => ({
           activityId,
           value: checked ? 1 : 0,
-        }));
+        })).filter(entry => entry.value > 0 ); // Include only if checked or explicitly marked as not pending
       
       const submitData: SubmitDailyLogData = {
         activities: [...numericActivities, ...checkboxActivityEntries],
@@ -187,6 +194,7 @@ export default function TasksPage() {
       // Reset form
       const resetValues: Record<string, number> = {};
       const resetCheckboxValues: Record<string, boolean> = {};
+      const resetPendingSliders: Record<string, boolean> = {};
       weeklyPlan?.activities.forEach((activity) => {
         const activityId = typeof activity.activity === 'object' 
           ? activity.activity 
@@ -194,12 +202,14 @@ export default function TasksPage() {
         
         if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
           resetCheckboxValues[activityId] = false;
+          resetPendingSliders[activityId] = true;
         } else {
           resetValues[activityId] = 0;
         }
       });
       setActivities(resetValues);
       setCheckboxActivities(resetCheckboxValues);
+      setPendingSliders(resetPendingSliders);
     } catch (err: unknown) {
       setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to submit daily log');
     } finally {
@@ -214,6 +224,10 @@ export default function TasksPage() {
 
   const handleCheckboxChange = (activityId: string, checked: boolean) => {
     setCheckboxActivities((prev) => ({ ...prev, [activityId]: checked }));
+  };
+
+  const handlePendingChange = (activityId: string, isPending: boolean) => {
+    setPendingSliders((prev) => ({ ...prev, [activityId]: isPending }));
   };
 
   const getTodayProgress = () => {
@@ -439,16 +453,11 @@ export default function TasksPage() {
                         <>
                           {activity.cadence === 'weekly' && activityData?.unit.toLowerCase() === 'days' ? (
                             <>
-                              <div className="flex-1 flex items-center gap-2 bg-orange-50 p-3 rounded-md border border-orange-200 opacity-60">
-                                <input
-                                  type="checkbox"
-                                  disabled
-                                  checked={false}
-                                  className="w-5 h-5 cursor-not-allowed"
-                                />
-                                <span className="text-sm text-orange-700">Available after 6 PM</span>
-                                <Lock className="w-4 h-4 text-orange-500 ml-auto" />
-                              </div>
+                              <CustomSlider
+                                checked={false}
+                                onChange={() => {}}
+                                disabled={true}
+                              />
                               <div className="flex items-center gap-1 text-xs text-orange-600 min-w-20">
                                 <Timer className="w-4 h-4" />
                                 <span className="font-mono">{timeUntilMidnight}</span>
@@ -479,16 +488,11 @@ export default function TasksPage() {
                         <>
                           {activity.cadence === 'weekly' && activityData?.unit.toLowerCase() === 'days' ? (
                             <>
-                              <div className="flex-1 flex items-center gap-2 bg-gray-100 p-3 rounded-md opacity-60">
-                                <input
-                                  type="checkbox"
-                                  disabled
-                                  checked={checkboxActivities[activityId] || false}
-                                  className="w-5 h-5 cursor-not-allowed"
-                                />
-                                <span className="text-sm text-gray-600">Done for today</span>
-                                <Lock className="w-4 h-4 text-gray-500 ml-auto" />
-                              </div>
+                              <CustomSlider
+                                checked={checkboxActivities[activityId] || false}
+                                onChange={() => {}}
+                                disabled={true}
+                              />
                               <div className="flex items-center gap-1 text-xs text-gray-600 min-w-20">
                                 <Timer className="w-4 h-4" />
                                 <span className="font-mono">{timeUntilMidnight}</span>
@@ -519,46 +523,29 @@ export default function TasksPage() {
                         <>
                           {activity.cadence === 'weekly' && activityData?.unit.toLowerCase() === 'days' ? (
                             <>
-                              <div className="flex-1 flex items-center gap-2 bg-blue-50 p-3 rounded-md border border-blue-200">
-                                <input
-                                  type="checkbox"
-                                  checked={checkboxActivities[activityId] || false}
-                                  onChange={(e) => handleCheckboxChange(activityId, e.target.checked)}
-                                  className="w-5 h-5 cursor-pointer accent-blue-600"
-                                />
-                                <span className="text-sm text-gray-700">Done for today</span>
-                              </div>
+                              <CustomSlider
+                                checked={checkboxActivities[activityId] || false}
+                                onChange={(checked) => handleCheckboxChange(activityId, checked)}
+                                onPendingChange={(isPending) => handlePendingChange(activityId, isPending)}
+                                disabled={false}
+                              />
                               <span className="text-sm text-gray-600 min-w-20 text-right">
                                 {(activity.pointsPerUnit!).toFixed(2)} pts/day
                               </span>
                             </>
                           ) : (
                             <>
-                              <Input
-                                type="number"
+                              <CustomNumericInput
+                                value={activities[activityId] || 0}
+                                onChange={(val) => handleActivityChange(activityId, val.toString())}
                                 min={0}
                                 max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
-                                onBlur={(e) => {
-                                  // Clamp value on blur
-                                  let val = parseFloat(e.target.value) || 0;
-                                  if (val < 0) val = 0;
-                                  if (val > (activityData?.values.find(v=>v.tier===1)?.maxVal || 100000)) {
-                                    val = activityData?.values.find(v=>v.tier===1)?.maxVal || 100000;
-                                  }
-                                  handleActivityChange(activityId, val.toString());
-                                }}
-                                step="any"
-                                value={activities[activityId] || 0}
-                                onChange={(e) => {
-                                  // Allow free typing without clamping
-                                  handleActivityChange(activityId, e.target.value);
-                                }}
                                 placeholder={`Enter ${activityData?.unit}`}
-                                className="flex-1"
+                                unit={activityData?.unit || ''}
+                                pointsPerUnit={activity.pointsPerUnit || 0}
+                                cadence={activity.cadence}
+                                disabled={false}
                               />
-                              <span className="text-sm text-gray-600 min-w-20 text-right">
-                                {activity.cadence=="daily"?`${activity.pointsPerUnit?.toFixed(2)} pts/Day`:`${(activity.pointsPerUnit!).toFixed(2)} pts/${activityData?.unit} (weekly)`}
-                              </span>
                             </>
                           )}
                         </>
@@ -587,10 +574,10 @@ export default function TasksPage() {
             )}
             <Button
               type="submit"
-              disabled={!isAfter6PM || loading||weeklyPlan?.activities.every(activity => activity.TodayLogged)||Object.values(activities).every(value => value === 0) && Object.values(checkboxActivities).every(checked => !checked)}
+              disabled={!isAfter6PM || loading||weeklyPlan?.activities.every(activity => activity.TodayLogged)||Object.values(activities).every(value => value === 0) && Object.values(checkboxActivities).every(checked => !checked) || Object.values(pendingSliders).some(isPending => isPending)}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {loading ? 'Submitting...' : !isAfter6PM ? 'Available After 6 PM' : 'Submit Daily Log'}
+              {loading ? 'Submitting...' : !isAfter6PM ? 'Available After 6 PM' : Object.values(pendingSliders).some(isPending => isPending) ? 'Please Complete All Sliders' : 'Submit Daily Log'}
             </Button>
           </form>
           )}

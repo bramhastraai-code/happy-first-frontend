@@ -213,7 +213,7 @@ function WeekAnalysisContent() {
                             <div className="flex items-center gap-2 mb-3">
                               <h3 className="text-lg font-bold text-gray-900">{activity.activityLabel}</h3>
                               {activity.rank && (
-                                <span className={`text-xs font-bold px-3 py-1.5 rounded-full shadow-md ${getRankBadgeColor(activity.rankPercentile)}`}>
+                                <span className={`text-xs font-bold text-white px-3 py-1.5 rounded-full shadow-md ${getRankBadgeColor(activity.rankPercentile)}`}>
                                   #{activity.rank}
                                 </span>
                               )}
@@ -240,7 +240,7 @@ function WeekAnalysisContent() {
                           <div className="bg-white rounded-xl p-4 mb-4 border-2 border-indigo-100 shadow-md">
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-3">
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-base shadow-lg ${getRankBadgeColor(activity.rankPercentile)}`}>
+                                <div className={`w-12 h-12 rounded-xl flex text-white items-center justify-center font-bold text-base shadow-lg ${getRankBadgeColor(activity.rankPercentile)}`}>
                                   {activity.rank}
                                 </div>
                                 <div>
