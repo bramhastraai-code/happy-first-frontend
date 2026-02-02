@@ -71,22 +71,22 @@ export default function PreviousLogPage() {
                     // Check if it's before 6 PM TODAY
                     console.log(currentHour);
                     
-                    if (currentHour < 18) {
+                    if (currentHour < 24) {
                         setCanSubmit(true);
                         const minutesLeft = 60 - now.getMinutes();
-                        const hoursLeft = 18 - currentHour - 1 + (minutesLeft === 60 ? 1 : 0);
+                        const hoursLeft = 24 - currentHour - 1 + (minutesLeft === 60 ? 1 : 0);
 
-                        setDeadlineMessage(`✓ You can submit yesterday's log. Deadline: Today at 6:00 PM (${hoursLeft}h ${minutesLeft}m left)`);
+                        setDeadlineMessage(`✓ You can submit yesterday's log. Deadline: Today at 12:00 PM (${hoursLeft}h ${minutesLeft}m left)`);
                     } else {
                         setCanSubmit(false);
-                        setDeadlineMessage('⏰ Deadline passed! Previous day logs must be submitted before 6:00 PM of the next day');
+                        setDeadlineMessage('⏰ Deadline passed! Previous day logs must be submitted before 12:00 PM of the next day');
                     }
                 } else if (selected.getTime() >= todayMidnight.getTime()) {
                     setCanSubmit(false);
                     setDeadlineMessage('❌ You cannot submit logs for today or future dates');
                 } else {
                     setCanSubmit(false);
-                    setDeadlineMessage('❌ Deadline has passed. You can only submit logs for yesterday before 6:00 PM');
+                    setDeadlineMessage('❌ Deadline has passed. You can only submit logs for yesterday before 12:00 PM');
                 }
             } else {
                 setCanSubmit(false);
