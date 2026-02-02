@@ -293,7 +293,7 @@ export default function PreviousLogPage() {
                                     {deadlineMessage}
                                 </p>
                                 <p className="text-sm text-gray-600 mt-1">
-                                    Previous day logs must be submitted before 6:00 PM of the next day
+                                    Previous day logs must be submitted before 12:00 PM of the next day
                                 </p>
                             </div>
                         </div>
@@ -438,7 +438,7 @@ export default function PreviousLogPage() {
                                     <ul className="list-disc list-inside space-y-1 text-blue-800">
                                         <li>Yesterday`s date is automatically selected</li>
                                         <li>Fill in your activity values</li>
-                                        <li>Submit before 6:00 PM today</li>
+                                        <li>Submit before 12:00 PM today</li>
                                         <li>Points will be added to your profile</li>
                                     </ul>
                                 </div>
