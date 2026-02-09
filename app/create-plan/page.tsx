@@ -115,7 +115,7 @@ export default function CreatePlanPage() {
       if (happyDaysActivity) {
         setMandatoryActivity(happyDaysActivity);
         // Open overlay for mandatory activity configuration
-        setTargetOverlayActivity(happyDaysActivity);
+        // setTargetOverlayActivity(happyDaysActivity);
       }
     } catch (error) {
       console.error('Failed to fetch activities:', error);
@@ -220,6 +220,20 @@ export default function CreatePlanPage() {
       );
       setError(`Please browse through all categories before proceeding. Not visited: ${categoryNames.join(', ')}`);
       return;
+    }
+
+    // Check if mandatory activity target has been set
+    if (mandatoryActivity) {
+      const mandatoryActivitySelected = selectedActivities.find(
+        a => a.activityId === mandatoryActivity._id
+      );
+      
+      if (!mandatoryActivitySelected) {
+        // Ask for mandatory activity target if not yet configured
+        setTargetOverlayActivity(mandatoryActivity);
+        setError('');
+        return;
+      }
     }
 
     setError('');
