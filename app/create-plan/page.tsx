@@ -49,6 +49,7 @@ export default function CreatePlanPage() {
   const [showTourButton, setShowTourButton] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<'body' | 'mind' | 'soul'>('body');
+  const [visitedCategories, setVisitedCategories] = useState<Set<'body' | 'mind' | 'soul'>>(new Set(['body']));
   const [targetOverlayActivity, setTargetOverlayActivity] = useState<Activity | null>(null);
   const [weight, setWeight] = useState<number>(selectedProfile?.profile?.weight || 0);
   const [showWeightOverlay, setShowWeightOverlay] = useState(false);
@@ -143,6 +144,11 @@ export default function CreatePlanPage() {
     (activity) => activity.category.toLowerCase() === selectedCategory.toLowerCase()
   );
 
+  const handleCategoryChange = (category: 'body' | 'mind' | 'soul') => {
+    setSelectedCategory(category);
+    setVisitedCategories(prev => new Set([...prev, category]));
+  };
+
   const updateActivityTarget = (activityId: string, field: string, value: string | number) => {
     setSelectedActivities(
       selectedActivities.map((act) =>
@@ -151,11 +157,48 @@ export default function CreatePlanPage() {
     );
   };
 
+  // Check which categories have selected activities
+  const getCategoryStatus = () => {
+    const bodyActivities = selectedActivities.filter(act => {
+      const activity = activities.find(a => a._id === act.activityId);
+      return activity?.category.toLowerCase() === 'body';
+    });
+    const mindActivities = selectedActivities.filter(act => {
+      const activity = activities.find(a => a._id === act.activityId);
+      return activity?.category.toLowerCase() === 'mind';
+    });
+    const soulActivities = selectedActivities.filter(act => {
+      const activity = activities.find(a => a._id === act.activityId);
+      return activity?.category.toLowerCase() === 'soul';
+    });
+
+    return {
+      body: bodyActivities.length > 0,
+      mind: mindActivities.length > 0,
+      soul: soulActivities.length > 0,
+      bodyCount: bodyActivities.length,
+      mindCount: mindActivities.length,
+      soulCount: soulActivities.length,
+    };
+  };
+
   const handleNext = () => {
     if (selectedActivities.length < 4) {
       setError('Please select at least 4 activities');
       return;
     }
+
+    // Check if all categories have been visited
+    if (visitedCategories.size < 3) {
+      const allCategories: ('body' | 'mind' | 'soul')[] = ['body', 'mind', 'soul'];
+      const unvisitedCategories = allCategories.filter(cat => !visitedCategories.has(cat));
+      const categoryNames = unvisitedCategories.map(cat => 
+        cat.charAt(0).toUpperCase() + cat.slice(1)
+      );
+      setError(`Please browse through all categories before proceeding. Not visited: ${categoryNames.join(', ')}`);
+      return;
+    }
+
     setError('');
     setStep('configure');
   };
@@ -376,39 +419,51 @@ export default function CreatePlanPage() {
           <div className="space-y-4">
             {/* Category Selection */}
             <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Category</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Browse All Categories</h3>
               <div className="grid grid-cols-3 gap-2">
                 <button
-                  onClick={() => setSelectedCategory('body')}
-                  className={`p-3 rounded-lg font-medium text-sm transition-all ${
+                  onClick={() => handleCategoryChange('body')}
+                  className={`relative p-3 rounded-lg font-medium text-sm transition-all ${
                     selectedCategory === 'body'
                       ? 'bg-blue-500 text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   💪 Body
+                  {visitedCategories.has('body') && (
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
+                  )}
                 </button>
                 <button
-                  onClick={() => setSelectedCategory('mind')}
-                  className={`p-3 rounded-lg font-medium text-sm transition-all ${
+                  onClick={() => handleCategoryChange('mind')}
+                  className={`relative p-3 rounded-lg font-medium text-sm transition-all ${
                     selectedCategory === 'mind'
                       ? 'bg-purple-500 text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   🧠 Mind
+                  {visitedCategories.has('mind') && (
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
+                  )}
                 </button>
                 <button
-                  onClick={() => setSelectedCategory('soul')}
-                  className={`p-3 rounded-lg font-medium text-sm transition-all ${
+                  onClick={() => handleCategoryChange('soul')}
+                  className={`relative p-3 rounded-lg font-medium text-sm transition-all ${
                     selectedCategory === 'soul'
                       ? 'bg-green-500 text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   ✨ Soul
+                  {visitedCategories.has('soul') && (
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
+                  )}
                 </button>
               </div>
+              <p className="text-xs text-gray-600 mt-2">
+                Visit all categories to explore available activities
+              </p>
             </div>
 
             {/* Repeat Last Week Button */}
@@ -444,10 +499,37 @@ export default function CreatePlanPage() {
               </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-900">
-                <span className="font-semibold">Selected: {selectedActivities.length}</span> / Minimum: 4
-              </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm text-blue-900">
+                  <span className="font-semibold">Selected: {selectedActivities.length}</span> / Minimum: 4
+                </p>
+              </div>
+              
+              {/* Category Browsing Status */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-700 mb-2">Browsing Progress:</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium ${
+                    visitedCategories.has('body') ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {visitedCategories.has('body') ? '✓' : '○'} Body
+                  </div>
+                  <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium ${
+                    visitedCategories.has('mind') ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {visitedCategories.has('mind') ? '✓' : '○'} Mind
+                  </div>
+                  <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium ${
+                    visitedCategories.has('soul') ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {visitedCategories.has('soul') ? '✓' : '○'} Soul
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600 mt-2">
+                  Browse all categories before proceeding ({visitedCategories.size}/3 visited)
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
