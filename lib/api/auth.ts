@@ -34,6 +34,17 @@ export interface VerifyLoginOTPData {
   otp: string;
 }
 
+export interface RequestMagicLinkData {
+  phoneNumber: string;
+  countryCode: string;
+  profileId?: string; // Optional: Auto-select this profile after login
+  redirectTo?: 'tasks' | 'create-plan'; // Optional: Redirect to specific page after login
+}
+
+export interface VerifyMagicLinkData {
+  token: string;
+}
+
 export interface ChangePasswordData {
   oldPassword: string;
   newPassword: string;
@@ -98,6 +109,10 @@ export const authAPI = {
   requestLoginOTP: (data: RequestLoginOTPData) => api.post('/userAuth/req-login-otp', data),
   
   verifyLoginOTP: (data: VerifyLoginOTPData) => api.post('/userAuth/login-otp-verify', data),
+  
+  requestMagicLink: (data: RequestMagicLinkData) => api.post('/userAuth/magic-link/request', data),
+  
+  verifyMagicLink: (token: string) => api.get('/userAuth/magic-link/verify', { params: { token } }),
   
   refresh: () => api.post('/userAuth/refresh'),
   

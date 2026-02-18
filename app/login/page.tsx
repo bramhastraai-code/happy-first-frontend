@@ -11,8 +11,9 @@ export default function LoginPage() {
   const router = useRouter();
   const { setUser, setAccessToken , setProfiles} = useAuthStore();
 
-  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
+  const [loginMethod, setLoginMethod] = useState<'password' | 'otp' | 'magicLink'>('password');
   const [otpSent, setOtpSent] = useState(false);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [formData, setFormData] = useState({
     phoneNumber: '',
     countryCode: '+91',
@@ -93,6 +94,33 @@ export default function LoginPage() {
     }
   };
 
+  const handleRequestMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      const response = await authAPI.requestMagicLink({
+        phoneNumber: formData.phoneNumber,
+        countryCode: formData.countryCode,
+      });
+      setMagicLinkSent(true);
+      
+      // If in development/testing, the API might return the magic link
+      const magicLink = response.data.data?.magicLink;
+      if (magicLink) {
+        setSuccessMessage(`Magic link sent! For testing: ${magicLink}`);
+      } else {
+        setSuccessMessage('Magic link sent to your phone! Check your messages.');
+      }
+    } catch (err) {
+      setError((err as any).response?.data?.message || 'Failed to send magic link');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
@@ -110,6 +138,7 @@ export default function LoginPage() {
             onClick={() => {
               setLoginMethod('password');
               setOtpSent(false);
+              setMagicLinkSent(false);
               setError('');
               setSuccessMessage('');
             }}
@@ -125,6 +154,7 @@ export default function LoginPage() {
             type="button"
             onClick={() => {
               setLoginMethod('otp');
+              setMagicLinkSent(false);
               setError('');
               setSuccessMessage('');
             }}
@@ -136,15 +166,33 @@ export default function LoginPage() {
           >
             OTP
           </button>
+          {/* <button
+            type="button"
+            onClick={() => {
+              setLoginMethod('magicLink');
+              setOtpSent(false);
+              setError('');
+              setSuccessMessage('');
+            }}
+            className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+              loginMethod === 'magicLink'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Magic Link
+          </button> */}
         </div>
 
         <form
           onSubmit={
             loginMethod === 'password'
               ? handlePasswordLogin
-              : otpSent
-              ? handleVerifyOTP
-              : handleRequestOTP
+              : loginMethod === 'otp'
+              ? otpSent
+                ? handleVerifyOTP
+                : handleRequestOTP
+              : handleRequestMagicLink
           }
           className="space-y-4"
         >
@@ -156,7 +204,7 @@ export default function LoginPage() {
               value={formData.countryCode}
               onChange={(e) => setFormData({ ...formData, countryCode: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={otpSent && loginMethod === 'otp'}
+              disabled={(otpSent && loginMethod === 'otp') || (magicLinkSent && loginMethod === 'magicLink')}
             >
               <option value="+91">+91 (India)</option>
               <option value="+1">+1 (USA/Canada)</option>
@@ -175,7 +223,7 @@ export default function LoginPage() {
               value={formData.phoneNumber}
               onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
               required
-              disabled={otpSent && loginMethod === 'otp'}
+              disabled={(otpSent && loginMethod === 'otp') || (magicLinkSent && loginMethod === 'magicLink')}
             />
           </div>
 
@@ -224,20 +272,26 @@ export default function LoginPage() {
 
           <Button
             type="submit"
-            disabled={loading}
+            disabled={loading || (magicLinkSent && loginMethod === 'magicLink')}
             className="w-full bg-blue-600 hover:bg-blue-700"
           >
             {loading
               ? loginMethod === 'password'
                 ? 'Logging in...'
-                : otpSent
-                ? 'Verifying OTP...'
-                : 'Sending OTP...'
+                : loginMethod === 'otp'
+                ? otpSent
+                  ? 'Verifying OTP...'
+                  : 'Sending OTP...'
+                : 'Sending Magic Link...'
               : loginMethod === 'password'
               ? 'Login with Password'
-              : otpSent
-              ? 'Verify OTP'
-              : 'Send OTP'}
+              : loginMethod === 'otp'
+              ? otpSent
+                ? 'Verify OTP'
+                : 'Send OTP'
+              : magicLinkSent
+              ? 'Magic Link Sent'
+              : 'Send Magic Link'}
           </Button>
 
           {loginMethod === 'otp' && otpSent && (
@@ -252,6 +306,20 @@ export default function LoginPage() {
               className="w-full text-sm text-blue-600 hover:underline"
             >
               Change phone number
+            </button>
+          )}
+
+          {loginMethod === 'magicLink' && magicLinkSent && (
+            <button
+              type="button"
+              onClick={() => {
+                setMagicLinkSent(false);
+                setError('');
+                setSuccessMessage('');
+              }}
+              className="w-full text-sm text-blue-600 hover:underline"
+            >
+              Send to different number
             </button>
           )}
         </form>
