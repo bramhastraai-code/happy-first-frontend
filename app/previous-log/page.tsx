@@ -236,7 +236,7 @@ export default function PreviousLogPage() {
             };
 
             const response = await dailyLogAPI.submitPrevious(submitData);
-            setSuccess(`Previous day log submitted! Points earned: ${response.data.data.totalPoints}`);
+            setSuccess(`Previous day log submitted! Points earned: ${response.data.data.totalPoints.toFixed(2)}`);
 
             // Reset form after successful submission
             setTimeout(() => {

@@ -4,10 +4,10 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore, getCookie, setCookie } from '@/lib/store/authStore';
 import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
-import { dailyLogAPI, type DailySummary, type MonthlySummary, type StreakData } from '@/lib/api/dailyLog';
+import { dailyLogAPI, type DailySummary, type MonthlySummary, type StreakData, type CalendarData } from '@/lib/api/dailyLog';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import {  Trophy, Flame, Activity, ChevronDown, ChevronUp, LogOut, Smile, Calendar, Check, X, TrendingUp, Frown } from 'lucide-react';
+import { Trophy, Flame, Activity, ChevronDown, ChevronUp, LogOut, Smile, Calendar, Check, X, TrendingUp, Frown } from 'lucide-react';
 import type { WeeklyPlan } from '@/lib/api/weeklyPlan';
 import type { WeeklySummary } from '@/lib/api/dailyLog';
 import WelcomeBanner from '@/components/ui/WelcomeBanner';
@@ -69,6 +69,9 @@ function HomePageContent() {
   const [weeklyData, setWeeklyData] = useState<WeeklyDataPoint[]>([]);
   const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
   const [streakData, setStreakData] = useState<StreakData | null>(null);
+  const [isShowingPreviousWeek, setIsShowingPreviousWeek] = useState(false);
+  const [weeklyLogData, setWeeklyLogData] = useState<CalendarData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Convert monthly data to weekly groups (Monday to Sunday)
   const groupDataByWeeks = (data: MonthlyDataPoint[]): WeeklyDataPoint[] => {
@@ -121,13 +124,13 @@ function HomePageContent() {
 
   useEffect(() => {
     setIsMounted(true);
-    
+
     // Check if there's a date query parameter from calendar navigation after mount
     const dateParam = searchParams.get('date');
     if (dateParam && isHydrated) {
       setLogDateFilter(dateParam);
       setExpandedSections(prev => ({ ...prev, logTracker: true }));
-      
+
       // Scroll to log tracker after a short delay
       setTimeout(() => {
         const logTrackerElement = document.querySelector('.log-tracker');
@@ -204,8 +207,8 @@ function HomePageContent() {
           authAPI.userInfo(),
 
         ]);
-        
-        // Fetch streak data if selectedProfile is available
+
+        // Fetch streak data and calendar data if selectedProfile is available
         if (selectedProfile?._id) {
           try {
             const streakRes = await dailyLogAPI.getStreaks(selectedProfile._id);
@@ -213,8 +216,16 @@ function HomePageContent() {
           } catch (error) {
             console.error('Failed to fetch streak data:', error);
           }
+
+          try {
+            const now = new Date();
+            const calendarRes = await dailyLogAPI.getCalendar(selectedProfile._id, now.getMonth() + 1, now.getFullYear());
+            setWeeklyLogData(calendarRes.data.data);
+          } catch (error) {
+            console.error('Failed to fetch calendar data:', error);
+          }
         }
-        
+
         const monthlyDataPoints = (monthlyRes.data.data as MonthlySummary).dailyBreakdown.map(item => ({
           date: item.date,
           points: item.points,
@@ -224,7 +235,30 @@ function HomePageContent() {
         setWeeklyData(groupDataByWeeks(monthlyDataPoints));
         setMonthlyLogData((monthlyRes.data.data as MonthlySummary).totalDaysLogged);
         setWeeklyPlan(planRes.data.data);
-        setSummary(summaryRes.data.data as WeeklySummary);
+
+        // Check if user has logged this week
+        const currentWeekSummary = summaryRes.data.data as WeeklySummary;
+        if (currentWeekSummary.totalDaysLogged === 0) {
+          // User hasn't logged this week, fetch previous week's data
+          try {
+            const previousWeekDate = DateTime.local().minus({ days: 7 }).toFormat('yyyy-MM-dd');
+            const previousWeekRes = await dailyLogAPI.getSummary('weekly', previousWeekDate);
+            setSummary(previousWeekRes.data.data as WeeklySummary);
+            setIsShowingPreviousWeek(true);
+          } catch (error) {
+            console.error('Failed to fetch previous week data:', error);
+            // Fallback to current week (which is 0)
+            setSummary(currentWeekSummary);
+            setIsShowingPreviousWeek(false);
+          }
+        } else {
+          // User has logged this week, show current week data
+          setSummary(currentWeekSummary);
+          console.log('sasdadf');
+
+          setIsShowingPreviousWeek(false);
+        }
+
         setUser(userInfo.data.data);
         if (dailyRes?.data?.data) {
           setDailySummary(dailyRes.data.data as DailySummary);
@@ -257,9 +291,14 @@ function HomePageContent() {
         setRunTour(true);
         setShowTourButton(false);
       }
+      
+      // Set loading to false after all data is fetched
+      setLoading(false);
     };
     fetchData();
   }, [accessToken, user, router, isHydrated, selectedProfile]);
+  console.log(isShowingPreviousWeek);
+
 
   useEffect(() => {
     if (!accessToken || !logDateFilter) return;
@@ -290,6 +329,48 @@ function HomePageContent() {
     points: summary?.totalPoints || 0,
   };
 
+  // Get current week's days (Monday to Sunday)
+  const getCurrentWeekDays = () => {
+    const now = DateTime.local();
+    const startOfWeek = now.startOf('week'); // Monday
+    const days = [];
+    
+    for (let i = 0; i < 7; i++) {
+      const day = startOfWeek.plus({ days: i });
+      const dateString = day.toFormat('yyyy-MM-dd');
+      const calendarDay = weeklyLogData?.calendarDays.find(d => d.date.split('T')[0] == dateString);
+      
+      days.push({
+        date: dateString,
+        dayName: day.toFormat('EEE'), // Mon, Tue, etc.
+        dayNumber: day.day,
+        hasLog: calendarDay?.hasLog || false,
+        isToday: day.toISODate() === now.toISODate(),
+        isFuture: day > now,
+      });
+    }
+    
+    return days;
+  };
+
+  const weekDays = getCurrentWeekDays();
+  console.log(weekDays,"ds");
+  
+  // Show loading state while data is being fetched
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 text-lg font-medium">Loading your dashboard...</p>
+            <p className="text-gray-500 text-sm mt-2">Please wait while we fetch your data</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+  
   return (
     <MainLayout >
       {/* Guided Tour - Only render on client */}
@@ -361,10 +442,71 @@ function HomePageContent() {
           </div>
         </div>
 
+        {/* Weekly Tracker */}
+        <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-indigo-200 shadow-md">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-base font-semibold text-gray-900">This Week&apos;s Progress</h2>
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {weekDays.map((day, index) => (
+                <div
+                  key={index}
+                  onClick={() => !day.isFuture && handleBarClick(day.date)}
+                  className={`
+                    flex flex-col items-center justify-center p-2 rounded-lg transition-all
+                    ${day.isToday ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}
+                    ${day.isFuture ? 'opacity-50' : 'cursor-pointer hover:bg-white/50'}
+                  `}
+                >
+                  <div className="text-xs font-medium text-gray-600 mb-1">
+                    {day.dayName}
+                  </div>
+                  <div
+                    className={`
+                      w-12 h-12 rounded-xl flex items-center justify-center transition-all
+                      ${day.hasLog
+                        ? 'bg-gradient-to-br from-orange-400 to-red-500 shadow-lg scale-105'
+                        : day.isFuture
+                        ? 'bg-gray-100 border-2 border-gray-200'
+                        : 'bg-white border-2 border-gray-300 hover:border-indigo-400 hover:scale-110'
+                      }
+                    `}
+                  >
+                    {day.hasLog ? (
+                      <Flame className="w-7 h-7 text-white animate-pulse" />
+                    ) : (
+                      <Flame className="w-7 h-7 text-gray-300" />
+                    )}
+                  </div>
+                  <div className={`
+                    text-xs font-semibold mt-1
+                    ${day.isToday ? 'text-indigo-600' : 'text-gray-500'}
+                  `}>
+                    {day.dayNumber}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-indigo-200">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-600">
+                  {weekDays.filter(d => d.hasLog).length} / 7 days logged
+                </span>
+                <span className="flex items-center gap-1 text-orange-600 font-medium">
+                  <Flame className="w-3.5 h-3.5" />
+                  Keep it up!
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Stats Grid */}
         <div className="stats-grid grid grid-cols-2 gap-3">
           {/* Current Streak Card */}
-          <Card 
+          <Card
             className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 cursor-pointer hover:shadow-md transition-shadow"
             onClick={() => router.push('/streak-calendar')}
           >
@@ -393,12 +535,17 @@ function HomePageContent() {
           <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-purple-700">Week Score</span>
+                <span className="text-sm font-medium text-purple-700">
+                  {isShowingPreviousWeek ? 'Previous Week Score' : 'Week Score'}
+                </span>
                 <Trophy className="w-4 h-4 text-purple-600" />
               </div>
               <div className="text-3xl font-bold text-purple-900 mb-1">{stats.points.toFixed(2)}</div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-purple-700">{summary?.totalDaysLogged || 0} days logged</span>
+                {isShowingPreviousWeek && (
+                  <span className="text-purple-600 font-medium bg-purple-200 px-1.5 py-0.5 rounded">Last Week</span>
+                )}
               </div>
               <div className="mt-2 h-1.5 bg-purple-200 rounded-full overflow-hidden">
                 <div className="h-full bg-purple-600 rounded-full" style={{ width: `${Math.min((summary?.totalPoints || 0), 100)}%` }}></div>
@@ -409,14 +556,25 @@ function HomePageContent() {
 
         {/* Pending Activities */}
         <Card className="pending-activities bg-white border-gray-200 shadow-sm">
-          {expandedSections.pendingActivities && (
-            <CardContent className="p-6 space-y-5">
-              <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => toggleSection('pendingActivities')}
+            className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
+          >
+           <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-md">
                   <span className="text-white text-lg">📋</span>
                 </div>
                 <h1 className="text-xl font-bold text-gray-900 tracking-tight">Pending Activities</h1>
               </div>
+            {expandedSections.weeklyPerformance ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
+          </button>
+          {expandedSections.pendingActivities && (
+            <CardContent className="p-6 space-y-5">
+              
               {noPlanError ? (
                 <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg p-5 text-center">
                   <div className="text-4xl mb-3">⏳</div>
@@ -446,17 +604,17 @@ function HomePageContent() {
                               const today = new Date();
                               const remainingDays = Math.max(0, Math.ceil((weekEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
                               const remaining = activity.targetValue * remainingDays - ((activity.TodayLogged) ? (activity.targetValue) : (0));
-                              const isSurprise = activity?.isSurpriseActivity|| false;
-                              const isCompleted = activity.TodayLogged && (activity.achieved||0) > 0;
-                              const isPartial = activity.TodayLogged && (activity.achieved||0) > 0 && (activity.achieved||0) < (activity.dailyTarget||0);
+                              const isSurprise = activity?.isSurpriseActivity || false;
+                              const isCompleted = activity.TodayLogged && (activity.achieved || 0) > 0;
+                              const isPartial = activity.TodayLogged && (activity.achieved || 0) > 0 && (activity.achieved || 0) < (activity.dailyTarget || 0);
 
                               return (
                                 <div key={index} className={`
-                                  ${isSurprise 
-                                    ? 'bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50 border-l-4 border-amber-400' 
-                                    : isCompleted 
-                                      ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-l-4 border-emerald-500' 
-                                      : activity.TodayLogged 
+                                  ${isSurprise
+                                    ? 'bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50 border-l-4 border-amber-400'
+                                    : isCompleted
+                                      ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-l-4 border-emerald-500'
+                                      : activity.TodayLogged
                                         ? 'bg-gradient-to-br from-rose-50 to-red-50 border-l-4 border-rose-400'
                                         : 'bg-gradient-to-br from-slate-50 to-gray-50 border-l-4 border-slate-300'
                                   } rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 relative group`}>
@@ -468,17 +626,16 @@ function HomePageContent() {
                                   )}
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3 flex-1">
-                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                                        isSurprise 
-                                          ? 'bg-amber-100' 
-                                          : isCompleted 
-                                            ? 'bg-emerald-100' 
-                                            : activity.TodayLogged 
-                                              ? 'bg-rose-100'
-                                              : 'bg-slate-200'
-                                      }`}>
+                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSurprise
+                                        ? 'bg-amber-100'
+                                        : isCompleted
+                                          ? 'bg-emerald-100'
+                                          : activity.TodayLogged
+                                            ? 'bg-rose-100'
+                                            : 'bg-slate-200'
+                                        }`}>
                                         <span className="text-xl">
-                                          {isSurprise ? (activity.TodayLogged ? '🎉' : '🎁') : (activity.TodayLogged ? (activity.achieved||0)>0 ? '✓' :'✗': '○')}
+                                          {isSurprise ? (activity.TodayLogged ? '🎉' : '🎁') : (activity.TodayLogged ? (activity.achieved || 0) > 0 ? '✓' : '✗' : '○')}
                                         </span>
                                       </div>
                                       <div className="flex-1">
@@ -497,16 +654,15 @@ function HomePageContent() {
                                     <div className="text-right ml-3">
                                       {activity.TodayLogged ? (
                                         <div>
-                                          <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                                            (activity.achieved||0)>0
-                                              ? isSurprise 
-                                                ? 'bg-amber-100 text-amber-800 border border-amber-200' 
-                                                : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                              : 'bg-rose-100 text-rose-800 border border-rose-200'
-                                          }`}>
-                                            {(activity.achieved||0)>0
-                                              ? (activity.achieved||0)>=(activity.dailyTarget||0) 
-                                                ? 'Completed' 
+                                          <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${(activity.achieved || 0) > 0
+                                            ? isSurprise
+                                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                            : 'bg-rose-100 text-rose-800 border border-rose-200'
+                                            }`}>
+                                            {(activity.achieved || 0) > 0
+                                              ? (activity.achieved || 0) >= (activity.dailyTarget || 0)
+                                                ? 'Completed'
                                                 : 'Partial'
                                               : 'Incomplete'
                                             }
@@ -554,11 +710,10 @@ function HomePageContent() {
                               const progress = ((activity.achievedUnits || 0) / activity.targetValue) * 100;
 
                               return (
-                                <div key={index} className={`${
-                                  isSurprise 
-                                    ? 'bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50 border-l-4 border-amber-400'
-                                    : 'bg-gradient-to-br from-orange-50 to-amber-50 border-l-4 border-orange-400'
-                                } rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 relative`}>
+                                <div key={index} className={`${isSurprise
+                                  ? 'bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50 border-l-4 border-amber-400'
+                                  : 'bg-gradient-to-br from-orange-50 to-amber-50 border-l-4 border-orange-400'
+                                  } rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 relative`}>
                                   {isSurprise && (
                                     <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1">
                                       <span>🎁</span>
@@ -567,9 +722,8 @@ function HomePageContent() {
                                   )}
                                   <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center gap-3 flex-1">
-                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                                        isSurprise ? 'bg-amber-100' : 'bg-orange-100'
-                                      }`}>
+                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSurprise ? 'bg-amber-100' : 'bg-orange-100'
+                                        }`}>
                                         <span className="text-xl">{isSurprise ? '🎁' : '○'}</span>
                                       </div>
                                       <div className="flex-1">
@@ -599,11 +753,10 @@ function HomePageContent() {
                                     </div>
                                     <div className="h-2 bg-white/80 rounded-full overflow-hidden border border-gray-200/50">
                                       <div
-                                        className={`h-full rounded-full transition-all duration-500 ${
-                                          isSurprise 
-                                            ? 'bg-gradient-to-r from-amber-400 to-orange-400' 
-                                            : 'bg-gradient-to-r from-orange-400 to-amber-500'
-                                        }`}
+                                        className={`h-full rounded-full transition-all duration-500 ${isSurprise
+                                          ? 'bg-gradient-to-r from-amber-400 to-orange-400'
+                                          : 'bg-gradient-to-r from-orange-400 to-amber-500'
+                                          }`}
                                         style={{ width: `${Math.min(progress, 100)}%` }}
                                       ></div>
                                     </div>
@@ -708,570 +861,566 @@ function HomePageContent() {
           )}
         </Card>
 
-        {/* AI Insights */}
-        <Card className="bg-white border-gray-200 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-md">
-                <span className="text-white text-lg">✨</span>
-              </div>
-              <h3 className="font-bold text-gray-900 text-lg">AI Insights</h3>
+      {/* AI Insights */}
+      <Card className="bg-white border-gray-200 shadow-sm">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-md">
+              <span className="text-white text-lg">✨</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">🎯</span>
-                    <span className="text-sm font-bold text-blue-900">Rank Up Alert</span>
+            <h3 className="font-bold text-gray-900 text-lg">AI Insights</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🎯</span>
+                  <span className="text-sm font-bold text-blue-900">Rank Up Alert</span>
+                </div>
+                <span className="text-xs font-bold text-white bg-emerald-500 px-2.5 py-1 rounded-full shadow-sm">
+                  92%
+                </span>
+              </div>
+              <p className="text-xs text-blue-800 mb-3 leading-relaxed">
+                Only 7 points away from #2 spot. Focus on running +10km this week.
+              </p>
+              <div className="flex items-center gap-2 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
+                <span>→</span>
+                <span>Increase run frequency to 4x/week</span>
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">⚠️</span>
+                <span className="text-sm font-bold text-amber-900">Streak Risk</span>
+              </div>
+              <p className="text-xs text-amber-800 mb-3 leading-relaxed">
+                Sleep streak at risk. Complete today to maintain momentum.
+              </p>
+              <div className="flex items-center gap-2 text-xs font-medium text-amber-700 bg-amber-100 rounded-lg px-3 py-2">
+                <span>→</span>
+                <span>Target 7+ hours tonight</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Expandable Sections */}
+      <div className="space-y-4">
+        {/* Weekly Performance */}
+        <Card className="weekly-performance bg-white border-gray-200 shadow-sm">
+          <button
+            onClick={() => toggleSection('weeklyPerformance')}
+            className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-md">
+                <span className="text-white text-lg">📊</span>
+              </div>
+              <span className="font-bold text-gray-900 text-lg">Monthly Performance</span>
+            </div>
+            {expandedSections.weeklyPerformance ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
+          </button>
+          {expandedSections.weeklyPerformance && (monthlyLogData !== null ? (
+
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold text-gray-900">{viewMode === 'week' ? 'Weekly Distribution' : 'Daily Performance'}</h3>
+                  <p className="text-xs text-gray-600">{viewMode === 'week' ? 'Recent weeks (Mon-Sun)' : 'Last 30 days'}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {/* View Toggle */}
+                  <div className="flex bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => setViewMode('day')}
+                      className={`px-3 py-1 text-xs font-medium rounded transition-all ${viewMode === 'day'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                    >
+                      Day
+                    </button>
+                    <button
+                      onClick={() => setViewMode('week')}
+                      className={`px-3 py-1 text-xs font-medium rounded transition-all ${viewMode === 'week'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                    >
+                      Week
+                    </button>
                   </div>
-                  <span className="text-xs font-bold text-white bg-emerald-500 px-2.5 py-1 rounded-full shadow-sm">
-                    92%
-                  </span>
-                </div>
-                <p className="text-xs text-blue-800 mb-3 leading-relaxed">
-                  Only 7 points away from #2 spot. Focus on running +10km this week.
-                </p>
-                <div className="flex items-center gap-2 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
-                  <span>→</span>
-                  <span>Increase run frequency to 4x/week</span>
+
                 </div>
               </div>
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xl">⚠️</span>
-                  <span className="text-sm font-bold text-amber-900">Streak Risk</span>
+
+              {/* Chart - Conditional Day/Week View */}
+              {viewMode === 'week' ? (
+                /* Weekly View */
+                <div className="relative h-48 flex items-end gap-2 pb-10">
+                  {weeklyData.slice(0, -1).map((week, index) => {
+                    const filteredWeeklyData = weeklyData.slice(0, -1);
+                    const maxPoints = Math.max(...filteredWeeklyData.map(w => w.totalPoints));
+                    const heightPercentage = (week.totalPoints / maxPoints) * 100;
+
+                    // Calculate activity trend line position
+                    const maxActivities = Math.max(...filteredWeeklyData.map(w => w.avgActivities));
+                    const activityHeightPercentage = (week.avgActivities / maxActivities) * 100;
+
+                    return (
+                      <div key={index} className="flex-1 flex flex-col items-center justify-end relative" style={{ height: '100%' }}>
+                        {/* Activity avg circle - positioned independently */}
+                        <div
+                          className="absolute left-1/2 transform -translate-x-1/2 z-10"
+                          style={{ bottom: `${activityHeightPercentage}%` }}
+                        >
+                          <div className="w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-md"></div>
+                        </div>
+
+                        {/* Bar */}
+                        <div className="w-full relative group flex items-end" style={{ height: '100%' }}>
+                          <div
+                            onClick={() => router.push(`/week-analysis?weekStart=${week.weekStartISO}`)}
+                            className={`w-full rounded-t-lg transition-all duration-300 bg-gradient-to-t from-indigo-500 to-indigo-400 opacity-75 hover:opacity-100 cursor-pointer hover:shadow-xl`}
+                            style={{ height: `${Math.max(heightPercentage, 8)}%` }}
+                          >
+                            {/* Tooltip */}
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs py-2 px-3 rounded-lg whitespace-nowrap z-20 shadow-xl">
+                              <div className="font-bold text-sm mb-1">{week.totalPoints.toFixed(1)} pts</div>
+                              <div className="text-gray-300 text-xs">
+                                {week.weekStart} - {week.weekEnd}
+                              </div>
+                              <div className="text-gray-300 text-xs mt-1">
+                                Avg: {week.avgActivities.toFixed(1)} activities/day
+                              </div>
+                              <div className="text-gray-300 text-xs">
+                                {week.daysCount} days logs
+                              </div>
+                              <div className="text-xs text-blue-300 mt-1 border-t border-gray-700 pt-1">
+                                Click to see detailed analysis
+                              </div>
+                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Week labels */}
+                        <div className="text-[10px] text-gray-600 absolute font-medium text-center" style={{ bottom: '-28px', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
+                          <div>{week.weekStart.split(' ')[0]}</div>
+                          <div className="text-[9px] text-gray-500">{week.weekStart.split(' ')[1]}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Line connecting activity circles */}
+                  <svg className="absolute inset-0 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ height: 'calc(100% - 40px)', width: '100%' }}>
+                    {/* Line */}
+                    <polyline
+                      points={weeklyData.slice(0, -1).map((week, index) => {
+                        const filteredWeeklyData = weeklyData.slice(0, -1);
+                        const maxActivities = Math.max(...filteredWeeklyData.map(w => w.avgActivities));
+                        const activityHeightPercentage = (week.avgActivities / maxActivities) * 100;
+                        const totalBars = filteredWeeklyData.length;
+                        const barWidth = 100 / totalBars;
+                        const x = (index * barWidth) + (barWidth / 2);
+                        const y = 100 - activityHeightPercentage;
+                        return `${x},${y}`;
+                      }).join(' ')}
+                      fill="none"
+                      stroke="#ef4444"
+                      strokeWidth="1"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </svg>
                 </div>
-                <p className="text-xs text-amber-800 mb-3 leading-relaxed">
-                  Sleep streak at risk. Complete today to maintain momentum.
-                </p>
-                <div className="flex items-center gap-2 text-xs font-medium text-amber-700 bg-amber-100 rounded-lg px-3 py-2">
-                  <span>→</span>
-                  <span>Target 7+ hours tonight</span>
+              ) : (
+                /* Daily View */
+                <div className="relative h-48 flex items-end gap-0.5 pb-8">
+                  {monthlyData.slice(0, -1).map((dataPoint, index) => {
+                    const filteredMonthlyData = monthlyData.slice(0, -1);
+                    const maxPoints = Math.max(...filteredMonthlyData.map(d => d.points));
+                    const heightPercentage = (dataPoint.points / maxPoints) * 100;
+                    const isWeekend = new Date(dataPoint.date).getDay() % 6 === 0;
+
+                    // Calculate activity trend line position
+                    const maxActivities = Math.max(...filteredMonthlyData.map(d => d.activitiesCount));
+                    const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
+
+                    return (
+                      <div key={index} className="flex-1 flex flex-col items-center justify-end relative" style={{ height: '100%' }}>
+                        {/* Activity count circle - positioned independently */}
+                        <div
+                          className="absolute left-1/2 transform -translate-x-1/2 z-10"
+                          style={{ bottom: `${activityHeightPercentage}%` }}
+                        >
+                          <div className="w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
+                        </div>
+
+                        {/* Bar */}
+                        <div className="w-full relative group flex items-end" style={{ height: '100%' }}>
+                          <div
+                            onClick={() => handleBarClick(dataPoint.date)}
+                            className={`w-full rounded-t-sm transition-all duration-300 ${isWeekend
+                              ? 'bg-indigo-400 opacity-80'
+                              : 'bg-indigo-400 opacity-70'
+                              } hover:opacity-100 hover:scale-105 cursor-pointer`}
+                            style={{ height: `${Math.max(heightPercentage, 5)}%` }}
+                          >
+                            {/* Tooltip */}
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap z-20">
+                              <div className="font-semibold">{dataPoint.points.toFixed(1)} pts</div>
+                              <div className="text-gray-300">
+                                {dataPoint.activitiesCount} activities
+                              </div>
+                              <div className="text-gray-300">
+                                {new Date(dataPoint.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </div>
+                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Day labels - show every 5th day */}
+                        {index % 5 === 0 && (
+                          <div className="text-[10px] text-gray-600 absolute font-medium" style={{ bottom: '-22px' }}>
+                            {dataPoint.day}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Line connecting activity circles */}
+                  <svg className="absolute inset-0 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ height: 'calc(100% - 32px)', width: '100%' }}>
+                    {/* Line */}
+                    <polyline
+                      points={monthlyData.slice(0, -1).map((dataPoint, index) => {
+                        const filteredMonthlyData = monthlyData.slice(0, -1);
+                        const maxActivities = Math.max(...filteredMonthlyData.map(d => d.activitiesCount));
+                        const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
+                        const totalBars = filteredMonthlyData.length;
+                        const barWidth = 100 / totalBars;
+                        const x = (index * barWidth) + (barWidth / 2);
+                        const y = 100 - activityHeightPercentage;
+                        return `${x},${y}`;
+                      }).join(' ')}
+                      fill="none"
+                      stroke="#ef4444"
+                      strokeWidth="0.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </svg>
                 </div>
+              )}
+
+              {/* Legend */}
+              <div className="flex items-center justify-center gap-4 mt-3 text-xs flex-wrap">
+                {viewMode === 'week' ? (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-indigo-500 opacity-75 rounded"></div>
+                      <span className="text-gray-600">Weekly Points</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
+                        <div className="w-2.5 h-0.5 bg-red-500"></div>
+                        <div className="w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></div>
+                        <div className="w-2.5 h-0.5 bg-red-500"></div>
+                      </div>
+                      <span className="text-gray-600">Avg Activities/Day</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-2 bg-gray-300 rounded-sm"></div>
+                      <span className="text-gray-600">Mon-Sun</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-indigo-400 opacity-70 rounded"></div>
+                      <span className="text-gray-600">Daily Points</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
+                        <div className="w-2.5 h-0.5 bg-red-500"></div>
+                        <div className="w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></div>
+                        <div className="w-2.5 h-0.5 bg-red-500"></div>
+                      </div>
+                      <span className="text-gray-600">Activities Count</span>
+                    </div>
+                  </>
+                )}
               </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t">
+                {viewMode === 'week' ? (
+                  <>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-gray-900">
+                        {weeklyData.length > 1 ? (weeklyData.slice(0, -1).reduce((sum, w) => sum + w.totalPoints, 0) / (weeklyData.length - 1)).toFixed(1) : 0}
+                      </div>
+                      <div className="text-xs text-gray-600">Weekly Avg</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-green-600">
+                        {weeklyData.length > 1 ? Math.max(...weeklyData.slice(0, -1).map(w => w.totalPoints)).toFixed(1) : 0}
+                      </div>
+                      <div className="text-xs text-gray-600">Best Week</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-blue-600">
+                        {Math.max(0, weeklyData.length - 1)}
+                      </div>
+                      <div className="text-xs text-gray-600">Total Weeks</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-gray-900">
+                        {monthlyData.length > 1 ? (monthlyData.slice(0, -1).reduce((sum, d) => sum + d.points, 0) / (monthlyData.length - 1)).toFixed(1) : 0}
+                      </div>
+                      <div className="text-xs text-gray-600">Daily Avg</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-green-600">
+                        {monthlyData.length > 1 ? Math.max(...monthlyData.slice(0, -1).map(d => d.points)).toFixed(1) : 0}
+                      </div>
+                      <div className="text-xs text-gray-600">Best Day</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-blue-600">
+                        {monthlyData.length > 1 ? Math.max(...monthlyData.slice(0, -1).map(d => d.activitiesCount)) : 0}
+                      </div>
+                      <div className="text-xs text-gray-600">Max Activities</div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </CardContent>
+
+          ) : (<CardContent className="px-4 pb-4">
+            <div className="h-40 bg-gray-50 rounded-lg flex items-center justify-center">
+              <p className="text-gray-500 text-sm">Complete Your Tasks to see monthly chart</p>
             </div>
-          </CardContent>
+          </CardContent>))}
         </Card>
 
-        {/* Expandable Sections */}
-        <div className="space-y-4">
-          {/* Weekly Performance */}
-          <Card className="weekly-performance bg-white border-gray-200 shadow-sm">
-            <button
-              onClick={() => toggleSection('weeklyPerformance')}
-              className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-md">
-                  <span className="text-white text-lg">📊</span>
-                </div>
-                <span className="font-bold text-gray-900 text-lg">Monthly Performance</span>
+        {/* Leaderboard */}
+        <Card className="leaderboard-section bg-white border-gray-200 shadow-sm">
+          <button
+            onClick={() => toggleSection('leaderboard')}
+            className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center shadow-md">
+                <Trophy className="w-5 h-5 text-white" />
               </div>
-              {expandedSections.weeklyPerformance ? (
-                <ChevronUp className="w-5 h-5 text-gray-400" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-gray-400" />
-              )}
-            </button>
-            {expandedSections.weeklyPerformance && (monthlyLogData !== null ? (
-
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{viewMode === 'week' ? 'Weekly Distribution' : 'Daily Performance'}</h3>
-                    <p className="text-xs text-gray-600">{viewMode === 'week' ? 'Recent weeks (Mon-Sun)' : 'Last 30 days'}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {/* View Toggle */}
-                    <div className="flex bg-gray-100 rounded-lg p-1">
-                      <button
-                        onClick={() => setViewMode('day')}
-                        className={`px-3 py-1 text-xs font-medium rounded transition-all ${viewMode === 'day'
-                            ? 'bg-white text-indigo-600 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                          }`}
-                      >
-                        Day
-                      </button>
-                      <button
-                        onClick={() => setViewMode('week')}
-                        className={`px-3 py-1 text-xs font-medium rounded transition-all ${viewMode === 'week'
-                            ? 'bg-white text-indigo-600 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                          }`}
-                      >
-                        Week
-                      </button>
-                    </div>
-                    
-                  </div>
-                </div>
-
-                {/* Chart - Conditional Day/Week View */}
-                {viewMode === 'week' ? (
-                  /* Weekly View */
-                  <div className="relative h-48 flex items-end gap-2 pb-10">
-                    {weeklyData.slice(0, -1).map((week, index) => {
-                      const filteredWeeklyData = weeklyData.slice(0, -1);
-                      const maxPoints = Math.max(...filteredWeeklyData.map(w => w.totalPoints));
-                      const heightPercentage = (week.totalPoints / maxPoints) * 100;
-
-                      // Calculate activity trend line position
-                      const maxActivities = Math.max(...filteredWeeklyData.map(w => w.avgActivities));
-                      const activityHeightPercentage = (week.avgActivities / maxActivities) * 100;
-
-                      return (
-                        <div key={index} className="flex-1 flex flex-col items-center justify-end relative" style={{ height: '100%' }}>
-                          {/* Activity avg circle - positioned independently */}
-                          <div
-                            className="absolute left-1/2 transform -translate-x-1/2 z-10"
-                            style={{ bottom: `${activityHeightPercentage}%` }}
-                          >
-                            <div className="w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-md"></div>
-                          </div>
-
-                          {/* Bar */}
-                          <div className="w-full relative group flex items-end" style={{ height: '100%' }}>
-                            <div
-                              onClick={() => router.push(`/week-analysis?weekStart=${week.weekStartISO}`)}
-                              className={`w-full rounded-t-lg transition-all duration-300 bg-gradient-to-t from-indigo-500 to-indigo-400 opacity-75 hover:opacity-100 cursor-pointer hover:shadow-xl`}
-                              style={{ height: `${Math.max(heightPercentage, 8)}%` }}
-                            >
-                              {/* Tooltip */}
-                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs py-2 px-3 rounded-lg whitespace-nowrap z-20 shadow-xl">
-                                <div className="font-bold text-sm mb-1">{week.totalPoints.toFixed(1)} pts</div>
-                                <div className="text-gray-300 text-xs">
-                                  {week.weekStart} - {week.weekEnd}
-                                </div>
-                                <div className="text-gray-300 text-xs mt-1">
-                                  Avg: {week.avgActivities.toFixed(1)} activities/day
-                                </div>
-                                <div className="text-gray-300 text-xs">
-                                  {week.daysCount} days logs
-                                </div>
-                                <div className="text-xs text-blue-300 mt-1 border-t border-gray-700 pt-1">
-                                  Click to see detailed analysis
-                                </div>
-                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Week labels */}
-                          <div className="text-[10px] text-gray-600 absolute font-medium text-center" style={{ bottom: '-28px', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
-                            <div>{week.weekStart.split(' ')[0]}</div>
-                            <div className="text-[9px] text-gray-500">{week.weekStart.split(' ')[1]}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* Line connecting activity circles */}
-                    <svg className="absolute inset-0 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ height: 'calc(100% - 40px)', width: '100%' }}>
-                      {/* Line */}
-                      <polyline
-                        points={weeklyData.slice(0, -1).map((week, index) => {
-                          const filteredWeeklyData = weeklyData.slice(0, -1);
-                          const maxActivities = Math.max(...filteredWeeklyData.map(w => w.avgActivities));
-                          const activityHeightPercentage = (week.avgActivities / maxActivities) * 100;
-                          const totalBars = filteredWeeklyData.length;
-                          const barWidth = 100 / totalBars;
-                          const x = (index * barWidth) + (barWidth / 2);
-                          const y = 100 - activityHeightPercentage;
-                          return `${x},${y}`;
-                        }).join(' ')}
-                        fill="none"
-                        stroke="#ef4444"
-                        strokeWidth="1"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    </svg>
-                  </div>
-                ) : (
-                  /* Daily View */
-                  <div className="relative h-48 flex items-end gap-0.5 pb-8">
-                    {monthlyData.slice(0, -1).map((dataPoint, index) => {
-                      const filteredMonthlyData = monthlyData.slice(0, -1);
-                      const maxPoints = Math.max(...filteredMonthlyData.map(d => d.points));
-                      const heightPercentage = (dataPoint.points / maxPoints) * 100;
-                      const isWeekend = new Date(dataPoint.date).getDay() % 6 === 0;
-
-                      // Calculate activity trend line position
-                      const maxActivities = Math.max(...filteredMonthlyData.map(d => d.activitiesCount));
-                      const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
-
-                      return (
-                        <div key={index} className="flex-1 flex flex-col items-center justify-end relative" style={{ height: '100%' }}>
-                          {/* Activity count circle - positioned independently */}
-                          <div
-                            className="absolute left-1/2 transform -translate-x-1/2 z-10"
-                            style={{ bottom: `${activityHeightPercentage}%` }}
-                          >
-                            <div className="w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-sm"></div>
-                          </div>
-
-                          {/* Bar */}
-                          <div className="w-full relative group flex items-end" style={{ height: '100%' }}>
-                            <div
-                              onClick={() => handleBarClick(dataPoint.date)}
-                              className={`w-full rounded-t-sm transition-all duration-300 ${isWeekend
-                                  ? 'bg-indigo-400 opacity-80'
-                                  : 'bg-indigo-400 opacity-70'
-                                } hover:opacity-100 hover:scale-105 cursor-pointer`}
-                              style={{ height: `${Math.max(heightPercentage, 5)}%` }}
-                            >
-                              {/* Tooltip */}
-                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap z-20">
-                                <div className="font-semibold">{dataPoint.points.toFixed(1)} pts</div>
-                                <div className="text-gray-300">
-                                  {dataPoint.activitiesCount} activities
-                                </div>
-                                <div className="text-gray-300">
-                                  {new Date(dataPoint.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </div>
-                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Day labels - show every 5th day */}
-                          {index % 5 === 0 && (
-                            <div className="text-[10px] text-gray-600 absolute font-medium" style={{ bottom: '-22px' }}>
-                              {dataPoint.day}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* Line connecting activity circles */}
-                    <svg className="absolute inset-0 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ height: 'calc(100% - 32px)', width: '100%' }}>
-                      {/* Line */}
-                      <polyline
-                        points={monthlyData.slice(0, -1).map((dataPoint, index) => {
-                          const filteredMonthlyData = monthlyData.slice(0, -1);
-                          const maxActivities = Math.max(...filteredMonthlyData.map(d => d.activitiesCount));
-                          const activityHeightPercentage = (dataPoint.activitiesCount / maxActivities) * 100;
-                          const totalBars = filteredMonthlyData.length;
-                          const barWidth = 100 / totalBars;
-                          const x = (index * barWidth) + (barWidth / 2);
-                          const y = 100 - activityHeightPercentage;
-                          return `${x},${y}`;
-                        }).join(' ')}
-                        fill="none"
-                        stroke="#ef4444"
-                        strokeWidth="0.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    </svg>
-                  </div>
-                )}
-
-                {/* Legend */}
-                <div className="flex items-center justify-center gap-4 mt-3 text-xs flex-wrap">
-                  {viewMode === 'week' ? (
-                    <>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-3 bg-indigo-500 opacity-75 rounded"></div>
-                        <span className="text-gray-600">Weekly Points</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex items-center gap-1">
-                          <div className="w-2.5 h-0.5 bg-red-500"></div>
-                          <div className="w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></div>
-                          <div className="w-2.5 h-0.5 bg-red-500"></div>
-                        </div>
-                        <span className="text-gray-600">Avg Activities/Day</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-2 bg-gray-300 rounded-sm"></div>
-                        <span className="text-gray-600">Mon-Sun</span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-3 bg-indigo-400 opacity-70 rounded"></div>
-                        <span className="text-gray-600">Daily Points</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex items-center gap-1">
-                          <div className="w-2.5 h-0.5 bg-red-500"></div>
-                          <div className="w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></div>
-                          <div className="w-2.5 h-0.5 bg-red-500"></div>
-                        </div>
-                        <span className="text-gray-600">Activities Count</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t">
-                  {viewMode === 'week' ? (
-                    <>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-gray-900">
-                          {weeklyData.length > 1 ? (weeklyData.slice(0, -1).reduce((sum, w) => sum + w.totalPoints, 0) / (weeklyData.length - 1)).toFixed(1) : 0}
-                        </div>
-                        <div className="text-xs text-gray-600">Weekly Avg</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-green-600">
-                          {weeklyData.length > 1 ? Math.max(...weeklyData.slice(0, -1).map(w => w.totalPoints)).toFixed(1) : 0}
-                        </div>
-                        <div className="text-xs text-gray-600">Best Week</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-blue-600">
-                          {Math.max(0, weeklyData.length - 1)}
-                        </div>
-                        <div className="text-xs text-gray-600">Total Weeks</div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-gray-900">
-                          {monthlyData.length > 1 ? (monthlyData.slice(0, -1).reduce((sum, d) => sum + d.points, 0) / (monthlyData.length - 1)).toFixed(1) : 0}
-                        </div>
-                        <div className="text-xs text-gray-600">Daily Avg</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-green-600">
-                          {monthlyData.length > 1 ? Math.max(...monthlyData.slice(0, -1).map(d => d.points)).toFixed(1) : 0}
-                        </div>
-                        <div className="text-xs text-gray-600">Best Day</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-blue-600">
-                          {monthlyData.length > 1 ? Math.max(...monthlyData.slice(0, -1).map(d => d.activitiesCount)) : 0}
-                        </div>
-                        <div className="text-xs text-gray-600">Max Activities</div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-
-            ) : (<CardContent className="px-4 pb-4">
-              <div className="h-40 bg-gray-50 rounded-lg flex items-center justify-center">
-                <p className="text-gray-500 text-sm">Complete Your Tasks to see monthly chart</p>
-              </div>
-            </CardContent>))}
-          </Card>
-
-          {/* Leaderboard */}
-          <Card className="leaderboard-section bg-white border-gray-200 shadow-sm">
-            <button
-              onClick={() => toggleSection('leaderboard')}
-              className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center shadow-md">
-                  <Trophy className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-bold text-gray-900 text-lg">Leaderboard</span>
-              </div>
-              {expandedSections.leaderboard ? (
-                <ChevronUp className="w-5 h-5 text-gray-400" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-gray-400" />
-              )}
-            </button>
-            {expandedSections.leaderboard && (
-              <CardContent className="px-5 pb-5">
-                <LeaderboardPage />
-              </CardContent>
+              <span className="font-bold text-gray-900 text-lg">Leaderboard</span>
+            </div>
+            {expandedSections.leaderboard ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
             )}
-          </Card>
+          </button>
+          {expandedSections.leaderboard && (
+            <CardContent className="px-5 pb-5">
+              <LeaderboardPage />
+            </CardContent>
+          )}
+        </Card>
 
-          {/* Log Tracker */}
-          <Card className="log-tracker bg-white border-gray-200 shadow-sm">
-            <button
-              onClick={() => toggleSection('logTracker')}
-              className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-md">
-                  <Calendar className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-bold text-gray-900 text-lg">Daily Log Tracker</span>
+        {/* Log Tracker */}
+        <Card className="log-tracker bg-white border-gray-200 shadow-sm">
+          <button
+            onClick={() => toggleSection('logTracker')}
+            className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-md">
+                <Calendar className="w-5 h-5 text-white" />
               </div>
-              {expandedSections.logTracker ? (
-                <ChevronUp className="w-5 h-5 text-gray-400" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-gray-400" />
-              )}
-            </button>
-            {expandedSections.logTracker && (
-              <CardContent className="px-5 pb-5 space-y-4 border-t border-gray-100">
-                {/* Date Filter */}
-                <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl border border-gray-200">
-                  <label htmlFor="log-date-filter" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
-                    Select Date
-                  </label>
-                  <input
-                    id="log-date-filter"
-                    type="date"
-                    value={logDateFilter}
-                    onChange={(e) => setLogDateFilter(e.target.value)}
-                    max={DateTime.local().toFormat('yyyy-MM-dd')}
-                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
-                  />
-                  <button
-                    onClick={() => setLogDateFilter(DateTime.local().toFormat('yyyy-MM-dd'))}
-                    className="px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-lg transition-all shadow-sm hover:shadow-md whitespace-nowrap"
-                  >
-                    Today
-                  </button>
-                </div>
+              <span className="font-bold text-gray-900 text-lg">Daily Log Tracker</span>
+            </div>
+            {expandedSections.logTracker ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
+          </button>
+          {expandedSections.logTracker && (
+            <CardContent className="px-5 pb-5 space-y-4 border-t border-gray-100">
+              {/* Date Filter */}
+              <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl border border-gray-200">
+                <label htmlFor="log-date-filter" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                  Select Date
+                </label>
+                <input
+                  id="log-date-filter"
+                  type="date"
+                  value={logDateFilter}
+                  onChange={(e) => setLogDateFilter(e.target.value)}
+                  max={DateTime.local().toFormat('yyyy-MM-dd')}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+                />
+                <button
+                  onClick={() => setLogDateFilter(DateTime.local().toFormat('yyyy-MM-dd'))}
+                  className="px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-lg transition-all shadow-sm hover:shadow-md whitespace-nowrap"
+                >
+                  Today
+                </button>
+              </div>
 
-                {/* Daily Log Details */}
-                {selectedDayLog ? (
-                  <div className="space-y-4">
-                    {/* Summary Header */}
-                    <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 rounded-xl p-5 border border-blue-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-                            <Calendar className="w-6 h-6 text-white" />
+              {/* Daily Log Details */}
+              {selectedDayLog ? (
+                <div className="space-y-4">
+                  {/* Summary Header */}
+                  <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 rounded-xl p-5 border border-blue-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                          <Calendar className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-base text-gray-900 mb-0.5">
+                            {new Date(selectedDayLog.date).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-100 rounded-full">
+                              <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+                              <span className="text-xs font-semibold text-blue-900">
+                                {selectedDayLog.activities.filter(activity => activity.achieved > 0).length} {selectedDayLog.activities.filter(activity => activity.achieved > 0).length === 1 ? 'Activity' : 'Activities'} Completed
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-base text-gray-900 mb-0.5">
-                              {new Date(selectedDayLog.date).toLocaleDateString('en-US', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-100 rounded-full">
-                                <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
-                                <span className="text-xs font-semibold text-blue-900">
-                                  {selectedDayLog.activities.filter(activity => activity.achieved > 0).length} {selectedDayLog.activities.filter(activity => activity.achieved > 0).length === 1 ? 'Activity' : 'Activities'} Completed
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="flex items-baseline gap-1 justify-end mb-1">
+                          <Trophy className="w-5 h-5 text-blue-600" />
+                          <p className="text-3xl font-bold text-blue-600">
+                            {selectedDayLog.totalPoints.toFixed(2)}
+                          </p>
+                        </div>
+                        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Total Points</p>
+                      </div>
+                    </div>
+                    {selectedDayLog.streak > 0 && (
+                      <div className="flex items-center gap-2.5 mt-3 pt-3 border-t border-blue-200">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shadow-sm">
+                          <Flame className="w-4 h-4 text-white" />
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">
+                          {selectedDayLog.streak} Day Streak Active
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Activities List */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 px-1">
+                      <div className="w-1 h-5 bg-gradient-to-b from-blue-600 to-indigo-600 rounded-full"></div>
+                      <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Activity Details</h4>
+                    </div>
+                    {selectedDayLog.activities.map((activity, index) => (
+                      <div
+                        key={index}
+                        className={`rounded-xl p-4 border-2 transition-all hover:shadow-md ${activity.achieved > 0
+                          ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200'
+                          : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200'
+                          }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3 flex-1">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm ${activity.achieved > 0
+                              ? 'bg-gradient-to-br from-emerald-500 to-green-600'
+                              : 'bg-gradient-to-br from-gray-400 to-slate-500'
+                              }`}>
+                              {activity.achieved > 0 ? (
+                                <Smile className="w-5 h-5 text-white font-bold" />
+                              ) : (
+                                <Frown className="w-5 h-5 text-white font-bold" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-sm text-gray-900 mb-1">{activity.activity}</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${activity.cadance === 'daily'
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                  : 'bg-purple-100 text-purple-800 border border-purple-200'
+                                  }`}>
+                                  {activity.cadance === 'daily' ? 'Daily Goal' : 'Weekly Goal'}
+                                </span>
+                                <span className="text-xs font-medium text-gray-600">
+                                  {activity.cadance === 'daily'
+                                    ? `${activity.achieved} / ${activity.target} ${activity.unit}`
+                                    : activity.unit === 'days'
+                                      ? (activity.achieved ? `Completed` : `Not Completed`)
+                                      : `${activity.achieved} ${activity.unit}`
+                                  }
                                 </span>
                               </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="flex items-baseline gap-1 justify-end mb-1">
-                            <Trophy className="w-5 h-5 text-blue-600" />
-                            <p className="text-3xl font-bold text-blue-600">
-                              {selectedDayLog.totalPoints.toFixed(2)}
-                            </p>
-                          </div>
-                          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Total Points</p>
-                        </div>
-                      </div>
-                      {selectedDayLog.streak > 0 && (
-                        <div className="flex items-center gap-2.5 mt-3 pt-3 border-t border-blue-200">
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shadow-sm">
-                            <Flame className="w-4 h-4 text-white" />
-                          </div>
-                          <span className="text-sm font-bold text-gray-900">
-                            {selectedDayLog.streak} Day Streak Active
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Activities List */}
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 px-1">
-                        <div className="w-1 h-5 bg-gradient-to-b from-blue-600 to-indigo-600 rounded-full"></div>
-                        <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Activity Details</h4>
-                      </div>
-                      {selectedDayLog.activities.map((activity, index) => (
-                        <div
-                          key={index}
-                          className={`rounded-xl p-4 border-2 transition-all hover:shadow-md ${
-                            activity.achieved > 0 
-                              ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200' 
-                              : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 flex-1">
-                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm ${
-                                activity.achieved > 0 
-                                  ? 'bg-gradient-to-br from-emerald-500 to-green-600' 
-                                  : 'bg-gradient-to-br from-gray-400 to-slate-500'
-                              }`}>
-                                {activity.achieved > 0 ? (
-                                  <Smile className="w-5 h-5 text-white font-bold" />
-                                ) : (
-                                  <Frown className="w-5 h-5 text-white font-bold" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-sm text-gray-900 mb-1">{activity.activity}</p>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${
-                                    activity.cadance === 'daily' 
-                                      ? 'bg-blue-100 text-blue-800 border border-blue-200' 
-                                      : 'bg-purple-100 text-purple-800 border border-purple-200'
-                                  }`}>
-                                    {activity.cadance === 'daily' ? 'Daily Goal' : 'Weekly Goal'}
-                                  </span>
-                                  <span className="text-xs font-medium text-gray-600">
-                                    {activity.cadance === 'daily' 
-                                      ? `${activity.achieved} / ${activity.target} ${activity.unit}` 
-                                      : activity.unit === 'days' 
-                                        ? (activity.achieved ? `Completed` : `Not Completed`) 
-                                        : `${activity.achieved} ${activity.unit}`
-                                    }
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="text-right flex-shrink-0">
-                              <div className="flex items-center gap-1 justify-end mb-1">
-                                <TrendingUp className="w-4 h-4 text-emerald-600" />
-                                <p className="text-base font-bold text-emerald-600">
-                                  +{activity.pointsEarned.toFixed(2)}
-                                </p>
-                              </div>
-                              <p className={`text-xs font-semibold uppercase tracking-wide ${
-                                activity.achieved <= 0 
-                                  ? 'text-gray-500' 
-                                  : activity.pointsEarned === 0 
-                                    ? 'text-amber-600' 
-                                    : 'text-emerald-600'
-                              }`}>
-                                {activity.achieved <= 0 
-                                  ? "Not Done" 
-                                  : activity.pointsEarned === 0 
-                                    ? "Target Met" 
-                                    : "Points Earned"
-                                }
+                          <div className="text-right flex-shrink-0">
+                            <div className="flex items-center gap-1 justify-end mb-1">
+                              <TrendingUp className="w-4 h-4 text-emerald-600" />
+                              <p className="text-base font-bold text-emerald-600">
+                                +{activity.pointsEarned.toFixed(2)}
                               </p>
                             </div>
+                            <p className={`text-xs font-semibold uppercase tracking-wide ${activity.achieved <= 0
+                              ? 'text-gray-500'
+                              : activity.pointsEarned === 0
+                                ? 'text-amber-600'
+                                : 'text-emerald-600'
+                              }`}>
+                              {activity.achieved <= 0
+                                ? "Not Done"
+                                : activity.pointsEarned === 0
+                                  ? "Target Met"
+                                  : "Points Earned"
+                              }
+                            </p>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                ) : (
-                  <div className="text-center py-12 px-4">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-gray-100 to-slate-100 flex items-center justify-center border-2 border-gray-200">
-                      <Calendar className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <p className="text-sm font-semibold text-gray-900 mb-1">No Activities Logged</p>
-                    <p className="text-xs text-gray-500">Select a different date to view your activity logs</p>
+                </div>
+              ) : (
+                <div className="text-center py-12 px-4">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-gray-100 to-slate-100 flex items-center justify-center border-2 border-gray-200">
+                    <Calendar className="w-8 h-8 text-gray-400" />
                   </div>
-                )}
-              </CardContent>
-            )}
-          </Card>
-        </div>
+                  <p className="text-sm font-semibold text-gray-900 mb-1">No Activities Logged</p>
+                  <p className="text-xs text-gray-500">Select a different date to view your activity logs</p>
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
       </div>
-    </MainLayout>
+    </div>
+    </MainLayout >
   );
 }

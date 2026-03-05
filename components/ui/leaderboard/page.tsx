@@ -7,10 +7,12 @@ import { authAPI } from '@/lib/api/auth';
 import { useAuthStore } from '@/lib/store/authStore';
 
 type LeaderboardType = 'daily' | 'weekly';
+type WeekViewType = 'current' | 'previous';
 
 export default function LeaderboardPage() {
   const { selectedProfile } = useAuthStore();
   const [activeTab, setActiveTab] = useState<LeaderboardType>('weekly');
+  const [weekView, setWeekView] = useState<WeekViewType>('current');
   const [leaderboardData, setLeaderboardData] = useState<{rank:number,user:{_id:string,name:string},value:number}[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export default function LeaderboardPage() {
   useEffect(() => {
     fetchLeaderboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedActivity, activeTab]);
+  }, [selectedActivity, activeTab, weekView]);
   const fetchActivity = async () => {
     const response = await activityAPI.getList();
     console.log(response);
@@ -40,17 +42,25 @@ export default function LeaderboardPage() {
     setSelectedActivity("");
   }
 
+  const getPreviousWeekDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() - 7);
+    return date.toISOString().split('T')[0];
+  };
+
   const fetchLeaderboard = async () => {
     setLoading(true);
     setError(null);
     try {
       let response;
+      const dateToUse = weekView === 'previous' ? getPreviousWeekDate() : new Date().toISOString().split('T')[0];
+      
       if (activeTab === 'weekly') {
-        response = await leaderboardAPI.getWeekly(selectedActivity);
+        response = await leaderboardAPI.getWeekly(selectedActivity, dateToUse);
 
       } else {
         // Daily leaderboard
-        response = await leaderboardAPI.getAllTime(selectedActivity);
+        response = await leaderboardAPI.getAllTime(selectedActivity, dateToUse);
       }
       console.log(response.data);
       if (response.data?.data) {
@@ -99,6 +109,30 @@ export default function LeaderboardPage() {
   return (
     <div className=''>
       <div className="max-h-150 px-2 py-2 overflow-auto">
+        {/* Week View Toggle */}
+        <div className="mb-4 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded-xl border border-purple-200">
+          <button
+            onClick={() => setWeekView('current')}
+            className={`flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 ${
+              weekView === 'current'
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg scale-105'
+                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+            }`}
+          >
+            📅 Current Week
+          </button>
+          <button
+            onClick={() => setWeekView('previous')}
+            className={`flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 ${
+              weekView === 'previous'
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg scale-105'
+                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+            }`}
+          >
+            📆 Previous Week
+          </button>
+        </div>
+        
         {/* Loading State */}
         {loading && (
           <div className="flex justify-center items-center py-20">
@@ -140,6 +174,9 @@ export default function LeaderboardPage() {
                       <p className="text-2xl font-bold text-white mt-1">
                         {userRank ? `Rank #${userRank.rank}` : 'Not Ranked'} 🎯
                       </p>
+                      <p className="text-[10px] text-purple-200 mt-1">
+                        {weekView === 'current' ? '📅 Current Week' : '📆 Previous Week'}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs font-semibold text-purple-100 uppercase tracking-wider">Total Players</p>
@@ -168,7 +205,7 @@ export default function LeaderboardPage() {
                           </div>
                           <div>
                             <h3 className="text-lg font-bold text-white">{userRank.user.name}</h3>
-                            <p className="text-xs text-purple-100">You • Current Week</p>
+                            <p className="text-xs text-purple-100">You • {weekView === 'current' ? 'Current Week' : 'Previous Week'}</p>
                           </div>
                         </div>
                         <div className="text-right">

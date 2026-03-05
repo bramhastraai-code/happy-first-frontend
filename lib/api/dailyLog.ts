@@ -159,6 +159,20 @@ export interface ActivityCalendarDay extends CalendarDay {
   unit: string | null;
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  value: number;
+  user: {
+    _id: string;
+    name: string;
+  };
+}
+
+export interface LeaderboardData {
+  ranks: LeaderboardEntry[];
+  totalLeaders: number;
+}
+
 export interface CalendarData {
   month: number;
   year: number;
@@ -187,6 +201,7 @@ export interface CalendarData {
     canGoPrevious: boolean;
     canGoNext: boolean;
   };
+  leaderboard?: LeaderboardData;
 }
 
 export interface ActivityCalendarData {
@@ -221,6 +236,7 @@ export interface ActivityCalendarData {
     canGoPrevious: boolean;
     canGoNext: boolean;
   };
+  leaderboard?: LeaderboardData;
 }
 
 export const dailyLogAPI = {

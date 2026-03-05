@@ -6,7 +6,7 @@ import { useAuthStore } from '@/lib/store/authStore';
 import { dailyLogAPI, type CalendarData, type ActivityCalendarData, type StreakData } from '@/lib/api/dailyLog';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, ChevronLeft, ChevronRight, Flame, Trophy, Calendar as CalendarIcon } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Flame, Trophy, Calendar as CalendarIcon, Medal, Award } from 'lucide-react';
 
 type FilterType = 'overall' | 'activity';
 
@@ -21,6 +21,7 @@ export default function StreakCalendarPage() {
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1);
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
+  const [showActivityList, setShowActivityList] = useState(true);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -102,12 +103,25 @@ export default function StreakCalendarPage() {
     setFilterType(type);
     if (type === 'overall') {
       setSelectedActivityId('');
+      setShowActivityList(true);
+    } else {
+      setShowActivityList(true);
+      setSelectedActivityId('');
     }
   };
 
   const handleActivitySelect = (activityId: string) => {
     setSelectedActivityId(activityId);
     setFilterType('activity');
+    setShowActivityList(false);
+    // Reset to current month when selecting activity
+    setCurrentMonth(new Date().getMonth() + 1);
+    setCurrentYear(new Date().getFullYear());
+  };
+
+  const handleBackToActivityList = () => {
+    setShowActivityList(true);
+    setSelectedActivityId('');
   };
 
   const getDayClassName = (day: any) => {
@@ -251,31 +265,68 @@ export default function StreakCalendarPage() {
             </div>
 
             {/* Activity Selection */}
-            {filterType === 'activity' && (
+            {filterType === 'activity' && showActivityList && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Select Activity</label>
-                <select
-                  value={selectedActivityId}
-                  onChange={(e) => handleActivitySelect(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                >
-                  <option value="">Choose an activity...</option>
-                  {streakData?.activityStreaks.map((activity) => (
-                    <option key={activity.activityId} value={activity.activityId}>
-                      {activity.activityName} (Current: {activity.currentStreak} days)
-                    </option>
-                  ))}
-                </select>
+                <label className="text-sm font-medium text-gray-700">Select an Activity</label>
+                <div className="space-y-2">
+                  {streakData?.activityStreaks && streakData.activityStreaks.length > 0 ? (
+                    streakData.activityStreaks.map((activity) => (
+                      <button
+                        key={activity.activityId}
+                        onClick={() => handleActivitySelect(activity.activityId)}
+                        className="w-full p-4 bg-white border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900 group-hover:text-indigo-700 transition-colors">
+                              {activity.activityName}
+                            </h3>
+                            <div className="flex items-center gap-4 mt-2 text-sm">
+                              <span className="text-orange-600 font-medium">
+                                <Flame className="w-4 h-4 inline mr-1" />
+                                {activity.currentStreak} days
+                              </span>
+                              <span className="text-purple-600 font-medium">
+                                <Trophy className="w-4 h-4 inline mr-1" />
+                                Best: {activity.longestStreak}
+                              </span>
+                              <span className="text-gray-600">
+                                {activity.totalDaysLogged} logged
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-colors" />
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="text-center text-gray-500 py-8">No activities found</p>
+                  )}
+                </div>
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Calendar */}
-        <Card>
-          <CardContent className="p-4">
-            {/* Calendar Header */}
-            <div className="flex items-center justify-between mb-4">
+        {(filterType === 'overall' || (filterType === 'activity' && selectedActivityId && !showActivityList)) && (
+          <Card>
+            <CardContent className="p-4">
+              {/* Back button for activity view */}
+              {filterType === 'activity' && selectedActivityId && (
+                <div className="mb-4 pb-3 border-b border-gray-200">
+                  <button
+                    onClick={handleBackToActivityList}
+                    className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium text-sm transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Activities
+                  </button>
+                </div>
+              )}
+
+              {/* Calendar Header */}
+              <div className="flex items-center justify-between mb-4">
               <button
                 onClick={handlePreviousMonth}
                 disabled={!(activityCalendarData || calendarData)?.pagination.canGoPrevious}
@@ -411,39 +462,123 @@ export default function StreakCalendarPage() {
             </div>
           </CardContent>
         </Card>
+        )}
+
+        {/* Leaderboard */}
+        {(filterType === 'overall' || (filterType === 'activity' && selectedActivityId && !showActivityList)) && (
+          (activityCalendarData?.leaderboard || calendarData?.leaderboard) && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Medal className="w-5 h-5 text-yellow-600" />
+                  <h3 className="font-semibold text-gray-900">
+                    {activityCalendarData?.monthName || calendarData?.monthName} Leaderboard
+                    {activityCalendarData && (
+                      <span className="text-sm text-indigo-600 ml-2">- {activityCalendarData.activityName}</span>
+                    )}
+                  </h3>
+                </div>
+                
+                <div className="space-y-2">
+                  {(activityCalendarData?.leaderboard?.ranks || calendarData?.leaderboard?.ranks)?.map((entry) => {
+                    const isCurrentUser = entry.user._id === selectedProfile?._id;
+                    return (
+                      <div
+                        key={entry.user._id}
+                        className={`flex items-center gap-3 p-3 rounded-lg transition-all ${
+                          isCurrentUser
+                            ? 'bg-indigo-50 border-2 border-indigo-400 shadow-md'
+                            : 'bg-gray-50 border border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-center w-10 h-10 rounded-full font-bold text-lg shrink-0
+                          ${
+                            entry.rank === 1
+                              ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white'
+                              : entry.rank === 2
+                              ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-white'
+                              : entry.rank === 3
+                              ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white'
+                              : 'bg-gray-200 text-gray-700'
+                          }">
+                          {entry.rank <= 3 ? (
+                            entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : '🥉'
+                          ) : (
+                            entry.rank
+                          )}
+                        </div>
+                        
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-semibold ${
+                              isCurrentUser ? 'text-indigo-900' : 'text-gray-900'
+                            }`}>
+                              {entry.user.name}
+                            </span>
+                            {isCurrentUser && (
+                              <span className="px-2 py-0.5 text-xs font-medium bg-indigo-600 text-white rounded-full">
+                                You
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-1">
+                          <Award className="w-4 h-4 text-purple-600" />
+                          <span className="font-bold text-purple-900">{entry.value}</span>
+                          <span className="text-xs text-gray-600">{activityCalendarData?.calendarDays.find(d => d.unit)?.unit || 'Value'}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+                  <p className="text-sm text-gray-600">
+                    Total Leaders: <span className="font-semibold text-gray-900">
+                      {activityCalendarData?.leaderboard?.totalLeaders || calendarData?.leaderboard?.totalLeaders}
+                    </span>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        )}
 
         {/* Legend */}
-        <Card>
-          <CardContent className="p-4">
-            <h3 className="font-semibold text-gray-900 mb-3">Legend</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-green-50 border border-green-300 rounded flex items-center justify-center">
-                  <span className="text-lg">✓</span>
+        {(filterType === 'overall' || (filterType === 'activity' && selectedActivityId && !showActivityList)) && (
+          <Card>
+            <CardContent className="p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Legend</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-green-50 border border-green-300 rounded flex items-center justify-center">
+                    <span className="text-lg">✓</span>
+                  </div>
+                  <span className="text-sm text-gray-700">Logged</span>
                 </div>
-                <span className="text-sm text-gray-700">Logged</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-red-50 border border-red-300 rounded flex items-center justify-center">
-                  <span className="text-lg">✗</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-red-50 border border-red-300 rounded flex items-center justify-center">
+                    <span className="text-lg">✗</span>
+                  </div>
+                  <span className="text-sm text-gray-700">Missed</span>
                 </div>
-                <span className="text-sm text-gray-700">Missed</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-green-100 to-green-200 border-2 border-blue-500 rounded flex items-center justify-center">
-                  <span className="text-lg">✓</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-green-100 to-green-200 border-2 border-blue-500 rounded flex items-center justify-center">
+                    <span className="text-lg">✓</span>
+                  </div>
+                  <span className="text-sm text-gray-700">Today (Logged)</span>
                 </div>
-                <span className="text-sm text-gray-700">Today (Logged)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gray-50 border border-gray-200 rounded flex items-center justify-center opacity-50">
-                  <span className="text-lg">⏳</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gray-50 border border-gray-200 rounded flex items-center justify-center opacity-50">
+                    <span className="text-lg">⏳</span>
+                  </div>
+                  <span className="text-sm text-gray-700">Future</span>
                 </div>
-                <span className="text-sm text-gray-700">Future</span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </MainLayout>
   );

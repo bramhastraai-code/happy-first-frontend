@@ -15,6 +15,7 @@ import GuidedTour from '@/components/ui/GuidedTour';
 import { createPlanTourSteps } from '@/lib/utils/tourSteps';
 import { HelpCircle } from 'lucide-react';
 import { all } from 'axios';
+import CadenceSlider from '@/components/ui/CadenceSlider';
 
 interface SelectedActivity {
   activityId: string;
@@ -39,7 +40,7 @@ export default function CreatePlanPage() {
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<SelectedActivity[]>([]);
-  const [step, setStep] = useState<'select' | 'configure'>('select');
+  const [step, setStep] = useState<'choice' | 'select' | 'configure'>('choice');
   const [error, setError] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [currentDay, setCurrentDay] = useState('');
@@ -54,6 +55,7 @@ export default function CreatePlanPage() {
   const [weight, setWeight] = useState<number>(selectedProfile?.profile?.weight || 0);
   const [showWeightOverlay, setShowWeightOverlay] = useState(false);
   const [mandatoryActivity, setMandatoryActivity] = useState<Activity | null>(null);
+  const [hasCurrentPlan, setHasCurrentPlan] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -82,19 +84,35 @@ export default function CreatePlanPage() {
         console.log('No upcoming plan found, user can create one');
       }
 
-      // Check if today is Friday (5), Saturday (6), or Sunday (0)
+      // Check if today is Friday (5), Saturday (6), Sunday (0), or Monday (1)
       const today = new Date();
       const dayOfWeek = today.getDay();
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      
+      // On Monday, check if there's already a current plan
+      if (dayOfWeek === 1) {
+        try {
+          const currentPlanResponse = await weeklyPlanAPI.getCurrent();
+          if (currentPlanResponse.data.data && currentPlanResponse.data.data.activities && currentPlanResponse.data.data.activities.length > 0) {
+            // Current plan exists on Monday, show banner instead of allowing creation
+            setHasCurrentPlan(true);
+            setIsUnlocked(false);
+            setCurrentDay(dayNames[dayOfWeek]);
+            return;
+          }
+        } catch (error) {
+          // No current plan exists, continue
+          console.log('No current plan found on Monday, user can create one');
+        }
+      }
+      
       setCurrentDay(dayNames[dayOfWeek]);
       
-      // Unlock on Friday (5), Saturday (6), Sunday (0)
-      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0|| dayOfWeek === 1;
+      // Unlock on Friday (5), Saturday (6), Sunday (0), or Monday (1)
+      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0 || dayOfWeek === 1;
       setIsUnlocked(unlocked);
 
-      if (unlocked) {
-        fetchActivities();
-      }
+      // Don't automatically fetch activities - wait for user choice
     };
 
     checkUpcomingPlan();
@@ -204,48 +222,87 @@ export default function CreatePlanPage() {
   };
 
   const handleNext = () => {
-    // Account for mandatory activity (3 more needed if happy days is mandatory)
-    const minRequired = mandatoryActivity ? 4 : 4;
-    if (selectedActivities.length < minRequired) {
-      setError(`Please select at least ${minRequired} activities (including Happy Days)`);
-      return;
-    }
-
-    // Check if all categories have been visited
-    if (visitedCategories.size < 3) {
-      const allCategories: ('body' | 'mind' | 'soul')[] = ['body', 'mind', 'soul'];
-      const unvisitedCategories = allCategories.filter(cat => !visitedCategories.has(cat));
-      const categoryNames = unvisitedCategories.map(cat => 
-        cat.charAt(0).toUpperCase() + cat.slice(1)
-      );
-      setError(`Please browse through all categories before proceeding. Not visited: ${categoryNames.join(', ')}`);
-      return;
-    }
-
-    // Check if mandatory activity target has been set
-    if (mandatoryActivity) {
-      const mandatoryActivitySelected = selectedActivities.find(
-        a => a.activityId === mandatoryActivity._id
-      );
-      
-      if (!mandatoryActivitySelected) {
-        // Ask for mandatory activity target if not yet configured
-        setTargetOverlayActivity(mandatoryActivity);
+    // If in select step, navigate through categories first
+    if (step === 'select') {
+      // Navigate through categories: body → mind → soul → configure
+      if (selectedCategory === 'body') {
+        setSelectedCategory('mind');
+        setVisitedCategories(prev => new Set([...prev, 'mind']));
         setError('');
         return;
+      } else if (selectedCategory === 'mind') {
+        setSelectedCategory('soul');
+        setVisitedCategories(prev => new Set([...prev, 'soul']));
+        setError('');
+        return;
+      } else if (selectedCategory === 'soul') {
+        // Moving from soul to configure - validate activities
+        const minRequired = mandatoryActivity ? 4 : 4;
+        if (selectedActivities.length < minRequired) {
+          setError(`Please select at least ${minRequired} activities (including Happy Days)`);
+          return;
+        }
+
+        // Check if all categories have been visited
+        if (visitedCategories.size < 3) {
+          const allCategories: ('body' | 'mind' | 'soul')[] = ['body', 'mind', 'soul'];
+          const unvisitedCategories = allCategories.filter(cat => !visitedCategories.has(cat));
+          const categoryNames = unvisitedCategories.map(cat => 
+            cat.charAt(0).toUpperCase() + cat.slice(1)
+          );
+          setError(`Please browse through all categories before proceeding. Not visited: ${categoryNames.join(', ')}`);
+          return;
+        }
+
+        // Check if mandatory activity target has been set
+        if (mandatoryActivity) {
+          const mandatoryActivitySelected = selectedActivities.find(
+            a => a.activityId === mandatoryActivity._id
+          );
+          
+          if (!mandatoryActivitySelected) {
+            // Ask for mandatory activity target if not yet configured
+            setTargetOverlayActivity(mandatoryActivity);
+            setError('');
+            return;
+          }
+        }
+
+        setError('');
+        setStep('configure');
       }
     }
-
-    setError('');
-    setStep('configure');
   };
 
   const handleBack = () => {
+    if (step === 'configure') {
+      // From configure, go back to soul category
+      setStep('select');
+      setSelectedCategory('soul');
+    } else if (step === 'select') {
+      // Navigate backwards through categories: soul → mind → body → choice
+      if (selectedCategory === 'soul') {
+        setSelectedCategory('mind');
+        setError('');
+      } else if (selectedCategory === 'mind') {
+        setSelectedCategory('body');
+        setError('');
+      } else if (selectedCategory === 'body') {
+        setStep('choice');
+        // Clear selected activities when going back to choice
+        setSelectedActivities([]);
+      }
+    }
+    setError('');
+  };
+
+  const handleChoiceCreateNew = () => {
+    fetchActivities();
     setStep('select');
     setError('');
   };
 
-  const handleRepeatLastWeek = () => {
+  const handleChoiceRepeatLast = () => {
     setShowWeightOverlay(true);
     setError('');
   };
@@ -342,6 +399,56 @@ export default function CreatePlanPage() {
 
   // Locked state UI
   if (!isUnlocked) {
+    // Show different UI if user already has a current plan
+    if (hasCurrentPlan) {
+      return (
+        <MainLayout>
+          <div className="min-h-screen flex items-center justify-center p-4">
+            <Card className="max-w-md w-full">
+              <CardContent className="p-8 text-center">
+                <div className="mb-6">
+                  <CheckCircle2 className="w-20 h-20 mx-auto text-green-500 mb-4" />
+                  <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                    You Already Have an Active Plan
+                  </h1>
+                  <p className="text-gray-600 mb-4">
+                    You cannot create a new plan while you have an active weekly plan in progress
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-200">
+                  <Calendar className="w-8 h-8 mx-auto text-blue-600 mb-2" />
+                  <p className="text-sm text-blue-900 font-medium mb-2">
+                    Your current plan is active
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    Complete your current week's activities. You can create a new plan starting next <span className="font-semibold">Friday</span>.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <Button
+                    onClick={() => router.push('/home')}
+                    className="w-full"
+                    variant="default"
+                  >
+                    View Current Plan
+                  </Button>
+                  <Button
+                    onClick={() => router.push('/home')}
+                    className="w-full"
+                    variant="outline"
+                  >
+                    Back to Home
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </MainLayout>
+      );
+    }
+    
     const nextUnlockDay = currentDay === 'Monday' || currentDay === 'Tuesday' || currentDay === 'Wednesday' || currentDay === 'Thursday' 
       ? 'Friday' 
       : 'Friday';
@@ -425,7 +532,9 @@ export default function CreatePlanPage() {
         <div className="create-plan-header mb-6">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl font-bold text-gray-900">
-              {step === 'select' ? 'Select Activities' : 'Configure Your Plan'}
+              {step === 'choice' && 'Choose Plan Type'}
+              {step === 'select' && 'Select Activities'}
+              {step === 'configure' && 'Configure Your Plan'}
             </h1>
             <div className="flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full">
               <CheckCircle2 className="w-4 h-4 text-green-600" />
@@ -433,14 +542,15 @@ export default function CreatePlanPage() {
             </div>
           </div>
           <p className="text-gray-600">
-            {step === 'select'
-              ? 'Choose at least 4 activities for your weekly plan'
-              : 'Set your target values and cadence for each activity'}
+            {step === 'choice' && 'Would you like to create a new plan or repeat your last week\'s plan?'}
+            {step === 'select' && `Browse ${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)} activities and select the ones you want to include`}
+            {step === 'configure' && 'Set your target values and cadence for each activity'}
           </p>
           
           {/* Progress Steps */}
           <div className="flex items-center gap-2 mt-4">
-            <div className={`flex-1 h-2 rounded-full ${step === 'select' ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+            <div className={`flex-1 h-2 rounded-full ${step === 'choice' ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+            <div className={`flex-1 h-2 rounded-full ${step === 'select' ? 'bg-blue-500' : step === 'configure' ? 'bg-green-500' : 'bg-gray-200'}`}></div>
             <div className={`flex-1 h-2 rounded-full ${step === 'configure' ? 'bg-blue-500' : 'bg-gray-200'}`}></div>
           </div>
         </div>
@@ -451,12 +561,91 @@ export default function CreatePlanPage() {
           </div>
         )}
 
+        {/* Step 0: Choose Plan Type */}
+        {step === 'choice' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Create New Plan Option */}
+              <Card
+                className="cursor-pointer transition-all hover:border-blue-500 hover:shadow-lg group"
+                onClick={handleChoiceCreateNew}
+              >
+                <CardContent className="p-6">
+                  <div className="text-center space-y-4">
+                    <div className="text-6xl mx-auto">✨</div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600">
+                        Create New Plan
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Select activities and set targets for a fresh weekly plan tailored to your goals
+                      </p>
+                    </div>
+                    <Button className="w-full" variant="default">
+                      Start Creating <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Repeat Last Plan Option */}
+              <Card
+                className="cursor-pointer transition-all hover:border-purple-500 hover:shadow-lg group"
+                onClick={handleChoiceRepeatLast}
+              >
+                <CardContent className="p-6">
+                  <div className="text-center space-y-4">
+                    <div className="text-6xl mx-auto">🔄</div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-purple-600">
+                        Repeat Last Plan
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Continue with the same activities and targets from your previous week
+                      </p>
+                    </div>
+                    <Button 
+                      className="w-full" 
+                      variant="outline"
+                      disabled={repeatLoading}
+                    >
+                      {repeatLoading ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Repeat Plan
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Back Button */}
+            <div className="flex justify-center pt-4">
+              <Button
+                onClick={() => router.push('/home')}
+                variant="outline"
+                className="w-full sm:w-auto"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" /> Back to Home
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Step 1: Select Activities */}
         {step === 'select' && (
           <div className="space-y-4">
+            
             {/* Category Selection */}
             <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Browse All Categories</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Category Navigation</h3>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => handleCategoryChange('body')}
@@ -499,88 +688,16 @@ export default function CreatePlanPage() {
                 </button>
               </div>
               <p className="text-xs text-gray-600 mt-2">
-                Visit all categories to explore available activities
+                Use Next/Back buttons to navigate through categories, or click to jump directly
               </p>
             </div>
 
-            {/* Repeat Last Week Button */}
-            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <RefreshCw className="w-5 h-5 text-purple-600 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-purple-900 mb-1">
-                    Repeat Last Week
-                  </h3>
-                  <p className="text-xs text-purple-700 mb-3">
-                    Use the same activities and targets from your previous week
-                  </p>
-                  <Button
-                    onClick={handleRepeatLastWeek}
-                    disabled={repeatLoading}
-                    variant="outline"
-                    className="w-full sm:w-auto border-purple-300 text-purple-700 hover:bg-purple-100"
-                  >
-                    {repeatLoading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Repeat Last Week
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {mandatoryActivity && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <div className="flex items-start gap-2">
-                  <span className="text-xl mt-0.5">{mandatoryActivity.icon}</span>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-green-900 mb-0.5">
-                      Mandatory Activity: {mandatoryActivity.name}
-                    </p>
-                    <p className="text-xs text-green-700">
-                      This activity is required for all weekly plans and has been automatically selected.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+           
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between ">
                 <p className="text-sm text-blue-900">
                   <span className="font-semibold">Selected: {selectedActivities.length}</span> / Minimum: 4
-                </p>
-              </div>
-              
-              {/* Category Browsing Status */}
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-gray-700 mb-2">Browsing Progress:</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium ${
-                    visitedCategories.has('body') ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {visitedCategories.has('body') ? '✓' : '○'} Body
-                  </div>
-                  <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium ${
-                    visitedCategories.has('mind') ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {visitedCategories.has('mind') ? '✓' : '○'} Mind
-                  </div>
-                  <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium ${
-                    visitedCategories.has('soul') ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {visitedCategories.has('soul') ? '✓' : '○'} Soul
-                  </div>
-                </div>
-                <p className="text-xs text-gray-600 mt-2">
-                  Browse all categories before proceeding ({visitedCategories.size}/3 visited)
                 </p>
               </div>
             </div>
@@ -624,21 +741,27 @@ export default function CreatePlanPage() {
                 );
               })}
             </div>
+            {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            {error}
+          </div>
+        )}
 
             <div className="flex gap-3 pt-4">
               <Button
-                onClick={() => router.push('/home')}
+                onClick={handleBack}
                 variant="outline"
                 className="flex-1"
               >
-                Cancel
+                <ArrowLeft className="w-4 h-4 mr-2" /> 
+                {selectedCategory === 'body' ? 'Back to Choice' : selectedCategory === 'mind' ? 'Body' : 'Mind'}
               </Button>
               <Button
                 onClick={handleNext}
-                disabled={selectedActivities.length < 4}
                 className="flex-1"
               >
-                Next <ArrowRight className="w-4 h-4 ml-2" />
+                {selectedCategory === 'body' ? 'Next: Mind' : selectedCategory === 'mind' ? 'Next: Soul' : 'Next: Configure'} 
+                <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
           </div>
@@ -647,83 +770,72 @@ export default function CreatePlanPage() {
         {/* Step 2: Configure Activities */}
         {step === 'configure' && (
           <div className="space-y-4">
-            {selectedActivities.map((activity) => (
-              <Card key={activity.activityId}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="text-3xl">{activity.icon}</div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-1">{activity.name}</h3>
-                      <p className="text-xs text-gray-600">Unit: {activity.baseUnit}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {/* Cadence Selection */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Cadence
-                      </label>
-                      <select
-                        value={activity.cadence}
-                        onChange={(e) =>
-                          updateActivityTarget(activity.activityId, 'cadence', e.target.value)
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        {selectedActivities.map((act) => (
-                          act.activityId === activity.activityId && act.allowedCadence.map((cadenceOption) => (
-                            <option key={cadenceOption} value={cadenceOption}>
-                              {cadenceOption.charAt(0).toUpperCase() + cadenceOption.slice(1)}
-                            </option>
-                          ))
-                        ))}
-                      </select>
+            {selectedActivities.map((activity) => {
+              const isMandatory = mandatoryActivity && activity.activityId === mandatoryActivity._id;
+              const minVal = activity.values.find(v=>v.tier===tiers)?.minVal || 0;
+              const maxVal = activity.values.find(v=>v.tier===tiers)?.maxVal || 0;
+              
+              return (
+                <Card key={activity.activityId} className={`${isMandatory ? 'border-green-300 bg-green-50' : 'border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50'}`}>
+                  <CardContent className="p-5">
+                    {/* Header Section */}
+                    <div className="flex items-start gap-4 mb-4 pb-4 border-b border-gray-200">
+                      <div className="text-4xl">{activity.icon}</div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-bold text-gray-900 text-lg">{activity.name}</h3>
+                          {isMandatory && (
+                            <span className="text-xs font-bold text-green-700 bg-green-200 px-2 py-0.5 rounded-full">
+                              MANDATORY
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600">Unit: {activity.baseUnit}</p>
+                      </div>
                     </div>
 
-                    {/* Target Value */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Target Value ({activity.baseUnit})
-                      </label>
-                      <Input
-                        type="number"
-                        step="any"
-                        min={activity.values.find(v=>v.tier===tiers)?.minVal || 0}
-                        max={activity.values.find(v=>v.tier===tiers)?.maxVal || 0}
-                        value={activity.targetValue || ''}
-                        onChange={(e) => {
-                          // Allow free typing without clamping
-                          const inputValue = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                          updateActivityTarget(
-                            activity.activityId,
-                            'targetValue',
-                            inputValue
-                          );
-                        }}
-                        onBlur={(e) => {
-                          const minVal = activity.values.find(v=>v.tier===tiers)?.minVal || 0;
-                          const maxVal = activity.values.find(v=>v.tier===tiers)?.maxVal || 100000;
-                          const inputValue = parseFloat(e.target.value);
-                          
-                          // Only validate and clamp when user finishes typing
-                          if (isNaN(inputValue) || inputValue < minVal) {
-                            updateActivityTarget(activity.activityId, 'targetValue', minVal);
-                          } else if (inputValue > maxVal) {
-                            updateActivityTarget(activity.activityId, 'targetValue', maxVal);
-                          }
-                        }}
-                        placeholder={`Enter target in ${activity.baseUnit}`}
-                        className="w-full"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Range: {activity.values.find(v=>v.tier===tiers)?.minVal || 0} - {activity.values.find(v=>v.tier===tiers)?.maxVal || 0} {activity.baseUnit}
-                      </p>
+                    {/* Details Section - Read-only Display */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Cadence Display */}
+                      <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Calendar className="w-4 h-4 text-blue-600" />
+                          <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                            Cadence
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl font-bold text-gray-900">
+                            {activity.cadence.charAt(0).toUpperCase() + activity.cadence.slice(1)}
+                          </span>
+                         
+                        </div>
+                      </div>
+
+                      {/* Target Value Display */}
+                      <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                            Target Value
+                          </span>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-bold text-gray-900">
+                            {activity.targetValue}
+                          </span>
+                          <span className="text-sm font-medium text-gray-600">
+                            {activity.baseUnit}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+
+                    
+                  </CardContent>
+                </Card>
+              );
+            })}
 
             {/* Weight Input */}
             <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200">
@@ -940,22 +1052,27 @@ function TargetSelectionForm({
       )}
 
       {/* Cadence Selection */}
-      {activity.allowedCadence.length > 1 && (
+      {activity.allowedCadence.length > 1 ? (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Cadence
           </label>
-          <select
+          <CadenceSlider
             value={cadence}
-            onChange={(e) => setCadence(e.target.value as 'daily' | 'weekly')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {activity.allowedCadence.map((cadenceOption) => (
-              <option key={cadenceOption} value={cadenceOption}>
-                {cadenceOption.charAt(0).toUpperCase() + cadenceOption.slice(1)}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => setCadence(value)}
+            disabled={false}
+          />
+        </div>
+      ) : (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Cadence
+          </label>
+          <div className="w-full px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+            <span className="text-sm font-semibold text-blue-900">
+              {cadence.charAt(0).toUpperCase() + cadence.slice(1)}
+            </span>
+          </div>
         </div>
       )}
 
