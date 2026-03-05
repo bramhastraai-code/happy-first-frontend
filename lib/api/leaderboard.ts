@@ -15,10 +15,10 @@ export interface LeaderboardEntry {
 }
 
 export const leaderboardAPI = {
-  getWeekly: (activity: string) => {
+  getWeekly: (activity: string, date?: string) => {
     const params: { activity?: string; date?: string } = {};
     if (activity != null) params.activity = activity;
-    params.date = new Date().toISOString().split("T")[0];
+    params.date = date || new Date().toISOString().split("T")[0];
 
     return api.get<{
       success: boolean;
@@ -27,10 +27,10 @@ export const leaderboardAPI = {
     }>("/leaderboard/get", { params });
   },
 
-  getAllTime: (activity: string) => {
+  getAllTime: (activity: string, date?: string) => {
     const params: { activity?: string; date?: string; logType?: string } = {};
     if (activity != null) params.activity = activity;
-    params.date = new Date().toISOString().split("T")[0];
+    params.date = date || new Date().toISOString().split("T")[0];
     params.logType = "daily";
 
     return api.get<{

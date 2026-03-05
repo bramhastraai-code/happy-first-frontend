@@ -18,6 +18,7 @@ import { HelpCircle } from 'lucide-react';
 import CustomSlider from '@/components/ui/CustomSlider';
 import CustomNumericInput from '@/components/ui/CustomNumericInput';
 import { activityAPI, Activity as ActivityType } from '@/lib/api/activity';
+import { DateTime } from 'luxon';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -38,10 +39,23 @@ export default function TasksPage() {
   const [runTour, setRunTour] = useState(false);
   const [showTourButton, setShowTourButton] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [showCongrats, setShowCongrats] = useState(false);
+  const [earnedPoints, setEarnedPoints] = useState(0);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Redirect to home after showing congrats
+  useEffect(() => {
+    if (showCongrats) {
+      const timer = setTimeout(() => {
+        router.push('/home');
+      }, 3000); // Redirect after 3 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [showCongrats, router]);
 
   useEffect(() => { 
      const fetchUser =async()=>{
@@ -179,7 +193,8 @@ export default function TasksPage() {
       };
 
       const response = await dailyLogAPI.submit(submitData);
-      setSuccess(`Daily log submitted! Points earned: ${response.data.data.totalPoints}`);
+      setEarnedPoints(response.data.data.totalPoints);
+      setShowCongrats(true);
       
       if(response.status===201){
         // Update weeklyPlan to mark all activities as logged for today
@@ -278,6 +293,50 @@ export default function TasksPage() {
 
   return (
     <MainLayout>
+      {/* Congratulations Screen */}
+      {showCongrats && (
+        <div className="fixed inset-0 z-[100] bg-gradient-to-br from-green-500 via-emerald-500 to-teal-500 flex items-center justify-center animate-fade-in">
+          <div className="text-center px-6 animate-scale-up">
+            {/* Trophy Icon */}
+            <div className="mb-6 animate-bounce">
+              <div className="inline-flex items-center justify-center w-32 h-32 bg-white rounded-full shadow-2xl">
+                <span className="text-7xl">🏆</span>
+              </div>
+            </div>
+            
+            {/* Congratulations Text */}
+            <h1 className="text-5xl font-bold text-white mb-4 drop-shadow-lg">
+              Congratulations!
+            </h1>
+            <p className="text-2xl text-white/90 mb-6">
+              You&apos;ve successfully logged your activities!
+            </p>
+            
+            {/* Points Card */}
+            <div className="inline-block bg-white rounded-2xl shadow-2xl px-8 py-6 mb-8">
+              <p className="text-sm text-slate-600 font-medium mb-2">Points Earned</p>
+              <p className="text-5xl font-bold text-green-600">
+                +{earnedPoints.toFixed(2)}
+              </p>
+            </div>
+            
+            {/* Confetti/Stars */}
+            <div className="flex justify-center gap-4 text-4xl mb-6 animate-pulse">
+              <span>⭐</span>
+              <span>🎉</span>
+              <span>✨</span>
+              <span>🎊</span>
+              <span>⭐</span>
+            </div>
+            
+            {/* Redirecting message */}
+            <p className="text-white/80 text-sm">
+              Redirecting to home...
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Guided Tour - Only render on client */}
       {isMounted && <GuidedTour run={runTour} onFinish={handleTourFinish} steps={tasksTourSteps} />}
 
@@ -288,8 +347,7 @@ export default function TasksPage() {
           className="fixed bottom-20 right-4 z-50 flex items-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg transition-all hover:scale-105"
           title="Start Tour"
         >
-          <HelpCircle className="w-5 h-5" />
-          <span className="font-medium">Start Tour</span>
+          <HelpCircle className="w-3 h-3" />
         </button>
       )}
 
@@ -399,8 +457,8 @@ export default function TasksPage() {
                   <Clock className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-slate-900">Submit Yesterday&apos;s Log</h3>
-                  <p className="text-xs text-slate-500">Submit missed logs before 6:00 PM</p>
+                  <h3 className="font-semibold text-slate-900">Submit Yesterday&apos;s Log({DateTime.now().minus({day:1}).toFormat('dd-MM-yyyy')})</h3>
+                  <p className="text-xs text-slate-500">Submit missed logs before 12:00 PM</p>
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition-all" />
@@ -415,7 +473,517 @@ export default function TasksPage() {
             <h3 className="font-semibold text-slate-900 text-lg">Submit Daily Logs</h3>
           </div>
           
-          {noPlanError && (
+          
+          {!noPlanError && (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Mind Category */}
+              {weeklyPlan?.activities.some((activity) => {
+                const activityData = actlist.find((act) => act._id === activity.activity);
+                return activityData?.category.toLowerCase() === 'mind';
+              }) && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 px-2 py-2 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border-l-4 border-purple-500">
+                    <div className="p-1.5 rounded-lg bg-purple-100">
+                      <span className="text-xl">🧠</span>
+                    </div>
+                    <h4 className="font-bold text-purple-900 text-lg">Mind</h4>
+                  </div>
+                  {weeklyPlan?.activities.map((activity) => {
+                    const activityData = actlist.find((act) => act._id === activity.activity);
+                    if (activityData?.category.toLowerCase() !== 'mind') return null;
+                    
+                    const activityId = activity.activity || '';
+                    const isSurprise = activity?.isSurpriseActivity || false;
+                    
+                    return (
+                      <Card key={activityId} className={`border transition-all ${
+                        isSurprise 
+                          ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300 shadow-sm hover:shadow-md relative'
+                          : 'border-slate-200 hover:border-slate-300 shadow-sm'
+                      }`}>
+                        {isSurprise && (
+                          <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md flex items-center gap-1.5 z-10">
+                            ⭐ BONUS
+                          </div>
+                        )}
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${
+                                isSurprise ? 'bg-amber-100' : 'bg-slate-100'
+                              }`}>
+                                {isSurprise ? '🎁' : activityData?.icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`font-semibold text-sm mb-0.5 ${
+                                  isSurprise ? 'text-amber-900' : 'text-slate-900'
+                                }`}>
+                                  {activity.label}
+                                </p>
+                                <p className={`text-xs ${
+                                  isSurprise ? 'text-amber-700' : 'text-slate-500'
+                                }`}>
+                                  Target: {activity.targetValue} {activity.unit}
+                                  {activity.cadence === 'daily' ? '/day' : '/week'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {!isAfter6PM ? (
+                              <>
+                                {activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days' ? (
+                                  <>
+                                    <CustomSlider
+                                      checked={false}
+                                      onChange={() => {}}
+                                      disabled={true}
+                                    />
+                                    <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <Timer className="w-3.5 h-3.5" />
+                                      <span className="font-mono font-medium">{timeUntilMidnight}</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex-1 relative">
+                                      <Input
+                                        type="number"
+                                        disabled
+                                        value=""
+                                        placeholder="Available after 6 PM"
+                                        className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 placeholder:text-slate-500 text-slate-600"
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-end pointer-events-none">
+                                        <Lock className="w-4 h-4 mr-3 text-slate-400" />
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <Timer className="w-3.5 h-3.5" />
+                                      <span className="font-mono font-medium">{timeUntilMidnight}</span>
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            ) : activity.TodayLogged ? (
+                              <>
+                                {activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days' ? (
+                                  <>
+                                    <CustomSlider
+                                      checked={checkboxActivities[activityId] || false}
+                                      onChange={() => {}}
+                                      disabled={true}
+                                    />
+                                    <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span className="font-medium">Logged</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex-1 relative">
+                                      <Input
+                                        type="number"
+                                        disabled
+                                        max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                        value={activities[activityId] || 0}
+                                        className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 text-slate-600"
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <span className="font-medium">Logged</span>
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days' ? (
+                                  <>
+                                    <CustomSlider
+                                      checked={checkboxActivities[activityId] || false}
+                                      onChange={(checked) => handleCheckboxChange(activityId, checked)}
+                                      onPendingChange={(isPending) => handlePendingChange(activityId, isPending)}
+                                      disabled={false}
+                                    />
+                                    <div className="text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md min-w-24 text-center">
+                                      <span className="font-semibold text-slate-900">{(activity.pointsPerUnit!).toFixed(1)}</span>
+                                      <span className="text-slate-500"> pts</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CustomNumericInput
+                                      value={activities[activityId] || 0}
+                                      onChange={(val) => handleActivityChange(activityId, val.toString())}
+                                      min={0}
+                                      max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                      placeholder={`Enter ${activity.unit}`}
+                                      unit={activity.unit || ''}
+                                      pointsPerUnit={activity.pointsPerUnit || 0}
+                                      cadence={activity.cadence}
+                                      disabled={false}
+                                    />
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Body Category */}
+              {weeklyPlan?.activities.some((activity) => {
+                const activityData = actlist.find((act) => act._id === activity.activity);
+                return activityData?.category.toLowerCase() === 'body';
+              }) && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 px-2 py-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border-l-4 border-green-500">
+                    <div className="p-1.5 rounded-lg bg-green-100">
+                      <span className="text-xl">💪</span>
+                    </div>
+                    <h4 className="font-bold text-green-900 text-lg">Body</h4>
+                  </div>
+                  {weeklyPlan?.activities.map((activity) => {
+                    const activityData = actlist.find((act) => act._id === activity.activity);
+                    if (activityData?.category.toLowerCase() !== 'body') return null;
+                    
+                    const activityId = activity.activity || '';
+                    const isSurprise = activity?.isSurpriseActivity || false;
+                    
+                    return (
+                      <Card key={activityId} className={`border transition-all ${
+                        isSurprise 
+                          ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300 shadow-sm hover:shadow-md relative'
+                          : 'border-slate-200 hover:border-slate-300 shadow-sm'
+                      }`}>
+                        {isSurprise && (
+                          <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md flex items-center gap-1.5 z-10">
+                            ⭐ BONUS
+                          </div>
+                        )}
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${
+                                isSurprise ? 'bg-amber-100' : 'bg-slate-100'
+                              }`}>
+                                {isSurprise ? '🎁' : activityData?.icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`font-semibold text-sm mb-0.5 ${
+                                  isSurprise ? 'text-amber-900' : 'text-slate-900'
+                                }`}>
+                                  {activity.label}
+                                </p>
+                                <p className={`text-xs ${
+                                  isSurprise ? 'text-amber-700' : 'text-slate-500'
+                                }`}>
+                                  Target: {activity.targetValue} {activity.unit}
+                                  {activity.cadence === 'daily' ? '/day' : '/week'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {!isAfter6PM ? (
+                              <>
+                                {activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days' ? (
+                                  <>
+                                    <CustomSlider
+                                      checked={false}
+                                      onChange={() => {}}
+                                      disabled={true}
+                                    />
+                                    <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <Timer className="w-3.5 h-3.5" />
+                                      <span className="font-mono font-medium">{timeUntilMidnight}</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex-1 relative">
+                                      <Input
+                                        type="number"
+                                        disabled
+                                        value=""
+                                        placeholder="Available after 6 PM"
+                                        className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 placeholder:text-slate-500 text-slate-600"
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-end pointer-events-none">
+                                        <Lock className="w-4 h-4 mr-3 text-slate-400" />
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <Timer className="w-3.5 h-3.5" />
+                                      <span className="font-mono font-medium">{timeUntilMidnight}</span>
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            ) : activity.TodayLogged ? (
+                              <>
+                                {activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days' ? (
+                                  <>
+                                    <CustomSlider
+                                      checked={checkboxActivities[activityId] || false}
+                                      onChange={() => {}}
+                                      disabled={true}
+                                    />
+                                    <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span className="font-medium">Logged</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex-1 relative">
+                                      <Input
+                                        type="number"
+                                        disabled
+                                        max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                        value={activities[activityId] || 0}
+                                        className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 text-slate-600"
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <span className="font-medium">Logged</span>
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days' ? (
+                                  <>
+                                    <CustomSlider
+                                      checked={checkboxActivities[activityId] || false}
+                                      onChange={(checked) => handleCheckboxChange(activityId, checked)}
+                                      onPendingChange={(isPending) => handlePendingChange(activityId, isPending)}
+                                      disabled={false}
+                                    />
+                                    <div className="text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md min-w-24 text-center">
+                                      <span className="font-semibold text-slate-900">{(activity.pointsPerUnit!).toFixed(1)}</span>
+                                      <span className="text-slate-500"> pts</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CustomNumericInput
+                                      value={activities[activityId] || 0}
+                                      onChange={(val) => handleActivityChange(activityId, val.toString())}
+                                      min={0}
+                                      max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                      placeholder={`Enter ${activity.unit}`}
+                                      unit={activity.unit || ''}
+                                      pointsPerUnit={activity.pointsPerUnit || 0}
+                                      cadence={activity.cadence}
+                                      disabled={false}
+                                    />
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Soul Category */}
+              {weeklyPlan?.activities.some((activity) => {
+                const activityData = actlist.find((act) => act._id === activity.activity);
+                return activityData?.category.toLowerCase() === 'soul';
+              }) && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 px-2 py-2 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border-l-4 border-blue-500">
+                    <div className="p-1.5 rounded-lg bg-blue-100">
+                      <span className="text-xl">✨</span>
+                    </div>
+                    <h4 className="font-bold text-blue-900 text-lg">Soul</h4>
+                  </div>
+                  {weeklyPlan?.activities.map((activity) => {
+                    const activityData = actlist.find((act) => act._id === activity.activity);
+                    if (activityData?.category.toLowerCase() !== 'soul') return null;
+                    
+                    const activityId = activity.activity || '';
+                    const isSurprise = activity?.isSurpriseActivity || false;
+                    
+                    return (
+                      <Card key={activityId} className={`border transition-all ${
+                        isSurprise 
+                          ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300 shadow-sm hover:shadow-md relative'
+                          : 'border-slate-200 hover:border-slate-300 shadow-sm'
+                      }`}>
+                        {isSurprise && (
+                          <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md flex items-center gap-1.5 z-10">
+                            ⭐ BONUS
+                          </div>
+                        )}
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${
+                                isSurprise ? 'bg-amber-100' : 'bg-slate-100'
+                              }`}>
+                                {isSurprise ? '🎁' : activityData?.icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`font-semibold text-sm mb-0.5 ${
+                                  isSurprise ? 'text-amber-900' : 'text-slate-900'
+                                }`}>
+                                  {activity.label}
+                                </p>
+                                <p className={`text-xs ${
+                                  isSurprise ? 'text-amber-700' : 'text-slate-500'
+                                }`}>
+                                  Target: {activity.targetValue} {activity.unit}
+                                  {activity.cadence === 'daily' ? '/day' : '/week'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {!isAfter6PM ? (
+                              <>
+                                {activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days' ? (
+                                  <>
+                                    <CustomSlider
+                                      checked={false}
+                                      onChange={() => {}}
+                                      disabled={true}
+                                    />
+                                    <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <Timer className="w-3.5 h-3.5" />
+                                      <span className="font-mono font-medium">{timeUntilMidnight}</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex-1 relative">
+                                      <Input
+                                        type="number"
+                                        disabled
+                                        value=""
+                                        placeholder="Available after 6 PM"
+                                        className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 placeholder:text-slate-500 text-slate-600"
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-end pointer-events-none">
+                                        <Lock className="w-4 h-4 mr-3 text-slate-400" />
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <Timer className="w-3.5 h-3.5" />
+                                      <span className="font-mono font-medium">{timeUntilMidnight}</span>
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            ) : activity.TodayLogged ? (
+                              <>
+                                {activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days' ? (
+                                  <>
+                                    <CustomSlider
+                                      checked={checkboxActivities[activityId] || false}
+                                      onChange={() => {}}
+                                      disabled={true}
+                                    />
+                                    <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span className="font-medium">Logged</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex-1 relative">
+                                      <Input
+                                        type="number"
+                                        disabled
+                                        max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                        value={activities[activityId] || 0}
+                                        className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 text-slate-600"
+                                      />
+                                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-md min-w-24 justify-center">
+                                      <span className="font-medium">Logged</span>
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days' ? (
+                                  <>
+                                    <CustomSlider
+                                      checked={checkboxActivities[activityId] || false}
+                                      onChange={(checked) => handleCheckboxChange(activityId, checked)}
+                                      onPendingChange={(isPending) => handlePendingChange(activityId, isPending)}
+                                      disabled={false}
+                                    />
+                                    <div className="text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md min-w-24 text-center">
+                                      <span className="font-semibold text-slate-900">{(activity.pointsPerUnit!).toFixed(1)}</span>
+                                      <span className="text-slate-500"> pts</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CustomNumericInput
+                                      value={activities[activityId] || 0}
+                                      onChange={(val) => handleActivityChange(activityId, val.toString())}
+                                      min={0}
+                                      max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                      placeholder={`Enter ${activity.unit}`}
+                                      unit={activity.unit || ''}
+                                      pointsPerUnit={activity.pointsPerUnit || 0}
+                                      cadence={activity.cadence}
+                                      disabled={false}
+                                    />
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+
+            {!isAfter6PM && (
+              <Card className="bg-amber-50 border-amber-200 mb-3">
+                <CardContent className="p-5 text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 mb-3">
+                    <Timer className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <h3 className="font-semibold text-slate-900 mb-1">Log Submission Restricted</h3>
+                  <p className="text-sm text-slate-600 mb-3">
+                    Daily logs can only be submitted after 6:00 PM
+                  </p>
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-amber-200">
+                    <span className="text-xs text-slate-500 font-medium">Time remaining:</span>
+                    <span className="font-mono font-bold text-lg text-amber-700">{timeUntilMidnight}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {noPlanError && (
             <Card className="border-amber-200 bg-amber-50">
               <CardContent className="p-5 text-center">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 mb-3">
@@ -440,179 +1008,6 @@ export default function TasksPage() {
               <span>{error}</span>
             </div>
           )}
-
-          {!noPlanError && (
-            <form onSubmit={handleSubmit} className="space-y-3">
-              {weeklyPlan?.activities.map((activity) => {
-              const activityData = typeof activity === 'object' 
-                ? activity 
-                : null;
-              const activityId = activityData?.activity || '';
-              const isSurprise = activity?.isSurpriseActivity ||false;
-              
-              return (
-                <Card key={activityId} className={`border transition-all ${
-                  isSurprise 
-                    ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300 shadow-sm hover:shadow-md relative'
-                    : 'border-slate-200 hover:border-slate-300 shadow-sm'
-                }`}>
-                  {isSurprise && (
-                    <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md flex items-center gap-1.5 z-10">
-                      ⭐ BONUS
-                    </div>
-                  )}
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${
-                          isSurprise ? 'bg-amber-100' : 'bg-slate-100'
-                        }`}>
-                          {isSurprise ? '🎁' : (
-                            <>
-                              {actlist.find((act)=>act._id==activityData?.activity)?.icon }
-                            </>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`font-semibold text-sm mb-0.5 ${
-                            isSurprise ? 'text-amber-900' : 'text-slate-900'
-                          }`}>
-                            {activityData?.label}
-                          </p>
-                          <p className={`text-xs ${
-                            isSurprise ? 'text-amber-700' : 'text-slate-500'
-                          }`}>
-                            Target: {activity.targetValue} {activityData?.unit}
-                            {activity.cadence === 'daily' ? '/day' : '/week'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {!isAfter6PM ? (
-                        <>
-                          {activity.cadence === 'weekly' && activityData?.unit.toLowerCase() === 'days' ? (
-                            <>
-                              <CustomSlider
-                                checked={false}
-                                onChange={() => {}}
-                                disabled={true}
-                              />
-                              <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md min-w-24 justify-center">
-                                <Timer className="w-3.5 h-3.5" />
-                                <span className="font-mono font-medium">{timeUntilMidnight}</span>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="flex-1 relative">
-                                <Input
-                                  type="number"
-                                  disabled
-                                  value=""
-                                  placeholder="Available after 6 PM"
-                                  className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 placeholder:text-slate-500 text-slate-600"
-                                />
-                                <div className="absolute inset-0 flex items-center justify-end pointer-events-none">
-                                  <Lock className="w-4 h-4 mr-3 text-slate-400" />
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md min-w-24 justify-center">
-                                <Timer className="w-3.5 h-3.5" />
-                                <span className="font-mono font-medium">{timeUntilMidnight}</span>
-                              </div>
-                            </>
-                          )}
-                        </>
-                      ) : activity.TodayLogged ? (
-                        <>
-                          {activity.cadence === 'weekly' && activityData?.unit.toLowerCase() === 'days' ? (
-                            <>
-                              <CustomSlider
-                                checked={checkboxActivities[activityId] || false}
-                                onChange={() => {}}
-                                disabled={true}
-                              />
-                              <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-md min-w-24 justify-center">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span className="font-medium">Logged</span>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="flex-1 relative">
-                                <Input
-                                  type="number"
-                                  disabled
-                                  max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
-                                  value={activities[activityId] || 0}
-                                  className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 text-slate-600"
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-md min-w-24 justify-center">
-                                <span className="font-medium">Logged</span>
-                              </div>
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          {activity.cadence === 'weekly' && activityData?.unit.toLowerCase() === 'days' ? (
-                            <>
-                              <CustomSlider
-                                checked={checkboxActivities[activityId] || false}
-                                onChange={(checked) => handleCheckboxChange(activityId, checked)}
-                                onPendingChange={(isPending) => handlePendingChange(activityId, isPending)}
-                                disabled={false}
-                              />
-                              <div className="text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md min-w-24 text-center">
-                                <span className="font-semibold text-slate-900">{(activity.pointsPerUnit!).toFixed(1)}</span>
-                                <span className="text-slate-500"> pts</span>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <CustomNumericInput
-                                value={activities[activityId] || 0}
-                                onChange={(val) => handleActivityChange(activityId, val.toString())}
-                                min={0}
-                                max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
-                                placeholder={`Enter ${activityData?.unit}`}
-                                unit={activityData?.unit || ''}
-                                pointsPerUnit={activity.pointsPerUnit || 0}
-                                cadence={activity.cadence}
-                                disabled={false}
-                              />
-                            </>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-
-            {!isAfter6PM && (
-              <Card className="bg-amber-50 border-amber-200 mb-3">
-                <CardContent className="p-5 text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 mb-3">
-                    <Timer className="w-6 h-6 text-amber-600" />
-                  </div>
-                  <h3 className="font-semibold text-slate-900 mb-1">Log Submission Restricted</h3>
-                  <p className="text-sm text-slate-600 mb-3">
-                    Daily logs can only be submitted after 6:00 PM
-                  </p>
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-amber-200">
-                    <span className="text-xs text-slate-500 font-medium">Time remaining:</span>
-                    <span className="font-mono font-bold text-lg text-amber-700">{timeUntilMidnight}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
             <Button
               type="submit"
               disabled={!isAfter6PM || loading||weeklyPlan?.activities.every(activity => activity.TodayLogged)||Object.values(activities).every(value => value === 0) && Object.values(checkboxActivities).every(checked => !checked) || Object.values(pendingSliders).some(isPending => isPending)}
@@ -627,6 +1022,8 @@ export default function TasksPage() {
             </Button>
           </form>
           )}
+          
+
         </div>
       </div>
     </MainLayout>
