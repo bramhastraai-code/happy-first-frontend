@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, Lock, User, UserPlus, Users, ChevronRight, LogOut } from 'lucide-react';
+import { ArrowLeft, Lock, User, UserPlus, Users, ChevronRight, LogOut, MessageSquare } from 'lucide-react';
 import { authAPI } from '@/lib/api/auth';
 
 export default function SettingsPage() {
@@ -103,6 +103,19 @@ export default function SettingsPage() {
           onClick: () => router.push('/change-password'),
           color: 'text-orange-600',
           bgColor: 'bg-orange-50',
+        },
+      ],
+    },
+    {
+      title: 'Support & Help',
+      items: [
+        {
+          icon: <MessageSquare className="w-5 h-5" />,
+          label: 'Support & Feedback',
+          description: 'Send us feedback or report issues',
+          onClick: () => router.push('/support'),
+          color: 'text-blue-600',
+          bgColor: 'bg-blue-50',
         },
       ],
     },

@@ -109,7 +109,7 @@ function HomePageContent() {
   const [expandedSections, setExpandedSections] = useState({
     weeklyPerformance: true,
     activityGoals: false,
-    pendingActivities: true,
+    pendingActivities: false,
     leaderboard: false,
     logTracker: false,
     recommendations: false,

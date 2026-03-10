@@ -30,6 +30,10 @@ export default function PreviousLogPage() {
     const [isMounted, setIsMounted] = useState(false);
     const [logAlreadyExists, setLogAlreadyExists] = useState(false);
     const [checkingLog, setCheckingLog] = useState(false);
+    const [showWarning, setShowWarning] = useState(false);
+    const [warningActivities, setWarningActivities] = useState<Array<{label: string, value: number, target: number, percentage: number}>>([]);
+    const [earnedPoints, setEarnedPoints] = useState(0);
+    const [showCongrats, setShowCongrats] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
@@ -40,6 +44,17 @@ export default function PreviousLogPage() {
         
         setSelectedDate(yesterday.toISODate()||'');
     }, []);
+
+    // Redirect to home after showing congrats
+    useEffect(() => {
+        if (showCongrats) {
+            const timer = setTimeout(() => {
+                router.push('/home');
+            }, 3000);
+
+            return () => clearTimeout(timer);
+        }
+    }, [showCongrats, router]);
 
     useEffect(() => {
         if (!isHydrated) return;
@@ -211,9 +226,39 @@ export default function PreviousLogPage() {
             return;
         }
 
-        setLoading(true);
         setError('');
         setSuccess('');
+
+        // Validate activities for warnings
+        const warnings: Array<{label: string, value: number, target: number, percentage: number}> = [];
+        
+        Object.entries(activities).forEach(([activityId, value]) => {
+            if (value > 0) {
+                const activity = weeklyPlan?.activities.find(a => a.activity === activityId);
+                if (activity && activity.cadence !== 'weekly' && activity.label) {
+                    const targetValue =  activity.targetValue;
+                    const percentage = (value / targetValue) * 100;
+                    
+                    if (percentage < 10 || percentage > 200) {
+                        warnings.push({
+                            label: activity.label,
+                            value,
+                            target: targetValue,
+                            percentage: Math.round(percentage)
+                        });
+                    }
+                }
+            }
+        });
+
+        // If there are warnings and user hasn't confirmed yet, show warning banner
+        if (warnings.length > 0 && !showWarning) {
+            setWarningActivities(warnings);
+            setShowWarning(true);
+            return;
+        }
+
+        setLoading(true);
 
         try {
             // Combine numeric activities and checkbox activities
@@ -236,12 +281,8 @@ export default function PreviousLogPage() {
             };
 
             const response = await dailyLogAPI.submitPrevious(submitData);
-            setSuccess(`Previous day log submitted! Points earned: ${response.data.data.totalPoints.toFixed(2)}`);
-
-            // Reset form after successful submission
-            setTimeout(() => {
-                router.push('/home');
-            }, 2000);
+            setEarnedPoints(response.data.data.totalPoints);
+            setShowCongrats(true);
 
         } catch (err: any) {
             console.error('Error submitting previous log:', err);
@@ -253,6 +294,18 @@ export default function PreviousLogPage() {
 
     const getActivityName = (activity: WeeklyPlanActivity): string => {
         return activity.label as string;
+    };
+
+    const handleConfirmSubmit = () => {
+        setShowWarning(false);
+        setWarningActivities([]);
+        // Trigger submission programmatically
+        handleSubmit();
+    };
+
+    const handleCancelSubmit = () => {
+        setShowWarning(false);
+        setWarningActivities([]);
     };
 
     // Set max date to yesterday
@@ -274,6 +327,50 @@ export default function PreviousLogPage() {
 
     return (
         <MainLayout>
+            {/* Congratulations Screen */}
+            {showCongrats && (
+                <div className="fixed inset-0 z-[100] bg-gradient-to-br from-green-500 via-emerald-500 to-teal-500 flex items-center justify-center animate-fade-in">
+                    <div className="text-center px-6 animate-scale-up">
+                        {/* Trophy Icon */}
+                        <div className="mb-6 animate-bounce">
+                            <div className="inline-flex items-center justify-center w-32 h-32 bg-white rounded-full shadow-2xl">
+                                <span className="text-7xl">🏆</span>
+                            </div>
+                        </div>
+                        
+                        {/* Congratulations Text */}
+                        <h1 className="text-5xl font-bold text-white mb-4 drop-shadow-lg">
+                            Congratulations!
+                        </h1>
+                        <p className="text-2xl text-white/90 mb-6">
+                            Previous day log submitted successfully!
+                        </p>
+                        
+                        {/* Points Card */}
+                        <div className="inline-block bg-white rounded-2xl shadow-2xl px-8 py-6 mb-8">
+                            <p className="text-sm text-slate-600 font-medium mb-2">Points Earned</p>
+                            <p className="text-5xl font-bold text-green-600">
+                                +{earnedPoints.toFixed(2)}
+                            </p>
+                        </div>
+                        
+                        {/* Confetti/Stars */}
+                        <div className="flex justify-center gap-4 text-4xl mb-6 animate-pulse">
+                            <span>⭐</span>
+                            <span>🎉</span>
+                            <span>✨</span>
+                            <span>🎊</span>
+                            <span>⭐</span>
+                        </div>
+                        
+                        {/* Redirecting message */}
+                        <p className="text-white/80 text-sm">
+                            Redirecting to home...
+                        </p>
+                    </div>
+                </div>
+            )}
+
             <div className="space-y-6 pb-20 px-4">
                 {/* Header */}
                 <div className="pt-6">
@@ -329,6 +426,61 @@ export default function PreviousLogPage() {
                         </div>
                     </CardContent>
                 </Card>)}
+
+                {/* Warning Banner for Unusual Values */}
+                {showWarning && warningActivities.length > 0 && (
+                    <Card className="bg-orange-50 border-orange-200">
+                        <CardContent className="p-5">
+                            <div className="flex items-start gap-3 mb-4">
+                                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-orange-100 flex-shrink-0">
+                                    <AlertCircle className="w-5 h-5 text-orange-600" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-semibold text-slate-900 mb-1">Unusual Values Detected</h3>
+                                    <p className="text-sm text-slate-600 mb-3">
+                                        The following activities have values that seem unusually low or high compared to your targets:
+                                    </p>
+                                    <div className="space-y-2 mb-4">
+                                        {warningActivities.map((warning, index) => (
+                                            <div key={index} className="bg-white rounded-lg p-3 border border-orange-200">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="font-medium text-sm text-slate-900">{warning.label}</p>
+                                                        <p className="text-xs text-slate-500">
+                                                            Entered: {warning.value} | Target: {warning.target.toFixed(1)}
+                                                        </p>
+                                                    </div>
+                                                    <div className={`px-2.5 py-1 rounded-lg font-semibold text-sm ${
+                                                        warning.percentage < 10 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                                                    }`}>
+                                                        {warning.percentage}%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            type="button"
+                                            onClick={handleCancelSubmit}
+                                            variant="outline"
+                                            className="flex-1 border-slate-300 hover:bg-slate-50"
+                                        >
+                                            Go Back & Edit
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            onClick={handleConfirmSubmit}
+                                            className="flex-1 bg-orange-600 hover:bg-orange-700"
+                                        >
+                                            Submit Anyway
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Activities Form */}
                 {selectedDate && weeklyPlan && !logAlreadyExists && canSubmit && (

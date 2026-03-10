@@ -41,6 +41,8 @@ export default function TasksPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [showCongrats, setShowCongrats] = useState(false);
   const [earnedPoints, setEarnedPoints] = useState(0);
+  const [showWarning, setShowWarning] = useState(false);
+  const [warningActivities, setWarningActivities] = useState<Array<{label: string, value: number, target: number, percentage: number}>>([]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -169,9 +171,40 @@ export default function TasksPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
     setSuccess('');
+
+    // Validate activities for warnings
+    const warnings: Array<{label: string, value: number, target: number, percentage: number}> = [];
+    
+    Object.entries(activities).forEach(([activityId, value]) => {
+      if (value > 0) {
+        const activity = weeklyPlan?.activities.find(a => a.activity === activityId);
+        if (activity && activity.cadence !== 'weekly' && activity.label) {
+          const targetValue =  activity.targetValue ;
+          const percentage = (value / targetValue) * 100;
+          
+          if (percentage < 10 || percentage > 200) {
+            warnings.push({
+              label: activity.label,
+              value,
+              target: targetValue,
+              percentage: Math.round(percentage)
+            });
+          }
+        }
+      }
+    });
+
+    // If there are warnings and user hasn't confirmed yet, show warning banner
+    if (warnings.length > 0 && !showWarning) {
+      setWarningActivities(warnings);
+      setShowWarning(true);
+      return;
+    }
+
+    // Proceed with submission
+    setLoading(true);
 
     try {
       // Combine numeric activities and checkbox activities
@@ -289,6 +322,21 @@ export default function TasksPage() {
   const handleTourFinish = () => {
     setRunTour(false);
     setShowTourButton(true);
+  };
+
+  const handleConfirmSubmit = () => {
+    setShowWarning(false);
+    setWarningActivities([]);
+    // Trigger form submission programmatically
+    const form = document.querySelector('form');
+    if (form) {
+      form.requestSubmit();
+    }
+  };
+
+  const handleCancelSubmit = () => {
+    setShowWarning(false);
+    setWarningActivities([]);
   };
 
   return (
@@ -965,6 +1013,61 @@ export default function TasksPage() {
                 </div>
               )}
 
+
+            {/* Warning Banner for Unusual Values */}
+            {showWarning && warningActivities.length > 0 && (
+              <Card className="bg-orange-50 border-orange-200 mb-3">
+                <CardContent className="p-5">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-orange-100 flex-shrink-0">
+                      <AlertCircle className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-900 mb-1">Unusual Values Detected</h3>
+                      <p className="text-sm text-slate-600 mb-3">
+                        The following activities have values that seem unusually low or high compared to your targets:
+                      </p>
+                      <div className="space-y-2 mb-4">
+                        {warningActivities.map((warning, index) => (
+                          <div key={index} className="bg-white rounded-lg p-3 border border-orange-200">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium text-sm text-slate-900">{warning.label}</p>
+                                <p className="text-xs text-slate-500">
+                                  Entered: {warning.value} | Target: {warning.target.toFixed(1)}
+                                </p>
+                              </div>
+                              <div className={`px-2.5 py-1 rounded-lg font-semibold text-sm ${
+                                warning.percentage < 10 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                              }`}>
+                                {warning.percentage}%
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          onClick={handleCancelSubmit}
+                          variant="outline"
+                          className="flex-1 border-slate-300 hover:bg-slate-50"
+                        >
+                          Go Back & Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={handleConfirmSubmit}
+                          className="flex-1 bg-orange-600 hover:bg-orange-700"
+                        >
+                          Submit Anyway
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {!isAfter6PM && (
               <Card className="bg-amber-50 border-amber-200 mb-3">

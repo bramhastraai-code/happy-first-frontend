@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import { activityAPI, type Activity } from '@/lib/api/activity';
-import { weeklyPlanAPI, type CreateWeeklyPlanData } from '@/lib/api/weeklyPlan';
+import { weeklyPlanAPI, type CreateWeeklyPlanData, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,8 @@ export default function CreatePlanPage() {
   const [showWeightOverlay, setShowWeightOverlay] = useState(false);
   const [mandatoryActivity, setMandatoryActivity] = useState<Activity | null>(null);
   const [hasCurrentPlan, setHasCurrentPlan] = useState(false);
+  const [showCongratulation, setShowCongratulation] = useState(false);
+  const [surpriseActivity, setSurpriseActivity] = useState<{name: string, icon: string, targetValue: number, unit: string} | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -109,7 +111,7 @@ export default function CreatePlanPage() {
       setCurrentDay(dayNames[dayOfWeek]);
       
       // Unlock on Friday (5), Saturday (6), Sunday (0), or Monday (1)
-      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0 || dayOfWeek === 1;
+      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0 || dayOfWeek === 4;
       setIsUnlocked(unlocked);
 
       // Don't automatically fetch activities - wait for user choice
@@ -384,10 +386,26 @@ export default function CreatePlanPage() {
         })),
       };
       
-      await weeklyPlanAPI.create(planData);
+      const response = await weeklyPlanAPI.create(planData);
       
-      // Redirect to home page
-      router.replace('/upcoming');
+      // Check for surprise activity in the response
+      const createdPlan = response.data?.data;
+      if (createdPlan && createdPlan.activities) {
+        const surprise = createdPlan.activities.find((act: WeeklyPlanActivity) => act.isSurpriseActivity === true);
+        if (surprise) {
+          setSurpriseActivity({
+            name: surprise.label || surprise.activity,
+            icon: activities.find(a => a._id === surprise.activity)?.icon || '🎁',
+            targetValue: surprise.targetValue,
+            unit: surprise.unit
+          });
+        } else {
+          setSurpriseActivity(null);
+        }
+      }
+      
+      // Show congratulation screen
+      setShowCongratulation(true);
     } catch (error: unknown) {
       console.error('Failed to create weekly plan:', error);
       const errorMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -503,6 +521,83 @@ export default function CreatePlanPage() {
               >
                 Back to Home
               </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Congratulation Screen
+  if (showCongratulation) {
+    return (
+      <MainLayout>
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <Card className="max-w-md w-full">
+            <CardContent className="p-8 text-center">
+              <div className="mb-6">
+                <div className="text-6xl mb-4 animate-bounce">🎉</div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                  Congratulations!
+                </h1>
+                <p className="text-gray-600 mb-4">
+                  Your weekly plan has been created successfully
+                </p>
+              </div>
+
+              {surpriseActivity ? (
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-6 mb-6 border-2 border-purple-200">
+                  <div className="mb-3">
+                    <div className="text-5xl mb-2">🎁</div>
+                    <h2 className="text-xl font-bold text-purple-900 mb-1">
+                      Surprise Activity!
+                    </h2>
+                    <p className="text-sm text-purple-700">
+                      We've added a special activity to your plan
+                    </p>
+                  </div>
+                  
+                  <div className="bg-white rounded-lg p-4 border border-purple-200">
+                    <div className="flex items-center justify-center gap-3 mb-2">
+                      <span className="text-3xl">{surpriseActivity.icon}</span>
+                      <h3 className="text-lg font-bold text-gray-900">
+                        {surpriseActivity.name}
+                      </h3>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Target: <span className="font-semibold text-purple-700">
+                        {surpriseActivity.targetValue} {surpriseActivity.unit}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 mb-6 border-2 border-blue-200">
+                  <div className="text-4xl mb-3">📋</div>
+                  <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                    No Surprise Activity
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    Your plan includes all the activities you selected. Keep up the great work!
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <Button
+                  onClick={() => {
+                    const today = new Date();
+                    const dayOfWeek = today.getDay();
+                    // If Monday (1), go to tasks, otherwise go to upcoming
+                    router.replace(dayOfWeek === 1 ? '/tasks' : '/upcoming');
+                  }}
+                  className="w-full"
+                  variant="default"
+                >
+                  View Your Plan
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
