@@ -99,6 +99,10 @@ export interface UpdateProfileData {
   };
 }
 
+export interface UpdatePauseData {
+  pause: boolean;
+}
+
 export const authAPI = {
   register: (data: RegisterData) => api.post('/userAuth/register', data),
   
@@ -128,6 +132,8 @@ export const authAPI = {
     api.post('/userAuth/send-welcome-message', { phoneNumber, countryCode }),
 
   userInfo: () => api.get('/userAuth/user-info'),
+
+  updatePause: (profileId: string, data: UpdatePauseData) => api.patch(`/profile/${profileId}/pause`, data),
 
   referralStats: () => api.get('/userAuth/referralStats'),
 };

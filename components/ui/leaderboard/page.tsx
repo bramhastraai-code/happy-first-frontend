@@ -166,7 +166,7 @@ export default function LeaderboardPage() {
             </select>
             {/* Your Rank Card */}
             {!loading && !error && leaderboardData.length > 0 && (
-              <div className="sticky top-0 z-10 mb-4">
+              <div className=" mb-4">
                 <div className="bg-gradient-to-br from-purple-600 via-purple-500 to-pink-500 rounded-2xl p-5 shadow-2xl border-2 border-white/20 backdrop-blur-sm">
                   <div className="flex items-center justify-between mb-4">
                     <div>
