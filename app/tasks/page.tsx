@@ -22,7 +22,7 @@ import { DateTime } from 'luxon';
 
 export default function TasksPage() {
   const router = useRouter();
-  const { accessToken, user, isHydrated } = useAuthStore();
+  const { accessToken, user, isHydrated, selectedProfile } = useAuthStore();
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
   const [activities, setActivities] = useState<Record<string, number>>({});
   const [checkboxActivities, setCheckboxActivities] = useState<Record<string, boolean>>({});
@@ -313,6 +313,7 @@ export default function TasksPage() {
   };
 
   const progress = getTodayProgress();
+  const isProfilePaused = Boolean(selectedProfile?.pause ?? selectedProfile?.setting?.pause);
 
   const handleStartTour = () => {
     setRunTour(true);
@@ -522,7 +523,21 @@ export default function TasksPage() {
           </div>
           
           
-          {!noPlanError && (
+          {isProfilePaused && (
+            <Card className="border-amber-200 bg-amber-50">
+              <CardContent className="p-5 text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 mb-3">
+                  <Timer className="w-6 h-6 text-amber-600" />
+                </div>
+                <h3 className="font-semibold text-slate-900 mb-2">You Are Paused</h3>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  Your service is currently paused. Resume from Settings to continue submitting daily logs.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {!noPlanError && !isProfilePaused && (
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Mind Category */}
               {weeklyPlan?.activities.some((activity) => {

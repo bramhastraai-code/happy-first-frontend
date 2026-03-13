@@ -22,6 +22,7 @@ interface lifestyle {
 export interface Profile {
   user : string;
   _id: string;
+  pause?: boolean;
   type: "primary" | "family";
   name: string;
   relationship: string;
@@ -44,6 +45,7 @@ export interface Profile {
   };
   setting: {
     autoActivityPlanRenew: boolean;
+    pause?: boolean;
   };
   createdAt: string;
   updatedAt: string;

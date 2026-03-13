@@ -74,9 +74,8 @@ function VerifyOTPContent() {
       setProfiles(profiles);
       setAccessToken(accessToken);
 
-      // Redirect to activity selection (mandatory step)
-      router.push('/activity-selection');
-      // router.push('/home');
+      // Redirect to first-time plan creation as the next onboarding step.
+      router.push('/create-plan?mode=first-setup');
     } catch (err) {
       setError((err as any).response?.data?.message || 'OTP verification failed');
     } finally {
@@ -94,7 +93,7 @@ function VerifyOTPContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Verify OTP</h1>
@@ -154,7 +153,7 @@ function VerifyOTPContent() {
 export default function VerifyOTPPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-blue-50 to-purple-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading...</p>

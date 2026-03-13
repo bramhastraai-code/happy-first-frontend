@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
-import { activityAPI, type Activity } from '@/lib/api/activity';
+import { type Activity } from '@/lib/api/activity';
 import { weeklyPlanAPI, type CreateWeeklyPlanData, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import MainLayout from '@/components/layout/MainLayout';
@@ -11,11 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Lock, Calendar, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from 'lucide-react';
-import GuidedTour from '@/components/ui/GuidedTour';
-import { createPlanTourSteps } from '@/lib/utils/tourSteps';
-import { HelpCircle } from 'lucide-react';
-import { all } from 'axios';
-import CadenceSlider from '@/components/ui/CadenceSlider';
+import CadenceSlider, { type CadenceValue } from '@/components/ui/CadenceSlider';
 
 interface SelectedActivity {
   activityId: string;
@@ -35,20 +31,40 @@ interface SelectedActivity {
 }
 
 export default function CreatePlanPage() {
+  return (
+    <Suspense fallback={<CreatePlanPageFallback />}>
+      <CreatePlanPageContent />
+    </Suspense>
+  );
+}
+
+function CreatePlanPageFallback() {
+  return (
+    <MainLayout>
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-green-600"></div>
+          <p className="text-gray-600">Loading plan creator...</p>
+        </div>
+      </div>
+    </MainLayout>
+  );
+}
+
+function CreatePlanPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isOnboarding = searchParams.get('mode') === 'first-setup';
   const { user, accessToken, isHydrated,selectedProfile } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<SelectedActivity[]>([]);
-  const [step, setStep] = useState<'choice' | 'select' | 'configure'>('choice');
+  const [step, setStep] = useState<'choice' | 'select' | 'configure'>(isOnboarding ? 'select' : 'choice');
   const [error, setError] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [currentDay, setCurrentDay] = useState('');
   const [tiers, setTiers] = useState<number>(1);
   const [repeatLoading, setRepeatLoading] = useState(false);
-  const [runTour, setRunTour] = useState(false);
-  const [showTourButton, setShowTourButton] = useState(true);
-  const [isMounted, setIsMounted] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<'body' | 'mind' | 'soul'>('body');
   const [visitedCategories, setVisitedCategories] = useState<Set<'body' | 'mind' | 'soul'>>(new Set(['body']));
   const [targetOverlayActivity, setTargetOverlayActivity] = useState<Activity | null>(null);
@@ -60,8 +76,13 @@ export default function CreatePlanPage() {
   const [surpriseActivity, setSurpriseActivity] = useState<{name: string, icon: string, targetValue: number, unit: string} | null>(null);
 
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
+    if (!isOnboarding) {
+      return;
+    }
+
+    fetchActivities();
+    setStep('select');
+  }, [isOnboarding]);
 
   useEffect(() => {
     // Wait for hydration before checking auth
@@ -81,15 +102,20 @@ export default function CreatePlanPage() {
           router.push('/upcoming');
           return;
         }
-      } catch (error) {
+      } catch {
         // No upcoming plan exists, continue
         console.log('No upcoming plan found, user can create one');
       }
 
-      // Check if today is Friday (5), Saturday (6), Sunday (0), or Monday (1)
       const today = new Date();
       const dayOfWeek = today.getDay();
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      setCurrentDay(dayNames[dayOfWeek]);
+
+      if (isOnboarding) {
+        setIsUnlocked(true);
+        return;
+      }
       
       // On Monday, check if there's already a current plan
       if (dayOfWeek === 1) {
@@ -102,23 +128,21 @@ export default function CreatePlanPage() {
             setCurrentDay(dayNames[dayOfWeek]);
             return;
           }
-        } catch (error) {
+        } catch {
           // No current plan exists, continue
           console.log('No current plan found on Monday, user can create one');
         }
       }
-      
-      setCurrentDay(dayNames[dayOfWeek]);
-      
+
       // Unlock on Friday (5), Saturday (6), Sunday (0), or Monday (1)
-      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0 || dayOfWeek === 4;
+      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0 || dayOfWeek === 2;
       setIsUnlocked(unlocked);
 
       // Don't automatically fetch activities - wait for user choice
     };
 
     checkUpcomingPlan();
-  }, [accessToken, user, router, isHydrated]);
+  }, [accessToken, user, router, isHydrated, isOnboarding]);
 
   const fetchActivities = async () => {
     try {
@@ -190,39 +214,6 @@ export default function CreatePlanPage() {
     setVisitedCategories(prev => new Set([...prev, category]));
   };
 
-  const updateActivityTarget = (activityId: string, field: string, value: string | number) => {
-    setSelectedActivities(
-      selectedActivities.map((act) =>
-        act.activityId === activityId ? { ...act, [field]: value } : act
-      )
-    );
-  };
-
-  // Check which categories have selected activities
-  const getCategoryStatus = () => {
-    const bodyActivities = selectedActivities.filter(act => {
-      const activity = activities.find(a => a._id === act.activityId);
-      return activity?.category.toLowerCase() === 'body';
-    });
-    const mindActivities = selectedActivities.filter(act => {
-      const activity = activities.find(a => a._id === act.activityId);
-      return activity?.category.toLowerCase() === 'mind';
-    });
-    const soulActivities = selectedActivities.filter(act => {
-      const activity = activities.find(a => a._id === act.activityId);
-      return activity?.category.toLowerCase() === 'soul';
-    });
-
-    return {
-      body: bodyActivities.length > 0,
-      mind: mindActivities.length > 0,
-      soul: soulActivities.length > 0,
-      bodyCount: bodyActivities.length,
-      mindCount: mindActivities.length,
-      soulCount: soulActivities.length,
-    };
-  };
-
   const handleNext = () => {
     // If in select step, navigate through categories first
     if (step === 'select') {
@@ -290,9 +281,13 @@ export default function CreatePlanPage() {
         setSelectedCategory('body');
         setError('');
       } else if (selectedCategory === 'body') {
-        setStep('choice');
-        // Clear selected activities when going back to choice
-        setSelectedActivities([]);
+        if (isOnboarding) {
+          router.back();
+        } else {
+          setStep('choice');
+          // Clear selected activities when going back to choice
+          setSelectedActivities([]);
+        }
       }
     }
     setError('');
@@ -342,16 +337,6 @@ export default function CreatePlanPage() {
     }
   };
 
-  const handleStartTour = () => {
-    setRunTour(true);
-    setShowTourButton(false);
-  };
-
-  const handleTourFinish = () => {
-    setRunTour(false);
-    setShowTourButton(true);
-  };
-
   const handleSubmit = async () => {
     // Validate targets
     const hasInvalidTargets = selectedActivities.some((a) => a.targetValue === 0 || !a.targetValue);
@@ -386,7 +371,14 @@ export default function CreatePlanPage() {
         })),
       };
       
-      const response = await weeklyPlanAPI.create(planData);
+      const response = isOnboarding
+        ? await weeklyPlanAPI.firstSetup(planData)
+        : await weeklyPlanAPI.create(planData);
+
+      if (isOnboarding) {
+        router.replace('/profile-setup');
+        return;
+      }
       
       // Check for surprise activity in the response
       const createdPlan = response.data?.data;
@@ -409,7 +401,7 @@ export default function CreatePlanPage() {
     } catch (error: unknown) {
       console.error('Failed to create weekly plan:', error);
       const errorMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(errorMessage || 'Failed to create weekly plan. Please try again.');
+      setError(errorMessage || `Failed to ${isOnboarding ? 'save your first plan' : 'create weekly plan'}. Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -420,7 +412,7 @@ export default function CreatePlanPage() {
     // Show different UI if user already has a current plan
     if (hasCurrentPlan) {
       return (
-        <MainLayout>
+        <MainLayout hideBottomNav={isOnboarding}>
           <div className="min-h-screen flex items-center justify-center p-4">
             <Card className="max-w-md w-full">
               <CardContent className="p-8 text-center">
@@ -440,7 +432,7 @@ export default function CreatePlanPage() {
                     Your current plan is active
                   </p>
                   <p className="text-xs text-blue-700">
-                    Complete your current week's activities. You can create a new plan starting next <span className="font-semibold">Friday</span>.
+                    Complete your current week&apos;s activities. You can create a new plan starting next <span className="font-semibold">Friday</span>.
                   </p>
                 </div>
 
@@ -472,7 +464,7 @@ export default function CreatePlanPage() {
       : 'Friday';
     
     return (
-      <MainLayout>
+      <MainLayout hideBottomNav={isOnboarding}>
         <div className="min-h-screen flex items-center justify-center p-4">
           <Card className="max-w-md w-full">
             <CardContent className="p-8 text-center">
@@ -531,7 +523,7 @@ export default function CreatePlanPage() {
   // Congratulation Screen
   if (showCongratulation) {
     return (
-      <MainLayout>
+      <MainLayout hideBottomNav={isOnboarding}>
         <div className="min-h-screen flex items-center justify-center p-4">
           <Card className="max-w-md w-full">
             <CardContent className="p-8 text-center">
@@ -546,14 +538,14 @@ export default function CreatePlanPage() {
               </div>
 
               {surpriseActivity ? (
-                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-6 mb-6 border-2 border-purple-200">
+                <div className="bg-linear-to-br from-purple-50 to-pink-50 rounded-lg p-6 mb-6 border-2 border-purple-200">
                   <div className="mb-3">
                     <div className="text-5xl mb-2">🎁</div>
                     <h2 className="text-xl font-bold text-purple-900 mb-1">
                       Surprise Activity!
                     </h2>
                     <p className="text-sm text-purple-700">
-                      We've added a special activity to your plan
+                      We&apos;ve added a special activity to your plan
                     </p>
                   </div>
                   
@@ -572,7 +564,7 @@ export default function CreatePlanPage() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 mb-6 border-2 border-blue-200">
+                <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-lg p-6 mb-6 border-2 border-blue-200">
                   <div className="text-4xl mb-3">📋</div>
                   <h2 className="text-lg font-semibold text-gray-900 mb-2">
                     No Surprise Activity
@@ -606,22 +598,7 @@ export default function CreatePlanPage() {
   }
 
   return (
-    <MainLayout>
-      {/* Guided Tour - Only render on client */}
-      {isMounted && <GuidedTour run={runTour} onFinish={handleTourFinish} steps={createPlanTourSteps} />}
-
-      {/* Tour Start Button - Only render on client */}
-      {isMounted && showTourButton && (
-        <button
-          onClick={handleStartTour}
-          className="fixed bottom-20 right-4 z-50 flex items-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg transition-all hover:scale-105"
-          title="Start Tour"
-        >
-          <HelpCircle className="w-5 h-5" />
-          <span className="font-medium">Start Tour</span>
-        </button>
-      )}
-
+    <MainLayout hideBottomNav={isOnboarding}>
       <div className="p-4 max-w-4xl mx-auto">
         {/* Header */}
         <div className="create-plan-header mb-6">
@@ -629,17 +606,17 @@ export default function CreatePlanPage() {
             <h1 className="text-2xl font-bold text-gray-900">
               {step === 'choice' && 'Choose Plan Type'}
               {step === 'select' && 'Select Activities'}
-              {step === 'configure' && 'Configure Your Plan'}
+              {step === 'configure' && (isOnboarding ? 'Review Your First Plan' : 'Configure Your Plan')}
             </h1>
             <div className="flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full">
               <CheckCircle2 className="w-4 h-4 text-green-600" />
-              <span className="text-sm font-medium text-green-700">Unlocked</span>
+              <span className="text-sm font-medium text-green-700">{isOnboarding ? 'Setup Mode' : 'Unlocked'}</span>
             </div>
           </div>
           <p className="text-gray-600">
             {step === 'choice' && 'Would you like to create a new plan or repeat your last week\'s plan?'}
-            {step === 'select' && `Browse ${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)} activities and select the ones you want to include`}
-            {step === 'configure' && 'Set your target values and cadence for each activity'}
+            {step === 'select' && `${isOnboarding ? 'Build your first weekly plan by browsing' : 'Browse'} ${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)} activities and select the ones you want to include`}
+            {step === 'configure' && (isOnboarding ? 'Confirm your selected activities and add your weight to finish setup' : 'Set your target values and cadence for each activity')}
           </p>
           
           {/* Progress Steps */}
@@ -724,11 +701,11 @@ export default function CreatePlanPage() {
             {/* Back Button */}
             <div className="flex justify-center pt-4">
               <Button
-                onClick={() => router.push('/home')}
+                onClick={() => router.push(isOnboarding ? '/profile-setup' : '/home')}
                 variant="outline"
                 className="w-full sm:w-auto"
               >
-                <ArrowLeft className="w-4 h-4 mr-2" /> Back to Home
+                <ArrowLeft className="w-4 h-4 mr-2" /> {isOnboarding ? 'Skip for Now' : 'Back to Home'}
               </Button>
             </div>
           </div>
@@ -849,7 +826,7 @@ export default function CreatePlanPage() {
                 className="flex-1"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" /> 
-                {selectedCategory === 'body' ? 'Back to Choice' : selectedCategory === 'mind' ? 'Body' : 'Mind'}
+                {selectedCategory === 'body' ? (isOnboarding ? 'Back' : 'Back to Choice') : selectedCategory === 'mind' ? 'Body' : 'Mind'}
               </Button>
               <Button
                 onClick={handleNext}
@@ -867,11 +844,9 @@ export default function CreatePlanPage() {
           <div className="space-y-4">
             {selectedActivities.map((activity) => {
               const isMandatory = mandatoryActivity && activity.activityId === mandatoryActivity._id;
-              const minVal = activity.values.find(v=>v.tier===tiers)?.minVal || 0;
-              const maxVal = activity.values.find(v=>v.tier===tiers)?.maxVal || 0;
               
               return (
-                <Card key={activity.activityId} className={`${isMandatory ? 'border-green-300 bg-green-50' : 'border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50'}`}>
+                <Card key={activity.activityId} className={`${isMandatory ? 'border-green-300 bg-green-50' : 'border-blue-100 bg-linear-to-br from-blue-50 to-indigo-50'}`}>
                   <CardContent className="p-5">
                     {/* Header Section */}
                     <div className="flex items-start gap-4 mb-4 pb-4 border-b border-gray-200">
@@ -933,7 +908,7 @@ export default function CreatePlanPage() {
             })}
 
             {/* Weight Input */}
-            <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200">
+            <Card className="bg-linear-to-r from-green-50 to-blue-50 border-2 border-green-200">
               <CardContent className="p-4">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -981,7 +956,7 @@ export default function CreatePlanPage() {
                 disabled={loading || !weight || weight <= 0}
                 className="flex-1"
               >
-                {loading ? 'Creating Plan...' : 'Create Weekly Plan'}
+                {loading ? (isOnboarding ? 'Saving Plan...' : 'Creating Plan...') : (isOnboarding ? 'Save & Continue' : 'Create Weekly Plan')}
               </Button>
             </div>
           </div>
@@ -1118,18 +1093,18 @@ function TargetSelectionForm({
   const [targetValue, setTargetValue] = useState<number>(
     activity.values.find(v => v.tier === tiers)?.minVal || 0
   );
-  const [cadence, setCadence] = useState<'daily' | 'weekly'>(
-    activity.allowedCadence[0]
+  const [cadence, setCadence] = useState<CadenceValue>(
+    activity.allowedCadence.length === 1 ? activity.allowedCadence[0] : 'none'
   );
 
   const minVal = activity.values.find(v => v.tier === tiers)?.minVal || 0;
   const maxVal = activity.values.find(v => v.tier === tiers)?.maxVal || 100;
 
   const handleConfirm = () => {
-    if (targetValue < minVal || targetValue > maxVal) {
+    if (targetValue < minVal || targetValue > maxVal || cadence === 'none') {
       return;
     }
-    onConfirm(targetValue, cadence);
+    onConfirm(targetValue, cadence as 'daily' | 'weekly');
   };
 
   return (
@@ -1163,7 +1138,7 @@ function TargetSelectionForm({
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Cadence
           </label>
-          <div className="w-full px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+          <div className="w-full px-4 py-3 bg-linear-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
             <span className="text-sm font-semibold text-blue-900">
               {cadence.charAt(0).toUpperCase() + cadence.slice(1)}
             </span>
@@ -1215,7 +1190,7 @@ function TargetSelectionForm({
         )}
         <Button
           onClick={handleConfirm}
-          disabled={targetValue < minVal || targetValue > maxVal || !targetValue}
+          disabled={targetValue < minVal || targetValue > maxVal || !targetValue || cadence === 'none'}
           className={isMandatory ? "w-full" : "flex-1"}
         >
           Confirm

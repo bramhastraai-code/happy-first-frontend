@@ -121,6 +121,7 @@ function HomePageContent() {
   const [runTour, setRunTour] = useState(false);
   const [showTourButton, setShowTourButton] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const isProfilePaused = Boolean(selectedProfile?.pause ?? selectedProfile?.setting?.pause);
 
   useEffect(() => {
     setIsMounted(true);
@@ -375,19 +376,7 @@ function HomePageContent() {
     <MainLayout >
       {/* Guided Tour - Only render on client */}
       {isMounted && <GuidedTour run={runTour} onFinish={handleTourFinish} />}
-
-      {/* Tour Start Button - Only render on client */}
-      {isMounted && showTourButton && (
-        <button
-          onClick={handleStartTour}
-          className="fixed bottom-20 right-4 z-50 flex items-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg transition-all hover:scale-105"
-          title="Start Tour"
-        >
-          <HelpCircle className="w-5 h-5" />
-          <span className="font-medium">Start Tour</span>
-        </button>
-      )}
-
+      
       {/* Welcome Banner for New Users */}
       {showWelcomeBanner && (
         <WelcomeBanner
@@ -412,9 +401,13 @@ function HomePageContent() {
               </div>
               <div className="flex items-center gap-3 text-xs">
                 <span className="text-gray-600 font-medium">{new Date().toDateString()}</span>
-                <span className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Active
+                <span className={`flex items-center gap-1.5 px-2 py-1 rounded-full ${
+                  isProfilePaused ? 'text-amber-700 bg-amber-100' : 'text-emerald-600 bg-emerald-50'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    isProfilePaused ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'
+                  }`}></span>
+                  {isProfilePaused ? 'Paused' : 'Active'}
                 </span>
               </div>
             </div>
@@ -443,6 +436,7 @@ function HomePageContent() {
         </div>
 
         {/* Weekly Tracker */}
+        {!isProfilePaused && (
         <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-indigo-200 shadow-md">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -502,6 +496,7 @@ function HomePageContent() {
             </div>
           </CardContent>
         </Card>
+        )}
 
         {/* Stats Grid */}
         <div className="stats-grid grid grid-cols-2 gap-3">
@@ -555,6 +550,7 @@ function HomePageContent() {
         </div>
 
         {/* Pending Activities */}
+        {!isProfilePaused && (
         <Card className="pending-activities bg-white border-gray-200 shadow-sm">
           <button
             onClick={() => toggleSection('pendingActivities')}
@@ -860,6 +856,7 @@ function HomePageContent() {
             </CardContent>
           )}
         </Card>
+        )}
 
       {/* AI Insights */}
       <Card className="bg-white border-gray-200 shadow-sm">

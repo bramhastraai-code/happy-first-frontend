@@ -5,15 +5,16 @@ import BottomNav from './BottomNav';
 
 interface MainLayoutProps {
   children: ReactNode;
+  hideBottomNav?: boolean;
 }
 
-export default function MainLayout({ children }: MainLayoutProps) {
+export default function MainLayout({ children, hideBottomNav = false }: MainLayoutProps) {
   return (
-    <div className="min-h-screen bg-gray-50 pb-16">
-      <main className="max-w-screen-lg mx-auto">
+    <div className={`min-h-screen bg-gray-50 ${hideBottomNav ? '' : 'pb-16'}`}>
+      <main className="max-w-5xl mx-auto">
         {children}
       </main>
-      <BottomNav />
+      {!hideBottomNav && <BottomNav />}
     </div>
   );
 }

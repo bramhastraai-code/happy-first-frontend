@@ -5,13 +5,29 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, Lock, User, UserPlus, Users, ChevronRight, LogOut, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Lock, User, UserPlus, Users, ChevronRight, LogOut, MessageSquare, PauseCircle, PlayCircle, Loader2 } from 'lucide-react';
 import { authAPI } from '@/lib/api/auth';
+import type { Profile } from '@/lib/store/authStore';
+
+const PAUSE_ALLOWED_DAY_INDEXES = [5, 6, 0, 1]; // Fri, Sat, Sun, Mon
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const getPauseStatus = (profile: Profile | null): boolean => {
+  if (!profile) return false;
+  return Boolean(profile.pause ?? profile.setting?.pause);
+};
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, accessToken, logout, profiles,selectedProfile } = useAuthStore();
+  const { user, accessToken, logout, profiles, selectedProfile, setProfiles, setSelectedProfile } = useAuthStore();
   const [userData, setUserData] = useState<typeof user | null>(null);
+  const [isPauseEnabled, setIsPauseEnabled] = useState(false);
+  const [pauseLoading, setPauseLoading] = useState(false);
+  const [pauseError, setPauseError] = useState('');
+
+  const currentDayIndex = new Date().getDay();
+  const canChangePauseToday = PAUSE_ALLOWED_DAY_INDEXES.includes(currentDayIndex);
+  const currentDayName = WEEKDAY_NAMES[currentDayIndex];
 
   const handleLogout = () => {
     logout();
@@ -32,7 +48,77 @@ export default function SettingsPage() {
     fetchUserData();
   }, [accessToken]);
 
+  useEffect(() => {
+    setIsPauseEnabled(getPauseStatus(selectedProfile));
+  }, [selectedProfile]);
+
   const hasFamilyMembers = profiles&& profiles.length > 1;
+
+  const updateProfilePauseInStore = (pauseValue: boolean, updatedProfile?: Profile) => {
+    const profileFromResponse = updatedProfile && updatedProfile._id === selectedProfile?._id
+      ? updatedProfile
+      : null;
+
+    const nextSelectedProfile = profileFromResponse ?? (
+      selectedProfile
+        ? {
+            ...selectedProfile,
+            pause: pauseValue,
+            setting: {
+              ...selectedProfile.setting,
+              pause: pauseValue,
+            },
+          }
+        : null
+    );
+
+    if (nextSelectedProfile) {
+      setSelectedProfile(nextSelectedProfile);
+    }
+
+    if (profiles && selectedProfile) {
+      setProfiles(
+        profiles.map((profile) =>
+          profile._id === selectedProfile._id
+            ? {
+                ...profile,
+                ...(profileFromResponse ?? {}),
+                pause: pauseValue,
+                setting: {
+                  ...profile.setting,
+                  pause: pauseValue,
+                },
+              }
+            : profile
+        )
+      );
+    }
+  };
+
+  const handlePauseToggle = async () => {
+    if (!selectedProfile || pauseLoading) return;
+
+    if (!canChangePauseToday) {
+      setPauseError('Pause can only be changed on Friday, Saturday, Sunday, or Monday.');
+      return;
+    }
+
+    const nextPauseValue = !isPauseEnabled;
+    setPauseLoading(true);
+    setPauseError('');
+
+    try {
+      const response = await authAPI.updatePause(selectedProfile._id, { pause: nextPauseValue });
+      const updatedProfile = response?.data?.data as Profile | undefined;
+      setIsPauseEnabled(nextPauseValue);
+      updateProfilePauseInStore(nextPauseValue, updatedProfile);
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setPauseError(message || 'Failed to update pause status. Please try again.');
+    } finally {
+      setPauseLoading(false);
+    }
+  };
   
   
 
@@ -148,6 +234,52 @@ export default function SettingsPage() {
                 <p className="text-xs text-gray-500">{userData?.email}</p>
               </div>
             </div>
+          </Card>
+
+          <Card className="p-5 mb-6 border-slate-200">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <h3 className="text-base font-semibold text-slate-900">Pause Service</h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  When paused, your pending activities are hidden and daily log submission is disabled.
+                </p>
+                <p className="text-xs text-slate-500 mt-2">
+                  You can change this only on Friday, Saturday, Sunday, and Monday. Today: {currentDayName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handlePauseToggle}
+                disabled={!selectedProfile || !canChangePauseToday || pauseLoading}
+                className={`relative inline-flex h-10 w-24 items-center rounded-full px-1 transition-colors ${
+                  isPauseEnabled ? 'bg-amber-500' : 'bg-emerald-500'
+                } ${
+                  !selectedProfile || !canChangePauseToday || pauseLoading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                }`}
+                title={isPauseEnabled ? 'Resume Service' : 'Pause Service'}
+              >
+                <span
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm transition-transform ${
+                    isPauseEnabled ? 'translate-x-14' : 'translate-x-0'
+                  }`}
+                >
+                  {pauseLoading ? (
+                    <Loader2 className="w-4 h-4 text-slate-500 animate-spin" />
+                  ) : isPauseEnabled ? (
+                    <PauseCircle className="w-4 h-4 text-amber-600" />
+                  ) : (
+                    <PlayCircle className="w-4 h-4 text-emerald-600" />
+                  )}
+                </span>
+              </button>
+            </div>
+            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 text-sm">
+              <span className={`h-2 w-2 rounded-full ${isPauseEnabled ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+              <span className="font-medium text-slate-800">{isPauseEnabled ? 'Paused' : 'Active'}</span>
+            </div>
+            {pauseError && (
+              <p className="mt-3 text-sm text-red-600">{pauseError}</p>
+            )}
           </Card>
 
           {/* Profile Completion Banner */}

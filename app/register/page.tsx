@@ -26,13 +26,17 @@ function RegisterForm() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isReferralLocked, setIsReferralLocked] = useState(false);
 
   // Auto-fill referral code from URL parameter
   useEffect(() => {
     const refCode = searchParams.get('ref');
     if (refCode) {
       setFormData(prev => ({ ...prev, referredBy: refCode }));
+      setIsReferralLocked(true);
+      return;
     }
+    setIsReferralLocked(false);
   }, [searchParams]);
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
@@ -113,7 +117,14 @@ function RegisterForm() {
                 type="text"
                 placeholder="Enter referral code"
                 value={formData.referredBy}
-                onChange={(e) => setFormData({ ...formData, referredBy: e.target.value })}
+                onChange={(e) => {
+                  if (isReferralLocked) {
+                    return;
+                  }
+                  setFormData({ ...formData, referredBy: e.target.value });
+                }}
+                readOnly={isReferralLocked}
+                title={isReferralLocked ? 'Referral code set from invite link' : undefined}
               />
             </div>
 
