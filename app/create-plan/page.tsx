@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import { type Activity } from '@/lib/api/activity';
@@ -31,6 +31,27 @@ interface SelectedActivity {
 }
 
 export default function CreatePlanPage() {
+  return (
+    <Suspense fallback={<CreatePlanPageFallback />}>
+      <CreatePlanPageContent />
+    </Suspense>
+  );
+}
+
+function CreatePlanPageFallback() {
+  return (
+    <MainLayout>
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-green-600"></div>
+          <p className="text-gray-600">Loading plan creator...</p>
+        </div>
+      </div>
+    </MainLayout>
+  );
+}
+
+function CreatePlanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isOnboarding = searchParams.get('mode') === 'first-setup';
