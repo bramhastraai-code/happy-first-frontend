@@ -135,7 +135,7 @@ function CreatePlanPageContent() {
       }
 
       // Unlock on Friday (5), Saturday (6), Sunday (0), or Monday (1)
-      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0 || dayOfWeek === 2;
+      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0 || dayOfWeek === 1;
       setIsUnlocked(unlocked);
 
       // Don't automatically fetch activities - wait for user choice
