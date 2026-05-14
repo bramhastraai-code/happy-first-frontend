@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import { dailyLogAPI, type SubmitPreviousDailyLogData } from '@/lib/api/dailyLog';
 import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
@@ -14,8 +14,20 @@ import CustomSlider from '@/components/ui/CustomSlider';
 import CustomNumericInput from '@/components/ui/CustomNumericInput';
 import { DateTime } from 'luxon';
 
+type SummaryWithLogStatus = {
+    isTodayLogged?: boolean;
+};
+
+const getActivityInputMax = (activity: WeeklyPlanActivity) => {
+    const configuredMax = activity.values?.find((v) => v.tier === 1)?.maxVal;
+    const baseMax = typeof configuredMax === 'number' ? configuredMax : 500000;
+    const isWeeklyNumericTarget = activity.cadence === 'weekly' && activity.unit.toLowerCase() !== 'days';
+    return isWeeklyNumericTarget ? Math.max(baseMax, baseMax * 7) : baseMax;
+};
+
 export default function PreviousLogPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { accessToken, user, isHydrated, selectedProfile } = useAuthStore();
     const [selectedDate, setSelectedDate] = useState<string>('');
     const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
@@ -35,15 +47,41 @@ export default function PreviousLogPage() {
     const [earnedPoints, setEarnedPoints] = useState(0);
     const [showCongrats, setShowCongrats] = useState(false);
 
+    const extractErrorMessage = (err: unknown, fallback: string) => {
+        if (
+            typeof err === 'object' &&
+            err !== null &&
+            'response' in err &&
+            typeof (err as { response?: unknown }).response === 'object' &&
+            (err as { response?: unknown }).response !== null
+        ) {
+            const response = (err as { response?: { data?: { message?: string }; status?: number } }).response;
+            return response?.data?.message || fallback;
+        }
+        return fallback;
+    };
+
+    const isPastDate = (date: DateTime) => {
+        const todayStart = DateTime.now().startOf('day');
+        return date.startOf('day') < todayStart;
+    };
+
     useEffect(() => {
         setIsMounted(true);
 
-        // Automatically set yesterday's date
+        // Use date from calendar when available; otherwise default to yesterday.
+        const requestedDate = searchParams.get('date');
+        if (requestedDate) {
+            const parsedRequestedDate = DateTime.fromISO(requestedDate, { zone: 'local' });
+            if (parsedRequestedDate.isValid && isPastDate(parsedRequestedDate)) {
+                setSelectedDate(parsedRequestedDate.toISODate() || '');
+                return;
+            }
+        }
+
         const yesterday = DateTime.now().setZone('local').minus({ days: 1 });
-        console.log(yesterday.toJSDate());
-        
         setSelectedDate(yesterday.toISODate()||'');
-    }, []);
+    }, [searchParams]);
 
     // Redirect to home after showing congrats
     useEffect(() => {
@@ -63,12 +101,10 @@ export default function PreviousLogPage() {
         }
     }, [accessToken, user, router, isHydrated]);
 
-    // Check if current time is before 6 PM and validate selected date
+    // Validate selected date for missed-log submission
     useEffect(() => {
-        const checkDeadline = () => {
+        const checkDateWindow = () => {
             const now = new Date();
-            const currentHour = now.getHours();
-
 
             // If a date is selected, validate it
             if (selectedDate) {
@@ -76,41 +112,27 @@ export default function PreviousLogPage() {
                 const [year, month, day] = selectedDate.split('-').map(Number);
                 const selected = new Date(year, month - 1, day); // month is 0-indexed
 
-                // Get yesterday's date at midnight
+                // Get today at midnight
                 const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                const yesterday = new Date(todayMidnight);
-                yesterday.setDate(yesterday.getDate() - 1);
 
-                // Check if selected date is yesterday
-                if (selected.getTime() === yesterday.getTime()) {
-                    // Check if it's before 6 PM TODAY
-                    console.log(currentHour);
-                    
-                    if (currentHour < 24) {
-                        setCanSubmit(true);
-                        const minutesLeft = 60 - now.getMinutes();
-                        const hoursLeft = 24 - currentHour - 1 + (minutesLeft === 60 ? 1 : 0);
-
-                        setDeadlineMessage(`✓ You can submit yesterday's log. Deadline: Today at 12:00 PM (${hoursLeft}h ${minutesLeft}m left)`);
-                    } else {
-                        setCanSubmit(false);
-                        setDeadlineMessage('⏰ Deadline passed! Previous day logs must be submitted before 12:00 PM of the next day');
-                    }
+                if (selected.getTime() < todayMidnight.getTime()) {
+                    setCanSubmit(true);
+                    setDeadlineMessage('✓ You can submit a missed log for this date.');
                 } else if (selected.getTime() >= todayMidnight.getTime()) {
                     setCanSubmit(false);
-                    setDeadlineMessage('❌ You cannot submit logs for today or future dates');
+                    setDeadlineMessage('❌ You can only submit logs for past dates.');
                 } else {
                     setCanSubmit(false);
-                    setDeadlineMessage('❌ Deadline has passed. You can only submit logs for yesterday before 12:00 PM');
+                    setDeadlineMessage('❌ Select a valid past date.');
                 }
             } else {
                 setCanSubmit(false);
-                setDeadlineMessage('📅 Loading yesterday\'s date...');
+                setDeadlineMessage('📅 Loading selected date...');
             }
         };
 
-        checkDeadline();
-        const interval = setInterval(checkDeadline, 60000); // Check every minute
+        checkDateWindow();
+        const interval = setInterval(checkDateWindow, 60000); // Check every minute
 
         return () => clearInterval(interval);
     }, [selectedDate]);
@@ -131,7 +153,7 @@ export default function PreviousLogPage() {
                     const summaryResponse = await dailyLogAPI.getSummary('daily', selectedDate);
                     // If we get a successful response with data, a log exists
                     if (summaryResponse.data.data ) {
-                        const summaryData = summaryResponse.data.data as any;
+                        const summaryData = summaryResponse.data.data as SummaryWithLogStatus;
                         // Check if there are any activities logged (meaning log exists)
                         if (summaryData.isTodayLogged ) {
                             setLogAlreadyExists(true);
@@ -142,10 +164,11 @@ export default function PreviousLogPage() {
                             return;
                         }
                     }
-                } catch (err: any) {
+                } catch (err: unknown) {
                     // If 404 or no log found, that's good - continue to fetch weekly plan
                     // Any other error, just log it but continue (assuming no log exists)
-                    if (err.response?.status !== 404 && err.response?.data?.message !== 'No log found for this date') {
+                    const response = (err as { response?: { status?: number; data?: { message?: string } } })?.response;
+                    if (response?.status !== 404 && response?.data?.message !== 'No log found for this date') {
                         console.error('Error checking existing log:', err);
                     }
                     // Continue to fetch weekly plan if no log exists
@@ -182,9 +205,9 @@ export default function PreviousLogPage() {
                     setCheckboxActivities(initialCheckboxActivities);
                     setPendingSliders(initialPendingSliders);
                 }
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error('Error fetching weekly plan:', err);
-                setError(err.response?.data?.message || 'Failed to load weekly plan');
+                setError(extractErrorMessage(err, 'Failed to load weekly plan'));
             } finally {
                 setLoading(false);
                 setCheckingLog(false);
@@ -284,9 +307,9 @@ export default function PreviousLogPage() {
             setEarnedPoints(response.data.data.totalPoints);
             setShowCongrats(true);
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Error submitting previous log:', err);
-            setError(err.response?.data?.message || 'Failed to submit previous day log');
+            setError(extractErrorMessage(err, 'Failed to submit previous day log'));
         } finally {
             setLoading(false);
         }
@@ -313,11 +336,6 @@ export default function PreviousLogPage() {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         return yesterday.toISOString().split('T')[0];
-    };
-
-    // Set min date to 1 day ago (yesterday only)
-    const getMinDate = () => {
-        return getMaxDate();
     };
 
     if (!isMounted || !isHydrated) {
@@ -374,11 +392,28 @@ export default function PreviousLogPage() {
             <div className="space-y-6 pb-20 px-4">
                 {/* Header */}
                 <div className="pt-6">
-                    <h1 className="text-2xl font-bold text-gray-900">Submit Previous Day Log</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">Submit Missed Day Log</h1>
                     <p className="text-gray-600 mt-1">
-                        Submit your missed log from yesterday
+                        Submit activity logs for any past day from your calendar
                     </p>
                 </div>
+
+                {/* Date Picker */}
+                <Card className="border-indigo-200 bg-indigo-50">
+                    <CardContent className="p-4">
+                        <label htmlFor="missed-log-date" className="block text-sm font-medium text-indigo-900 mb-2">
+                            Choose a past date to log
+                        </label>
+                        <input
+                            id="missed-log-date"
+                            type="date"
+                            value={selectedDate}
+                            max={getMaxDate()}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="w-full rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                        />
+                    </CardContent>
+                </Card>
 
                 {/* Deadline Warning Card */}
                 <Card className={`border-2 ${canSubmit ? 'border-green-500 bg-green-50' : 'border-orange-500 bg-orange-50'}`}>
@@ -528,7 +563,7 @@ export default function PreviousLogPage() {
                                                     value={activities[activityId] || 0}
                                                     onChange={(val) => handleActivityChange(activityId, val.toString())}
                                                     min={0}
-                                                    max={activity.values?.find(v => v.tier === 1)?.maxVal || 100000}
+                                                    max={getActivityInputMax(activity)}
                                                     placeholder={`Enter ${activity.unit.toLowerCase()}`}
                                                     unit={activity.unit || ''}
                                                     pointsPerUnit={activity.pointsPerUnit || 0}
@@ -588,9 +623,9 @@ export default function PreviousLogPage() {
                                 <div className="flex-1 text-sm text-blue-900">
                                     <p className="font-medium mb-2">How to submit previous day logs:</p>
                                     <ul className="list-disc list-inside space-y-1 text-blue-800">
-                                        <li>Yesterday`s date is automatically selected</li>
+                                        <li>Select any past date from the streak calendar</li>
                                         <li>Fill in your activity values</li>
-                                        <li>Submit before 12:00 PM today</li>
+                                        <li>Today and future dates are not allowed</li>
                                         <li>Points will be added to your profile</li>
                                     </ul>
                                 </div>

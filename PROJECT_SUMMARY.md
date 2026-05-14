@@ -149,7 +149,7 @@ I've successfully built a complete Next.js frontend application for Happy First 
 npm install
 
 # Create .env.local
-echo "NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api/v1" > .env.local
+echo "NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1" > .env.local
 
 # Run development server
 npm run dev

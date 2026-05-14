@@ -55,7 +55,7 @@ A Next.js-based frontend application for Happy First Club, a wellness tracking a
 3. **Environment Setup**
    Create a `.env.local` file in the root directory:
    ```env
-   NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api/v1
+  NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
    ```
 
 4. **Run the development server**

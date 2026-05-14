@@ -44,6 +44,13 @@ export default function TasksPage() {
   const [showWarning, setShowWarning] = useState(false);
   const [warningActivities, setWarningActivities] = useState<Array<{label: string, value: number, target: number, percentage: number}>>([]);
 
+  const getActivityInputMax = (activity: WeeklyPlanActivity, activityData?: ActivityType) => {
+    const configuredMax = activityData?.values.find((v) => v.tier === 1)?.maxVal;
+    const baseMax = typeof configuredMax === 'number' ? configuredMax : 500000;
+    const isWeeklyNumericTarget = activity.cadence === 'weekly' && activity.unit.toLowerCase() !== 'days';
+    return isWeeklyNumericTarget ? Math.max(baseMax, baseMax * 7) : baseMax;
+  };
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -648,7 +655,7 @@ export default function TasksPage() {
                                       <Input
                                         type="number"
                                         disabled
-                                        max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                        max={getActivityInputMax(activity, activityData)}
                                         value={activities[activityId] || 0}
                                         className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 text-slate-600"
                                       />
@@ -683,7 +690,7 @@ export default function TasksPage() {
                                       value={activities[activityId] || 0}
                                       onChange={(val) => handleActivityChange(activityId, val.toString())}
                                       min={0}
-                                      max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                      max={getActivityInputMax(activity, activityData)}
                                       placeholder={`Enter ${activity.unit}`}
                                       unit={activity.unit || ''}
                                       pointsPerUnit={activity.pointsPerUnit || 0}
@@ -811,7 +818,7 @@ export default function TasksPage() {
                                       <Input
                                         type="number"
                                         disabled
-                                        max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                        max={getActivityInputMax(activity, activityData)}
                                         value={activities[activityId] || 0}
                                         className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 text-slate-600"
                                       />
@@ -846,7 +853,7 @@ export default function TasksPage() {
                                       value={activities[activityId] || 0}
                                       onChange={(val) => handleActivityChange(activityId, val.toString())}
                                       min={0}
-                                      max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                      max={getActivityInputMax(activity, activityData)}
                                       placeholder={`Enter ${activity.unit}`}
                                       unit={activity.unit || ''}
                                       pointsPerUnit={activity.pointsPerUnit || 0}
@@ -974,7 +981,7 @@ export default function TasksPage() {
                                       <Input
                                         type="number"
                                         disabled
-                                        max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                        max={getActivityInputMax(activity, activityData)}
                                         value={activities[activityId] || 0}
                                         className="flex-1 bg-slate-50 border-slate-200 cursor-not-allowed opacity-70 text-slate-600"
                                       />
@@ -1009,7 +1016,7 @@ export default function TasksPage() {
                                       value={activities[activityId] || 0}
                                       onChange={(val) => handleActivityChange(activityId, val.toString())}
                                       min={0}
-                                      max={activityData?.values.find(v=>v.tier===1)?.maxVal || 100000}
+                                      max={getActivityInputMax(activity, activityData)}
                                       placeholder={`Enter ${activity.unit}`}
                                       unit={activity.unit || ''}
                                       pointsPerUnit={activity.pointsPerUnit || 0}

@@ -7,7 +7,7 @@ import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
 import { dailyLogAPI, type DailySummary, type MonthlySummary, type StreakData, type CalendarData } from '@/lib/api/dailyLog';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Flame, Activity, ChevronDown, ChevronUp, LogOut, Smile, Calendar, Check, X, TrendingUp, Frown } from 'lucide-react';
+import { Trophy, Flame, Activity, ChevronDown, ChevronUp, LogOut, Smile, Calendar, TrendingUp, Frown } from 'lucide-react';
 import type { WeeklyPlan } from '@/lib/api/weeklyPlan';
 import type { WeeklySummary } from '@/lib/api/dailyLog';
 import WelcomeBanner from '@/components/ui/WelcomeBanner';
@@ -317,6 +317,28 @@ function HomePageContent() {
     fetchDayLog();
   }, [logDateFilter, accessToken, selectedProfile]);
 
+  useEffect(() => {
+    if (!accessToken || !selectedProfile?._id || !logDateFilter) return;
+
+    const fetchCalendarForSelectedMonth = async () => {
+      try {
+        const selected = DateTime.fromISO(logDateFilter);
+        if (!selected.isValid) return;
+
+        const calendarRes = await dailyLogAPI.getCalendar(
+          selectedProfile._id,
+          selected.month,
+          selected.year
+        );
+        setWeeklyLogData(calendarRes.data.data);
+      } catch (error) {
+        console.error('Failed to fetch tracker calendar data:', error);
+      }
+    };
+
+    fetchCalendarForSelectedMonth();
+  }, [logDateFilter, accessToken, selectedProfile]);
+
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
@@ -355,6 +377,18 @@ function HomePageContent() {
   };
 
   const weekDays = getCurrentWeekDays();
+  const trackerCalendarDays = weeklyLogData?.calendarDays || [];
+  const trackerFirstDayOffset = trackerCalendarDays.length > 0
+    ? new Date(trackerCalendarDays[0].date).getDay()
+    : 0;
+  const todayDate = DateTime.local().toFormat('yyyy-MM-dd');
+  const selectedDateCalendarDay = trackerCalendarDays.find((d) => d.date.split('T')[0] === logDateFilter);
+  const selectedDateHasLog = selectedDateCalendarDay?.hasLog || false;
+  const selectedDateIsToday = logDateFilter === todayDate;
+  const selectedDayStreak =
+    typeof selectedDayLog?.streak === 'number'
+      ? selectedDayLog.streak
+      : (selectedDateIsToday ? (streakData?.overallStreak.currentStreak || 0) : 0);
   console.log(weekDays,"ds");
   
   // Show loading state while data is being fetched
@@ -373,10 +407,10 @@ function HomePageContent() {
   }
   
   return (
-    <MainLayout >
+    <MainLayout>
       {/* Guided Tour - Only render on client */}
       {isMounted && <GuidedTour run={runTour} onFinish={handleTourFinish} />}
-      
+
       {/* Welcome Banner for New Users */}
       {showWelcomeBanner && (
         <WelcomeBanner
@@ -385,34 +419,30 @@ function HomePageContent() {
         />
       )}
 
-      <div className="p-3 space-y-6 max-w-7xl mx-auto">
+      <div className="w-full px-1 py-3 sm:px-2 space-y-6 max-w-4xl mx-auto">
         {/* Header */}
-        <div className="welcome-banner flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
+        <div className="welcome-banner flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 sm:mb-6">
+          <div className="flex items-center gap-4 w-full">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center text-white font-extrabold text-xl sm:text-2xl shadow-lg border-4 border-white shrink-0 transition-transform hover:scale-105">
               {user?.name?.charAt(0) || 'U'}
             </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <p className="text-sm font-medium text-gray-500">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <p className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight truncate drop-shadow-sm">
                   Welcome back,
                 </p>
                 <ProfileBadge />
               </div>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="text-gray-600 font-medium">{new Date().toDateString()}</span>
-                <span className={`flex items-center gap-1.5 px-2 py-1 rounded-full ${
-                  isProfilePaused ? 'text-amber-700 bg-amber-100' : 'text-emerald-600 bg-emerald-50'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${
-                    isProfilePaused ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'
-                  }`}></span>
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <span className="text-gray-700 font-semibold truncate drop-shadow-sm">{new Date().toDateString()}</span>
+                <span className={`flex items-center gap-1.5 px-2 py-1 rounded-full font-semibold shadow-sm ${isProfilePaused ? 'text-amber-700 bg-amber-100' : 'text-emerald-700 bg-emerald-100'}`}> 
+                  <span className={`w-1.5 h-1.5 rounded-full ${isProfilePaused ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></span>
                   {isProfilePaused ? 'Paused' : 'Active'}
                 </span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             {/* Hide ProfileSwitcher and Logout on mobile (< 520px) */}
             <div className="profile-switcher hidden min-[520px]:flex items-center gap-2">
               <ProfileSwitcher />
@@ -435,61 +465,94 @@ function HomePageContent() {
           </div>
         </div>
 
+        {noPlanError && (
+          <Card className="border-2 border-amber-200 bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-xl">
+                    🗓️
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-amber-900">No Active Plan Yet</h2>
+                    <p className="mt-1 text-sm text-amber-800">
+                      You don&apos;t have a weekly plan right now. Create one to unlock tasks, track points, and stay on streak.
+                    </p>
+                    {upcomingPlan?.weekStart && (
+                      <p className="mt-2 text-xs font-medium text-amber-700">
+                        Upcoming plan starts on {DateTime.fromISO(String(upcomingPlan.weekStart)).toFormat('dd LLL yyyy')}.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => router.push('/create-plan')}
+                  className="inline-flex items-center justify-center rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700"
+                >
+                  Create Weekly Plan
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Weekly Tracker */}
         {!isProfilePaused && (
-        <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-indigo-200 shadow-md">
-          <CardContent className="p-4">
+          <Card className="bg-gradient-to-br from-blue-100 via-indigo-50 to-purple-100 border-2 border-indigo-200 shadow-lg hover:shadow-xl transition-all">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Calendar className="w-5 h-5 text-indigo-600" />
-              <h2 className="text-base font-semibold text-gray-900">This Week&apos;s Progress</h2>
+              <Calendar className="w-6 h-6 text-indigo-600 drop-shadow-md" />
+              <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">This Week&apos;s Progress</h2>
             </div>
-            <div className="grid grid-cols-7 gap-2">
+            <div className="overflow-x-auto pb-1">
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2 min-w-[420px] sm:min-w-0">
               {weekDays.map((day, index) => (
                 <div
                   key={index}
                   onClick={() => !day.isFuture && handleBarClick(day.date)}
                   className={`
-                    flex flex-col items-center justify-center p-2 rounded-lg transition-all
-                    ${day.isToday ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}
-                    ${day.isFuture ? 'opacity-50' : 'cursor-pointer hover:bg-white/50'}
+                    flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl transition-all
+                    ${day.isToday ? 'ring-2 ring-indigo-500 ring-offset-2 scale-105' : ''}
+                    ${day.isFuture ? 'opacity-50' : 'cursor-pointer hover:bg-indigo-50 hover:scale-105'}
                   `}
                 >
-                  <div className="text-xs font-medium text-gray-600 mb-1">
+                  <div className="text-xs font-semibold text-gray-700 mb-1 tracking-wide">
                     {day.dayName}
                   </div>
                   <div
                     className={`
-                      w-12 h-12 rounded-xl flex items-center justify-center transition-all
+                      w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center transition-all
                       ${day.hasLog
-                        ? 'bg-gradient-to-br from-orange-400 to-red-500 shadow-lg scale-105'
+                        ? 'bg-gradient-to-br from-orange-400 to-red-500 shadow-xl scale-110'
                         : day.isFuture
                         ? 'bg-gray-100 border-2 border-gray-200'
-                        : 'bg-white border-2 border-gray-300 hover:border-indigo-400 hover:scale-110'
+                        : 'bg-white border-2 border-indigo-200 hover:border-indigo-400'
                       }
                     `}
                   >
                     {day.hasLog ? (
-                      <Flame className="w-7 h-7 text-white animate-pulse" />
+                      <Flame className="w-6 h-6 sm:w-7 sm:h-7 text-white animate-pulse" />
                     ) : (
-                      <Flame className="w-7 h-7 text-gray-300" />
+                      <Flame className="w-6 h-6 sm:w-7 sm:h-7 text-gray-300" />
                     )}
                   </div>
                   <div className={`
-                    text-xs font-semibold mt-1
-                    ${day.isToday ? 'text-indigo-600' : 'text-gray-500'}
+                    text-xs font-bold mt-1 tracking-tight
+                    ${day.isToday ? 'text-indigo-600' : 'text-gray-600'}
                   `}>
                     {day.dayNumber}
                   </div>
                 </div>
               ))}
             </div>
+            </div>
             <div className="mt-3 pt-3 border-t border-indigo-200">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-600">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="text-gray-700 font-semibold">
                   {weekDays.filter(d => d.hasLog).length} / 7 days logged
                 </span>
-                <span className="flex items-center gap-1 text-orange-600 font-medium">
-                  <Flame className="w-3.5 h-3.5" />
+                <span className="flex items-center gap-1 text-orange-600 font-bold">
+                  <Flame className="w-4 h-4" />
                   Keep it up!
                 </span>
               </div>
@@ -499,19 +562,19 @@ function HomePageContent() {
         )}
 
         {/* Stats Grid */}
-        <div className="stats-grid grid grid-cols-2 gap-3">
+        <div className="stats-grid grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 sm:gap-4 mt-2 sm:mt-4">
           {/* Current Streak Card */}
           <Card
-            className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 cursor-pointer hover:shadow-md transition-shadow"
+            className="bg-gradient-to-br from-orange-100 via-orange-50 to-yellow-50 border-2 border-orange-200 cursor-pointer hover:shadow-lg hover:scale-[1.03] transition-all min-h-[110px] sm:min-h-[120px] group"
             onClick={() => router.push('/streak-calendar')}
           >
-            <CardContent className="p-4">
+            <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-orange-700">Streak</span>
-                <Flame className="w-4 h-4 text-orange-600" />
+                <span className="text-sm font-semibold text-orange-700 tracking-wide">Streak</span>
+                <Flame className="w-5 h-5 text-orange-500 animate-pulse group-hover:scale-110 transition-transform" />
               </div>
-              <div className="text-3xl font-bold text-orange-900 mb-1">
-                {streakData?.overallStreak.currentStreak || 0} <Flame className="w-4 h-4 text-orange-600" />
+              <div className="text-3xl sm:text-4xl font-extrabold text-orange-900 mb-1 flex items-center gap-1 drop-shadow-sm">
+                {streakData?.overallStreak.currentStreak || 0}
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-orange-700">
@@ -527,15 +590,17 @@ function HomePageContent() {
           </Card>
 
           {/* Week Score Card */}
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-            <CardContent className="p-4">
+          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 min-h-[110px] sm:min-h-[120px]">
+            <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-purple-700">
+                <span className="text-sm font-semibold text-purple-700 tracking-wide">
                   {isShowingPreviousWeek ? 'Previous Week Score' : 'Week Score'}
                 </span>
-                <Trophy className="w-4 h-4 text-purple-600" />
+                <Trophy className="w-5 h-5 text-purple-500 group-hover:scale-110 transition-transform" />
               </div>
-              <div className="text-3xl font-bold text-purple-900 mb-1">{stats.points.toFixed(2)}</div>
+              <div className="text-3xl sm:text-4xl font-extrabold text-purple-900 mb-1 drop-shadow-sm flex items-center gap-1">
+                {stats.points.toFixed(2)}
+              </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-purple-700">{summary?.totalDaysLogged || 0} days logged</span>
                 {isShowingPreviousWeek && (
@@ -551,25 +616,25 @@ function HomePageContent() {
 
         {/* Pending Activities */}
         {!isProfilePaused && (
-        <Card className="pending-activities bg-white border-gray-200 shadow-sm">
+        <Card className="pending-activities bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-100 shadow-lg mt-2 sm:mt-4">
           <button
             onClick={() => toggleSection('pendingActivities')}
-            className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
+            className="w-full p-4 sm:p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
           >
            <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-md">
                   <span className="text-white text-lg">📋</span>
                 </div>
-                <h1 className="text-xl font-bold text-gray-900 tracking-tight">Pending Activities</h1>
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">Pending Activities</h1>
               </div>
-            {expandedSections.weeklyPerformance ? (
+            {expandedSections.pendingActivities ? (
               <ChevronUp className="w-5 h-5 text-gray-400" />
             ) : (
               <ChevronDown className="w-5 h-5 text-gray-400" />
             )}
           </button>
           {expandedSections.pendingActivities && (
-            <CardContent className="p-6 space-y-5">
+            <CardContent className="p-4 sm:p-6 space-y-5">
               
               {noPlanError ? (
                 <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg p-5 text-center">
@@ -620,8 +685,8 @@ function HomePageContent() {
                                       <span className="tracking-wide">BONUS</span>
                                     </div>
                                   )}
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3 flex-1">
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
                                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSurprise
                                         ? 'bg-amber-100'
                                         : isCompleted
@@ -634,7 +699,7 @@ function HomePageContent() {
                                           {isSurprise ? (activity.TodayLogged ? '🎉' : '🎁') : (activity.TodayLogged ? (activity.achieved || 0) > 0 ? '✓' : '✗' : '○')}
                                         </span>
                                       </div>
-                                      <div className="flex-1">
+                                      <div className="flex-1 min-w-0">
                                         <p className={`font-semibold text-sm mb-0.5 ${isSurprise ? 'text-amber-900' : 'text-gray-900'}`}>
                                           {activityData?.label || 'Activity'}
                                         </p>
@@ -647,7 +712,7 @@ function HomePageContent() {
                                         </div>
                                       </div>
                                     </div>
-                                    <div className="text-right ml-3">
+                                    <div className="text-left sm:text-right sm:ml-3">
                                       {activity.TodayLogged ? (
                                         <div>
                                           <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${(activity.achieved || 0) > 0
@@ -716,13 +781,13 @@ function HomePageContent() {
                                       <span className="tracking-wide">BONUS</span>
                                     </div>
                                   )}
-                                  <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-3 flex-1">
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
                                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSurprise ? 'bg-amber-100' : 'bg-orange-100'
                                         }`}>
                                         <span className="text-xl">{isSurprise ? '🎁' : '○'}</span>
                                       </div>
-                                      <div className="flex-1">
+                                      <div className="flex-1 min-w-0">
                                         <p className={`font-semibold text-sm mb-0.5 ${isSurprise ? 'text-amber-900' : 'text-gray-900'}`}>
                                           {activityData?.label || 'Activity'}
                                         </p>
@@ -735,7 +800,7 @@ function HomePageContent() {
                                         </div>
                                       </div>
                                     </div>
-                                    <div className="text-right ml-3">
+                                    <div className="text-left sm:text-right sm:ml-3">
                                       <p className={`text-sm font-bold ${isSurprise ? 'text-amber-700' : 'text-orange-700'}`}>
                                         {remaining}
                                       </p>
@@ -756,7 +821,7 @@ function HomePageContent() {
                                         style={{ width: `${Math.min(progress, 100)}%` }}
                                       ></div>
                                     </div>
-                                    <div className="flex items-center justify-between text-xs pt-1">
+                                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
                                       <span className="text-gray-500">
                                         {activity.achievedUnits || 0} / {activity.targetValue} {activityData?.unit}
                                       </span>
@@ -800,12 +865,12 @@ function HomePageContent() {
 
                               return (
                                 <div key={index} className="bg-gradient-to-br from-emerald-50 to-green-50 border-l-4 border-emerald-500 rounded-lg p-4 shadow-sm">
-                                  <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-3 flex-1">
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
                                       <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
                                         <span className="text-xl text-emerald-600">✓</span>
                                       </div>
-                                      <div className="flex-1">
+                                      <div className="flex-1 min-w-0">
                                         <p className="font-semibold text-sm text-gray-900 mb-0.5">
                                           {activityData?.label || 'Activity'}
                                         </p>
@@ -818,7 +883,7 @@ function HomePageContent() {
                                         </div>
                                       </div>
                                     </div>
-                                    <div className="text-right ml-3">
+                                    <div className="text-left sm:text-right sm:ml-3">
                                       <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
                                         Completed
                                       </span>
@@ -832,7 +897,7 @@ function HomePageContent() {
                                         style={{ width: '100%' }}
                                       ></div>
                                     </div>
-                                    <div className="flex items-center justify-between text-xs pt-1">
+                                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
                                       <span className="text-emerald-700 font-semibold">
                                         {activity.achievedUnits || 0} / {activity.targetValue} {activityData?.unit}
                                       </span>
@@ -859,42 +924,40 @@ function HomePageContent() {
         )}
 
       {/* AI Insights */}
-      <Card className="bg-white border-gray-200 shadow-sm">
-        <CardContent className="p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-md">
-              <span className="text-white text-lg">✨</span>
+      <Card className="bg-gradient-to-br from-purple-50 via-pink-50 to-pink-100 border-2 border-pink-200 shadow-lg mt-2 sm:mt-4">
+        <CardContent className="p-5 sm:p-7">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 via-pink-500 to-fuchsia-500 rounded-2xl flex items-center justify-center shadow-xl">
+              <span className="text-white text-2xl">✨</span>
             </div>
-            <h3 className="font-bold text-gray-900 text-lg">AI Insights</h3>
+            <h3 className="font-extrabold text-gray-900 text-xl tracking-tight drop-shadow-sm">AI Insights</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="bg-gradient-to-br from-blue-100 via-indigo-50 to-indigo-200 rounded-2xl p-5 border-2 border-blue-200 shadow-md">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl">🎯</span>
-                  <span className="text-sm font-bold text-blue-900">Rank Up Alert</span>
+                  <span className="text-2xl">🎯</span>
+                  <span className="text-base font-extrabold text-blue-900 tracking-tight">Rank Up Alert</span>
                 </div>
-                <span className="text-xs font-bold text-white bg-emerald-500 px-2.5 py-1 rounded-full shadow-sm">
-                  92%
-                </span>
+                <span className="text-xs font-bold text-white bg-emerald-500 px-3 py-1 rounded-full shadow">92%</span>
               </div>
-              <p className="text-xs text-blue-800 mb-3 leading-relaxed">
+              <p className="text-sm text-blue-800 mb-3 leading-relaxed font-medium">
                 Only 7 points away from #2 spot. Focus on running +10km this week.
               </p>
-              <div className="flex items-center gap-2 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
                 <span>→</span>
                 <span>Increase run frequency to 4x/week</span>
               </div>
             </div>
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
+            <div className="bg-gradient-to-br from-amber-100 via-orange-50 to-orange-200 rounded-2xl p-5 border-2 border-amber-200 shadow-md">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xl">⚠️</span>
-                <span className="text-sm font-bold text-amber-900">Streak Risk</span>
+                <span className="text-2xl">⚠️</span>
+                <span className="text-base font-extrabold text-amber-900 tracking-tight">Streak Risk</span>
               </div>
-              <p className="text-xs text-amber-800 mb-3 leading-relaxed">
+              <p className="text-sm text-amber-800 mb-3 leading-relaxed font-medium">
                 Sleep streak at risk. Complete today to maintain momentum.
               </p>
-              <div className="flex items-center gap-2 text-xs font-medium text-amber-700 bg-amber-100 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-700 bg-amber-100 rounded-lg px-3 py-2">
                 <span>→</span>
                 <span>Target 7+ hours tonight</span>
               </div>
@@ -904,7 +967,7 @@ function HomePageContent() {
       </Card>
 
       {/* Expandable Sections */}
-      <div className="space-y-4">
+      <div className="space-y-4 mt-2 sm:mt-4">
         {/* Weekly Performance */}
         <Card className="weekly-performance bg-white border-gray-200 shadow-sm">
           <button
@@ -925,18 +988,18 @@ function HomePageContent() {
           </button>
           {expandedSections.weeklyPerformance && (monthlyLogData !== null ? (
 
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-4">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <div>
                   <h3 className="font-semibold text-gray-900">{viewMode === 'week' ? 'Weekly Distribution' : 'Daily Performance'}</h3>
                   <p className="text-xs text-gray-600">{viewMode === 'week' ? 'Recent weeks (Mon-Sun)' : 'Last 30 days'}</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
                   {/* View Toggle */}
-                  <div className="flex bg-gray-100 rounded-lg p-1">
+                  <div className="flex bg-gray-100 rounded-lg p-1 w-full sm:w-auto">
                     <button
                       onClick={() => setViewMode('day')}
-                      className={`px-3 py-1 text-xs font-medium rounded transition-all ${viewMode === 'day'
+                      className={`px-3 py-1 text-xs font-medium rounded transition-all flex-1 sm:flex-none ${viewMode === 'day'
                         ? 'bg-white text-indigo-600 shadow-sm'
                         : 'text-gray-600 hover:text-gray-900'
                         }`}
@@ -945,7 +1008,7 @@ function HomePageContent() {
                     </button>
                     <button
                       onClick={() => setViewMode('week')}
-                      className={`px-3 py-1 text-xs font-medium rounded transition-all ${viewMode === 'week'
+                      className={`px-3 py-1 text-xs font-medium rounded transition-all flex-1 sm:flex-none ${viewMode === 'week'
                         ? 'bg-white text-indigo-600 shadow-sm'
                         : 'text-gray-600 hover:text-gray-900'
                         }`}
@@ -960,7 +1023,8 @@ function HomePageContent() {
               {/* Chart - Conditional Day/Week View */}
               {viewMode === 'week' ? (
                 /* Weekly View */
-                <div className="relative h-48 flex items-end gap-2 pb-10">
+                <div className="overflow-x-auto pb-1">
+                <div className="relative h-48 min-w-[560px] sm:min-w-0 flex items-end gap-2 pb-10">
                   {weeklyData.slice(0, -1).map((week, index) => {
                     const filteredWeeklyData = weeklyData.slice(0, -1);
                     const maxPoints = Math.max(...filteredWeeklyData.map(w => w.totalPoints));
@@ -1039,9 +1103,11 @@ function HomePageContent() {
                     />
                   </svg>
                 </div>
+                </div>
               ) : (
                 /* Daily View */
-                <div className="relative h-48 flex items-end gap-0.5 pb-8">
+                <div className="overflow-x-auto pb-1">
+                <div className="relative h-48 min-w-[560px] sm:min-w-0 flex items-end gap-0.5 pb-8">
                   {monthlyData.slice(0, -1).map((dataPoint, index) => {
                     const filteredMonthlyData = monthlyData.slice(0, -1);
                     const maxPoints = Math.max(...filteredMonthlyData.map(d => d.points));
@@ -1118,6 +1184,7 @@ function HomePageContent() {
                       vectorEffect="non-scaling-stroke"
                     />
                   </svg>
+                </div>
                 </div>
               )}
 
@@ -1216,7 +1283,7 @@ function HomePageContent() {
         </Card>
 
         {/* Leaderboard */}
-        <Card className="leaderboard-section bg-white border-gray-200 shadow-sm">
+        <Card className="leaderboard-section bg-gradient-to-br from-yellow-50 via-orange-50 to-orange-100 border-2 border-yellow-200 shadow-lg">
           <button
             onClick={() => toggleSection('leaderboard')}
             className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
@@ -1234,7 +1301,7 @@ function HomePageContent() {
             )}
           </button>
           {expandedSections.leaderboard && (
-            <CardContent className="px-5 pb-5">
+            <CardContent className="px-3 sm:px-5 pb-5">
               <LeaderboardPage />
             </CardContent>
           )}
@@ -1244,25 +1311,91 @@ function HomePageContent() {
         <Card className="log-tracker bg-white border-gray-200 shadow-sm">
           <button
             onClick={() => toggleSection('logTracker')}
-            className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-t-xl"
+            className="w-full p-5 flex items-center justify-between hover:bg-blue-50 transition-colors rounded-t-xl"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-md">
-                <Calendar className="w-5 h-5 text-white" />
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <Calendar className="w-6 h-6 text-white" />
               </div>
-              <span className="font-bold text-gray-900 text-lg">Daily Log Tracker</span>
+              <span className="font-extrabold text-gray-900 text-lg tracking-tight drop-shadow-sm">Daily Log Tracker</span>
             </div>
             {expandedSections.logTracker ? (
-              <ChevronUp className="w-5 h-5 text-gray-400" />
+              <ChevronUp className="w-5 h-5 text-indigo-400" />
             ) : (
-              <ChevronDown className="w-5 h-5 text-gray-400" />
+              <ChevronDown className="w-5 h-5 text-indigo-400" />
             )}
           </button>
           {expandedSections.logTracker && (
-            <CardContent className="px-5 pb-5 space-y-4 border-t border-gray-100">
+            <CardContent className="px-2 sm:px-5 pb-5 space-y-4 border-t border-indigo-100">
+              {/* Calendar View */}
+              <div className="p-3 sm:p-4 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl sm:rounded-2xl border border-indigo-100 shadow-sm sm:shadow-md">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                  <h3 className="text-sm sm:text-base font-extrabold text-gray-900 tracking-tight">
+                    {weeklyLogData?.monthName || DateTime.local().toFormat('LLLL')} {weeklyLogData?.year || DateTime.local().year}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs font-semibold">
+                    <span className="flex items-center gap-1 text-emerald-700 whitespace-nowrap">
+                      <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-500"></span>
+                      Submitted
+                    </span>
+                    <span className="flex items-center gap-1 text-rose-700 whitespace-nowrap">
+                      <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-rose-500"></span>
+                      Not Submitted
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-7 gap-1 mb-1.5 sm:mb-2">
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day) => (
+                    <div key={day} className="text-center text-[10px] sm:text-[12px] font-bold text-indigo-400 py-0.5 sm:py-1 tracking-wide">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+                  {Array.from({ length: trackerFirstDayOffset }).map((_, index) => (
+                    <div key={`tracker-empty-${index}`} className="aspect-square" />
+                  ))}
+
+                  {trackerCalendarDays.map((day) => {
+                    const dateOnly = day.date.split('T')[0];
+                    const isSelected = logDateFilter === dateOnly;
+                    const baseClasses = day.isFuture
+                      ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                      : day.hasLog
+                        ? 'bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600 shadow-sm'
+                        : 'bg-rose-400 text-white border-rose-400 hover:bg-rose-500 shadow-sm';
+
+                    return (
+                      <button
+                        key={day.date}
+                        type="button"
+                        disabled={day.isFuture}
+                        onClick={() => !day.isFuture && setLogDateFilter(dateOnly)}
+                        className={`relative aspect-square w-full rounded-lg sm:rounded-xl border text-xs sm:text-sm font-bold transition-all ${baseClasses} ${
+                          isSelected ? 'ring-2 ring-indigo-500 ring-offset-1 sm:ring-offset-2 scale-[1.02] border-indigo-500' : ''
+                        }`}
+                        style={{ minWidth: 0, minHeight: 0 }}
+                        title={`${dateOnly} - ${day.hasLog ? 'Submitted' : 'Not Submitted'}`}
+                      >
+                        <span className="inline-flex h-full w-full items-center justify-center">
+                          {day.day}
+                        </span>
+                        {!day.isFuture && (
+                          <span
+                            className={`absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full ${day.hasLog ? 'bg-emerald-100' : 'bg-rose-100'}`}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Date Filter */}
-              <div className="flex items-center gap-3 p-4 bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl border border-gray-200">
-                <label htmlFor="log-date-filter" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-4 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl border border-indigo-100 shadow-sm">
+                <label htmlFor="log-date-filter" className="text-sm font-bold text-indigo-700 whitespace-nowrap">
                   Select Date
                 </label>
                 <input
@@ -1271,22 +1404,37 @@ function HomePageContent() {
                   value={logDateFilter}
                   onChange={(e) => setLogDateFilter(e.target.value)}
                   max={DateTime.local().toFormat('yyyy-MM-dd')}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+                  className="flex-1 px-4 py-2.5 border-2 border-indigo-200 rounded-lg text-base font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent bg-white shadow-md"
                 />
                 <button
                   onClick={() => setLogDateFilter(DateTime.local().toFormat('yyyy-MM-dd'))}
-                  className="px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-lg transition-all shadow-sm hover:shadow-md whitespace-nowrap"
+                  className="px-5 py-2.5 text-base font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 rounded-lg transition-all shadow-md hover:shadow-lg whitespace-nowrap"
                 >
                   Today
                 </button>
               </div>
+
+              {!selectedDateHasLog && (
+                <button
+                  onClick={() => {
+                    if (selectedDateIsToday) {
+                      router.push('/tasks');
+                      return;
+                    }
+                    router.push(`/previous-log?date=${logDateFilter}`);
+                  }}
+                  className="w-full inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-4 text-base font-extrabold text-white shadow-lg transition hover:from-indigo-700 hover:to-blue-700 mt-2"
+                >
+                  {selectedDateIsToday ? 'Log Today Activity' : 'Log Selected Date Activity'}
+                </button>
+              )}
 
               {/* Daily Log Details */}
               {selectedDayLog ? (
                 <div className="space-y-4">
                   {/* Summary Header */}
                   <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 rounded-xl p-5 border border-blue-200 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
                           <Calendar className="w-6 h-6 text-white" />
@@ -1320,13 +1468,13 @@ function HomePageContent() {
                         <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Total Points</p>
                       </div>
                     </div>
-                    {selectedDayLog.streak > 0 && (
+                    {selectedDayStreak > 0 && (
                       <div className="flex items-center gap-2.5 mt-3 pt-3 border-t border-blue-200">
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shadow-sm">
                           <Flame className="w-4 h-4 text-white" />
                         </div>
                         <span className="text-sm font-bold text-gray-900">
-                          {selectedDayLog.streak} Day Streak Active
+                          {selectedDayStreak} Day Streak Active
                         </span>
                       </div>
                     )}
@@ -1346,7 +1494,7 @@ function HomePageContent() {
                           : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200'
                           }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="flex items-start gap-3 flex-1">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm ${activity.achieved > 0
                               ? 'bg-gradient-to-br from-emerald-500 to-green-600'

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authAPI } from '@/lib/api/auth';
 import { useAuthStore, Profile } from '@/lib/store/authStore';
@@ -10,11 +10,18 @@ function MagicLinkVerifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setUser, setAccessToken, setProfiles, setSelectedProfile } = useAuthStore();
+  const hasVerifiedRef = useRef(false);
 
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (hasVerifiedRef.current) {
+      return;
+    }
+
+    hasVerifiedRef.current = true;
+
     const verifyToken = async () => {
       const token = searchParams.get('token');
       const profileId = searchParams.get('profile');
@@ -51,17 +58,17 @@ function MagicLinkVerifyContent() {
         setTimeout(() => {
           // If profile parameter exists, auto-select that profile
           if (profileId && profiles && profiles.length > 0) {
-            const selectedProfile = profiles.find((p: Profile) => p._id === profileId);
+            const selectedProfile = profiles.find((p: Profile) => String(p._id) === String(profileId));
             if (selectedProfile) {
               setSelectedProfile(selectedProfile);
-              router.push(redirectPath);
+              router.replace(redirectPath);
             } else {
               // Profile not found, go to selection page
-              router.push('/select-profile');
+              router.replace('/select-profile');
             }
           } else {
             // No profile specified, go to selection page
-            router.push('/select-profile');
+            router.replace('/select-profile');
           }
         }, 1500);
       } catch (err: unknown) {

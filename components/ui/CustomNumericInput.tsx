@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 
 interface CustomNumericInputProps {
   value: number;
@@ -18,7 +18,7 @@ export default function CustomNumericInput({
   value,
   onChange,
   min = 0,
-  max = 100000,
+  max = 500000,
   placeholder = 'Enter value',
   unit = '',
   pointsPerUnit = 0,
@@ -29,11 +29,7 @@ export default function CustomNumericInput({
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!isFocused) {
-      setDisplayValue(value > 0 ? value.toString() : '');
-    }
-  }, [value, isFocused]);
+  const renderedValue = isFocused ? displayValue : (value > 0 ? value.toString() : '');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
@@ -46,7 +42,7 @@ export default function CustomNumericInput({
     }
 
     // Remove leading zeros except for decimal point cases
-    let cleanedValue = inputValue.replace(/^0+(?=\d)/, '');
+    const cleanedValue = inputValue.replace(/^0+(?=\d)/, '');
     
     // Allow only numbers and one decimal point
     if (!/^\d*\.?\d*$/.test(cleanedValue)) {
@@ -79,6 +75,7 @@ export default function CustomNumericInput({
 
   const handleFocus = () => {
     setIsFocused(true);
+    setDisplayValue(value > 0 ? value.toString() : '');
   };
 
   const handleIncrement = () => {
@@ -99,7 +96,7 @@ export default function CustomNumericInput({
             ref={inputRef}
             type="text"
             inputMode="decimal"
-            value={displayValue}
+            value={renderedValue}
             onChange={handleChange}
             onFocus={handleFocus}
             onBlur={handleBlur}

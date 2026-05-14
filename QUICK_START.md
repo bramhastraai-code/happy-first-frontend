@@ -5,7 +5,7 @@
 ### Prerequisites
 - Node.js 18+ installed
 - npm or yarn package manager
-- Backend API running on `http://localhost:3000`
+- Backend API running on `http://localhost:8000`
 
 ### Step 1: Install Dependencies
 ```bash
@@ -15,7 +15,7 @@ npm install
 ### Step 2: Configure Environment
 Create `.env.local` file:
 ```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api/v1
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
 ```
 
 ### Step 3: Run Development Server

@@ -1,7 +1,5 @@
 import { DateTime } from 'luxon';
 import api from './axios';
-import { useAuthStore } from '@/lib/store/authStore';
- const { profiles } = useAuthStore.getState();
 
 
 
@@ -38,6 +36,7 @@ export interface WeeklyPlan {
   weekEnd: string;
   status: 'active' | 'completed';
   unloockedSets : number[];
+  surpriseActivityStatus?: 'assigned' | 'none-left' | 'not-configured' | 'none';
 }
 
 export interface CreateWeeklyPlanData {
@@ -99,6 +98,6 @@ export const weeklyPlanAPI = {
     '/weeklyPlan/upcoming'
   ),
 
-  firstSetup: (activities:CreateWeeklyPlanData) => api.post('/weeklyPlan/firstTimeSetup', activities, {params: {profile: profiles?.[0]?._id}}),
-  repeatLastWeek: () => api.post('/weeklyPlan/repeatLastWeek', {}, {params: {profile: profiles?.[0]?._id}}),
+  firstSetup: (activities:CreateWeeklyPlanData) => api.post('/weeklyPlan/firstTimeSetup', activities),
+  repeatLastWeek: () => api.post('/weeklyPlan/repeatLastWeek', {}),
 };

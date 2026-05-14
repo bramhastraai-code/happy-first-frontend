@@ -30,7 +30,8 @@ export interface DailySummary {
     status: 'partial' | 'completed'|'pending';
   }>;
   totalPoints: number;
-  streak: number;
+  streak?: number;
+  isTodayLogged?: boolean;
 }
 
 export interface WeeklySummary {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
-import { dailyLogAPI, type CalendarData, type ActivityCalendarData, type StreakData } from '@/lib/api/dailyLog';
+import { dailyLogAPI, type CalendarData, type ActivityCalendarData, type StreakData, type CalendarDay, type ActivityCalendarDay } from '@/lib/api/dailyLog';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, ChevronLeft, ChevronRight, Flame, Trophy, Calendar as CalendarIcon, Medal, Award } from 'lucide-react';
@@ -124,8 +124,8 @@ export default function StreakCalendarPage() {
     setSelectedActivityId('');
   };
 
-  const getDayClassName = (day: any) => {
-    let baseClass = 'aspect-square flex flex-col items-center justify-center rounded-lg border transition-all p-1';
+  const getDayClassName = (day: CalendarDay | ActivityCalendarDay) => {
+    const baseClass = 'aspect-square flex flex-col items-center justify-center rounded-lg border transition-all p-1';
     
     if (day.isFuture) {
       return `${baseClass} bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed`;
@@ -146,14 +146,19 @@ export default function StreakCalendarPage() {
     return `${baseClass} bg-red-50 border-red-300 hover:bg-red-100 cursor-pointer hover:scale-105`;
   };
 
-  const handleDayClick = (day: any) => {
+  const handleDayClick = (day: CalendarDay | ActivityCalendarDay) => {
     if (day.isFuture) return;
     
     // Extract date in YYYY-MM-DD format
     const dateStr = day.date.split('T')[0];
-    
-    // Navigate to home page with date as query parameter
-    router.push(`/home?date=${dateStr}`);
+
+    // Logged days open history on Home; unlogged past days open log form directly.
+    if (day.hasLog) {
+      router.push(`/home?date=${dateStr}`);
+      return;
+    }
+
+    router.push(`/previous-log?date=${dateStr}`);
   };
 
   const getSelectedActivityStreak = () => {
@@ -175,9 +180,6 @@ export default function StreakCalendarPage() {
   }
 
   const selectedActivityStreak = getSelectedActivityStreak();
-  const displayStreak = filterType === 'activity' && selectedActivityStreak 
-    ? selectedActivityStreak 
-    : streakData?.overallStreak;
 
   return (
     <MainLayout>
@@ -379,7 +381,7 @@ export default function StreakCalendarPage() {
               })()}
               
               {/* Actual calendar days */}
-              {(activityCalendarData?.calendarDays || calendarData?.calendarDays)?.map((day: any) => (
+              {(activityCalendarData?.calendarDays || calendarData?.calendarDays)?.map((day: CalendarDay | ActivityCalendarDay) => (
                 <div
                   key={day.date}
                   className={getDayClassName(day)}

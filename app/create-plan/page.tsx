@@ -74,6 +74,7 @@ function CreatePlanPageContent() {
   const [hasCurrentPlan, setHasCurrentPlan] = useState(false);
   const [showCongratulation, setShowCongratulation] = useState(false);
   const [surpriseActivity, setSurpriseActivity] = useState<{name: string, icon: string, targetValue: number, unit: string} | null>(null);
+  const [surpriseActivityStatus, setSurpriseActivityStatus] = useState<'assigned' | 'none-left' | 'not-configured' | 'none'>('none');
 
   useEffect(() => {
     if (!isOnboarding) {
@@ -324,10 +325,16 @@ function CreatePlanPageContent() {
       });
 
       // Repeat last week's plan
-      await weeklyPlanAPI.repeatLastWeek();
-      
-      // Redirect to upcoming page after successfully repeating last week's plan
-      router.replace('/upcoming');
+      const repeatResponse = await weeklyPlanAPI.repeatLastWeek();
+
+      const createdPlan = repeatResponse?.data?.data;
+      const now = new Date();
+      const weekStart = createdPlan?.weekStart ? new Date(createdPlan.weekStart) : null;
+      const weekEnd = createdPlan?.weekEnd ? new Date(createdPlan.weekEnd) : null;
+      const isCurrentWeekPlan = !!(weekStart && weekEnd && weekStart <= now && weekEnd >= now);
+
+      // If repeated plan is already active, take user to Home. Otherwise show Upcoming plan.
+      router.replace(isCurrentWeekPlan ? '/home' : '/upcoming');
     } catch (error: unknown) {
       console.error('Failed to repeat last week:', error);
       const errorMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -385,6 +392,7 @@ function CreatePlanPageContent() {
       if (createdPlan && createdPlan.activities) {
         const surprise = createdPlan.activities.find((act: WeeklyPlanActivity) => act.isSurpriseActivity === true);
         if (surprise) {
+          setSurpriseActivityStatus('assigned');
           setSurpriseActivity({
             name: surprise.label || surprise.activity,
             icon: activities.find(a => a._id === surprise.activity)?.icon || '🎁',
@@ -392,6 +400,7 @@ function CreatePlanPageContent() {
             unit: surprise.unit
           });
         } else {
+          setSurpriseActivityStatus(createdPlan.surpriseActivityStatus || 'none');
           setSurpriseActivity(null);
         }
       }
@@ -570,7 +579,9 @@ function CreatePlanPageContent() {
                     No Surprise Activity
                   </h2>
                   <p className="text-sm text-gray-600">
-                    Your plan includes all the activities you selected. Keep up the great work!
+                    {surpriseActivityStatus === 'none-left'
+                      ? 'No surprise activity is left to be assigned for this week.'
+                      : 'Your plan includes all the activities you selected. Keep up the great work!'}
                   </p>
                 </div>
               )}
@@ -1099,9 +1110,11 @@ function TargetSelectionForm({
 
   const minVal = activity.values.find(v => v.tier === tiers)?.minVal || 0;
   const maxVal = activity.values.find(v => v.tier === tiers)?.maxVal || 100;
+  const isWeeklyNumericTarget = cadence === 'weekly' && activity.baseUnit.toLowerCase() !== 'days';
+  const effectiveMaxVal = isWeeklyNumericTarget ? maxVal * 7 : maxVal;
 
   const handleConfirm = () => {
-    if (targetValue < minVal || targetValue > maxVal || cadence === 'none') {
+    if (targetValue < minVal || targetValue > effectiveMaxVal || cadence === 'none') {
       return;
     }
     onConfirm(targetValue, cadence as 'daily' | 'weekly');
@@ -1155,7 +1168,7 @@ function TargetSelectionForm({
           type="number"
           step="any"
           min={minVal}
-          max={maxVal}
+          max={effectiveMaxVal}
           value={targetValue || ''}
           onChange={(e) => {
             const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
@@ -1165,15 +1178,15 @@ function TargetSelectionForm({
             const value = parseFloat(e.target.value);
             if (isNaN(value) || value < minVal) {
               setTargetValue(minVal);
-            } else if (value > maxVal) {
-              setTargetValue(maxVal);
+            } else if (value > effectiveMaxVal) {
+              setTargetValue(effectiveMaxVal);
             }
           }}
           placeholder={`Enter target in ${activity.baseUnit}`}
           className="w-full"
         />
         <p className="text-xs text-gray-500 mt-1">
-          Range: {minVal} - {maxVal} {activity.baseUnit}
+          Range: {minVal} - {effectiveMaxVal} {activity.baseUnit}
         </p>
       </div>
 
@@ -1190,7 +1203,7 @@ function TargetSelectionForm({
         )}
         <Button
           onClick={handleConfirm}
-          disabled={targetValue < minVal || targetValue > maxVal || !targetValue || cadence === 'none'}
+          disabled={targetValue < minVal || targetValue > effectiveMaxVal || !targetValue || cadence === 'none'}
           className={isMandatory ? "w-full" : "flex-1"}
         >
           Confirm
