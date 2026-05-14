@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import { dailyLogAPI, type SubmitPreviousDailyLogData } from '@/lib/api/dailyLog';
@@ -26,6 +26,25 @@ const getActivityInputMax = (activity: WeeklyPlanActivity) => {
 };
 
 export default function PreviousLogPage() {
+    return (
+        <Suspense
+            fallback={
+                <MainLayout>
+                    <div className="flex min-h-screen items-center justify-center">
+                        <div className="text-center">
+                            <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-b-2 border-indigo-600"></div>
+                            <p className="text-sm text-gray-600">Loading previous log...</p>
+                        </div>
+                    </div>
+                </MainLayout>
+            }
+        >
+            <PreviousLogPageContent />
+        </Suspense>
+    );
+}
+
+function PreviousLogPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { accessToken, user, isHydrated, selectedProfile } = useAuthStore();
