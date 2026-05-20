@@ -223,6 +223,12 @@ function PreviousLogPageContent() {
                     setActivities(initialActivities);
                     setCheckboxActivities(initialCheckboxActivities);
                     setPendingSliders(initialPendingSliders);
+                } else {
+                    setWeeklyPlan(null);
+                    setActivities({});
+                    setCheckboxActivities({});
+                    setPendingSliders({});
+                    setError(response.data.message || 'No weekly plan found for the selected date');
                 }
             } catch (err: unknown) {
                 console.error('Error fetching weekly plan:', err);
@@ -265,6 +271,11 @@ function PreviousLogPageContent() {
 
         if (!selectedProfile) {
             setError('No profile selected');
+            return;
+        }
+
+        if (!weeklyPlan) {
+            setError('No weekly plan found for the selected date.');
             return;
         }
 
@@ -316,6 +327,12 @@ function PreviousLogPageContent() {
                     activityId,
                     value: checked ? 1 : 0,
                 }));
+
+            if (numericActivities.length === 0 && checkboxActivityEntries.every((activity) => activity.value === 0)) {
+                setError('Please add at least one activity value before submitting.');
+                setLoading(false);
+                return;
+            }
 
             const submitData: SubmitPreviousDailyLogData = {
                 date: selectedDate,

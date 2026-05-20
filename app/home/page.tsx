@@ -235,7 +235,25 @@ function HomePageContent() {
         setMonthlyData(monthlyDataPoints);
         setWeeklyData(groupDataByWeeks(monthlyDataPoints));
         setMonthlyLogData((monthlyRes.data.data as MonthlySummary).totalDaysLogged);
-        setWeeklyPlan(planRes.data.data);
+
+        const currentPlan = planRes.data.data;
+        if (!currentPlan) {
+          setWeeklyPlan(null);
+          setNoPlanError('No active weekly plan found. Create a weekly plan to track your activity goals.');
+
+          try {
+            const upcomingRes = await weeklyPlanAPI.Upcomming();
+            if (upcomingRes.data.data) {
+              setUpcomingPlan(upcomingRes.data.data);
+            }
+          } catch (upcomingError) {
+            console.log('No upcoming plan found:', upcomingError);
+          }
+        } else {
+          setWeeklyPlan(currentPlan);
+          setNoPlanError('');
+          setUpcomingPlan(null);
+        }
 
         // Check if user has logged this week
         const currentWeekSummary = summaryRes.data.data as WeeklySummary;
@@ -264,7 +282,6 @@ function HomePageContent() {
         if (dailyRes?.data?.data) {
           setDailySummary(dailyRes.data.data as DailySummary);
         }
-        setNoPlanError('');
       } catch (error: unknown) {
         console.error('Failed to fetch data:', error);
         const errorMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -497,8 +514,7 @@ function HomePageContent() {
         )}
 
         {/* Weekly Tracker */}
-        {!isProfilePaused && (
-          <Card className="bg-gradient-to-br from-blue-100 via-indigo-50 to-purple-100 border-2 border-indigo-200 shadow-lg hover:shadow-xl transition-all">
+        <Card className="bg-gradient-to-br from-blue-100 via-indigo-50 to-purple-100 border-2 border-indigo-200 shadow-lg hover:shadow-xl transition-all">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-3">
               <Calendar className="w-6 h-6 text-indigo-600 drop-shadow-md" />
@@ -559,7 +575,6 @@ function HomePageContent() {
             </div>
           </CardContent>
         </Card>
-        )}
 
         {/* Stats Grid */}
         <div className="stats-grid grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 sm:gap-4 mt-2 sm:mt-4">
@@ -615,7 +630,6 @@ function HomePageContent() {
         </div>
 
         {/* Pending Activities */}
-        {!isProfilePaused && (
         <Card className="pending-activities bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-100 shadow-lg mt-2 sm:mt-4">
           <button
             onClick={() => toggleSection('pendingActivities')}
@@ -921,7 +935,6 @@ function HomePageContent() {
             </CardContent>
           )}
         </Card>
-        )}
 
       {/* AI Insights */}
       <Card className="bg-gradient-to-br from-purple-50 via-pink-50 to-pink-100 border-2 border-pink-200 shadow-lg mt-2 sm:mt-4">
