@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
     const token = request.cookies.get('accessToken');
     const { pathname } = request.nextUrl;
 
-    const protectedRoutes = ['/home', '/tasks', '/referral', '/community', '/profile-setup', '/select-profile', '/change-password', '/settings', '/add-family-member'];
+    const protectedRoutes = ['/home', '/tasks', '/referral', '/community', '/profile-setup', '/select-profile', '/change-password', '/settings', '/add-family-member', '/activity-photos'];
     const authRoutes = ['/login', '/register', '/verify-otp'];
 
     // 1. Handle root path ("/")

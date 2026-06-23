@@ -61,8 +61,11 @@ export default function LoginPage() {
         countryCode: formData.countryCode,
       });
       setOtpSent(true);
+      setError('');
       setSuccessMessage('OTP sent successfully to your phone!');
     } catch (err) {
+      setError('');
+      setSuccessMessage('');
       setError((err as any).response?.data?.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
@@ -88,6 +91,7 @@ export default function LoginPage() {
 
       router.push('/select-profile');
     } catch (err) {
+      setSuccessMessage('');
       setError((err as any).response?.data?.message || 'Invalid OTP');
     } finally {
       setLoading(false);
@@ -220,8 +224,10 @@ export default function LoginPage() {
             <Input
               type="tel"
               placeholder="9999999999"
+              maxLength={10}
+              inputMode="numeric"
               value={formData.phoneNumber}
-              onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })}
               required
               disabled={(otpSent && loginMethod === 'otp') || (magicLinkSent && loginMethod === 'magicLink')}
             />

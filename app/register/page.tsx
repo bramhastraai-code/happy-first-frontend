@@ -103,8 +103,10 @@ function RegisterForm() {
               <Input
                 type="tel"
                 placeholder="9999999999"
+                maxLength={10}
+                inputMode="numeric"
                 value={formData.phoneNumber}
-                onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                 required
               />
             </div>

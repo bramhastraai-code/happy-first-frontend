@@ -1359,7 +1359,7 @@ function HomePageContent() {
                 </div>
 
                 <div className="grid grid-cols-7 gap-1 mb-1.5 sm:mb-2">
-                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day) => (
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
                     <div key={day} className="text-center text-[10px] sm:text-[12px] font-bold text-indigo-400 py-0.5 sm:py-1 tracking-wide">
                       {day}
                     </div>
