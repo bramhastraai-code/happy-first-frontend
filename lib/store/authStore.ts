@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { ReminderScheduleInput } from "@/lib/utils/reminderSchedule";
 interface lifestyle {
   health: string;
   family: string;
@@ -32,6 +33,7 @@ export interface Profile {
   profile:lifestyle;
   timezone: string;
   reminderTime: string;
+  reminderSchedule?: ReminderScheduleInput;
   stats:{ 
     totalPoints: number;
     totalWeeks: number;

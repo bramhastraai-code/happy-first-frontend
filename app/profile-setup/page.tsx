@@ -7,6 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuthStore,Profile } from '@/lib/store/authStore';
+import {
+  DEFAULT_REMINDER_SCHEDULE,
+  mergeReminderSchedule,
+  REMINDER_SLOT_LABELS,
+  ReminderSlot,
+  ReminderSchedule,
+  WEEKDAY_OPTIONS,
+} from '@/lib/utils/reminderSchedule';
 
 
 
@@ -17,7 +25,11 @@ export default function ProfileSetupPage() {
   const { selectedProfile,setProfiles,setSelectedProfile,profiles } = useAuthStore();
   
   const [profileData, setProfileData] = useState({
-    reminderTime: selectedProfile?.reminderTime || '08:00',
+    reminderTime: selectedProfile?.reminderTime || DEFAULT_REMINDER_SCHEDULE.night.time,
+    reminderSchedule: mergeReminderSchedule(
+      selectedProfile?.reminderSchedule,
+      selectedProfile?.reminderTime
+    ),
     profile: {
       health: '',
       family: '',
@@ -45,7 +57,11 @@ export default function ProfileSetupPage() {
     if (selectedProfile) {
       setProfileData((prev) => ({
         ...prev,
-        reminderTime: prev.reminderTime,
+        reminderTime: selectedProfile.reminderTime || prev.reminderTime,
+        reminderSchedule: mergeReminderSchedule(
+          selectedProfile.reminderSchedule,
+          selectedProfile.reminderTime
+        ),
         profile: selectedProfile.profile ? {
           ...prev.profile,
           ...selectedProfile.profile,
@@ -74,11 +90,33 @@ export default function ProfileSetupPage() {
     }
   };
 
+  const updateReminderSlot = (
+    slot: ReminderSlot,
+    patch: Partial<ReminderSchedule[ReminderSlot]>
+  ) => {
+    setProfileData((prev) => {
+      const nextSchedule = {
+        ...prev.reminderSchedule,
+        [slot]: { ...prev.reminderSchedule[slot], ...patch },
+      };
+      return {
+        ...prev,
+        reminderSchedule: nextSchedule,
+        reminderTime: slot === 'night' && patch.time
+          ? patch.time
+          : nextSchedule.night.time,
+      };
+    });
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      // Update profile
-      const response = await authAPI.updateProfile(profileData);
+      const payload = {
+        ...profileData,
+        reminderTime: profileData.reminderSchedule.night.time,
+      };
+      const response = await authAPI.updateProfile(payload);
       setProfiles(response.data.data.profiles); // Update profiles in the store
       setSelectedProfile(response.data.data.profiles?.find((profile: Profile) => profile._id === selectedProfile?._id) || null); // Update selected profile
 
@@ -315,17 +353,56 @@ export default function ProfileSetupPage() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Reminder Time
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Reminder Schedule (IST)
                 </label>
-                <Input
-                  type="time"
-                  value={profileData.reminderTime}
-                  onChange={(e) =>
-                    setProfileData({ ...profileData, reminderTime: e.target.value })
-                  }
-                />
+                <p className="text-xs text-gray-500">
+                  Daily reminders are sent only if you have not logged yet. Weekly summary runs on your chosen day.
+                </p>
+                {(Object.keys(REMINDER_SLOT_LABELS) as ReminderSlot[]).map((slot) => (
+                  <div
+                    key={slot}
+                    className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 p-3"
+                  >
+                    <label className="flex items-center gap-2 min-w-[140px]">
+                      <input
+                        type="checkbox"
+                        checked={profileData.reminderSchedule[slot].enabled}
+                        onChange={(e) =>
+                          updateReminderSlot(slot, { enabled: e.target.checked })
+                        }
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm font-medium text-gray-800">
+                        {REMINDER_SLOT_LABELS[slot]}
+                      </span>
+                    </label>
+                    <Input
+                      type="time"
+                      value={profileData.reminderSchedule[slot].time}
+                      disabled={!profileData.reminderSchedule[slot].enabled}
+                      onChange={(e) => updateReminderSlot(slot, { time: e.target.value })}
+                      className="w-36"
+                    />
+                    {slot === 'weekly' && (
+                      <select
+                        value={profileData.reminderSchedule.weekly.day || 1}
+                        disabled={!profileData.reminderSchedule.weekly.enabled}
+                        onChange={(e) =>
+                          updateReminderSlot('weekly', { day: Number(e.target.value) })
+                        }
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      >
+                        {WEEKDAY_OPTIONS.map((day) => (
+                          <option key={day.value} value={day.value}>
+                            {day.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>

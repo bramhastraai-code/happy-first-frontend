@@ -1,4 +1,5 @@
 import api from './axios';
+import type { ReminderScheduleInput } from '@/lib/utils/reminderSchedule';
 
 export interface RegisterData {
   phoneNumber: string;
@@ -68,6 +69,7 @@ export interface UpdateProfileData {
   password?: string;
   timezone?: string;
   reminderTime?: string;
+  reminderSchedule?: ReminderScheduleInput;
   profile?: {
     health?: string;
     family?: string;
