@@ -26,8 +26,8 @@ export default function BottomNav() {
       if (!accessToken) return;
       
       try {
-        const response = await weeklyPlanAPI.Upcomming();
-        setHasUpcomingPlan(!!response.data.data);
+        const plan = await weeklyPlanAPI.getUpcomingPlan();
+        setHasUpcomingPlan(Boolean(plan));
       } catch (error) {
         // No upcoming plan exists
         setHasUpcomingPlan(false);

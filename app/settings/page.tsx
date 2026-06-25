@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, Lock, User, UserPlus, Users, ChevronRight, LogOut, MessageSquare, PauseCircle, PlayCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Lock, User, UserPlus, Users, ChevronRight, LogOut, MessageSquare, PauseCircle, PlayCircle, Loader2, Bell } from 'lucide-react';
 import { authAPI } from '@/lib/api/auth';
 import type { Profile } from '@/lib/store/authStore';
+import ReminderScheduleEditor from '@/components/settings/ReminderScheduleEditor';
+import { Button } from '@/components/ui/button';
+import { mergeReminderSchedule, ReminderSchedule } from '@/lib/utils/reminderSchedule';
 
 const PAUSE_ALLOWED_DAY_INDEXES = [5, 6, 0, 1]; // Fri, Sat, Sun, Mon
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -24,6 +27,12 @@ export default function SettingsPage() {
   const [isPauseEnabled, setIsPauseEnabled] = useState(false);
   const [pauseLoading, setPauseLoading] = useState(false);
   const [pauseError, setPauseError] = useState('');
+  const [reminderSchedule, setReminderSchedule] = useState<ReminderSchedule>(
+    mergeReminderSchedule(selectedProfile?.reminderSchedule, selectedProfile?.reminderTime)
+  );
+  const [reminderSaving, setReminderSaving] = useState(false);
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [reminderError, setReminderError] = useState('');
 
   const currentDayIndex = new Date().getDay();
   const canChangePauseToday = PAUSE_ALLOWED_DAY_INDEXES.includes(currentDayIndex);
@@ -51,6 +60,37 @@ export default function SettingsPage() {
   useEffect(() => {
     setIsPauseEnabled(getPauseStatus(selectedProfile));
   }, [selectedProfile]);
+
+  useEffect(() => {
+    setReminderSchedule(
+      mergeReminderSchedule(selectedProfile?.reminderSchedule, selectedProfile?.reminderTime)
+    );
+  }, [selectedProfile]);
+
+  const handleSaveReminders = async () => {
+    if (!selectedProfile || reminderSaving) return;
+
+    setReminderSaving(true);
+    setReminderMessage('');
+    setReminderError('');
+
+    try {
+      const response = await authAPI.updateProfile({
+        reminderSchedule,
+        reminderTime: reminderSchedule.night.time,
+      });
+      const updatedProfiles = response.data.data.profiles as Profile[];
+      setProfiles(updatedProfiles);
+      const updated = updatedProfiles.find((p) => p._id === selectedProfile._id) || null;
+      setSelectedProfile(updated);
+      setReminderMessage('Reminder schedule saved. Changes apply to future reminders and new weekly plans.');
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setReminderError(message || 'Failed to save reminder schedule. Please try again.');
+    } finally {
+      setReminderSaving(false);
+    }
+  };
 
   const hasFamilyMembers = profiles&& profiles.length > 1;
 
@@ -142,10 +182,20 @@ export default function SettingsPage() {
     {
       icon: <User className="w-5 h-5" />,
       label: 'Edit Profile',
-      description: 'Update your personal details',
+      description: 'Update lifestyle, goals, and preferences',
       onClick: () => router.push('/profile-setup'),
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
+    },
+    {
+      icon: <Bell className="w-5 h-5" />,
+      label: 'Reminder Schedule',
+      description: 'Morning, afternoon, evening, night & weekly',
+      onClick: () => {
+        document.getElementById('reminder-schedule')?.scrollIntoView({ behavior: 'smooth' });
+      },
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50',
     },
   ];
 
@@ -233,6 +283,35 @@ export default function SettingsPage() {
                 <p className="text-sm text-gray-600">{userData?.phoneNumber}</p>
                 <p className="text-xs text-gray-500">{userData?.email}</p>
               </div>
+            </div>
+          </Card>
+
+          <Card id="reminder-schedule" className="p-5 mb-6 border-indigo-100">
+            <div className="flex items-center gap-2 mb-1">
+              <Bell className="w-5 h-5 text-indigo-600" />
+              <h3 className="text-base font-semibold text-slate-900">Reminder Schedule</h3>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              Set when you receive WhatsApp reminders for logging activities.
+            </p>
+            <ReminderScheduleEditor
+              schedule={reminderSchedule}
+              onChange={setReminderSchedule}
+            />
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button
+                onClick={handleSaveReminders}
+                disabled={!selectedProfile || reminderSaving}
+                className="bg-indigo-600 hover:bg-indigo-700"
+              >
+                {reminderSaving ? 'Saving...' : 'Save Reminder Schedule'}
+              </Button>
+              {reminderMessage && (
+                <p className="text-sm text-emerald-700">{reminderMessage}</p>
+              )}
+              {reminderError && (
+                <p className="text-sm text-red-600">{reminderError}</p>
+              )}
             </div>
           </Card>
 

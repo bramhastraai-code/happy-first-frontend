@@ -31,15 +31,16 @@ export default function UpcomingPage() {
     const fetchWeeklyPlan = async () => {
       try {
         setLoading(true);
-        const response = await weeklyPlanAPI.Upcomming();
-        const activityResponse = await activityAPI.getList();
+        const [plan, activityResponse] = await Promise.all([
+          weeklyPlanAPI.getUpcomingPlan(),
+          activityAPI.getList(),
+        ]);
         setActivities(activityResponse.data.data);
-        setWeeklyPlan(response.data.data);
+        setWeeklyPlan(plan);
         setError('');
       } catch (err: unknown) {
         console.error('Failed to fetch weekly plan:', err);
-        const errorMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-        setError(errorMessage || 'Failed to load weekly plan');
+        setError('Failed to load weekly plan. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -346,19 +347,28 @@ export default function UpcomingPage() {
         )}
 
         {!error && !weeklyPlan && !loading && (
-          <Card className="bg-yellow-50 border-yellow-200">
-            <CardContent className="p-4 text-center">
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="p-6 text-center">
               <div className="text-4xl mb-2">📅</div>
-              <h3 className="font-semibold text-yellow-900 mb-2">No Active Plan</h3>
-              <p className="text-sm text-yellow-700 mb-3">
-                You don&apos;t have an active weekly plan yet. Create one to get started!
+              <h3 className="font-semibold text-blue-900 mb-2">No Upcoming Plan Yet</h3>
+              <p className="text-sm text-blue-800 mb-4">
+                You can create a plan for next week on Friday, Saturday, Sunday, or Monday.
+                If you already have a plan for this week, it will show here once you lock in next week&apos;s activities.
               </p>
-              <Button
-                onClick={() => router.push('/tasks')}
-                className="bg-yellow-600 hover:bg-yellow-700"
-              >
-                Go to Tasks
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+                <Button
+                  onClick={() => router.push('/create-plan')}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Create Weekly Plan
+                </Button>
+                <Button
+                  onClick={() => router.push('/tasks')}
+                  variant="outline"
+                >
+                  Back to Tasks
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}

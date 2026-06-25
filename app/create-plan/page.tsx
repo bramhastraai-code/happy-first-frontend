@@ -97,8 +97,8 @@ function CreatePlanPageContent() {
     // Check if an upcoming plan already exists
     const checkUpcomingPlan = async () => {
       try {
-        const response = await weeklyPlanAPI.Upcomming();
-        if (response.data.data) {
+        const upcomingPlan = await weeklyPlanAPI.getUpcomingPlan();
+        if (upcomingPlan) {
           // Upcoming plan exists, redirect to upcoming page
           router.push('/upcoming');
           return;

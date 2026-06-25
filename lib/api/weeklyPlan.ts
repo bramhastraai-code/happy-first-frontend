@@ -94,9 +94,25 @@ export const weeklyPlanAPI = {
   getCurrent: (date? : string) => api.get<{ success: boolean; message: string; data: WeeklyPlan }>(
     '/weeklyPlan/current',{params:{date: date ?? DateTime.local().toFormat('yyyy-MM-dd')}}
   ),
-  Upcomming: () => api.get<{ success: boolean; message: string; data: WeeklyPlan }>(
+  Upcomming: () => api.get<{ success: boolean; message: string; data: WeeklyPlan | null }>(
     '/weeklyPlan/upcoming'
   ),
+
+  /** Returns upcoming plan or null — no plan is a normal state, not an error. */
+  getUpcomingPlan: async (): Promise<WeeklyPlan | null> => {
+    const response = await api.get<{ success: boolean; message: string; data: WeeklyPlan | null }>(
+      '/weeklyPlan/upcoming'
+    );
+    return response.data.data ?? null;
+  },
+
+  getCurrentPlan: async (): Promise<WeeklyPlan | null> => {
+    const response = await api.get<{ success: boolean; message: string; data: WeeklyPlan | null }>(
+      '/weeklyPlan/current',
+      { params: { date: DateTime.local().toFormat('yyyy-MM-dd') } }
+    );
+    return response.data.data ?? null;
+  },
 
   firstSetup: (activities:CreateWeeklyPlanData) => api.post('/weeklyPlan/firstTimeSetup', activities),
   repeatLastWeek: () => api.post('/weeklyPlan/repeatLastWeek', {}),

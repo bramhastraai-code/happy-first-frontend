@@ -242,9 +242,9 @@ function HomePageContent() {
           setNoPlanError('No active weekly plan found. Create a weekly plan to track your activity goals.');
 
           try {
-            const upcomingRes = await weeklyPlanAPI.Upcomming();
-            if (upcomingRes.data.data) {
-              setUpcomingPlan(upcomingRes.data.data);
+            const upcomingPlanData = await weeklyPlanAPI.getUpcomingPlan();
+            if (upcomingPlanData) {
+              setUpcomingPlan(upcomingPlanData);
             }
           } catch (upcomingError) {
             console.log('No upcoming plan found:', upcomingError);
@@ -290,9 +290,9 @@ function HomePageContent() {
 
           // Check for upcoming plan for new users
           try {
-            const upcomingRes = await weeklyPlanAPI.Upcomming();
-            if (upcomingRes.data.data) {
-              setUpcomingPlan(upcomingRes.data.data);
+            const upcomingPlanData = await weeklyPlanAPI.getUpcomingPlan();
+            if (upcomingPlanData) {
+              setUpcomingPlan(upcomingPlanData);
             }
           } catch (upcomingError) {
             console.log('No upcoming plan found:', upcomingError);

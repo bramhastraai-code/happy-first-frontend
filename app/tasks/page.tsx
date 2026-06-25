@@ -43,6 +43,7 @@ export default function TasksPage() {
   const [earnedPoints, setEarnedPoints] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [warningActivities, setWarningActivities] = useState<Array<{label: string, value: number, target: number, percentage: number}>>([]);
+  const [hasUpcomingPlan, setHasUpcomingPlan] = useState(false);
 
   const getActivityInputMax = (activity: WeeklyPlanActivity, activityData?: ActivityType) => {
     const configuredMax = activityData?.values.find((v) => v.tier === 1)?.maxVal;
@@ -91,20 +92,29 @@ export default function TasksPage() {
 
     const fetchData = async () => {
       try {
-        const [planResponse, activityResponse] = await Promise.all([
-          weeklyPlanAPI.getCurrent(),
-          activityAPI.getList()
+        const [plan, upcomingPlan, activityResponse] = await Promise.all([
+          weeklyPlanAPI.getCurrentPlan(),
+          weeklyPlanAPI.getUpcomingPlan(),
+          activityAPI.getList(),
         ]);
-        
-        setWeeklyPlan(planResponse.data.data);
+
+        setHasUpcomingPlan(Boolean(upcomingPlan));
         setActlist(activityResponse.data.data);
+
+        if (!plan) {
+          setWeeklyPlan(null);
+          setNoPlanError('No active weekly plan found. Please create a weekly plan first to start logging your daily activities.');
+          return;
+        }
+
+        setWeeklyPlan(plan);
         setNoPlanError('');
-        
+
         // Initialize activity values
         const initialValues: Record<string, number> = {};
         const initialCheckboxValues: Record<string, boolean> = {};
         const initialPendingSliders: Record<string, boolean> = {};
-        planResponse.data.data.activities.forEach((activity: WeeklyPlanActivity) => {
+        plan.activities.forEach((activity: WeeklyPlanActivity) => {
           const activityId = typeof activity.activity === 'object' 
             ? activity.activity 
             : activity.activity;
@@ -124,10 +134,7 @@ export default function TasksPage() {
         // Set summaries
       } catch (err: unknown) {
         console.error('Failed to fetch data:', err);
-        const errorMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-        if (errorMessage === 'No active weekly plan found') {
-          setNoPlanError('No active weekly plan found. Please create a weekly plan first to start logging your daily activities.');
-        }
+        setNoPlanError('Failed to load your weekly plan. Please refresh and try again.');
       }
     };
     fetchData();
@@ -480,26 +487,27 @@ export default function TasksPage() {
 
        
 
-        {/* Upcoming Plans Section */}
-        <Card 
-          className="border-slate-200 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group"
-          onClick={() => router.push('/upcoming')}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors">
-                  <Calendar className="w-5 h-5 text-blue-600" />
+        {hasUpcomingPlan && (
+          <Card
+            className="border-slate-200 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group"
+            onClick={() => router.push('/upcoming')}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors">
+                    <Calendar className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-900">Upcoming Plan</h3>
+                    <p className="text-xs text-slate-500">View your locked plan for next week</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900">Upcoming Plans</h3>
-                  <p className="text-xs text-slate-500">View and manage your weekly plans</p>
-                </div>
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
               </div>
-              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Submit Previous Day Log Section */}
         {<Card 
