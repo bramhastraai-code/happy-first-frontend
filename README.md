@@ -1,39 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Happy First Club — Frontend
 
-## Getting Started
- 
-First, run the development server:
+Next.js 16 app for Happy First Club: auth, activity tracking, weekly plans, community, and referrals.
+
+## Tech stack
+
+- Next.js 16 (App Router), TypeScript, Tailwind CSS v4
+- Zustand (state), Axios (API), TanStack Query
+
+## Setup
 
 ```bash
-
-npm run dev
-
-# or
-yarn dev
-
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create `.env.local`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev    # http://localhost:3000
+npm run build  # production build
+npm start      # run production build
+```
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+happy-first-frontend/
+├── app/                      # Routes (App Router)
+│   ├── login/
+│   ├── register/
+│   ├── verify-otp/
+│   ├── profile-setup/        # Onboarding wizard
+│   ├── home/
+│   ├── tasks/
+│   ├── create-plan/
+│   ├── community/
+│   ├── referral/
+│   ├── settings/             # Account hub (family, profile, reminders, security, support)
+│   └── ...
+├── components/
+│   ├── layout/               # MainLayout, BottomNav, AuthShell
+│   ├── ui/                   # Shared UI primitives
+│   ├── settings/             # Inline settings forms
+│   └── leaderboard/
+├── lib/
+│   ├── api/                  # API client modules
+│   ├── queries/              # TanStack Query hooks
+│   ├── store/                # Zustand stores
+│   └── utils/                # Helpers (reminder schedule, tours)
+├── public/
+├── middleware.ts             # Auth route protection
+└── next.config.ts            # Redirects for legacy routes
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Main routes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Route | Purpose |
+|-------|---------|
+| `/register` | Phone registration |
+| `/verify-otp` | OTP verification |
+| `/login` | Login |
+| `/profile-setup` | Onboarding wizard |
+| `/home` | Dashboard |
+| `/tasks` | Daily activity logging |
+| `/create-plan` | Weekly plan builder |
+| `/community` | Communities |
+| `/referral` | Referral program |
+| `/settings` | User settings (collapsible panels) |
+| `/activity-photos` | Activity photo gallery (WhatsApp deep link) |
 
-## Deploy on Vercel
+Legacy URLs (`/change-password`, `/support`, `/add-family-member`) redirect to `/settings` panels.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for Vercel and other hosting options.

@@ -25,7 +25,7 @@ export default function CadenceSlider({ value, onChange, disabled = false }: Cad
       : disabled
       ? 'bg-gradient-to-br from-gray-300 to-gray-400'
       : value === 'daily'
-      ? 'bg-gradient-to-br from-blue-500 to-indigo-600'
+      ? 'bg-gradient-to-br from-primary to-orange-500'
       : 'bg-gradient-to-br from-violet-500 to-purple-600';
 
   return (
@@ -54,7 +54,7 @@ export default function CadenceSlider({ value, onChange, disabled = false }: Cad
           } ${
             value === 'daily'
               ? 'text-white font-semibold'
-              : 'text-blue-600 hover:text-blue-700 font-medium'
+              : 'text-primary hover:text-accent-foreground font-medium'
           }`}
         >
           <svg

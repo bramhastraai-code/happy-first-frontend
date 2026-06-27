@@ -119,7 +119,7 @@ export default function ProfileSetupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-soft to-background p-4">
       <div className="max-w-2xl mx-auto">
         {/* Progress Bar */}
         <div className="mb-6">
@@ -129,7 +129,7 @@ export default function ProfileSetupPage() {
           </div>
           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
             <div
-              className="h-full bg-blue-600 transition-all duration-300"
+              className="h-full bg-primary transition-all duration-300"
               style={{ width: `${(step / 2) * 100}%` }}
             ></div>
           </div>
@@ -156,7 +156,7 @@ export default function ProfileSetupPage() {
                     })
                   }
                   placeholder="Generally healthy, occasional back pain..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   rows={3}
                 />
               </div>
@@ -264,7 +264,7 @@ export default function ProfileSetupPage() {
                     })
                   }
                   placeholder="Finding time for exercise"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   rows={2}
                 />
               </div>
@@ -282,7 +282,7 @@ export default function ProfileSetupPage() {
                     })
                   }
                   placeholder="Lose 5kg, improve flexibility"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   rows={2}
                 />
               </div>
@@ -334,7 +334,7 @@ export default function ProfileSetupPage() {
                       },
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
                   <option value="soft">Soft (like a mother)</option>
                   <option value="coach">Coach (like a friend)</option>
@@ -369,7 +369,7 @@ export default function ProfileSetupPage() {
           <Button
             onClick={handleNext}
             disabled={loading}
-            className="flex-1 bg-blue-600 hover:bg-blue-700"
+            className="flex-1 bg-primary hover:bg-[var(--color-primary-hover)]"
           >
             {loading ? 'Saving...' : step === 2 ? 'Complete Setup' : 'Next'}
           </Button>

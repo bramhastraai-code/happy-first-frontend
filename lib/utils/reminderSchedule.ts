@@ -39,6 +39,33 @@ export const WEEKDAY_OPTIONS = [
   { value: 7, label: 'Sunday' },
 ];
 
+export const DAILY_REMINDER_SLOTS: ReminderSlot[] = [
+  'morning',
+  'afternoon',
+  'evening',
+  'night',
+];
+
+export function formatReminderTime12h(time: string): string {
+  const [hours, minutes] = time.split(':').map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return time;
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  return `${hour12}:${String(minutes).padStart(2, '0')} ${period}`;
+}
+
+export function getReminderScheduleSummary(schedule: ReminderSchedule): string {
+  const dailyCount = DAILY_REMINDER_SLOTS.filter((slot) => schedule[slot].enabled).length;
+  const weeklyDay =
+    WEEKDAY_OPTIONS.find((day) => day.value === (schedule.weekly.day || 1))?.label ?? 'Monday';
+
+  if (!schedule.weekly.enabled) {
+    return `${dailyCount} daily reminder${dailyCount === 1 ? '' : 's'} · Weekly off`;
+  }
+
+  return `${dailyCount} daily · Weekly ${weeklyDay} ${formatReminderTime12h(schedule.weekly.time)}`;
+}
+
 export function mergeReminderSchedule(
   existing?: ReminderScheduleInput | null,
   legacyReminderTime?: string

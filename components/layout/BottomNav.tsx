@@ -4,14 +4,17 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, ClipboardList, Users, Share2, PlusCircle, Lock } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
 import { useAuthStore } from '@/lib/store/authStore';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Home', href: '/home', icon: Home },
   { name: 'Tasks', href: '/tasks', icon: ClipboardList },
-  { name: 'Create Plan', href: '/create-plan', icon: PlusCircle },
-  { name: 'Referral', href: '/referral', icon: Share2 },
+  { name: 'Plan', href: '/create-plan', icon: PlusCircle },
+  { name: 'Refer', href: '/referral', icon: Share2 },
   { name: 'Community', href: '/community', icon: Users },
 ];
 
@@ -24,53 +27,59 @@ export default function BottomNav() {
   useEffect(() => {
     const checkUpcomingPlan = async () => {
       if (!accessToken) return;
-      
       try {
         const plan = await weeklyPlanAPI.getUpcomingPlan();
         setHasUpcomingPlan(Boolean(plan));
-      } catch (error) {
-        // No upcoming plan exists
+      } catch {
         setHasUpcomingPlan(false);
       }
     };
-
     checkUpcomingPlan();
   }, [accessToken, pathname]);
 
   return (
     <>
-      <nav className="bottom-nav fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-        <div className="max-w-screen-lg mx-auto px-4">
-          <div className="flex justify-around items-center h-16">
+      <nav className="bottom-nav glass-nav fixed bottom-0 left-0 right-0 z-50 border-t border-border">
+        <div className="mx-auto max-w-lg px-2 sm:max-w-2xl lg:max-w-5xl">
+          <div className="flex h-[4.25rem] items-center justify-around">
             {navigation.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               const Icon = item.icon;
-              const isCreatePlan = item.name === 'Create Plan';
+              const isCreatePlan = item.href === '/create-plan';
               const isLocked = isCreatePlan && hasUpcomingPlan;
-              
+
               if (isLocked) {
                 return (
                   <button
                     key={item.name}
+                    type="button"
                     onClick={() => setShowMessage(true)}
-                    className="flex flex-col items-center justify-center flex-1 h-full text-gray-400 cursor-not-allowed relative"
+                    className="flex flex-1 flex-col items-center justify-center gap-1 text-muted-foreground"
                   >
-                    <Lock className="w-6 h-6" />
-                    <span className="text-xs mt-1 font-medium">{item.name}</span>
+                    <Lock className="h-5 w-5" />
+                    <span className="text-[10px] font-semibold">{item.name}</span>
                   </button>
                 );
               }
-              
+
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex flex-col items-center justify-center flex-1 h-full ${
-                    isActive ? 'text-blue-600' : 'text-gray-600'
-                  }`}
+                  className={cn(
+                    'relative flex flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors',
+                    isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  )}
                 >
-                  <Icon className={`w-6 h-6 ${isActive ? 'stroke-2' : ''}`} />
-                  <span className="text-xs mt-1 font-medium">{item.name}</span>
+                  {isActive && (
+                    <motion.span
+                      layoutId="nav-indicator"
+                      className="absolute -top-0.5 h-1 w-8 rounded-full bg-primary"
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                    />
+                  )}
+                  <Icon className={cn('h-5 w-5', isActive && 'stroke-[2.5]')} />
+                  <span className="text-[10px] font-semibold">{item.name}</span>
                 </Link>
               );
             })}
@@ -78,36 +87,36 @@ export default function BottomNav() {
         </div>
       </nav>
 
-      {/* Message Modal */}
       {showMessage && (
-        <div 
-          className="fixed inset-0  bg-opacity-50 flex items-center justify-center z-[60] p-4"
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-stone-900/40 p-4 sm:items-center"
           onClick={() => setShowMessage(false)}
+          role="dialog"
+          aria-modal="true"
         >
-          <div 
-            className="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl"
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-sm rounded-3xl bg-surface p-6 shadow-[var(--shadow-float)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
-                <Lock className="h-6 w-6 text-yellow-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Plan Already Created
-              </h3>
-              <p className="text-sm text-gray-600 mb-6">
-                You already have an upcoming plan. You can create a new plan only after that.
-              </p>
-              <button
-                onClick={() => {setShowMessage(false)
-                window.location.href = '/upcoming';
-                }}
-                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-              >
-                See Upcoming Plan
-              </button>
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft">
+              <Lock className="h-6 w-6 text-primary" />
             </div>
-          </div>
+            <h3 className="text-center text-lg font-bold">Plan already created</h3>
+            <p className="mt-2 text-center text-sm text-muted-foreground">
+              You already have an upcoming plan. Create a new one after it starts.
+            </p>
+            <Button
+              className="mt-6 w-full"
+              onClick={() => {
+                setShowMessage(false);
+                window.location.href = '/upcoming';
+              }}
+            >
+              View upcoming plan
+            </Button>
+          </motion.div>
         </div>
       )}
     </>

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authAPI } from '@/lib/api/auth';
 import { useAuthStore, Profile } from '@/lib/store/authStore';
+import { BRAND_NAME } from '@/lib/brand';
 import { Button } from '@/components/ui/button';
 
 function MagicLinkVerifyContent() {
@@ -86,18 +87,18 @@ function MagicLinkVerifyContent() {
   }, [searchParams, router, setUser, setAccessToken, setProfiles, setSelectedProfile]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-soft to-background flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Magic Link</h1>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-8">
-            Happy First Club
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-orange-500 bg-clip-text text-transparent mb-8">
+            {BRAND_NAME}
           </h2>
 
           {status === 'verifying' && (
             <div className="space-y-4">
               <div className="flex justify-center">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
               </div>
               <p className="text-gray-600">Verifying your magic link...</p>
             </div>
@@ -150,7 +151,7 @@ function MagicLinkVerifyContent() {
               <p className="text-gray-600">{error}</p>
               <Button
                 onClick={() => router.push('/login')}
-                className="w-full bg-blue-600 hover:bg-blue-700 mt-4"
+                className="w-full bg-primary hover:bg-[var(--color-primary-hover)] mt-4"
               >
                 Back to Login
               </Button>
@@ -166,16 +167,16 @@ export default function MagicLinkVerifyPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-primary-soft to-background flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
             <div className="text-center">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Magic Link</h1>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-8">
-                Happy First Club
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-orange-500 bg-clip-text text-transparent mb-8">
+                {BRAND_NAME}
               </h2>
               <div className="space-y-4">
                 <div className="flex justify-center">
-                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
                 </div>
                 <p className="text-gray-600">Loading...</p>
               </div>

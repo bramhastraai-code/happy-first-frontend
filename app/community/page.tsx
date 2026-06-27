@@ -1,292 +1,200 @@
 'use client';
 
-import { useState } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
-import { Card, CardContent } from '@/components/ui/card';
+import { ChipTabs } from '@/components/ui/ChipTabs';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
-import { Users, Search } from 'lucide-react';
+import { Users, Search, ChevronRight } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 const trendingCommunities = [
-  {
-    id: 1,
-    name: 'Yoga Masters',
-    description: 'Daily yoga practices and mindfulness',
-    members: 256,
-    category: 'Yoga & Meditation',
-    emoji: '🧘',
-  },
-  {
-    id: 2,
-    name: 'Stairway to Heaven',
-    description: 'Skip the elevator, climb the floors',
-    members: 167,
-    category: 'Stairs Challenge',
-    emoji: '🏢',
-  },
-  {
-    id: 3,
-    name: 'Hydration Heroes',
-    description: 'Track water intake together',
-    members: 523,
-    category: 'Wellness',
-    emoji: '💧',
-  },
-  {
-    id: 4,
-    name: 'Night Owls Fitness',
-    description: 'For those who workout after sunset',
-    members: 142,
-    category: 'Fitness',
-    emoji: '🦉',
-  },
+  { id: 1, name: 'Yoga Masters', description: 'Daily yoga and mindfulness', members: 256, category: 'Mind', emoji: '🧘' },
+  { id: 2, name: 'Stairway to Heaven', description: 'Climb floors, skip the elevator', members: 167, category: 'Body', emoji: '🏢' },
+  { id: 3, name: 'Hydration Heroes', description: 'Track water intake together', members: 523, category: 'Body', emoji: '💧' },
+  { id: 4, name: 'Night Owls Fitness', description: 'Workouts after sunset', members: 142, category: 'Body', emoji: '🦉' },
+  { id: 5, name: 'Morning Readers', description: 'Daily reading habit group', members: 89, category: 'Mind', emoji: '📖' },
+  { id: 6, name: 'Gratitude Circle', description: 'Reflect and log happy days', members: 201, category: 'Soul', emoji: '🌱' },
 ];
 
-const myCommunities = [
-  {
-    id: 1,
-    name: 'Mumbai Runners',
-    description: 'Connect with local runners in Mumbai',
-    members: 128,
-    yourRank: 3,
-    avgPoints: 87,
-    weeklyGoal: 150,
-    emoji: '🏃',
-    badge: '🔥',
-  },
-  {
-    id: 2,
-    name: 'Corporate Wellness Warriors',
-    description: 'Office wellness challenge group',
-    members: 342,
-    yourRank: 12,
-    avgPoints: 92,
-    weeklyGoal: 200,
-    emoji: '💼',
-    badge: '8d',
-  },
-];
+const CATEGORY_FILTERS = ['All', 'Body', 'Mind', 'Soul'] as const;
 
 export default function CommunityPage() {
-  const [activeTab, setActiveTab] = useState<'discover' | 'my-communities'>('discover');
+  const [activeTab, setActiveTab] = useState('discover');
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<(typeof CATEGORY_FILTERS)[number]>('All');
+
+  const filtered = useMemo(() => {
+    return trendingCommunities.filter((community) => {
+      const matchesCategory = category === 'All' || community.category === category;
+      const q = query.trim().toLowerCase();
+      const matchesQuery =
+        !q ||
+        community.name.toLowerCase().includes(q) ||
+        community.description.toLowerCase().includes(q) ||
+        community.category.toLowerCase().includes(q);
+      return matchesCategory && matchesQuery;
+    });
+  }, [query, category]);
+
+  const totalMembers = trendingCommunities.reduce((sum, c) => sum + c.members, 0);
 
   return (
-    // <MainLayout>
-    //   <div className="p-4 space-y-4">
-    //     {/* Header */}
-    //     <div className="text-center mb-6">
-    //       <h1 className="text-2xl font-bold text-gray-900 mb-2">Community</h1>
-    //     </div>
-
-    //     {/* Tabs */}
-    //     <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
-    //       <button
-    //         onClick={() => setActiveTab('discover')}
-    //         className={`flex-1 py-2 px-4 rounded-md font-medium text-sm transition-colors ${
-    //           activeTab === 'discover'
-    //             ? 'bg-blue-600 text-white'
-    //             : 'text-gray-600 hover:text-gray-900'
-    //         }`}
-    //       >
-    //         <span className="mr-2">🌍</span>
-    //         Discover
-    //       </button>
-    //       <button
-    //         onClick={() => setActiveTab('my-communities')}
-    //         className={`flex-1 py-2 px-4 rounded-md font-medium text-sm transition-colors ${
-    //           activeTab === 'my-communities'
-    //             ? 'bg-blue-600 text-white'
-    //             : 'text-gray-600 hover:text-gray-900'
-    //         }`}
-    //       >
-    //         <span className="mr-2">👥</span>
-    //         My Communities
-    //       </button>
-    //     </div>
-
-    //     {activeTab === 'discover' && (
-    //       <div className="space-y-4">
-    //         {/* Search */}
-    //         <div className="relative">
-    //           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-    //           <input
-    //             type="text"
-    //             placeholder="Search communities..."
-    //             className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-    //           />
-    //         </div>
-
-    //         {/* Trending Communities */}
-    //         <div>
-    //           <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-    //             <span>📈</span>
-    //             Trending Communities
-    //           </h2>
-    //           <div className="space-y-3">
-    //             {trendingCommunities.map((community) => (
-    //               <Card key={community.id} className="hover:shadow-md transition-shadow">
-    //                 <CardContent className="p-4">
-    //                   <div className="flex items-start gap-3">
-    //                     <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center text-2xl">
-    //                       {community.emoji}
-    //                     </div>
-    //                     <div className="flex-1">
-    //                       <h3 className="font-semibold text-gray-900">{community.name}</h3>
-    //                       <p className="text-sm text-gray-600 mb-2">{community.description}</p>
-    //                       <div className="flex items-center gap-4 text-xs text-gray-500">
-    //                         <span className="flex items-center gap-1">
-    //                           <Users className="w-3 h-3" />
-    //                           {community.members} members
-    //                         </span>
-    //                         <span className="text-blue-600">• {community.category}</span>
-    //                       </div>
-    //                     </div>
-    //                   </div>
-    //                   <Button className="w-full mt-3 bg-blue-600 hover:bg-blue-700">
-    //                     Join Community
-    //                   </Button>
-    //                 </CardContent>
-    //               </Card>
-    //             ))}
-    //           </div>
-    //         </div>
-    //       </div>
-    //     )}
-
-    //     {activeTab === 'my-communities' && (
-    //       <div className="space-y-4">
-    //         {/* Stats Overview */}
-    //         <div className="grid grid-cols-3 gap-3">
-    //           <Card className="bg-pink-50 border-pink-200">
-    //             <CardContent className="p-3 text-center">
-    //               <p className="text-sm text-pink-700 mb-1">Total Communities</p>
-    //               <p className="text-2xl font-bold text-pink-900">3</p>
-    //             </CardContent>
-    //           </Card>
-    //           <Card className="bg-purple-50 border-purple-200">
-    //             <CardContent className="p-3 text-center">
-    //               <p className="text-sm text-purple-700 mb-1">Total Members</p>
-    //               <p className="text-2xl font-bold text-purple-900">559</p>
-    //             </CardContent>
-    //           </Card>
-    //           <Card className="bg-cyan-50 border-cyan-200">
-    //             <CardContent className="p-3 text-center">
-    //               <p className="text-sm text-cyan-700 mb-1">Best Rank</p>
-    //               <p className="text-2xl font-bold text-cyan-900">#3</p>
-    //             </CardContent>
-    //           </Card>
-    //         </div>
-
-    //         {/* My Communities List */}
-    //         <div className="space-y-3">
-    //           {myCommunities.map((community) => (
-    //             <Card key={community.id} className="hover:shadow-md transition-shadow">
-    //               <CardContent className="p-4">
-    //                 <div className="flex items-start justify-between mb-3">
-    //                   <div className="flex items-start gap-3">
-    //                     <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex items-center justify-center text-2xl">
-    //                       {community.emoji}
-    //                     </div>
-    //                     <div>
-    //                       <h3 className="font-semibold text-gray-900">{community.name}</h3>
-    //                       <p className="text-xs text-gray-600">{community.description}</p>
-    //                     </div>
-    //                   </div>
-    //                   <button className="text-gray-400 hover:text-gray-600">
-    //                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    //                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-    //                     </svg>
-    //                   </button>
-    //                 </div>
-
-    //                 <div className="flex items-center gap-2 text-xs text-gray-600 mb-3">
-    //                   <Users className="w-3 h-3" />
-    //                   <span>{community.members} members</span>
-    //                   <span className="ml-auto flex items-center gap-1">
-    //                     <span>{community.badge}</span>
-    //                   </span>
-    //                 </div>
-
-    //                 <div className="grid grid-cols-3 gap-3 text-center">
-    //                   <div className="bg-blue-50 rounded-lg p-2">
-    //                     <p className="text-xs text-blue-700">Your Rank</p>
-    //                     <p className="font-bold text-blue-900">#{community.yourRank}</p>
-    //                   </div>
-    //                   <div className="bg-green-50 rounded-lg p-2">
-    //                     <p className="text-xs text-green-700">Avg Points</p>
-    //                     <p className="font-bold text-green-900">{community.avgPoints}</p>
-    //                   </div>
-    //                   <div className="bg-purple-50 rounded-lg p-2">
-    //                     <p className="text-xs text-purple-700">Weekly Goal</p>
-    //                     <p className="font-bold text-purple-900">{community.weeklyGoal}</p>
-    //                   </div>
-    //                 </div>
-
-    //                 {community.id === 1 && (
-    //                   <div className="mt-3">
-    //                     <h4 className="text-xs font-semibold text-gray-700 mb-2">Top Members</h4>
-    //                     <div className="space-y-1">
-    //                       {[
-    //                         { name: 'Vishal T.', rank: 1, points: 95 },
-    //                         { name: 'Priya S.', rank: 2, points: 92 },
-    //                         { name: 'You', rank: 3, points: 88 },
-    //                       ].map((member) => (
-    //                         <div key={member.rank} className="flex items-center justify-between text-xs">
-    //                           <div className="flex items-center gap-2">
-    //                             <span className="text-lg">
-    //                               {member.rank === 1 ? '🥇' : member.rank === 2 ? '🥈' : '🥉'}
-    //                             </span>
-    //                             <span className={member.name === 'You' ? 'font-semibold text-blue-600' : ''}>
-    //                               {member.name}
-    //                             </span>
-    //                             {member.name === 'You' && <span className="text-xs text-gray-500">Rank #{member.rank}</span>}
-    //                           </div>
-    //                           <span className="font-semibold text-blue-600">{member.points} pts</span>
-    //                         </div>
-    //                       ))}
-    //                     </div>
-    //                   </div>
-    //                 )}
-
-    //                 <div className="mt-3 pt-3 border-t border-gray-100">
-    //                   <p className="text-xs text-gray-600 flex items-center gap-1">
-    //                     <span>ℹ️</span>
-    //                     Last challenge: 10K Race completed by 45 members
-    //                   </p>
-    //                 </div>
-    //               </CardContent>
-    //             </Card>
-    //           ))}
-    //         </div>
-    //       </div>
-    //     )}
-    //   </div>
-    // </MainLayout>
     <MainLayout>
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)] px-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="flex flex-col items-center justify-center py-12 px-6 text-center">
-            <div className="mb-6">
-              <div className="text-6xl mb-4">🚧</div>
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">
-                Coming Soon
-              </h1>
-              <p className="text-gray-600 text-lg">
-                Community features are under development
-              </p>
-            </div>
-            
-            <div className="bg-blue-50 rounded-lg p-4 mb-6 w-full">
-              <p className="text-sm text-blue-800">
-                We&apos;re building an amazing community experience where you can connect with others, 
-                share your wellness journey, and stay motivated together.
-              </p>
+      <PageHeader
+        title="Community"
+        subtitle="Find groups that match your wellness goals"
+        action={
+          <span className="chip chip-active text-xs">
+            {trendingCommunities.length} groups
+          </span>
+        }
+      />
+
+      <div className="community-header space-y-4">
+        <ChipTabs
+          className="community-tabs"
+          tabs={[
+            { id: 'discover', label: 'Discover' },
+            { id: 'my-communities', label: 'My groups' },
+          ]}
+          active={activeTab}
+          onChange={setActiveTab}
+        />
+
+        {activeTab === 'discover' ? (
+          <>
+            <div className="app-card p-4">
+              <div className="grid grid-cols-2 divide-x divide-border">
+                <div className="pr-4">
+                  <p className="text-xs font-medium text-muted-foreground">Active groups</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                    {trendingCommunities.length}
+                  </p>
+                </div>
+                <div className="pl-4">
+                  <p className="text-xs font-medium text-muted-foreground">Total members</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                    {totalMembers.toLocaleString()}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="text-sm text-gray-500">
-              Stay tuned for updates!
+            <div className="section-card p-4">
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search communities…"
+                  className="h-10 w-full rounded-xl border border-input bg-secondary pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORY_FILTERS.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setCategory(item)}
+                    className={cn(
+                      'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                      category === item
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-muted-foreground'
+                    )}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+
+            <section aria-label="Trending communities" className="trending-communities">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="section-title">Trending</h2>
+                <span className="text-xs text-muted-foreground">{filtered.length} shown</span>
+              </div>
+
+              {filtered.length > 0 ? (
+                <ul className="section-card divide-y divide-border">
+                  {filtered.map((community, index) => (
+                    <li
+                      key={community.id}
+                      className="community-card flex items-center gap-3 px-4 py-3.5"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-lg">
+                        {community.emoji}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-foreground">
+                            {community.name}
+                          </p>
+                          <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
+                            {community.category}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {community.description}
+                        </p>
+                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                          <Users className="h-3 w-3" />
+                          {community.members} members
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled
+                        className="join-button shrink-0 px-3 text-xs"
+                      >
+                        Join
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-center">
+                  <p className="text-sm font-medium text-foreground">No communities found</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Try a different search or category filter.
+                  </p>
+                </div>
+              )}
+            </section>
+
+            <div className="rounded-2xl border border-dashed border-border px-4 py-5 text-center">
+              <p className="text-sm font-medium text-foreground">More features coming soon</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Group challenges, chat, and community leaderboards are in development.
+              </p>
+            </div>
+          </>
+        ) : (
+          <section aria-label="My communities" className="my-communities">
+            <div className="section-card p-6 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary">
+                <Users className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <h2 className="text-base font-semibold text-foreground">No groups yet</h2>
+              <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+                Join a community from Discover to see your groups and rankings here.
+              </p>
+              <Button variant="outline" className="mt-4" onClick={() => setActiveTab('discover')}>
+                Browse communities
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="community-stats mt-4 rounded-2xl border border-dashed border-border px-4 py-5 text-center">
+              <p className="text-xs text-muted-foreground">
+                Your joined groups and rank will appear here once community features launch.
+              </p>
+            </div>
+          </section>
+        )}
       </div>
     </MainLayout>
   );

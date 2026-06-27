@@ -4,16 +4,65 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
-import { Card } from '@/components/ui/card';
-import { ArrowLeft, Lock, User, UserPlus, Users, ChevronRight, LogOut, MessageSquare, PauseCircle, PlayCircle, Loader2, Bell } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
+import {
+  Lock,
+  User,
+  UserPlus,
+  Users,
+  ChevronRight,
+  LogOut,
+  MessageSquare,
+  PauseCircle,
+  PlayCircle,
+  Loader2,
+  Bell,
+  AlertCircle,
+} from 'lucide-react';
 import { authAPI } from '@/lib/api/auth';
+import { useLogoutConfirm } from '@/lib/hooks/useLogoutConfirm';
 import type { Profile } from '@/lib/store/authStore';
 import ReminderScheduleEditor from '@/components/settings/ReminderScheduleEditor';
+import AddFamilyMemberForm from '@/components/settings/AddFamilyMemberForm';
+import EditProfileForm from '@/components/settings/EditProfileForm';
+import ChangePasswordForm from '@/components/settings/ChangePasswordForm';
+import SupportFeedbackForm from '@/components/settings/SupportFeedbackForm';
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
+import { AppQuickLinks } from '@/components/nav/AppQuickLinks';
 import { Button } from '@/components/ui/button';
-import { mergeReminderSchedule, ReminderSchedule } from '@/lib/utils/reminderSchedule';
+import {
+  mergeReminderSchedule,
+  ReminderSchedule,
+  getReminderScheduleSummary,
+} from '@/lib/utils/reminderSchedule';
+import { cn } from '@/lib/utils';
+import type { LucideIcon } from 'lucide-react';
 
-const PAUSE_ALLOWED_DAY_INDEXES = [5, 6, 0, 1]; // Fri, Sat, Sun, Mon
+const PAUSE_ALLOWED_DAY_INDEXES = [5, 6, 0, 1];
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MAX_FAMILY_MEMBERS = 5;
+
+type SettingsPanel =
+  | 'add-family'
+  | 'edit-profile'
+  | 'reminders'
+  | 'password'
+  | 'support'
+  | null;
+
+type SettingsItem = {
+  icon: LucideIcon;
+  label: string;
+  description: string;
+  onClick: () => void;
+  destructive?: boolean;
+};
+
+type SettingsSection = {
+  title: string;
+  items: SettingsItem[];
+  mobileOnly?: boolean;
+};
 
 const getPauseStatus = (profile: Profile | null): boolean => {
   if (!profile) return false;
@@ -22,7 +71,7 @@ const getPauseStatus = (profile: Profile | null): boolean => {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, accessToken, logout, profiles, selectedProfile, setProfiles, setSelectedProfile } = useAuthStore();
+  const { user, accessToken, profiles, selectedProfile, setProfiles, setSelectedProfile } = useAuthStore();
   const [userData, setUserData] = useState<typeof user | null>(null);
   const [isPauseEnabled, setIsPauseEnabled] = useState(false);
   const [pauseLoading, setPauseLoading] = useState(false);
@@ -33,15 +82,33 @@ export default function SettingsPage() {
   const [reminderSaving, setReminderSaving] = useState(false);
   const [reminderMessage, setReminderMessage] = useState('');
   const [reminderError, setReminderError] = useState('');
+  const [openPanel, setOpenPanel] = useState<SettingsPanel>(null);
 
   const currentDayIndex = new Date().getDay();
   const canChangePauseToday = PAUSE_ALLOWED_DAY_INDEXES.includes(currentDayIndex);
   const currentDayName = WEEKDAY_NAMES[currentDayIndex];
+  const hasFamilyMembers = profiles && profiles.length > 1;
+  const familyCount = profiles?.length ?? 0;
 
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
+  const togglePanel = (panel: Exclude<SettingsPanel, null>) => {
+    setOpenPanel((prev) => (prev === panel ? null : panel));
   };
+
+  useEffect(() => {
+    const panel = new URLSearchParams(window.location.search).get('panel');
+    const valid: Exclude<SettingsPanel, null>[] = [
+      'add-family',
+      'edit-profile',
+      'reminders',
+      'password',
+      'support',
+    ];
+    if (panel && valid.includes(panel as Exclude<SettingsPanel, null>)) {
+      setOpenPanel(panel as Exclude<SettingsPanel, null>);
+    }
+  }, []);
+
+  const { requestLogout, LogoutConfirmDialog } = useLogoutConfirm();
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -49,7 +116,6 @@ export default function SettingsPage() {
       try {
         const userInfo = await authAPI.userInfo();
         setUserData(userInfo.data.data);
-
       } catch (error) {
         console.error('Failed to fetch user info:', error);
       }
@@ -83,7 +149,7 @@ export default function SettingsPage() {
       setProfiles(updatedProfiles);
       const updated = updatedProfiles.find((p) => p._id === selectedProfile._id) || null;
       setSelectedProfile(updated);
-      setReminderMessage('Reminder schedule saved. Changes apply to future reminders and new weekly plans.');
+      setReminderMessage('Reminder schedule saved.');
     } catch (error: unknown) {
       const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setReminderError(message || 'Failed to save reminder schedule. Please try again.');
@@ -92,15 +158,13 @@ export default function SettingsPage() {
     }
   };
 
-  const hasFamilyMembers = profiles&& profiles.length > 1;
-
   const updateProfilePauseInStore = (pauseValue: boolean, updatedProfile?: Profile) => {
-    const profileFromResponse = updatedProfile && updatedProfile._id === selectedProfile?._id
-      ? updatedProfile
-      : null;
+    const profileFromResponse =
+      updatedProfile && updatedProfile._id === selectedProfile?._id ? updatedProfile : null;
 
-    const nextSelectedProfile = profileFromResponse ?? (
-      selectedProfile
+    const nextSelectedProfile =
+      profileFromResponse ??
+      (selectedProfile
         ? {
             ...selectedProfile,
             pause: pauseValue,
@@ -109,8 +173,7 @@ export default function SettingsPage() {
               pause: pauseValue,
             },
           }
-        : null
-    );
+        : null);
 
     if (nextSelectedProfile) {
       setSelectedProfile(nextSelectedProfile);
@@ -159,309 +222,331 @@ export default function SettingsPage() {
       setPauseLoading(false);
     }
   };
-  
-  
 
-  const profileManagementItems = [
-    ...(hasFamilyMembers ? [{
-      icon: <Users className="w-5 h-5" />,
-      label: 'Switch Profile',
-      description: 'Change to a different family member profile',
-      onClick: () => router.push('/select-profile'),
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-    }] : []),
+  const mobileOnlyItems: SettingsItem[] = [
+    ...(hasFamilyMembers
+      ? [
+          {
+            icon: Users,
+            label: 'Switch profile',
+            description: 'Change to a different family member',
+            onClick: () => router.push('/select-profile'),
+          },
+        ]
+      : []),
     {
-      icon: <UserPlus className="w-5 h-5" />,
-      label: 'Add Family Member',
-      description: 'Add a new family member profile',
-      onClick: () => router.push('/add-family-member'),
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
-    },
-    {
-      icon: <User className="w-5 h-5" />,
-      label: 'Edit Profile',
-      description: 'Update lifestyle, goals, and preferences',
-      onClick: () => router.push('/profile-setup'),
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-    },
-    {
-      icon: <Bell className="w-5 h-5" />,
-      label: 'Reminder Schedule',
-      description: 'Morning, afternoon, evening, night & weekly',
-      onClick: () => {
-        document.getElementById('reminder-schedule')?.scrollIntoView({ behavior: 'smooth' });
-      },
-      color: 'text-indigo-600',
-      bgColor: 'bg-indigo-50',
-    },
-  ];
-
-  // Mobile-only items (shown only on screens < 520px)
-  const mobileOnlyItems = [
-    ...(hasFamilyMembers ? [{
-      icon: <Users className="w-5 h-5" />,
-      label: 'Switch Profile',
-      description: 'Change to a different family member profile',
-      onClick: () => router.push('/select-profile'),
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-    }] : []),
-    {
-      icon: <LogOut className="w-5 h-5" />,
-      label: 'Logout',
+      icon: LogOut,
+      label: 'Log out',
       description: 'Sign out of your account',
-      onClick: handleLogout,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
+      onClick: requestLogout,
+      destructive: true,
     },
   ];
 
-  const settingsSections = [
+  const settingsSections: SettingsSection[] = [
     {
-      title: 'Quick Actions',
+      title: 'Quick actions',
       items: mobileOnlyItems,
-      mobileOnly: true, // Show only on mobile
-    },
-    {
-      title: 'Profile Management',
-      items: profileManagementItems,
-    },
-    {
-      title: 'Security',
-      items: [
-        {
-          icon: <Lock className="w-5 h-5" />,
-          label: 'Change Password',
-          description: 'Update your account password',
-          onClick: () => router.push('/change-password'),
-          color: 'text-orange-600',
-          bgColor: 'bg-orange-50',
-        },
-      ],
-    },
-    {
-      title: 'Support & Help',
-      items: [
-        {
-          icon: <MessageSquare className="w-5 h-5" />,
-          label: 'Support & Feedback',
-          description: 'Send us feedback or report issues',
-          onClick: () => router.push('/support'),
-          color: 'text-blue-600',
-          bgColor: 'bg-blue-50',
-        },
-      ],
+      mobileOnly: true,
     },
   ];
+
+  const profileFields = selectedProfile
+    ? [
+        selectedProfile.profile?.profession,
+        selectedProfile.profile?.challenges,
+        selectedProfile.profile?.goals,
+        selectedProfile.profile?.likes,
+        selectedProfile.profile?.personalCare,
+        selectedProfile.profile?.dislikes,
+        selectedProfile.profile?.medicalConditions,
+        selectedProfile.profile?.health,
+        selectedProfile.profile?.family,
+        selectedProfile.profile?.schedule,
+      ]
+    : [];
+  const completedFields = profileFields.filter(
+    (field) => field !== null && field !== undefined && field !== ''
+  ).length;
+  const completionPercentage = profileFields.length
+    ? Math.round((completedFields / profileFields.length) * 100)
+    : 100;
 
   return (
     <MainLayout>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 py-8">
-        <div className="max-w-2xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-6">
-            <button
-              onClick={() => router.back()}
-              className="p-2 hover:bg-white rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-6 h-6 text-gray-700" />
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900">Profile & Security</h1>
+      <PageHeader
+        title="Settings"
+        subtitle="Manage your account, family, and reminders"
+      />
+
+      <div className="space-y-4">
+        <div className="section-card p-4">
+          <div className="flex items-center gap-4">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-xl font-bold text-primary-foreground">
+              {userData?.name?.charAt(0) || selectedProfile?.name?.charAt(0) || 'U'}
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-base font-semibold text-foreground">
+                {selectedProfile?.name || 'Profile'}
+              </h2>
+              {userData?.phoneNumber && (
+                <p className="truncate text-sm text-muted-foreground">{userData.phoneNumber}</p>
+              )}
+              {userData?.email && (
+                <p className="truncate text-xs text-muted-foreground">{userData.email}</p>
+              )}
+            </div>
           </div>
+        </div>
 
-          {/* User Info Card */}
-          <Card className="p-6 mb-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-2xl">
-                {userData?.name?.charAt(0) || 'U'}
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-lg text-gray-900">{selectedProfile?.name}</h3>
-                <p className="text-sm text-gray-600">{userData?.phoneNumber}</p>
-                <p className="text-xs text-gray-500">{userData?.email}</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card id="reminder-schedule" className="p-5 mb-6 border-indigo-100">
-            <div className="flex items-center gap-2 mb-1">
-              <Bell className="w-5 h-5 text-indigo-600" />
-              <h3 className="text-base font-semibold text-slate-900">Reminder Schedule</h3>
-            </div>
-            <p className="text-sm text-slate-600 mb-4">
-              Set when you receive WhatsApp reminders for logging activities.
-            </p>
-            <ReminderScheduleEditor
-              schedule={reminderSchedule}
-              onChange={setReminderSchedule}
-            />
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button
-                onClick={handleSaveReminders}
-                disabled={!selectedProfile || reminderSaving}
-                className="bg-indigo-600 hover:bg-indigo-700"
-              >
-                {reminderSaving ? 'Saving...' : 'Save Reminder Schedule'}
-              </Button>
-              {reminderMessage && (
-                <p className="text-sm text-emerald-700">{reminderMessage}</p>
-              )}
-              {reminderError && (
-                <p className="text-sm text-red-600">{reminderError}</p>
-              )}
-            </div>
-          </Card>
-
-          <Card className="p-5 mb-6 border-slate-200">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <h3 className="text-base font-semibold text-slate-900">Pause Service</h3>
-                <p className="text-sm text-slate-600 mt-1">
-                  When paused, your pending activities are hidden and daily log submission is disabled.
-                </p>
-                <p className="text-xs text-slate-500 mt-2">
-                  You can change this only on Friday, Saturday, Sunday, and Monday. Today: {currentDayName}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handlePauseToggle}
-                disabled={!selectedProfile || !canChangePauseToday || pauseLoading}
-                className={`relative inline-flex h-10 w-24 items-center rounded-full px-1 transition-colors ${
-                  isPauseEnabled ? 'bg-amber-500' : 'bg-emerald-500'
-                } ${
-                  !selectedProfile || !canChangePauseToday || pauseLoading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
-                }`}
-                title={isPauseEnabled ? 'Resume Service' : 'Pause Service'}
-              >
-                <span
-                  className={`inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm transition-transform ${
-                    isPauseEnabled ? 'translate-x-14' : 'translate-x-0'
-                  }`}
-                >
-                  {pauseLoading ? (
-                    <Loader2 className="w-4 h-4 text-slate-500 animate-spin" />
-                  ) : isPauseEnabled ? (
-                    <PauseCircle className="w-4 h-4 text-amber-600" />
-                  ) : (
-                    <PlayCircle className="w-4 h-4 text-emerald-600" />
-                  )}
+        {selectedProfile && completionPercentage < 100 && (
+          <div className="rounded-2xl border border-primary/20 bg-primary-soft p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="inline-flex rounded-xl bg-primary/10 p-2 text-primary">
+                  <AlertCircle className="h-5 w-5" />
                 </span>
-              </button>
-            </div>
-            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 text-sm">
-              <span className={`h-2 w-2 rounded-full ${isPauseEnabled ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
-              <span className="font-medium text-slate-800">{isPauseEnabled ? 'Paused' : 'Active'}</span>
-            </div>
-            {pauseError && (
-              <p className="mt-3 text-sm text-red-600">{pauseError}</p>
-            )}
-          </Card>
-
-          {/* Profile Completion Banner */}
-          {selectedProfile && (() => {
-            // Calculate profile completion percentage
-            const profileFields = [
-              selectedProfile.profile?.profession,
-              selectedProfile.profile?.challenges,
-              selectedProfile.profile?.goals,
-              selectedProfile.profile?.likes,
-              selectedProfile.profile?.personalCare,
-              selectedProfile.profile?.dislikes,
-              selectedProfile.profile?.medicalConditions,
-              selectedProfile.profile?.health,
-              selectedProfile.profile?.family,
-              selectedProfile.profile?.schedule,
-            ];
-            const completedFields = profileFields.filter(field => field !== null && field !== undefined && field !== '').length;
-            const completionPercentage = Math.round((completedFields / profileFields.length) * 100);
-            
-            return completionPercentage < 100 ? (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3 mb-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                      <span className="text-yellow-600 text-xl">⚠️</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-yellow-900 mb-1">
-                        Profile {completionPercentage}% Complete
-                      </p>
-                      <p className="text-xs text-yellow-700">
-                        Complete your profile to get personalized recommendations
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => router.push('/profile-setup')}
-                    className="px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-lg hover:bg-yellow-700 transition-colors whitespace-nowrap ml-3"
-                  >
-                    Complete Profile
-                  </button>
-                </div>
-                
-                {/* Progress Bar */}
-                <div className="space-y-1">
-                  <div className="h-2 bg-yellow-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-yellow-600 rounded-full transition-all duration-300"
-                      style={{ width: `${completionPercentage}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-xs text-yellow-700">
-                    {completedFields} of {profileFields.length} fields completed
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    Profile {completionPercentage}% complete
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Complete your profile for better recommendations.
                   </p>
                 </div>
               </div>
-            ) : null;
-          })()}
-
-          {/* Settings Sections */}
-          <div className="space-y-6">
-            {settingsSections.map((section, sectionIndex) => {
-              // Hide or show based on mobileOnly flag
-              const isMobileOnly = section.mobileOnly || false;
-              const sectionClass = isMobileOnly ? 'max-[519px]:block hidden' : '';
-              
-              return (
-              <div key={sectionIndex} className={sectionClass}>
-                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-                  {section.title}
-                </h2>
-                <Card className="divide-y divide-gray-100">
-                  {section.items.map((item, itemIndex) => (
-                    <button
-                      key={itemIndex}
-                      onClick={item.onClick}
-                      className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors text-left"
-                    >
-                      <div className={`w-10 h-10 rounded-lg ${item.bgColor} flex items-center justify-center ${item.color}`}>
-                        {item.icon}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{item.label}</h3>
-                        <p className="text-sm text-gray-600">{item.description}</p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
-                    </button>
-                  ))}
-                </Card>
-              </div>
-            );
-            })}
-          </div>
-
-          {/* Info Box */}
-          <Card className="mt-6 p-4 bg-blue-50 border-blue-200">
-            <p className="text-sm text-gray-700">
-              <strong>Tip:</strong> You can manage up to 5 family member profiles. Each profile has its own progress tracking and activity history.
+              <Button
+                size="sm"
+                className="shrink-0"
+                onClick={() => {
+                  setOpenPanel('edit-profile');
+                  requestAnimationFrame(() => {
+                    document.getElementById('edit-profile')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  });
+                }}
+              >
+                Complete profile
+              </Button>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: `${completionPercentage}%` }}
+              />
+            </div>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              {completedFields} of {profileFields.length} fields completed
             </p>
-          </Card>
+          </div>
+        )}
+
+        <section aria-label="Profile">
+          <h2 className="section-title mb-3">Profile</h2>
+          <div className="space-y-3">
+            {hasFamilyMembers && (
+              <div className="section-card px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => router.push('/select-profile')}
+                  className="flex w-full items-center gap-3 text-left"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
+                    <Users className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">Switch profile</p>
+                    <p className="text-xs text-muted-foreground">Change active family member</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </button>
+              </div>
+            )}
+
+            <CollapsibleSection
+              title="Add family member"
+              subtitle={`${familyCount} of ${MAX_FAMILY_MEMBERS} profiles used`}
+              icon={UserPlus}
+              expanded={openPanel === 'add-family'}
+              onToggle={() => togglePanel('add-family')}
+            >
+              <AddFamilyMemberForm />
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              id="edit-profile"
+              title="Edit profile"
+              subtitle={
+                completionPercentage < 100
+                  ? `${completionPercentage}% complete · lifestyle & goals`
+                  : 'Lifestyle, goals, and preferences'
+              }
+              icon={User}
+              expanded={openPanel === 'edit-profile'}
+              onToggle={() => togglePanel('edit-profile')}
+            >
+              <EditProfileForm />
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              id="reminder-schedule"
+              title="Reminder schedule"
+              subtitle={getReminderScheduleSummary(reminderSchedule)}
+              icon={Bell}
+              expanded={openPanel === 'reminders'}
+              onToggle={() => togglePanel('reminders')}
+              contentClassName="space-y-4"
+            >
+              <ReminderScheduleEditor schedule={reminderSchedule} onChange={setReminderSchedule} />
+              <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center">
+                <Button
+                  onClick={handleSaveReminders}
+                  disabled={!selectedProfile || reminderSaving}
+                  className="sm:w-auto"
+                >
+                  {reminderSaving ? 'Saving…' : 'Save schedule'}
+                </Button>
+                {reminderMessage && <p className="text-sm text-primary">{reminderMessage}</p>}
+                {reminderError && <p className="text-sm text-destructive">{reminderError}</p>}
+              </div>
+            </CollapsibleSection>
+          </div>
+        </section>
+
+        <section aria-label="Pause service" className="section-card p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h2 className="text-sm font-semibold text-foreground">Pause service</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                When paused, pending activities are hidden and daily log submission is disabled.
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Can be changed on Fri, Sat, Sun, and Mon only. Today: {currentDayName}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handlePauseToggle}
+              disabled={!selectedProfile || !canChangePauseToday || pauseLoading}
+              className={cn(
+                'relative inline-flex h-10 w-24 shrink-0 items-center rounded-full px-1 transition-colors',
+                isPauseEnabled ? 'bg-amber-500' : 'bg-primary',
+                (!selectedProfile || !canChangePauseToday || pauseLoading) &&
+                  'cursor-not-allowed opacity-60'
+              )}
+              title={isPauseEnabled ? 'Resume service' : 'Pause service'}
+            >
+              <span
+                className={cn(
+                  'inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm transition-transform',
+                  isPauseEnabled ? 'translate-x-14' : 'translate-x-0'
+                )}
+              >
+                {pauseLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : isPauseEnabled ? (
+                  <PauseCircle className="h-4 w-4 text-amber-600" />
+                ) : (
+                  <PlayCircle className="h-4 w-4 text-primary" />
+                )}
+              </span>
+            </button>
+          </div>
+          <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-secondary px-3 py-1.5 text-sm">
+            <span
+              className={cn(
+                'h-2 w-2 rounded-full',
+                isPauseEnabled ? 'bg-amber-500' : 'bg-primary'
+              )}
+            />
+            <span className="font-medium text-foreground">
+              {isPauseEnabled ? 'Paused' : 'Active'}
+            </span>
+          </div>
+          {pauseError && <p className="mt-3 text-sm text-destructive">{pauseError}</p>}
+        </section>
+
+        <section aria-label="Security">
+          <h2 className="section-title mb-3">Security</h2>
+          <CollapsibleSection
+            title="Change password"
+            subtitle="Update your account password"
+            icon={Lock}
+            expanded={openPanel === 'password'}
+            onToggle={() => togglePanel('password')}
+          >
+            <ChangePasswordForm />
+          </CollapsibleSection>
+        </section>
+
+        <section aria-label="Support">
+          <h2 className="section-title mb-3">Support</h2>
+          <CollapsibleSection
+            title="Support & feedback"
+            subtitle="Send feedback or report an issue"
+            icon={MessageSquare}
+            expanded={openPanel === 'support'}
+            onToggle={() => togglePanel('support')}
+          >
+            <SupportFeedbackForm />
+          </CollapsibleSection>
+        </section>
+
+        {settingsSections.map((section) => {
+          const sectionClass = section.mobileOnly ? 'max-[519px]:block hidden' : '';
+
+          return (
+            <section key={section.title} aria-label={section.title} className={sectionClass}>
+              <h2 className="section-title mb-3">{section.title}</h2>
+              <ul className="section-card divide-y divide-border">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.label}>
+                      <button
+                        type="button"
+                        onClick={item.onClick}
+                        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-accent/50"
+                      >
+                        <span
+                          className={cn(
+                            'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+                            item.destructive
+                              ? 'bg-destructive/10 text-destructive'
+                              : 'bg-secondary text-primary'
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground">{item.label}</p>
+                          <p className="text-xs text-muted-foreground">{item.description}</p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
+
+        <section aria-label="App navigation">
+          <h2 className="section-title mb-3">Explore app</h2>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Shortcuts to all main pages. You must be signed in to open these.
+          </p>
+          <AppQuickLinks />
+        </section>
+
+        <div className="rounded-2xl border border-dashed border-border px-4 py-4">
+          <p className="text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">Tip:</span> You can manage up to 5 family
+            member profiles. Each profile has its own progress and activity history.
+          </p>
         </div>
       </div>
+      {LogoutConfirmDialog}
     </MainLayout>
   );
 }

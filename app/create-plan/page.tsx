@@ -1,17 +1,27 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import { type Activity } from '@/lib/api/activity';
 import { weeklyPlanAPI, type CreateWeeklyPlanData, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import MainLayout from '@/components/layout/MainLayout';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { ChipTabs } from '@/components/ui/ChipTabs';
+import LoadingScreen from '@/components/ui/LoadingScreen';
+import {
+  ActivityPickCard,
+  ConfigureActivityCard,
+  PlanStatusScreen,
+  PlanStepProgress,
+  PlanUnlockInfo,
+} from '@/components/create-plan/CreatePlanUI';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Lock, Calendar, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Lock, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw, PlusCircle } from 'lucide-react';
 import CadenceSlider, { type CadenceValue } from '@/components/ui/CadenceSlider';
+import { cn } from '@/lib/utils';
 
 interface SelectedActivity {
   activityId: string;
@@ -41,12 +51,7 @@ export default function CreatePlanPage() {
 function CreatePlanPageFallback() {
   return (
     <MainLayout>
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-green-600"></div>
-          <p className="text-gray-600">Loading plan creator...</p>
-        </div>
-      </div>
+      <LoadingScreen fullScreen label="Loading plan creator…" />
     </MainLayout>
   );
 }
@@ -75,6 +80,16 @@ function CreatePlanPageContent() {
   const [showCongratulation, setShowCongratulation] = useState(false);
   const [surpriseActivity, setSurpriseActivity] = useState<{name: string, icon: string, targetValue: number, unit: string} | null>(null);
   const [surpriseActivityStatus, setSurpriseActivityStatus] = useState<'assigned' | 'none-left' | 'not-configured' | 'none'>('none');
+  const planInitRef = useRef(false);
+
+  function apiErrorMessage(err: unknown, fallback: string) {
+    const status = (err as { response?: { status?: number; data?: { message?: string } } })?.response?.status;
+    const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    if (status === 429) {
+      return 'Too many requests. Please wait a minute and try again.';
+    }
+    return message || fallback;
+  }
 
   useEffect(() => {
     if (!isOnboarding) {
@@ -90,22 +105,24 @@ function CreatePlanPageContent() {
     if (!isHydrated) return;
 
     if (!accessToken || !user) {
+      planInitRef.current = false;
       router.push('/login');
       return;
     }
+
+    if (planInitRef.current) return;
+    planInitRef.current = true;
 
     // Check if an upcoming plan already exists
     const checkUpcomingPlan = async () => {
       try {
         const upcomingPlan = await weeklyPlanAPI.getUpcomingPlan();
         if (upcomingPlan) {
-          // Upcoming plan exists, redirect to upcoming page
           router.push('/upcoming');
           return;
         }
-      } catch {
-        // No upcoming plan exists, continue
-        console.log('No upcoming plan found, user can create one');
+      } catch (err) {
+        console.log('No upcoming plan found, user can create one', err);
       }
 
       const today = new Date();
@@ -117,32 +134,30 @@ function CreatePlanPageContent() {
         setIsUnlocked(true);
         return;
       }
-      
-      // On Monday, check if there's already a current plan
+
       if (dayOfWeek === 1) {
         try {
           const currentPlanResponse = await weeklyPlanAPI.getCurrent();
-          if (currentPlanResponse.data.data && currentPlanResponse.data.data.activities && currentPlanResponse.data.data.activities.length > 0) {
-            // Current plan exists on Monday, show banner instead of allowing creation
+          if (
+            currentPlanResponse.data.data &&
+            currentPlanResponse.data.data.activities &&
+            currentPlanResponse.data.data.activities.length > 0
+          ) {
             setHasCurrentPlan(true);
             setIsUnlocked(false);
             setCurrentDay(dayNames[dayOfWeek]);
             return;
           }
-        } catch {
-          // No current plan exists, continue
-          console.log('No current plan found on Monday, user can create one');
+        } catch (err) {
+          console.log('No current plan found on Monday, user can create one', err);
         }
       }
 
-      // Unlock on Friday (5), Saturday (6), Sunday (0), or Monday (1)
       const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0 || dayOfWeek === 1;
       setIsUnlocked(unlocked);
-
-      // Don't automatically fetch activities - wait for user choice
     };
 
-    checkUpcomingPlan();
+    void checkUpcomingPlan();
   }, [accessToken, user, router, isHydrated, isOnboarding]);
 
   const fetchActivities = async () => {
@@ -164,7 +179,7 @@ function CreatePlanPageContent() {
       }
     } catch (error) {
       console.error('Failed to fetch activities:', error);
-      setError('Failed to load activities. Please try again.');
+      setError(apiErrorMessage(error, 'Failed to load activities. Please try again.'));
     }
   };
 
@@ -337,8 +352,7 @@ function CreatePlanPageContent() {
       router.replace(isCurrentWeekPlan ? '/home' : '/upcoming');
     } catch (error: unknown) {
       console.error('Failed to repeat last week:', error);
-      const errorMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(errorMessage || 'Failed to repeat last week\'s plan. You may not have a previous plan.');
+      setError(apiErrorMessage(error, 'Failed to repeat last week\'s plan. You may not have a previous plan.'));
     } finally {
       setRepeatLoading(false);
     }
@@ -409,8 +423,7 @@ function CreatePlanPageContent() {
       setShowCongratulation(true);
     } catch (error: unknown) {
       console.error('Failed to create weekly plan:', error);
-      const errorMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(errorMessage || `Failed to ${isOnboarding ? 'save your first plan' : 'create weekly plan'}. Please try again.`);
+      setError(apiErrorMessage(error, `Failed to ${isOnboarding ? 'save your first plan' : 'create weekly plan'}. Please try again.`));
     } finally {
       setLoading(false);
     }
@@ -422,48 +435,22 @@ function CreatePlanPageContent() {
     if (hasCurrentPlan) {
       return (
         <MainLayout hideBottomNav={isOnboarding}>
-          <div className="min-h-screen flex items-center justify-center p-4">
-            <Card className="max-w-md w-full">
-              <CardContent className="p-8 text-center">
-                <div className="mb-6">
-                  <CheckCircle2 className="w-20 h-20 mx-auto text-green-500 mb-4" />
-                  <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                    You Already Have an Active Plan
-                  </h1>
-                  <p className="text-gray-600 mb-4">
-                    You cannot create a new plan while you have an active weekly plan in progress
-                  </p>
-                </div>
-
-                <div className="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-200">
-                  <Calendar className="w-8 h-8 mx-auto text-blue-600 mb-2" />
-                  <p className="text-sm text-blue-900 font-medium mb-2">
-                    Your current plan is active
-                  </p>
-                  <p className="text-xs text-blue-700">
-                    Complete your current week&apos;s activities. You can create a new plan starting next <span className="font-semibold">Friday</span>.
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <Button
-                    onClick={() => router.push('/home')}
-                    className="w-full"
-                    variant="default"
-                  >
-                    View Current Plan
-                  </Button>
-                  <Button
-                    onClick={() => router.push('/home')}
-                    className="w-full"
-                    variant="outline"
-                  >
-                    Back to Home
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <PlanStatusScreen
+            icon={CheckCircle2}
+            iconClassName="bg-success-soft text-success"
+            title="Active plan in progress"
+            description="You can't create a new plan while your current weekly plan is still running."
+            actions={
+              <Button onClick={() => router.push('/home')} className="w-full">
+                View current plan
+              </Button>
+            }
+          >
+            <div className="rounded-xl border border-border bg-secondary p-4 text-sm text-muted-foreground">
+              Complete this week&apos;s activities. Plan creation opens again on{' '}
+              <span className="font-semibold text-foreground">Friday</span>.
+            </div>
+          </PlanStatusScreen>
         </MainLayout>
       );
     }
@@ -474,57 +461,17 @@ function CreatePlanPageContent() {
     
     return (
       <MainLayout hideBottomNav={isOnboarding}>
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <Card className="max-w-md w-full">
-            <CardContent className="p-8 text-center">
-              <div className="mb-6">
-                <Lock className="w-20 h-20 mx-auto text-gray-400 mb-4" />
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                  Plan Creation Locked
-                </h1>
-                <p className="text-gray-600 mb-4">
-                  Weekly plan creation is only available on weekends
-                </p>
-              </div>
-
-              <div className="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-200">
-                <Calendar className="w-8 h-8 mx-auto text-blue-600 mb-2" />
-                <p className="text-sm text-blue-900 font-medium mb-1">
-                  Available Days
-                </p>
-                <div className="flex justify-center gap-2 mb-3">
-                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                    Friday
-                  </span>
-                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                    Saturday
-                  </span>
-                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                    Sunday
-                  </span>
-                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                    Monday
-                  </span>
-                </div>
-                <p className="text-xs text-blue-700">
-                  Today is <span className="font-semibold">{currentDay}</span>
-                </p>
-              </div>
-
-              <div className="text-sm text-gray-600 mb-6">
-                <p>Next unlock: <span className="font-semibold text-gray-900">{nextUnlockDay}</span></p>
-              </div>
-
-              <Button
-                onClick={() => router.push('/home')}
-                className="w-full"
-                variant="default"
-              >
-                Back to Home
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+        <PlanStatusScreen
+          icon={Lock}
+          iconClassName="text-muted-foreground"
+          title="Plan creation locked"
+          description="Weekly plans can only be created on Fri, Sat, Sun, or Mon."
+        >
+          <PlanUnlockInfo currentDay={currentDay} />
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            Next unlock: <span className="font-semibold text-foreground">{nextUnlockDay}</span>
+          </p>
+        </PlanStatusScreen>
       </MainLayout>
     );
   }
@@ -533,113 +480,86 @@ function CreatePlanPageContent() {
   if (showCongratulation) {
     return (
       <MainLayout hideBottomNav={isOnboarding}>
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <Card className="max-w-md w-full">
-            <CardContent className="p-8 text-center">
-              <div className="mb-6">
-                <div className="text-6xl mb-4 animate-bounce">🎉</div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                  Congratulations!
-                </h1>
-                <p className="text-gray-600 mb-4">
-                  Your weekly plan has been created successfully
-                </p>
-              </div>
+        <div className="flex min-h-[60vh] items-center justify-center p-4">
+          <div className="app-card w-full max-w-md p-6 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-success-soft text-success">
+              <CheckCircle2 className="h-7 w-7" />
+            </div>
+            <h1 className="text-xl font-bold text-foreground">Plan created</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Your weekly plan is ready.</p>
 
-              {surpriseActivity ? (
-                <div className="bg-linear-to-br from-purple-50 to-pink-50 rounded-lg p-6 mb-6 border-2 border-purple-200">
-                  <div className="mb-3">
-                    <div className="text-5xl mb-2">🎁</div>
-                    <h2 className="text-xl font-bold text-purple-900 mb-1">
-                      Surprise Activity!
-                    </h2>
-                    <p className="text-sm text-purple-700">
-                      We&apos;ve added a special activity to your plan
-                    </p>
-                  </div>
-                  
-                  <div className="bg-white rounded-lg p-4 border border-purple-200">
-                    <div className="flex items-center justify-center gap-3 mb-2">
-                      <span className="text-3xl">{surpriseActivity.icon}</span>
-                      <h3 className="text-lg font-bold text-gray-900">
-                        {surpriseActivity.name}
-                      </h3>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Target: <span className="font-semibold text-purple-700">
-                        {surpriseActivity.targetValue} {surpriseActivity.unit}
-                      </span>
+            {surpriseActivity ? (
+              <div className="mt-4 rounded-xl border border-border bg-primary-soft/50 p-4 text-left">
+                <p className="text-xs font-semibold uppercase tracking-wide text-accent-foreground">Bonus activity</p>
+                <div className="mt-2 flex items-center gap-3">
+                  <span className="text-2xl">{surpriseActivity.icon}</span>
+                  <div>
+                    <p className="font-semibold text-foreground">{surpriseActivity.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Target {surpriseActivity.targetValue} {surpriseActivity.unit}
                     </p>
                   </div>
                 </div>
-              ) : (
-                <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-lg p-6 mb-6 border-2 border-blue-200">
-                  <div className="text-4xl mb-3">📋</div>
-                  <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                    No Surprise Activity
-                  </h2>
-                  <p className="text-sm text-gray-600">
-                    {surpriseActivityStatus === 'none-left'
-                      ? 'No surprise activity is left to be assigned for this week.'
-                      : 'Your plan includes all the activities you selected. Keep up the great work!'}
-                  </p>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <Button
-                  onClick={() => {
-                    const today = new Date();
-                    const dayOfWeek = today.getDay();
-                    // If Monday (1), go to tasks, otherwise go to upcoming
-                    router.replace(dayOfWeek === 1 ? '/tasks' : '/upcoming');
-                  }}
-                  className="w-full"
-                  variant="default"
-                >
-                  View Your Plan
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
               </div>
-            </CardContent>
-          </Card>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground">
+                {surpriseActivityStatus === 'none-left'
+                  ? 'No bonus activity left for this week.'
+                  : 'Your selected activities are locked in for the week.'}
+              </p>
+            )}
+
+            <Button
+              onClick={() => {
+                const dayOfWeek = new Date().getDay();
+                router.replace(dayOfWeek === 1 ? '/tasks' : '/upcoming');
+              }}
+              className="mt-6 w-full"
+            >
+              View your plan
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </MainLayout>
     );
   }
 
+  const stepTitle =
+    step === 'choice'
+      ? 'Choose plan type'
+      : step === 'select'
+        ? 'Select activities'
+        : isOnboarding
+          ? 'Review your first plan'
+          : 'Configure your plan';
+
+  const stepSubtitle =
+    step === 'choice'
+      ? 'Create a new plan or repeat last week.'
+      : step === 'select'
+        ? `Browse ${selectedCategory} activities and pick at least 4.`
+        : isOnboarding
+          ? 'Confirm targets and enter your weight.'
+          : 'Review targets before creating your plan.';
+
   return (
     <MainLayout hideBottomNav={isOnboarding}>
-      <div className="p-4 max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="create-plan-header mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-2xl font-bold text-gray-900">
-              {step === 'choice' && 'Choose Plan Type'}
-              {step === 'select' && 'Select Activities'}
-              {step === 'configure' && (isOnboarding ? 'Review Your First Plan' : 'Configure Your Plan')}
-            </h1>
-            <div className="flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full">
-              <CheckCircle2 className="w-4 h-4 text-green-600" />
-              <span className="text-sm font-medium text-green-700">{isOnboarding ? 'Setup Mode' : 'Unlocked'}</span>
-            </div>
-          </div>
-          <p className="text-gray-600">
-            {step === 'choice' && 'Would you like to create a new plan or repeat your last week\'s plan?'}
-            {step === 'select' && `${isOnboarding ? 'Build your first weekly plan by browsing' : 'Browse'} ${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)} activities and select the ones you want to include`}
-            {step === 'configure' && (isOnboarding ? 'Confirm your selected activities and add your weight to finish setup' : 'Set your target values and cadence for each activity')}
-          </p>
-          
-          {/* Progress Steps */}
-          <div className="flex items-center gap-2 mt-4">
-            <div className={`flex-1 h-2 rounded-full ${step === 'choice' ? 'bg-blue-500' : 'bg-green-500'}`}></div>
-            <div className={`flex-1 h-2 rounded-full ${step === 'select' ? 'bg-blue-500' : step === 'configure' ? 'bg-green-500' : 'bg-gray-200'}`}></div>
-            <div className={`flex-1 h-2 rounded-full ${step === 'configure' ? 'bg-blue-500' : 'bg-gray-200'}`}></div>
-          </div>
-        </div>
+      <div className="create-plan-header space-y-4">
+        <PageHeader
+          title={stepTitle}
+          subtitle={stepSubtitle}
+          action={
+            <span className="chip chip-active text-xs">
+              {isOnboarding ? 'Setup' : 'Unlocked'}
+            </span>
+          }
+        />
+
+        <PlanStepProgress step={step} />
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {error}
           </div>
         )}
@@ -647,204 +567,107 @@ function CreatePlanPageContent() {
         {/* Step 0: Choose Plan Type */}
         {step === 'choice' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Create New Plan Option */}
-              <Card
-                className="cursor-pointer transition-all hover:border-blue-500 hover:shadow-lg group"
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <button
+                type="button"
                 onClick={handleChoiceCreateNew}
+                className="section-card p-5 text-left transition-colors hover:bg-accent/40"
               >
-                <CardContent className="p-6">
-                  <div className="text-center space-y-4">
-                    <div className="text-6xl mx-auto">✨</div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600">
-                        Create New Plan
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        Select activities and set targets for a fresh weekly plan tailored to your goals
-                      </p>
-                    </div>
-                    <Button className="w-full" variant="default">
-                      Start Creating <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                <span className="inline-flex rounded-xl bg-primary-soft p-2.5 text-primary">
+                  <PlusCircle className="h-5 w-5" />
+                </span>
+                <h3 className="mt-3 text-base font-semibold text-foreground">Create new plan</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Pick activities and set fresh targets for the week.
+                </p>
+                <span className="mt-3 inline-flex items-center text-sm font-semibold text-primary">
+                  Start creating <ArrowRight className="ml-1 h-4 w-4" />
+                </span>
+              </button>
 
-              {/* Repeat Last Plan Option */}
-              <Card
-                className="cursor-pointer transition-all hover:border-purple-500 hover:shadow-lg group"
+              <button
+                type="button"
                 onClick={handleChoiceRepeatLast}
+                disabled={repeatLoading}
+                className="section-card p-5 text-left transition-colors hover:bg-accent/40 disabled:opacity-60"
               >
-                <CardContent className="p-6">
-                  <div className="text-center space-y-4">
-                    <div className="text-6xl mx-auto">🔄</div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-purple-600">
-                        Repeat Last Plan
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        Continue with the same activities and targets from your previous week
-                      </p>
-                    </div>
-                    <Button 
-                      className="w-full" 
-                      variant="outline"
-                      disabled={repeatLoading}
-                    >
-                      {repeatLoading ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                          Loading...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Repeat Plan
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Back Button */}
-            <div className="flex justify-center pt-4">
-              <Button
-                onClick={() => router.push(isOnboarding ? '/profile-setup' : '/home')}
-                variant="outline"
-                className="w-full sm:w-auto"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" /> {isOnboarding ? 'Skip for Now' : 'Back to Home'}
-              </Button>
+                <span className="inline-flex rounded-xl bg-secondary p-2.5 text-foreground">
+                  <RefreshCw className={cn('h-5 w-5', repeatLoading && 'animate-spin')} />
+                </span>
+                <h3 className="mt-3 text-base font-semibold text-foreground">Repeat last plan</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Reuse the same activities and targets from last week.
+                </p>
+                <span className="mt-3 inline-flex items-center text-sm font-semibold text-foreground">
+                  {repeatLoading ? 'Loading…' : 'Repeat plan'}
+                </span>
+              </button>
             </div>
           </div>
         )}
 
         {/* Step 1: Select Activities */}
         {step === 'select' && (
-          <div className="space-y-4">
-            
-            {/* Category Selection */}
-            <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Category Navigation</h3>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => handleCategoryChange('body')}
-                  className={`relative p-3 rounded-lg font-medium text-sm transition-all ${
-                    selectedCategory === 'body'
-                      ? 'bg-blue-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  💪 Body
-                  {visitedCategories.has('body') && (
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
-                  )}
-                </button>
-                <button
-                  onClick={() => handleCategoryChange('mind')}
-                  className={`relative p-3 rounded-lg font-medium text-sm transition-all ${
-                    selectedCategory === 'mind'
-                      ? 'bg-purple-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  🧠 Mind
-                  {visitedCategories.has('mind') && (
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
-                  )}
-                </button>
-                <button
-                  onClick={() => handleCategoryChange('soul')}
-                  className={`relative p-3 rounded-lg font-medium text-sm transition-all ${
-                    selectedCategory === 'soul'
-                      ? 'bg-green-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  ✨ Soul
-                  {visitedCategories.has('soul') && (
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
-                  )}
-                </button>
-              </div>
-              <p className="text-xs text-gray-600 mt-2">
-                Use Next/Back buttons to navigate through categories, or click to jump directly
+          <div className="activity-list space-y-4">
+            <div className="section-card p-4">
+              <ChipTabs
+                className="community-tabs mb-2"
+                tabs={[
+                  { id: 'body', label: 'Body' },
+                  { id: 'mind', label: 'Mind' },
+                  { id: 'soul', label: 'Soul' },
+                ]}
+                active={selectedCategory}
+                onChange={(id) => handleCategoryChange(id as 'body' | 'mind' | 'soul')}
+              />
+              <p className="text-xs text-muted-foreground">
+                Use Next/Back to move through categories, or tap to jump.
               </p>
             </div>
 
-           
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center justify-between ">
-                <p className="text-sm text-blue-900">
-                  <span className="font-semibold">Selected: {selectedActivities.length}</span> / Minimum: 4
-                </p>
-              </div>
+            <div className="app-card flex items-center justify-between p-4">
+              <p className="text-sm text-foreground">
+                <span className="font-semibold">{selectedActivities.length}</span> selected
+              </p>
+              <span className="text-xs text-muted-foreground">Minimum 4</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {filteredActivities.map((activity) => {
                 const isSelected = selectedActivities.some((a) => a.activityId === activity._id);
                 const isMandatory = mandatoryActivity && activity._id === mandatoryActivity._id;
                 return (
-                  <Card
+                  <ActivityPickCard
                     key={activity._id}
-                    className={`cursor-pointer transition-all ${
-                      isSelected
-                        ? isMandatory
-                          ? 'border-green-500 bg-green-50 shadow-md'
-                          : 'border-blue-500 bg-blue-50 shadow-md'
-                        : 'border-gray-200 hover:border-blue-300 hover:shadow'
-                    }`}
+                    icon={activity.icon}
+                    name={activity.name}
+                    unit={activity.baseUnit}
+                    selected={isSelected}
+                    mandatory={Boolean(isMandatory)}
                     onClick={() => toggleActivity(activity)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="text-3xl">{activity.icon}</div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-gray-900">{activity.name}</h3>
-                            {isMandatory && (
-                              <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
-                                MANDATORY
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-600">{activity.baseUnit}</p>
-                        </div>
-                        {isSelected && (
-                          <CheckCircle2 className={`w-6 h-6 ${isMandatory ? 'text-green-600' : 'text-blue-600'}`} />
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  />
                 );
               })}
             </div>
-            {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            {error}
-          </div>
-        )}
 
-            <div className="flex gap-3 pt-4">
-              <Button
-                onClick={handleBack}
-                variant="outline"
-                className="flex-1"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" /> 
-                {selectedCategory === 'body' ? (isOnboarding ? 'Back' : 'Back to Choice') : selectedCategory === 'mind' ? 'Body' : 'Mind'}
+            <div className="flex gap-3 pt-2">
+              <Button onClick={handleBack} variant="outline" className="flex-1">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                {selectedCategory === 'body'
+                  ? isOnboarding
+                    ? 'Back'
+                    : 'Back to choice'
+                  : selectedCategory === 'mind'
+                    ? 'Body'
+                    : 'Mind'}
               </Button>
-              <Button
-                onClick={handleNext}
-                className="flex-1"
-              >
-                {selectedCategory === 'body' ? 'Next: Mind' : selectedCategory === 'mind' ? 'Next: Soul' : 'Next: Configure'} 
-                <ArrowRight className="w-4 h-4 ml-2" />
+              <Button onClick={handleNext} className="flex-1">
+                {selectedCategory === 'body'
+                  ? 'Next: Mind'
+                  : selectedCategory === 'mind'
+                    ? 'Next: Soul'
+                    : 'Next: Configure'}
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -852,122 +675,61 @@ function CreatePlanPageContent() {
 
         {/* Step 2: Configure Activities */}
         {step === 'configure' && (
-          <div className="space-y-4">
+          <div className="configure-step space-y-4">
             {selectedActivities.map((activity) => {
               const isMandatory = mandatoryActivity && activity.activityId === mandatoryActivity._id;
-              
+
               return (
-                <Card key={activity.activityId} className={`${isMandatory ? 'border-green-300 bg-green-50' : 'border-blue-100 bg-linear-to-br from-blue-50 to-indigo-50'}`}>
-                  <CardContent className="p-5">
-                    {/* Header Section */}
-                    <div className="flex items-start gap-4 mb-4 pb-4 border-b border-gray-200">
-                      <div className="text-4xl">{activity.icon}</div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-gray-900 text-lg">{activity.name}</h3>
-                          {isMandatory && (
-                            <span className="text-xs font-bold text-green-700 bg-green-200 px-2 py-0.5 rounded-full">
-                              MANDATORY
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600">Unit: {activity.baseUnit}</p>
-                      </div>
-                    </div>
-
-                    {/* Details Section - Read-only Display */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Cadence Display */}
-                      <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Calendar className="w-4 h-4 text-blue-600" />
-                          <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                            Cadence
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl font-bold text-gray-900">
-                            {activity.cadence.charAt(0).toUpperCase() + activity.cadence.slice(1)}
-                          </span>
-                         
-                        </div>
-                      </div>
-
-                      {/* Target Value Display */}
-                      <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                            Target Value
-                          </span>
-                        </div>
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-2xl font-bold text-gray-900">
-                            {activity.targetValue}
-                          </span>
-                          <span className="text-sm font-medium text-gray-600">
-                            {activity.baseUnit}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    
-                  </CardContent>
-                </Card>
+                <ConfigureActivityCard
+                  key={activity.activityId}
+                  icon={activity.icon}
+                  name={activity.name}
+                  unit={activity.baseUnit}
+                  cadence={activity.cadence}
+                  targetValue={activity.targetValue}
+                  mandatory={Boolean(isMandatory)}
+                />
               );
             })}
 
-            {/* Weight Input */}
-            <Card className="bg-linear-to-r from-green-50 to-blue-50 border-2 border-green-200">
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">⚖️</span>
-                    <h3 className="font-semibold text-gray-900">Your Weight</h3>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    Please enter your current weight to help us personalize your plan
-                  </p>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Weight (kg)
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="1"
-                      max="500"
-                      value={weight || ''}
-                      onChange={(e) => {
-                        const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                        setWeight(value);
-                      }}
-                      placeholder="Enter your weight in kg"
-                      className="w-full"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Range: 1 - 500 kg
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="section-card p-4">
+              <p className="text-sm font-semibold text-foreground">Your weight</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Used to personalize your weekly plan.
+              </p>
+              <label className="mt-3 block text-xs font-medium text-muted-foreground">Weight (kg)</label>
+              <Input
+                type="number"
+                step="0.1"
+                min="1"
+                max="500"
+                value={weight || ''}
+                onChange={(e) => {
+                  const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                  setWeight(value);
+                }}
+                placeholder="e.g. 70"
+                className="target-input mt-1.5 w-full max-w-xs"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">Range: 1 – 500 kg</p>
+            </div>
 
-            <div className="flex gap-3 pt-4">
-              <Button
-                onClick={handleBack}
-                variant="outline"
-                className="flex-1"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" /> Back
+            <div className="flex gap-3 pt-2">
+              <Button onClick={handleBack} variant="outline" className="flex-1">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button
                 onClick={handleSubmit}
                 disabled={loading || !weight || weight <= 0}
-                className="flex-1"
+                className="create-button flex-1"
               >
-                {loading ? (isOnboarding ? 'Saving Plan...' : 'Creating Plan...') : (isOnboarding ? 'Save & Continue' : 'Create Weekly Plan')}
+                {loading
+                  ? isOnboarding
+                    ? 'Saving plan…'
+                    : 'Creating plan…'
+                  : isOnboarding
+                    ? 'Save & continue'
+                    : 'Create weekly plan'}
               </Button>
             </div>
           </div>
@@ -977,110 +739,71 @@ function CreatePlanPageContent() {
       {/* Weight Input Overlay for Repeat Last Week */}
       {showWeightOverlay && (
         <div
-          className="fixed inset-0 backdrop-blur-2xl bg-opacity-50 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4"
           onClick={() => setShowWeightOverlay(false)}
         >
-          <Card
-            className="w-full max-w-md"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <CardContent className="p-6">
-              <div className="mb-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-3xl">⚖️</span>
-                  <h3 className="text-xl font-bold text-gray-900">
-                    Enter Your Weight
-                  </h3>
-                </div>
-                <p className="text-sm text-gray-600">
-                  Please update your current weight to personalize your weekly plan
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Weight (kg)
-                  </label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    min="1"
-                    max="500"
-                    value={weight || ''}
-                    onChange={(e) => {
-                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                      setWeight(value);
-                    }}
-                    placeholder="Enter your weight in kg"
-                    className="w-full"
-                    autoFocus
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Range: 1 - 500 kg
-                  </p>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    onClick={() => setShowWeightOverlay(false)}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={confirmRepeatWithWeight}
-                    disabled={repeatLoading || !weight || weight <= 0}
-                    className="flex-1"
-                  >
-                    {repeatLoading ? 'Processing...' : 'Confirm & Repeat'}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="app-card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-foreground">Enter your weight</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Update your weight to personalize the repeated plan.
+            </p>
+            <label className="mt-4 block text-xs font-medium text-muted-foreground">Weight (kg)</label>
+            <Input
+              type="number"
+              step="0.1"
+              min="1"
+              max="500"
+              value={weight || ''}
+              onChange={(e) => {
+                const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                setWeight(value);
+              }}
+              placeholder="e.g. 70"
+              className="mt-1.5 w-full"
+              autoFocus
+            />
+            <div className="mt-4 flex gap-3">
+              <Button onClick={() => setShowWeightOverlay(false)} variant="outline" className="flex-1">
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmRepeatWithWeight}
+                disabled={repeatLoading || !weight || weight <= 0}
+                className="flex-1"
+              >
+                {repeatLoading ? 'Processing…' : 'Confirm & repeat'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Target Selection Overlay */}
       {targetOverlayActivity && (
         <div
-          className="fixed inset-0 backdrop-blur-2xl  bg-opacity-50 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4"
           onClick={() => {
-            // Prevent closing if it's the mandatory activity
             const isMandatory = mandatoryActivity && targetOverlayActivity._id === mandatoryActivity._id;
-            if (!isMandatory) {
-              setTargetOverlayActivity(null);
-            }
+            if (!isMandatory) setTargetOverlayActivity(null);
           }}
         >
-          <Card
-            className="w-full max-w-md"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <CardContent className="p-6">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="text-4xl">{targetOverlayActivity.icon}</div>
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-gray-900 mb-1">
-                    {targetOverlayActivity.name}
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Set your target for this activity
-                  </p>
-                </div>
+          <div className="app-card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-start gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-xl">
+                {targetOverlayActivity.icon}
+              </span>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">{targetOverlayActivity.name}</h3>
+                <p className="text-sm text-muted-foreground">Set your target for this activity</p>
               </div>
-
-              <TargetSelectionForm
-                activity={targetOverlayActivity}
-                tiers={tiers}
-                isMandatory={mandatoryActivity?._id === targetOverlayActivity._id}
-                onConfirm={confirmActivitySelection}
-                onCancel={() => setTargetOverlayActivity(null)}
-              />
-            </CardContent>
-          </Card>
+            </div>
+            <TargetSelectionForm
+              activity={targetOverlayActivity}
+              tiers={tiers}
+              isMandatory={mandatoryActivity?._id === targetOverlayActivity._id}
+              onConfirm={confirmActivitySelection}
+              onCancel={() => setTargetOverlayActivity(null)}
+            />
+          </div>
         </div>
       )}
     </MainLayout>
@@ -1124,45 +847,29 @@ function TargetSelectionForm({
     <div className="space-y-4">
       {/* Mandatory Activity Notice */}
       {isMandatory && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-          <p className="text-sm font-semibold text-green-900 mb-1">
-            ⚠️ Mandatory Activity
-          </p>
-          <p className="text-xs text-green-700">
-            This activity is required. Please configure your target to continue.
-          </p>
+        <div className="rounded-xl border border-success/30 bg-success-soft/40 p-3">
+          <p className="text-sm font-semibold text-foreground">Required activity</p>
+          <p className="text-xs text-muted-foreground">Configure a target to continue.</p>
         </div>
       )}
 
-      {/* Cadence Selection */}
       {activity.allowedCadence.length > 1 ? (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Cadence
-          </label>
-          <CadenceSlider
-            value={cadence}
-            onChange={(value) => setCadence(value)}
-            disabled={false}
-          />
+          <label className="mb-2 block text-xs font-medium text-muted-foreground">Cadence</label>
+          <CadenceSlider value={cadence} onChange={(value) => setCadence(value)} disabled={false} />
         </div>
       ) : (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Cadence
-          </label>
-          <div className="w-full px-4 py-3 bg-linear-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
-            <span className="text-sm font-semibold text-blue-900">
-              {cadence.charAt(0).toUpperCase() + cadence.slice(1)}
-            </span>
+          <label className="mb-2 block text-xs font-medium text-muted-foreground">Cadence</label>
+          <div className="rounded-xl border border-border bg-secondary px-4 py-3">
+            <span className="text-sm font-semibold capitalize text-foreground">{cadence}</span>
           </div>
         </div>
       )}
 
-      {/* Target Value */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Target Value ({activity.baseUnit})
+        <label className="mb-2 block text-xs font-medium text-muted-foreground">
+          Target ({activity.baseUnit})
         </label>
         <Input
           type="number"
@@ -1185,8 +892,8 @@ function TargetSelectionForm({
           placeholder={`Enter target in ${activity.baseUnit}`}
           className="w-full"
         />
-        <p className="text-xs text-gray-500 mt-1">
-          Range: {minVal} - {effectiveMaxVal} {activity.baseUnit}
+        <p className="mt-1 text-xs text-muted-foreground">
+          Range: {minVal} – {effectiveMaxVal} {activity.baseUnit}
         </p>
       </div>
 

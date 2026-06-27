@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { ReminderScheduleInput } from "@/lib/utils/reminderSchedule";
+import { getTokenExpiryMs } from "@/lib/auth/jwt";
 interface lifestyle {
   health: string;
   family: string;
@@ -95,8 +96,18 @@ export const setCookie = (name: string, value: string, days: number = 7) => {
   
   const expires = new Date();
   expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
-  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax${window.location.protocol === 'https:' ? ';Secure' : ''}`;
 };
+
+function setAccessTokenCookie(token: string) {
+  const expiryMs = getTokenExpiryMs(token);
+  if (expiryMs) {
+    const maxAgeSeconds = Math.max(Math.floor((expiryMs - Date.now()) / 1000), 60);
+    document.cookie = `accessToken=${token};max-age=${maxAgeSeconds};path=/;SameSite=Lax${window.location.protocol === 'https:' ? ';Secure' : ''}`;
+    return;
+  }
+  setCookie('accessToken', token, 1);
+}
 
 // Helper function to delete cookie
 const deleteCookie = (name: string) => {
@@ -133,7 +144,7 @@ export const useAuthStore = create<AuthState>()(
       setProfiles: (profiles) => set({ profiles }),
       setAccessToken: (token) => {
         if (token) {
-          setCookie("accessToken", token, 7);
+          setAccessTokenCookie(token);
         } else {
           deleteCookie("accessToken");
         }

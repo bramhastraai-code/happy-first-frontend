@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { cn } from '@/lib/utils';
 
 interface CustomNumericInputProps {
   value: number;
@@ -12,6 +13,8 @@ interface CustomNumericInputProps {
   pointsPerUnit?: number;
   disabled?: boolean;
   cadence?: string;
+  compact?: boolean;
+  className?: string;
 }
 
 export default function CustomNumericInput({
@@ -23,7 +26,9 @@ export default function CustomNumericInput({
   unit = '',
   pointsPerUnit = 0,
   disabled = false,
-  cadence = 'daily'
+  cadence = 'daily',
+  compact = false,
+  className,
 }: CustomNumericInputProps) {
   const [displayValue, setDisplayValue] = useState<string>(value > 0 ? value.toString() : '');
   const [isFocused, setIsFocused] = useState(false);
@@ -89,8 +94,20 @@ export default function CustomNumericInput({
   };
 
   return (
-    <div className="flex items-center gap-2 flex-1">
-      <div className={`relative flex-1 group ${disabled ? 'opacity-60' : ''}`}>
+    <div
+      className={cn(
+        'flex items-center gap-2',
+        compact ? 'shrink-0' : 'flex-1',
+        className
+      )}
+    >
+      <div
+        className={cn(
+          'relative group',
+          compact ? 'w-[5.5rem] shrink-0' : 'flex-1',
+          disabled && 'opacity-60'
+        )}
+      >
         <div className="relative">
           <input
             ref={inputRef}
@@ -102,25 +119,42 @@ export default function CustomNumericInput({
             onBlur={handleBlur}
             placeholder={placeholder}
             disabled={disabled}
-            className={`w-full h-11 px-4 pr-20 rounded-xl border-2 transition-all outline-none text-base font-medium ${
+            className={cn(
+              'w-full rounded-lg border transition-all outline-none font-medium text-center',
+              compact ? 'h-9 px-2 pr-7 text-sm' : 'h-11 px-4 pr-20 rounded-xl border-2 text-base',
               disabled
-                ? 'bg-gray-100 border-gray-200 cursor-not-allowed text-gray-500'
+                ? 'cursor-not-allowed border-input bg-secondary text-muted-foreground'
                 : isFocused
-                ? 'bg-white border-blue-500 shadow-md'
-                : 'bg-white border-gray-300 hover:border-gray-400'
-            }`}
+                  ? 'border-primary bg-surface shadow-sm'
+                  : 'border-input bg-surface hover:border-muted-foreground/40'
+            )}
           />
-          
-          {/* Increment/Decrement Buttons */}
+
           {!disabled && (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-0.5">
+            <div
+              className={cn(
+                'absolute top-1/2 flex -translate-y-1/2 flex-col gap-0.5',
+                compact ? 'right-1' : 'right-2'
+              )}
+            >
               <button
                 type="button"
                 onClick={handleIncrement}
                 disabled={value >= max}
-                className="w-8 h-4 flex items-center justify-center rounded bg-blue-50 hover:bg-blue-100 active:bg-blue-200 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+                className={cn(
+                  'flex items-center justify-center rounded bg-primary-soft transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:bg-secondary',
+                  compact ? 'h-3 w-5' : 'h-4 w-8'
+                )}
               >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <svg
+                  width={compact ? 10 : 12}
+                  height={compact ? 10 : 12}
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
                   <polyline points="3,7 6,4 9,7" />
                 </svg>
               </button>
@@ -128,9 +162,20 @@ export default function CustomNumericInput({
                 type="button"
                 onClick={handleDecrement}
                 disabled={value <= min}
-                className="w-8 h-4 flex items-center justify-center rounded bg-blue-50 hover:bg-blue-100 active:bg-blue-200 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+                className={cn(
+                  'flex items-center justify-center rounded bg-primary-soft transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:bg-secondary',
+                  compact ? 'h-3 w-5' : 'h-4 w-8'
+                )}
               >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <svg
+                  width={compact ? 10 : 12}
+                  height={compact ? 10 : 12}
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
                   <polyline points="3,5 6,8 9,5" />
                 </svg>
               </button>
@@ -139,15 +184,19 @@ export default function CustomNumericInput({
         </div>
       </div>
 
-      {/* Points Display */}
-      <div className="text-sm text-gray-600 min-w-24 text-right">
-        <span className="font-semibold">
-          {cadence === 'daily' 
-            ? `${pointsPerUnit.toFixed(2)} pts/Day` 
-            : `${pointsPerUnit.toFixed(2)} pts/${unit}`}
+      <div
+        className={cn(
+          'text-muted-foreground text-right',
+          compact ? 'min-w-0 text-[11px] leading-tight' : 'min-w-24 text-sm'
+        )}
+      >
+        <span className="font-semibold text-foreground">
+          {cadence === 'daily'
+            ? `${pointsPerUnit.toFixed(compact ? 1 : 2)} pts`
+            : `${pointsPerUnit.toFixed(compact ? 1 : 2)} pts/${unit}`}
         </span>
-        {cadence === 'weekly' && (
-          <span className="block text-xs text-gray-500">(weekly)</span>
+        {!compact && cadence === 'weekly' && (
+          <span className="block text-xs text-muted-foreground">(weekly)</span>
         )}
       </div>
     </div>

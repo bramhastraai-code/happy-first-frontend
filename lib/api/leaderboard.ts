@@ -26,17 +26,4 @@ export const leaderboardAPI = {
       data: LeaderboardEntry;
     }>("/leaderboard/get", { params });
   },
-
-  getAllTime: (activity: string, date?: string) => {
-    const params: { activity?: string; date?: string; logType?: string } = {};
-    if (activity != null) params.activity = activity;
-    params.date = date || new Date().toISOString().split("T")[0];
-    params.logType = "daily";
-
-    return api.get<{
-      success: boolean;
-      message: string;
-      data: LeaderboardEntry;
-    }>("/leaderboard/get", { params });
-  },
 };

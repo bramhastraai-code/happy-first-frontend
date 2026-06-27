@@ -1,17 +1,27 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { authAPI } from '@/lib/api/auth';
 import { useAuthStore } from '@/lib/store/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import AuthShell from '@/components/layout/AuthShell';
+import CountryCodeSelect from '@/components/ui/CountryCodeSelect';
+import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
+import { OtpTimerResend } from '@/components/auth/OtpTimerResend';
+import { useOtpCountdown } from '@/lib/hooks/useOtpCountdown';
+import { markOtpSession, DEFAULT_OTP_EXPIRY_MINUTES } from '@/lib/auth/otpSession';
+
+type LoginMethod = 'password' | 'otp' | 'magicLink';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setUser, setAccessToken , setProfiles} = useAuthStore();
+  const { setUser, setAccessToken, setProfiles } = useAuthStore();
 
-  const [loginMethod, setLoginMethod] = useState<'password' | 'otp' | 'magicLink'>('password');
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('password');
   const [otpSent, setOtpSent] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [formData, setFormData] = useState({
@@ -21,8 +31,20 @@ export default function LoginPage() {
     otp: '',
   });
   const [loading, setLoading] = useState(false);
+  const [resendingOtp, setResendingOtp] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  const { secondsLeft, canResend, restartTimer } = useOtpCountdown(
+    formData.phoneNumber,
+    formData.countryCode,
+    loginMethod === 'otp' && otpSent
+  );
+
+  const resetMessages = () => {
+    setError('');
+    setSuccessMessage('');
+  };
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,14 +58,12 @@ export default function LoginPage() {
         password: formData.password,
       });
       const { user, accessToken, profiles } = response.data.data;
-
       setUser(user);
       setProfiles(profiles);
       setAccessToken(accessToken);
-
       router.push('/select-profile');
     } catch (err) {
-      setError((err as any).response?.data?.message || 'Login failed');
+      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -52,21 +72,20 @@ export default function LoginPage() {
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
-    setSuccessMessage('');
+    resetMessages();
 
     try {
-      await authAPI.requestLoginOTP({
+      const response = await authAPI.requestLoginOTP({
         phoneNumber: formData.phoneNumber,
         countryCode: formData.countryCode,
       });
+      const expiresIn = response.data.data?.otpExpiresInSeconds;
+      markOtpSession(formData.phoneNumber, formData.countryCode, expiresIn);
+      restartTimer(expiresIn);
       setOtpSent(true);
-      setError('');
-      setSuccessMessage('OTP sent successfully to your phone!');
+      setSuccessMessage(`OTP sent to your WhatsApp. It is valid for ${DEFAULT_OTP_EXPIRY_MINUTES} minutes.`);
     } catch (err) {
-      setError('');
-      setSuccessMessage('');
-      setError((err as any).response?.data?.message || 'Failed to send OTP');
+      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
     }
@@ -83,26 +102,48 @@ export default function LoginPage() {
         countryCode: formData.countryCode,
         otp: formData.otp,
       });
-      const { user,profiles, accessToken } = response.data.data;
-
+      const { user, profiles, accessToken } = response.data.data;
       setUser(user);
       setProfiles(profiles);
       setAccessToken(accessToken);
-
       router.push('/select-profile');
     } catch (err) {
       setSuccessMessage('');
-      setError((err as any).response?.data?.message || 'Invalid OTP');
+      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Invalid OTP');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendLoginOtp = async () => {
+    if (!canResend || resendingOtp) return;
+
+    setResendingOtp(true);
+    resetMessages();
+
+    try {
+      const response = await authAPI.requestLoginOTP({
+        phoneNumber: formData.phoneNumber,
+        countryCode: formData.countryCode,
+      });
+      const expiresIn = response.data.data?.otpExpiresInSeconds;
+      restartTimer(expiresIn);
+      setFormData({ ...formData, otp: '' });
+      setSuccessMessage('A new OTP has been sent on WhatsApp.');
+    } catch (err) {
+      setError(
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          'Failed to resend OTP'
+      );
+    } finally {
+      setResendingOtp(false);
     }
   };
 
   const handleRequestMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
-    setSuccessMessage('');
+    resetMessages();
 
     try {
       const response = await authAPI.requestMagicLink({
@@ -110,233 +151,204 @@ export default function LoginPage() {
         countryCode: formData.countryCode,
       });
       setMagicLinkSent(true);
-      
-      // If in development/testing, the API might return the magic link
       const magicLink = response.data.data?.magicLink;
-      if (magicLink) {
-        setSuccessMessage(`Magic link sent! For testing: ${magicLink}`);
-      } else {
-        setSuccessMessage('Magic link sent to your phone! Check your messages.');
-      }
+      setSuccessMessage(
+        magicLink
+          ? `Magic link sent. For testing: ${magicLink}`
+          : 'Magic link sent to your phone.'
+      );
     } catch (err) {
-      setError((err as any).response?.data?.message || 'Failed to send magic link');
+      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to send magic link');
     } finally {
       setLoading(false);
     }
   };
 
+  const methods: { id: LoginMethod; label: string }[] = [
+    { id: 'password', label: 'Password' },
+    { id: 'otp', label: 'OTP' },
+  ];
+
+  const phoneLocked = (otpSent && loginMethod === 'otp') || (magicLinkSent && loginMethod === 'magicLink');
+
+  const submitLabel =
+    loginMethod === 'password'
+      ? 'Sign in'
+      : loginMethod === 'otp'
+      ? otpSent
+        ? 'Verify OTP'
+        : 'Send OTP'
+      : magicLinkSent
+      ? 'Magic link sent'
+      : 'Send magic link';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back!</h1>
-          <h2 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Happy First Club
-          </h2>
-        </div>
-
-        {/* Login Method Toggle */}
-        <div className="flex gap-2 mb-6">
+    <AuthShell
+      title="Welcome back"
+      subtitle="Sign in to continue your wellness streak."
+      footer={
+        <>
+          Don&apos;t have an account?{' '}
+          <Link href="/register" className="font-semibold text-primary hover:underline">
+            Create one
+          </Link>
+        </>
+      }
+    >
+      <div className="mb-6 flex rounded-full bg-secondary p-1">
+        {methods.map((method) => (
           <button
+            key={method.id}
             type="button"
             onClick={() => {
-              setLoginMethod('password');
+              setLoginMethod(method.id);
               setOtpSent(false);
               setMagicLinkSent(false);
-              setError('');
-              setSuccessMessage('');
+              resetMessages();
             }}
-            className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-              loginMethod === 'password'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className={cn(
+              'flex-1 rounded-full py-2.5 text-sm font-semibold transition-all',
+              loginMethod === method.id
+                ? 'bg-surface text-primary shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
           >
-            Password
+            {method.label}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setLoginMethod('otp');
-              setMagicLinkSent(false);
-              setError('');
-              setSuccessMessage('');
-            }}
-            className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-              loginMethod === 'otp'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            OTP
-          </button>
-          {/* <button
-            type="button"
-            onClick={() => {
-              setLoginMethod('magicLink');
-              setOtpSent(false);
-              setError('');
-              setSuccessMessage('');
-            }}
-            className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-              loginMethod === 'magicLink'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            Magic Link
-          </button> */}
+        ))}
+      </div>
+
+      <form
+        onSubmit={
+          loginMethod === 'password'
+            ? handlePasswordLogin
+            : loginMethod === 'otp'
+            ? otpSent
+              ? handleVerifyOTP
+              : handleRequestOTP
+            : handleRequestMagicLink
+        }
+        className="space-y-4"
+      >
+        <div>
+          <label htmlFor="countryCode" className="mb-1.5 block text-sm font-medium text-foreground">
+            Country code
+          </label>
+          <CountryCodeSelect
+            id="countryCode"
+            value={formData.countryCode}
+            onChange={(countryCode) => setFormData({ ...formData, countryCode })}
+            disabled={phoneLocked || loading}
+          />
         </div>
 
-        <form
-          onSubmit={
-            loginMethod === 'password'
-              ? handlePasswordLogin
-              : loginMethod === 'otp'
-              ? otpSent
-                ? handleVerifyOTP
-                : handleRequestOTP
-              : handleRequestMagicLink
-          }
-          className="space-y-4"
-        >
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Country Code
-            </label>
-            <select
-              value={formData.countryCode}
-              onChange={(e) => setFormData({ ...formData, countryCode: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={(otpSent && loginMethod === 'otp') || (magicLinkSent && loginMethod === 'magicLink')}
-            >
-              <option value="+91">+91 (India)</option>
-              <option value="+1">+1 (USA/Canada)</option>
-              <option value="+44">+44 (UK)</option>
-              <option value="+61">+61 (Australia)</option>
-            </select>
-          </div>
+        <div>
+          <label htmlFor="phoneNumber" className="mb-1.5 block text-sm font-medium text-foreground">
+            Phone number
+          </label>
+          <Input
+            id="phoneNumber"
+            type="tel"
+            placeholder="9999999999"
+            maxLength={10}
+            inputMode="numeric"
+            autoComplete="tel"
+            value={formData.phoneNumber}
+            onChange={(e) =>
+              setFormData({ ...formData, phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })
+            }
+            required
+            disabled={phoneLocked || loading}
+          />
+        </div>
 
+        {loginMethod === 'password' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Phone Number
+            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-foreground">
+              Password
             </label>
             <Input
-              type="tel"
-              placeholder="9999999999"
-              maxLength={10}
-              inputMode="numeric"
-              value={formData.phoneNumber}
-              onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+              id="password"
+              type="password"
+              placeholder="Enter your password"
+              autoComplete="current-password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required
-              disabled={(otpSent && loginMethod === 'otp') || (magicLinkSent && loginMethod === 'magicLink')}
+              disabled={loading}
             />
           </div>
+        )}
 
-          {loginMethod === 'password' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <Input
-                type="password"
-                placeholder="Enter your password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
+        {loginMethod === 'otp' && otpSent && (
+          <div>
+            <label htmlFor="otp" className="mb-1.5 block text-sm font-medium text-foreground">
+              One-time password
+            </label>
+            <Input
+              id="otp"
+              type="text"
+              inputMode="numeric"
+              placeholder="6-digit OTP"
+              value={formData.otp}
+              onChange={(e) => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+              maxLength={6}
+              required
+              disabled={loading}
+            />
+            <div className="mt-3">
+              <OtpTimerResend
+                secondsLeft={secondsLeft}
+                canResend={canResend}
+                onResend={handleResendLoginOtp}
+                resending={resendingOtp}
               />
             </div>
-          )}
+          </div>
+        )}
 
-          {loginMethod === 'otp' && otpSent && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Enter OTP
-              </label>
-              <Input
-                type="text"
-                placeholder="Enter 6-digit OTP"
-                value={formData.otp}
-                onChange={(e) => setFormData({ ...formData, otp: e.target.value })}
-                maxLength={6}
-                required
-              />
-            </div>
-          )}
+        {successMessage && (
+          <div className="rounded-2xl bg-success-soft px-4 py-3 text-sm font-medium text-success">
+            {successMessage}
+          </div>
+        )}
 
-          {successMessage && (
-            <div className="bg-green-50 text-green-600 p-3 rounded-lg text-sm">
-              {successMessage}
-            </div>
-          )}
+        {error && (
+          <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-destructive">
+            {error}
+          </div>
+        )}
 
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">
-              {error}
-            </div>
+        <Button
+          type="submit"
+          disabled={loading || (magicLinkSent && loginMethod === 'magicLink')}
+          className="mt-2 w-full"
+          size="lg"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Please wait…
+            </>
+          ) : (
+            submitLabel
           )}
+        </Button>
 
-          <Button
-            type="submit"
-            disabled={loading || (magicLinkSent && loginMethod === 'magicLink')}
-            className="w-full bg-blue-600 hover:bg-blue-700"
+        {loginMethod === 'otp' && otpSent && (
+          <button
+            type="button"
+            onClick={() => {
+              setOtpSent(false);
+              setFormData({ ...formData, otp: '' });
+              resetMessages();
+            }}
+            className="w-full pt-1 text-sm font-medium text-primary hover:underline"
           >
-            {loading
-              ? loginMethod === 'password'
-                ? 'Logging in...'
-                : loginMethod === 'otp'
-                ? otpSent
-                  ? 'Verifying OTP...'
-                  : 'Sending OTP...'
-                : 'Sending Magic Link...'
-              : loginMethod === 'password'
-              ? 'Login with Password'
-              : loginMethod === 'otp'
-              ? otpSent
-                ? 'Verify OTP'
-                : 'Send OTP'
-              : magicLinkSent
-              ? 'Magic Link Sent'
-              : 'Send Magic Link'}
-          </Button>
-
-          {loginMethod === 'otp' && otpSent && (
-            <button
-              type="button"
-              onClick={() => {
-                setOtpSent(false);
-                setFormData({ ...formData, otp: '' });
-                setError('');
-                setSuccessMessage('');
-              }}
-              className="w-full text-sm text-blue-600 hover:underline"
-            >
-              Change phone number
-            </button>
-          )}
-
-          {loginMethod === 'magicLink' && magicLinkSent && (
-            <button
-              type="button"
-              onClick={() => {
-                setMagicLinkSent(false);
-                setError('');
-                setSuccessMessage('');
-              }}
-              className="w-full text-sm text-blue-600 hover:underline"
-            >
-              Send to different number
-            </button>
-          )}
-        </form>
-
-        <div className="mt-6 text-center text-sm text-gray-600">
-          Don&apos;t have an account?{' '}
-          <a href="/register" className="text-blue-600 hover:underline font-medium">
-            Register
-          </a>
-        </div>
-      </div>
-    </div>
+            Use a different number
+          </button>
+        )}
+      </form>
+    </AuthShell>
   );
 }

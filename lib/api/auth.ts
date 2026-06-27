@@ -112,7 +112,11 @@ export const authAPI = {
   
   login: (data: LoginData) => api.post('/userAuth/login', data),
   
-  requestLoginOTP: (data: RequestLoginOTPData) => api.post('/userAuth/req-login-otp', data),
+  requestLoginOTP: (data: RequestLoginOTPData) =>
+    api.post<{ data?: { otpExpiresInSeconds?: number } }>('/userAuth/req-login-otp', data),
+
+  resendRegistrationOTP: (data: RequestLoginOTPData) =>
+    api.post<{ data?: { otpExpiresInSeconds?: number } }>('/userAuth/resend-otp', data),
   
   verifyLoginOTP: (data: VerifyLoginOTPData) => api.post('/userAuth/login-otp-verify', data),
   

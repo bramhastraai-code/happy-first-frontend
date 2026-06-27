@@ -17,7 +17,7 @@ export default function WelcomeBanner({ userName, onClose }: WelcomeBannerProps)
       title: '🎉 Welcome to Your Wellness Journey!',
       description: `Hi ${userName}! Your personalized weekly plan will started. Let's give you a quick tour!`,
       icon: Sparkles,
-      color: 'from-blue-500 to-purple-500',
+      color: 'from-primary to-orange-400',
     },
     {
       title: '⚡ Point System',

@@ -1,53 +1,89 @@
 'use client';
 
 import MainLayout from '@/components/layout/MainLayout';
-import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
-import { Share2, Copy, Mail, MessageCircle } from 'lucide-react';
-import {authAPI} from '@/lib/api/auth';
+import { Copy, Mail, MessageCircle, Share2, Check, Link2 } from 'lucide-react';
+import { authAPI } from '@/lib/api/auth';
 import { useEffect, useState } from 'react';
-import {UpdateProfileData} from '@/lib/api/auth';
+import type { UpdateProfileData } from '@/lib/api/auth';
+import { BRAND_NAME, getSiteUrl } from '@/lib/brand';
+import { cn } from '@/lib/utils';
 
+const SHARE_OPTIONS = [
+  { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+  { id: 'mail', label: 'Email', icon: Mail },
+  { id: 'facebook', label: 'Facebook', icon: Share2 },
+  { id: 'copy', label: 'Copy', icon: Copy },
+] as const;
+
+const STEPS = [
+  {
+    title: 'Share your link',
+    detail: 'Send your code or link to someone who wants to join.',
+  },
+  {
+    title: 'They register',
+    detail: 'They sign up on Happy First Club using your referral link.',
+  },
+  {
+    title: 'You earn points',
+    detail: 'Bonus Happy Points are added when they get started.',
+  },
+];
 
 export default function ReferralPage() {
   const [referralCode, setReferralCode] = useState('');
-  const [referralStats, setReferralStats] = useState<{totalReferrals: number; referredUsers:UpdateProfileData[] ; HappyPoints: number}>({totalReferrals: 0, referredUsers: [], HappyPoints: 0});
+  const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [referralStats, setReferralStats] = useState<{
+    totalReferrals: number;
+    referredUsers: UpdateProfileData[];
+    HappyPoints: number;
+  }>({ totalReferrals: 0, referredUsers: [], HappyPoints: 0 });
+
   useEffect(() => {
-    authAPI.userInfo().then((response) => {
-      setReferralCode(response.data.data.referralCode);
-    }).catch((error) => {
-      console.error('Error fetching user info:', error);
-    });
-    authAPI.referralStats().then((response)=>{
-      setReferralStats(response.data.data);
-    }).catch((error)=>{
-      console.error('Error fetching referral stats:', error);
-    }
-    );
+    Promise.all([authAPI.userInfo(), authAPI.referralStats()])
+      .then(([userRes, statsRes]) => {
+        setReferralCode(userRes.data.data.referralCode ?? '');
+        setReferralStats(statsRes.data.data);
+      })
+      .catch((error) => {
+        console.error('Error fetching referral data:', error);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
+  const referralLink = referralCode ? `${getSiteUrl()}/register?ref=${referralCode}` : '';
 
-  const referralLink = `https://happyfirst.vercel.app/register?ref=${referralCode}`;
-  
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(referralLink);
-    alert('Referral link copied to clipboard!');
+  const handleCopyLink = async () => {
+    if (!referralLink) return;
+    await navigator.clipboard.writeText(referralLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleShare = (platform: string) => {
+    if (!referralLink) return;
+
     const text = encodeURIComponent(
-      `Join me on Happy First Club - building wellness habits together! ${referralLink}`
+      `Join me on Happy First Club — building wellness habits together! ${referralLink}`
     );
-    
+
     switch (platform) {
       case 'whatsapp':
         window.open(`https://wa.me/?text=${text}`);
         break;
       case 'facebook':
-        window.open(`https://www.facebook.com/sharer/sharer.php?u=${referralLink}`);
+        window.open(
+          `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`
+        );
         break;
       case 'mail':
         window.open(`mailto:?subject=Join Happy First Club&body=${text}`);
+        break;
+      case 'copy':
+        handleCopyLink();
         break;
       default:
         break;
@@ -56,129 +92,140 @@ export default function ReferralPage() {
 
   return (
     <MainLayout>
-      <div className="min-h-screen bg-gradient-to-b from-blue-100 to-white p-4">
-        {/* Header Illustration */}
-        <div className="text-center py-8">
-          <div className="w-32 h-32 mx-auto bg-gradient-to-br from-blue-400 to-purple-400 rounded-full flex items-center justify-center mb-4">
-            <div className="text-6xl">💪</div>
+      <PageHeader
+        title="Refer friends"
+        subtitle="Share your link and track referral points"
+      />
+
+      <div className="space-y-4">
+        <div className="section-card p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">Your referral code</h2>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Referral</h1>
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
-            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-            <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-            <span className="w-2 h-2 bg-pink-500 rounded-full"></span>
+
+          <p className="font-mono text-2xl font-bold tracking-wide text-foreground">
+            {loading ? '…' : referralCode || '—'}
+          </p>
+
+          <div className="mt-3 rounded-xl border border-border bg-secondary px-3 py-2.5">
+            <p className="break-all text-xs text-muted-foreground">
+              {loading ? 'Loading link…' : referralLink || 'Link unavailable'}
+            </p>
           </div>
+
+          <Button onClick={handleCopyLink} disabled={!referralLink} className="mt-3 w-full">
+            {copied ? (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="mr-2 h-4 w-4" />
+                Copy link
+              </>
+            )}
+          </Button>
         </div>
 
-        {/* Share Options */}
-        <div className="max-w-md mx-auto space-y-4 mb-6">
-          <div className="grid grid-cols-4 gap-4">
-            <button
-              onClick={() => handleShare('facebook')}
-              className="flex flex-col items-center gap-2"
-            >
-              <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
-                <Share2 className="w-8 h-8 text-white" />
-              </div>
-              <span className="text-xs text-gray-700">Facebook</span>
-            </button>
-            
-            <button
-              onClick={() => handleShare('whatsapp')}
-              className="flex flex-col items-center gap-2"
-            >
-              <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center">
-                <MessageCircle className="w-8 h-8 text-white" />
-              </div>
-              <span className="text-xs text-gray-700">WhatsApp</span>
-            </button>
-            
-            <button
-              onClick={() => handleShare('mail')}
-              className="flex flex-col items-center gap-2"
-            >
-              <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center">
-                <Mail className="w-8 h-8 text-white" />
-              </div>
-              <span className="text-xs text-gray-700">Mail</span>
-            </button>
-            
-            <button className="flex flex-col items-center gap-2">
-              <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center">
-                <span className="text-3xl">🔗</span>
-              </div>
-              <span className="text-xs text-gray-700">Link</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Referral Link Card */}
-        <Card className="max-w-md mx-auto mb-6">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Copy className="w-5 h-5 text-blue-600" />
-              <h3 className="font-semibold text-gray-900">
-                Invite your friends to join our community using the link below.
-              </h3>
+        <div className="app-card p-4">
+          <div className="grid grid-cols-2 divide-x divide-border">
+            <div className="pr-4">
+              <p className="text-xs font-medium text-muted-foreground">Referrals</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                {loading ? '—' : referralStats.totalReferrals}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Friends joined</p>
             </div>
-            <div className="bg-gray-50 rounded-lg p-3 mb-3">
-              <p className="text-sm text-gray-700 break-all">{referralLink}</p>
+            <div className="pl-4">
+              <p className="text-xs font-medium text-muted-foreground">Happy Points</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                {loading ? '—' : referralStats.HappyPoints.toLocaleString()}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">From referrals</p>
             </div>
-            <Button onClick={handleCopyLink} className="w-full bg-blue-600 hover:bg-blue-700">
-              <Copy className="w-4 h-4 mr-2" />
-              Copy Link
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Benefits List */}
-        <div className="max-w-md mx-auto space-y-3 mb-6">
-          <Card className="border-l-4 border-blue-500">
-            <CardContent className="p-4 flex items-start gap-3">
-              <span className="text-2xl">🎁</span>
-              <div>
-                <p className="font-medium text-gray-900 text-sm">
-                  Share it with your Friends / Family members
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-green-500">
-            <CardContent className="p-4 flex items-start gap-3">
-              <span className="text-2xl">🚀</span>
-              <div>
-                <p className="font-medium text-gray-900 text-sm">
-                  Reach New Levels to earn reward when they join through your link
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          </div>
         </div>
 
-        {/* Stats */}
-        <div className="max-w-md mx-auto">
-          <Card className="bg-gradient-to-br from-purple-50 to-blue-50">
-            <CardContent className="p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">Your Impact</h3>
-              <div className="grid grid-cols-2 gap-4 text-center">
+        <section aria-label="Share options">
+          <h2 className="section-title mb-3">Share via</h2>
+          <div className="section-card grid grid-cols-2 divide-y divide-border sm:grid-cols-4 sm:divide-y-0">
+            {SHARE_OPTIONS.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => handleShare(id)}
+                disabled={!referralLink}
+                className={cn(
+                  'flex flex-col items-center gap-1.5 px--2 py-3.5 text-center sm:px-2',
+                  'border-border sm:border-l sm:first:border-l-0',
+                  'disabled:cursor-not-allowed disabled:opacity-50'
+                )}
+              >
+                <Icon className="h-5 w-5 text-foreground" />
+                <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section aria-label="How referrals work">
+          <h2 className="section-title mb-3">How it works</h2>
+          <ol className="section-card divide-y divide-border">
+            {STEPS.map((step, index) => (
+              <li key={step.title} className="flex gap-3 p-4">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold text-foreground">
+                  {index + 1}
+                </span>
                 <div>
-                  <p className="text-2xl font-bold text-purple-600">{referralStats?.totalReferrals}  </p>
-                  <p className="text-xs text-gray-600">Referrals</p>
+                  <p className="text-sm font-semibold text-foreground">{step.title}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">{step.detail}</p>
                 </div>
-                {/* <div>
-                  <p className="text-2xl font-bold text-blue-600">8</p>
-                  <p className="text-xs text-gray-600">Active</p>
-                </div> */}
-                <div>
-                  <p className="text-2xl font-bold text-green-600">{referralStats?.HappyPoints}</p>
-                  <p className="text-xs text-gray-600">Happy Points</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {!loading && referralStats.referredUsers.length > 0 && (
+          <section aria-label="Referred friends">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="section-title">Referred friends</h2>
+              <span className="text-xs text-muted-foreground">
+                {referralStats.referredUsers.length} total
+              </span>
+            </div>
+            <ul className="section-card divide-y divide-border">
+              {referralStats.referredUsers.map((user, index) => (
+                <li
+                  key={`${user.email ?? user.name ?? 'user'}-${index}`}
+                  className="flex items-center gap-3 px-4 py-3.5"
+                >
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                    {(user.name?.[0] ?? user.email?.[0] ?? '?').toUpperCase()}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {user.name ?? 'New member'}
+                    </p>
+                    {user.email && (
+                      <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {!loading && referralStats.totalReferrals === 0 && (
+          <div className="rounded-2xl border border-dashed border-border px-4 py-6 text-center">
+            <p className="text-sm font-medium text-foreground">No referrals yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Share your link to start earning referral points.
+            </p>
+          </div>
+        )}
       </div>
     </MainLayout>
   );

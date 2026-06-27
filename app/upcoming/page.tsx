@@ -1,16 +1,132 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { DateTime } from 'luxon';
+import {
+  ArrowRight,
+  CalendarDays,
+  Gift,
+  ListChecks,
+  Target,
+  TrendingUp,
+} from 'lucide-react';
 import { useAuthStore } from '@/lib/store/authStore';
-import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
+import { weeklyPlanAPI, type WeeklyPlan, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
+import { activityAPI, type Activity } from '@/lib/api/activity';
 import MainLayout from '@/components/layout/MainLayout';
-import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
-import { Calendar, ArrowLeft, TrendingUp, Target, Clock } from 'lucide-react';
-import type { WeeklyPlan } from '@/lib/api/weeklyPlan';
-import { activityAPI ,Activity} from '@/lib/api/activity';
+import LoadingScreen from '@/components/ui/LoadingScreen';
+import { resolveActivityIcon } from '@/lib/utils/activityIcon';
+import { cn } from '@/lib/utils';
 
+type ActivityFilter = 'all' | 'daily' | 'weekly';
+
+function formatWeekRange(weekStart: string, weekEnd: string) {
+  const start = DateTime.fromISO(weekStart);
+  const end = DateTime.fromISO(weekEnd);
+  return `${start.toFormat('MMM d')} – ${end.toFormat('MMM d, yyyy')}`;
+}
+
+function daysUntilStart(weekStart: string) {
+  const start = DateTime.fromISO(weekStart).startOf('day');
+  const today = DateTime.local().startOf('day');
+  return Math.max(0, Math.ceil(start.diff(today, 'days').days));
+}
+
+function getTotalPotentialPoints(plan: WeeklyPlan) {
+  return plan.activities.reduce((total, activity) => {
+    if (activity.cadence === 'daily') {
+      return total + (activity.pointsPerUnit || 0) * 7;
+    }
+    return total + (activity.pointsPerUnit || 0) * activity.targetValue;
+  }, 0);
+}
+
+function HeroStat({ label, value, accent }: { label: string; value: string | number; accent?: 'primary' | 'success' | 'foreground' }) {
+  const valueClass =
+    accent === 'success' ? 'text-success' : accent === 'primary' ? 'text-primary' : 'text-foreground';
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-surface/80 p-3 text-center backdrop-blur-sm">
+      <p className={cn('text-xl font-bold tabular-nums sm:text-2xl', valueClass)}>{value}</p>
+      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground sm:text-xs">{label}</p>
+    </div>
+  );
+}
+
+function ActivityPlanCard({
+  activity,
+  activities,
+}: {
+  activity: WeeklyPlanActivity;
+  activities: Activity[];
+}) {
+  const activityId = activity.activity;
+  const meta = activities.find((a) => a._id === activityId);
+  const isSurprise = Boolean(activity.isSurpriseActivity);
+  const isDaily = activity.cadence === 'daily';
+  const maxPoints = isDaily
+    ? (activity.pointsPerUnit || 0) * 7
+    : (activity.pointsPerUnit || 0) * activity.targetValue;
+  const icon = resolveActivityIcon(activities, activityId, activity.label || meta?.name);
+
+  return (
+    <article
+      className={cn(
+        'relative rounded-2xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]',
+        isSurprise
+          ? 'border-amber-300/80 bg-gradient-to-br from-amber-50 via-orange-50/80 to-surface shadow-[var(--shadow-card)]'
+          : 'border-border bg-surface shadow-[var(--shadow-card)]'
+      )}
+    >
+      {isSurprise && (
+        <span className="absolute -right-1.5 -top-1.5 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary-foreground shadow-md">
+          <Gift className="h-3 w-3" />
+          Surprise
+        </span>
+      )}
+
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            'inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl',
+            isSurprise ? 'bg-amber-100' : 'bg-primary-soft'
+          )}
+        >
+          {icon}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="font-semibold text-foreground">{activity.label || meta?.name}</h4>
+            <span
+              className={cn(
+                'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                isDaily ? 'bg-success-soft text-success' : 'bg-primary-soft text-primary'
+              )}
+            >
+              {activity.cadence}
+            </span>
+          </div>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {activity.targetValue} {activity.unit}
+            {isDaily ? '/day' : '/week'}
+            <span className="mx-1.5 text-border">·</span>
+            {activity.pointsPerUnit?.toFixed(1)} pts/{isDaily ? 'day' : activity.unit}
+          </p>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <p className="text-lg font-bold tabular-nums text-success sm:text-xl">{maxPoints.toFixed(0)}</p>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">pts max</p>
+        </div>
+      </div>
+    </article>
+  );
+}
 
 export default function UpcomingPage() {
   const router = useRouter();
@@ -19,6 +135,7 @@ export default function UpcomingPage() {
   const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [error, setError] = useState('');
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -40,337 +157,189 @@ export default function UpcomingPage() {
         setError('');
       } catch (err: unknown) {
         console.error('Failed to fetch weekly plan:', err);
-        setError('Failed to load weekly plan. Please try again.');
+        setError('Failed to load upcoming plan. Please try again.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchWeeklyPlan();
+    void fetchWeeklyPlan();
   }, [accessToken, user, router, isHydrated]);
 
-  
+  const dailyActivities = useMemo(
+    () => weeklyPlan?.activities.filter((a) => a.cadence === 'daily') ?? [],
+    [weeklyPlan]
+  );
+  const weeklyActivities = useMemo(
+    () => weeklyPlan?.activities.filter((a) => a.cadence === 'weekly') ?? [],
+    [weeklyPlan]
+  );
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
+  const filteredActivities = useMemo(() => {
+    if (!weeklyPlan) return [];
+    if (activityFilter === 'daily') return dailyActivities;
+    if (activityFilter === 'weekly') return weeklyActivities;
+    return weeklyPlan.activities;
+  }, [weeklyPlan, activityFilter, dailyActivities, weeklyActivities]);
 
-  const getDaysRemaining = (endDate: string) => {
-    const end = new Date(endDate);
-    const now = new Date();
-    const diffTime = end.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
+  const daysLeft = weeklyPlan ? daysUntilStart(weeklyPlan.weekStart) : 0;
+  const maxPoints = weeklyPlan ? getTotalPotentialPoints(weeklyPlan) : 0;
+  const unlockedSets = weeklyPlan?.unloockedSets?.length ?? 0;
 
-  const getTotalPotentialPoints = () => {
-    if (!weeklyPlan) return 0;
-    return weeklyPlan.activities.reduce((total, activity) => {
-      if (activity.cadence === 'daily') {
-        return total + ((activity.pointsPerUnit || 0) * 7);
-      }
-      return total + ((activity.pointsPerUnit || 0) * activity.targetValue);
-    }, 0);
-  };
-
-  if (loading) {
+  if (!isHydrated || loading) {
     return (
       <MainLayout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading plans...</p>
-          </div>
-        </div>
+        <LoadingScreen fullScreen label="Loading upcoming plan…" />
       </MainLayout>
     );
   }
 
   return (
     <MainLayout>
-      <div className="p-4 space-y-4">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-4">
-          <button
-            onClick={() => router.back()}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">Upcoming Plans</h1>
-            <p className="text-sm text-gray-600">Your weekly activity goals</p>
-          </div>
-        </div>
+      <div className="page-container space-y-5 sm:space-y-6">
+        <PageHeader
+          title="Upcoming plan"
+          subtitle="Your goals for next week — review before they go live."
+        />
 
         {error && (
-          <Card className="bg-red-50 border-red-200">
-            <CardContent className="p-4 text-center">
-              <p className="text-sm text-red-700">{error}</p>
-              <Button
-                onClick={() => router.push('/tasks')}
-                className="mt-4 bg-red-600 hover:bg-red-700"
-              >
-                Back to Tasks
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="section-card flex flex-col items-center px-6 py-10 text-center">
+            <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-destructive">
+              <CalendarDays className="h-6 w-6" />
+            </span>
+            <p className="text-sm text-destructive">{error}</p>
+            <Button className="mt-4" onClick={() => window.location.reload()}>
+              Try again
+            </Button>
+          </div>
         )}
 
         {!error && weeklyPlan && (
           <>
-            {/* Plan Overview */}
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h2 className="font-semibold text-blue-900 mb-1">Upcoming Weekly Plan</h2>
-                    <p className="text-sm text-blue-700">
-                      {formatDate(weeklyPlan.weekStart)} - {formatDate(weeklyPlan.weekEnd)}
+            <section className="section-card gradient-orange overflow-hidden">
+              <div className="p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      Next week
+                    </span>
+                    <h2 className="mt-3 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                      {formatWeekRange(weeklyPlan.weekStart, weeklyPlan.weekEnd)}
+                    </h2>
+                    <p className="mt-1.5 text-sm text-muted-foreground">
+                      {daysLeft === 0
+                        ? 'Starts today — get ready!'
+                        : daysLeft === 1
+                          ? 'Starts tomorrow'
+                          : `Starts in ${daysLeft} days`}
                     </p>
                   </div>
-                  <Calendar className="w-6 h-6 text-blue-600" />
-                </div>
-                <div className="grid grid-cols-3 gap-3 mt-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-900">
-                      {getDaysRemaining(weeklyPlan.weekStart)}
-                    </div>
-                    <div className="text-xs text-blue-700">Days Left</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-900">
-                      {weeklyPlan.activities.length}
-                    </div>
-                    <div className="text-xs text-blue-700">Activities</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-900">
-                      {getTotalPotentialPoints().toFixed(0)}
-                    </div>
-                    <div className="text-xs text-blue-700">Max Points</div>
+
+                  <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl border border-primary/20 bg-primary-soft sm:h-[4.5rem] sm:w-[4.5rem]">
+                    <p className="text-2xl font-bold tabular-nums leading-none text-primary sm:text-3xl">{daysLeft}</p>
+                    <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {daysLeft === 1 ? 'day' : 'days'}
+                    </p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* Quick Stats */}
-            <div className="grid grid-cols-3 gap-3">
-              <Card className="bg-white">
-                <CardContent className="p-3 text-center">
-                  <TrendingUp className="w-5 h-5 text-green-600 mx-auto mb-1" />
-                  <div className="text-lg font-bold text-gray-900">
-                    {weeklyPlan.activities.filter(a => a.cadence === 'daily').length}
-                  </div>
-                  <div className="text-xs text-gray-600">Daily Goals</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white">
-                <CardContent className="p-3 text-center">
-                  <Target className="w-5 h-5 text-purple-600 mx-auto mb-1" />
-                  <div className="text-lg font-bold text-gray-900">
-                    {weeklyPlan.activities.filter(a => a.cadence === 'weekly').length}
-                  </div>
-                  <div className="text-xs text-gray-600">Weekly Goals</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white">
-                <CardContent className="p-3 text-center">
-                  <Clock className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-                  <div className="text-lg font-bold text-gray-900">
-                    {weeklyPlan.unloockedSets?.length || 0}
-                  </div>
-                  <div className="text-xs text-gray-600">Sets Unlocked</div>
-                </CardContent>
-              </Card>
-            </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+                  <HeroStat label="Activities" value={weeklyPlan.activities.length} accent="foreground" />
+                  <HeroStat label="Daily goals" value={dailyActivities.length} accent="success" />
+                  <HeroStat label="Weekly goals" value={weeklyActivities.length} accent="primary" />
+                  <HeroStat label="Max points" value={maxPoints.toFixed(0)} accent="success" />
+                </div>
 
-            {/* Activities List */}
-            <div className="space-y-2">
-              <h3 className="font-semibold text-gray-900">📋 All Activities</h3>
-              
-              {/* Daily Activities */}
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <span className="w-1 h-4 bg-green-500 rounded"></span>
-                  Daily Activities
-                </h4>
-                {weeklyPlan.activities
-                  .filter(activity => activity.cadence === 'daily')
-                  .map((activity) => {
-                    const activityData = typeof activity === 'object' ? activity : null;
-                    const activityId = activityData?.activity || '';
-                    const isSurprise = activity?.isSurpriseActivity || false;
-                    
-                    return (
-                      <Card key={activityId} className={`${
-                        isSurprise 
-                          ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-400 shadow-md relative'
-                          : 'bg-white'
-                      } hover:shadow-md transition-shadow`}>
-                        {isSurprise && (
-                          <div className="absolute -top-2 -right-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg flex items-center gap-1 animate-pulse z-10">
-                            🎁 SURPRISE
-                          </div>
-                        )}
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-3 flex-1">
-                              <span className="text-2xl mt-1">
-                                {isSurprise ? '🎁' : activities.find(a => a._id === activityId)?.icon || '✅'}
-                              </span>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h4 className={`font-semibold ${isSurprise ? 'text-orange-900' : 'text-gray-900'}`}>
-                                    {isSurprise && '⭐ '}{activityData?.label}
-                                  </h4>
-                                </div>
-                                <p className={`text-sm mb-2 ${isSurprise ? 'text-orange-700' : 'text-gray-600'}`}>
-                                  Target: <span className={`font-medium ${isSurprise ? 'text-orange-900' : 'text-gray-900'}`}>
-                                    {activity.targetValue} {activityData?.unit}/day
-                                  </span>
-                                  {isSurprise && ' 🎉'}
-                                </p>
-                                <div className={`flex items-center gap-4 text-xs ${isSurprise ? 'text-orange-600' : 'text-gray-500'}`}>
-                                  <span className="flex items-center gap-1">
-                                    <span className={`font-medium ${isSurprise ? 'text-orange-700' : 'text-blue-600'}`}>
-                                      {activity.pointsPerUnit?.toFixed(2)}
-                                    </span>
-                                    pts/day
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    Max: <span className={`font-medium ${isSurprise ? 'text-orange-700' : 'text-green-600'}`}>
-                                      {((activity.pointsPerUnit || 0)  * 7).toFixed(0)}
-                                    </span>
-                                    pts/week
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                {unlockedSets > 0 && (
+                  <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Target className="h-3.5 w-3.5 text-primary" />
+                    {unlockedSets} activity set{unlockedSets === 1 ? '' : 's'} unlocked for this plan
+                  </p>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                    <ListChecks className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h2 className="section-title">Planned activities</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {weeklyPlan.activities.length} goal{weeklyPlan.activities.length === 1 ? '' : 's'} locked in
+                    </p>
+                  </div>
+                </div>
+
+                <ChipTabs
+                  className="sm:pb-0"
+                  tabs={[
+                    { id: 'all', label: `All (${weeklyPlan.activities.length})` },
+                    { id: 'daily', label: `Daily (${dailyActivities.length})` },
+                    { id: 'weekly', label: `Weekly (${weeklyActivities.length})` },
+                  ]}
+                  active={activityFilter}
+                  onChange={(id) => setActivityFilter(id as ActivityFilter)}
+                />
               </div>
 
-              {/* Weekly Activities */}
-              {weeklyPlan.activities.filter(a => a.cadence === 'weekly').length > 0 && (
-                <div className="space-y-2 mt-4">
-                  <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <span className="w-1 h-4 bg-purple-500 rounded"></span>
-                    Weekly Activities
-                  </h4>
-                  {weeklyPlan.activities
-                    .filter(activity => activity.cadence === 'weekly')
-                    .map((activity) => {
-                      const activityData = typeof activity === 'object' ? activity : null;
-                      const activityId = activityData?.activity || '';
-                      const isSurprise = activity?.isSurpriseActivity|| false;
-                      
-                      return (
-                        <Card key={activityId} className={`${
-                          isSurprise 
-                            ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-400 shadow-md relative'
-                            : 'bg-white'
-                        } hover:shadow-md transition-shadow`}>
-                          {isSurprise && (
-                            <div className="absolute -top-2 -right-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg flex items-center gap-1 animate-pulse z-10">
-                              🎁 SURPRISE
-                            </div>
-                          )}
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-start gap-3 flex-1">
-                                <span className="text-2xl mt-1">
-                                  {isSurprise ? '🎁' : activities.find(a => a._id === activityId)?.icon || '✅'}
-                                </span>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <h4 className={`font-semibold ${isSurprise ? 'text-orange-900' : 'text-gray-900'}`}>
-                                      {isSurprise && '⭐ '}{activityData?.label}
-                                    </h4>
-                                  </div>
-                                  <p className={`text-sm mb-2 ${isSurprise ? 'text-orange-700' : 'text-gray-600'}`}>
-                                    Target: <span className={`font-medium ${isSurprise ? 'text-orange-900' : 'text-gray-900'}`}>
-                                      {activity.targetValue} {activityData?.unit}/week
-                                    </span>
-                                    {isSurprise && ' 🎉'}
-                                  </p>
-                                  <div className={`flex items-center gap-4 text-xs ${isSurprise ? 'text-orange-600' : 'text-gray-500'}`}>
-                                    <span className="flex items-center gap-1">
-                                      <span className={`font-medium ${isSurprise ? 'text-orange-700' : 'text-blue-600'}`}>
-                                        {activity.pointsPerUnit?.toFixed(2)}
-                                      </span>
-                                      pts/{activityData?.unit}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      Max: <span className={`font-medium ${isSurprise ? 'text-orange-700' : 'text-green-600'}`}>
-                                        {((activity.pointsPerUnit || 0) * activity.targetValue).toFixed(0)}
-                                      </span>
-                                      pts/week
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
+              {filteredActivities.length > 0 ? (
+                <div className="space-y-2.5">
+                  {filteredActivities.map((activity) => (
+                    <ActivityPlanCard
+                      key={`${activity.activity}-${activity.cadence}`}
+                      activity={activity}
+                      activities={activities}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="section-card px-6 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">No {activityFilter} activities in this plan.</p>
                 </div>
               )}
-            </div>
+            </section>
 
-            {/* Action Buttons */}
-            <div className="space-y-3 pt-2">
-              <Button
-                onClick={() => router.push('/tasks')}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                Start Daily Tasks
-              </Button>
-              <Button
-                onClick={() => router.push('/home')}
-                variant="outline"
-                className="w-full"
-              >
-                Back to Home
-              </Button>
-            </div>
+            <section className="section-card p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-semibold text-foreground">Ready when the week starts</h3>
+                <Button className="shrink-0 gap-2" onClick={() => router.push('/tasks')}>
+                  Go to today&apos;s tasks
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Your plan activates automatically on{' '}
+                {DateTime.fromISO(weeklyPlan.weekStart).toFormat('EEEE, MMM d')}. Until then, keep logging
+                this week&apos;s tasks.
+              </p>
+            </section>
           </>
         )}
 
-        {!error && !weeklyPlan && !loading && (
-          <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="p-6 text-center">
-              <div className="text-4xl mb-2">📅</div>
-              <h3 className="font-semibold text-blue-900 mb-2">No Upcoming Plan Yet</h3>
-              <p className="text-sm text-blue-800 mb-4">
-                You can create a plan for next week on Friday, Saturday, Sunday, or Monday.
-                If you already have a plan for this week, it will show here once you lock in next week&apos;s activities.
-              </p>
-              <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-                <Button
-                  onClick={() => router.push('/create-plan')}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  Create Weekly Plan
-                </Button>
-                <Button
-                  onClick={() => router.push('/tasks')}
-                  variant="outline"
-                >
-                  Back to Tasks
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        {!error && !weeklyPlan && (
+          <div className="section-card gradient-orange flex flex-col items-center px-6 py-12 text-center sm:py-14">
+            <span className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-soft text-primary shadow-sm">
+              <CalendarDays className="h-8 w-8" />
+            </span>
+            <h2 className="text-xl font-bold text-foreground">No upcoming plan yet</h2>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+              Create next week&apos;s plan on Friday through Monday. Once saved, it will appear here so you
+              can preview your goals before they go live.
+            </p>
+            <div className="mt-6 flex w-full max-w-xs flex-col gap-2">
+              <Button className="gap-2" onClick={() => router.push('/create-plan')}>
+                <TrendingUp className="h-4 w-4" />
+                Create weekly plan
+              </Button>
+              <Button variant="outline" onClick={() => router.push('/home')}>
+                Back to home
+              </Button>
+            </div>
+          </div>
         )}
       </div>
     </MainLayout>
