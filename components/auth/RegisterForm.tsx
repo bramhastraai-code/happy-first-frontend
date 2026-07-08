@@ -36,6 +36,8 @@ import {
 } from '@/components/auth/registerValidation';
 import { markOtpSession } from '@/lib/auth/otpSession';
 import { cn } from '@/lib/utils';
+import { AppSelect } from '@/components/ui/AppSelect';
+import { TIMEZONE_OPTIONS } from '@/lib/utils/timezones';
 
 const selectClassName =
   'flex h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
@@ -494,21 +496,19 @@ export default function RegisterForm() {
                   <label htmlFor="timezone" className={labelClassName}>
                     Timezone
                   </label>
-                  <select
+                  <AppSelect
                     id="timezone"
                     value={formData.timezone}
                     onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                    className={selectClassName}
+                    className="h-11"
                     disabled={loading}
                   >
-                    <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                    <option value="Asia/Dubai">Asia/Dubai (GST)</option>
-                    <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-                    <option value="Europe/London">Europe/London (GMT)</option>
-                    <option value="America/New_York">America/New_York (EST)</option>
-                    <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
-                    <option value="Australia/Sydney">Australia/Sydney (AEDT)</option>
-                  </select>
+                    {TIMEZONE_OPTIONS.map((tz) => (
+                      <option key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </option>
+                    ))}
+                  </AppSelect>
                 </div>
               </div>
             </FormSection>

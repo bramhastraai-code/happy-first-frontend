@@ -14,9 +14,9 @@ export type ReminderScheduleInput = Partial<
 >;
 
 export const DEFAULT_REMINDER_SCHEDULE: ReminderSchedule = {
-  morning: { enabled: true, time: '08:00' },
-  afternoon: { enabled: true, time: '14:00' },
-  evening: { enabled: true, time: '18:00' },
+  morning: { enabled: false, time: '08:00' },
+  afternoon: { enabled: false, time: '14:00' },
+  evening: { enabled: false, time: '18:00' },
   night: { enabled: true, time: '21:00' },
   weekly: { enabled: true, time: '07:00', day: 1 },
 };
@@ -25,8 +25,8 @@ export const REMINDER_SLOT_LABELS: Record<ReminderSlot, string> = {
   morning: 'Morning',
   afternoon: 'Afternoon',
   evening: 'Evening',
-  night: 'Night',
-  weekly: 'Weekly (Monday)',
+  night: 'Daily reminder',
+  weekly: 'Weekly summary',
 };
 
 export const WEEKDAY_OPTIONS = [
@@ -46,6 +46,14 @@ export const DAILY_REMINDER_SLOTS: ReminderSlot[] = [
   'night',
 ];
 
+/** Daily slots in UI order — primary daily reminder first. */
+export const DAILY_REMINDER_UI_ORDER: ReminderSlot[] = [
+  'night',
+  'morning',
+  'afternoon',
+  'evening',
+];
+
 export function formatReminderTime12h(time: string): string {
   const [hours, minutes] = time.split(':').map(Number);
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return time;
@@ -54,23 +62,49 @@ export function formatReminderTime12h(time: string): string {
   return `${hour12}:${String(minutes).padStart(2, '0')} ${period}`;
 }
 
-export function getReminderScheduleSummary(schedule: ReminderSchedule): string {
+export function getEnabledReminderCount(schedule: ReminderSchedule): number {
   const dailyCount = DAILY_REMINDER_SLOTS.filter((slot) => schedule[slot].enabled).length;
+  const weeklyCount = schedule.weekly.enabled ? 1 : 0;
+  return dailyCount + weeklyCount;
+}
+
+export function getReminderScheduleSummary(schedule: ReminderSchedule): string {
+  const enabledDaily = DAILY_REMINDER_SLOTS.filter((slot) => schedule[slot].enabled);
   const weeklyDay =
     WEEKDAY_OPTIONS.find((day) => day.value === (schedule.weekly.day || 1))?.label ?? 'Monday';
 
-  if (!schedule.weekly.enabled) {
-    return `${dailyCount} daily reminder${dailyCount === 1 ? '' : 's'} · Weekly off`;
+  let dailyPart: string;
+  if (enabledDaily.length === 0) {
+    dailyPart = 'No daily reminders';
+  } else if (enabledDaily.length === 1) {
+    const slot = enabledDaily[0];
+    const label = slot === 'night' ? 'Daily' : REMINDER_SLOT_LABELS[slot];
+    dailyPart = `${label} ${formatReminderTime12h(schedule[slot].time)}`;
+  } else {
+    const times = enabledDaily
+      .map((slot) => `${REMINDER_SLOT_LABELS[slot].replace(' reminder', '')} ${formatReminderTime12h(schedule[slot].time)}`)
+      .join(', ');
+    dailyPart = times;
   }
 
-  return `${dailyCount} daily · Weekly ${weeklyDay} ${formatReminderTime12h(schedule.weekly.time)}`;
+  if (!schedule.weekly.enabled) {
+    return `${dailyPart} · Weekly off`;
+  }
+
+  return `${dailyPart} · Weekly ${weeklyDay} ${formatReminderTime12h(schedule.weekly.time)}`;
+}
+
+function cloneDefaultSchedule(): ReminderSchedule {
+  return Object.fromEntries(
+    Object.entries(DEFAULT_REMINDER_SCHEDULE).map(([slot, config]) => [slot, { ...config }])
+  ) as ReminderSchedule;
 }
 
 export function mergeReminderSchedule(
   existing?: ReminderScheduleInput | null,
   legacyReminderTime?: string
 ): ReminderSchedule {
-  const schedule = { ...DEFAULT_REMINDER_SCHEDULE };
+  const schedule = cloneDefaultSchedule();
   if (legacyReminderTime) {
     schedule.night = { ...schedule.night, time: legacyReminderTime };
   }

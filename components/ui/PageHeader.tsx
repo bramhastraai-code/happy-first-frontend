@@ -52,32 +52,22 @@ export function StatCard({ label, value, hint, icon: Icon, trend, accent = 'oran
       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
       className="h-full rounded-2xl border border-border bg-surface p-3 shadow-[var(--shadow-card)] sm:p-4"
     >
-      <div className="flex h-full items-center gap-2.5 sm:gap-3">
+      <div className="flex h-full items-center gap-3">
         <span className={cn('inline-flex shrink-0 rounded-xl p-2 sm:p-2.5', accentStyles[accent])}>
           <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={2} />
         </span>
 
-        <div className="flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-4">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-bold leading-tight tracking-tight sm:hidden">{value}</p>
-            <p className="mt-0.5 line-clamp-2 text-[11px] font-medium leading-snug text-foreground sm:mt-0 sm:text-sm">
-              {label}
-            </p>
-            {hint && (
-              <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-muted-foreground sm:mt-1 sm:text-xs">
-                {hint}
-              </p>
-            )}
-            {trend && (
-              <span className="mt-1 hidden rounded-full bg-success-soft px-2 py-0.5 text-xs font-semibold text-success sm:inline">
-                {trend}
-              </span>
-            )}
-          </div>
-
-          <p className="hidden shrink-0 text-right text-2xl font-bold leading-none tracking-tight tabular-nums sm:block lg:text-[1.75rem]">
-            {value}
-          </p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-lg font-bold leading-tight tracking-tight tabular-nums sm:text-xl">{value}</p>
+          <p className="truncate text-xs font-medium text-foreground sm:text-sm">{label}</p>
+          {hint && (
+            <p className="truncate text-xs text-muted-foreground">{hint}</p>
+          )}
+          {trend && (
+            <span className="mt-1 inline-flex rounded-full bg-success-soft px-2 py-0.5 text-xs font-semibold text-success">
+              {trend}
+            </span>
+          )}
         </div>
       </div>
     </motion.div>

@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
 import { GC, queryKeys, STALE } from '@/lib/queries/keys';
+import { invalidateDashboardQueries } from '@/lib/queries/invalidateDashboard';
 import {
   fetchCurrentPlan,
   fetchUpcomingPlan,
@@ -30,7 +31,9 @@ import type {
   MonthlySummary,
   StreakData,
   CalendarData,
+  CalendarDay,
 } from '@/lib/api/dailyLog';
+import { getMonthsInWeek } from '@/lib/utils/weekDate';
 
 interface UseHomePageDataOptions {
   profileId?: string;
@@ -45,10 +48,13 @@ export function useHomePageData({
 }: UseHomePageDataOptions) {
   const queryClient = useQueryClient();
   const localDate = DateTime.local().toFormat('yyyy-MM-dd');
-  const previousWeekDate = DateTime.local().minus({ days: 7 }).toFormat('yyyy-MM-dd');
+  const previousWeekDate = DateTime.local().startOf('week').minus({ weeks: 1 }).toFormat('yyyy-MM-dd');
+  const isMonday = DateTime.local().weekday === 1;
   const logDate = DateTime.fromISO(logDateFilter);
   const calendarMonth = logDate.isValid ? logDate.month : DateTime.local().month;
   const calendarYear = logDate.isValid ? logDate.year : DateTime.local().year;
+
+  const weekMonths = useMemo(() => getMonthsInWeek(DateTime.local()), [localDate]);
 
   const [planQuery, weeklyQuery, monthlyQuery, userQuery, streaksQuery, calendarQuery] =
     useQueries({
@@ -92,6 +98,25 @@ export function useHomePageData({
       ],
     });
 
+  const weekCalendarQueries = useQueries({
+    queries: weekMonths.map(({ month, year }) => ({
+      queryKey: queryKeys.dailyLog.calendar(profileId ?? '', month, year),
+      queryFn: () => fetchCalendar(profileId!, month, year),
+      staleTime: STALE.calendar,
+      enabled: enabled && !!profileId,
+    })),
+  });
+
+  const weekCalendarDays = useMemo(() => {
+    const byDate = new Map<string, CalendarDay>();
+    for (const query of weekCalendarQueries) {
+      for (const day of query.data?.calendarDays ?? []) {
+        byDate.set(day.date.split('T')[0], day);
+      }
+    }
+    return Array.from(byDate.values());
+  }, [weekCalendarQueries.map((query) => query.dataUpdatedAt).join('|')]);
+
   const todayDailyQuery = useQuery({
     queryKey: queryKeys.dailyLog.summary('daily', localDate, profileId),
     queryFn: () => fetchDailySummary(localDate),
@@ -99,7 +124,15 @@ export function useHomePageData({
     enabled,
   });
 
-  const needsPreviousWeek = (weeklyQuery.data?.totalDaysLogged ?? -1) === 0;
+  const hasPlan = Boolean(planQuery.data);
+  const planResolved = planQuery.isSuccess;
+  const weeklyResolved = weeklyQuery.isSuccess;
+  const currentWeekDaysLogged = weeklyQuery.data?.totalDaysLogged ?? 0;
+
+  // Show last week's score when no active plan yet, or Monday before any logs this week.
+  const needsPreviousWeek =
+    (planResolved && !hasPlan) ||
+    (weeklyResolved && currentWeekDaysLogged === 0 && isMonday);
 
   const previousWeekQuery = useQuery({
     queryKey: queryKeys.dailyLog.summary('weekly', previousWeekDate, profileId),
@@ -108,7 +141,6 @@ export function useHomePageData({
     enabled: enabled && needsPreviousWeek,
   });
 
-  const hasPlan = Boolean(planQuery.data);
   const upcomingPlanQuery = useQuery({
     queryKey: queryKeys.weeklyPlan.upcoming(profileId),
     queryFn: fetchUpcomingPlan,
@@ -132,10 +164,10 @@ export function useHomePageData({
   });
 
   const summary = needsPreviousWeek
-    ? (previousWeekQuery.data ?? weeklyQuery.data ?? null)
+    ? (previousWeekQuery.data ?? null)
     : (weeklyQuery.data ?? null);
 
-  const isShowingPreviousWeek = needsPreviousWeek && !!previousWeekQuery.data;
+  const isShowingPreviousWeek = needsPreviousWeek;
 
   const monthlyData: MonthlyDataPoint[] = useMemo(() => {
     if (!monthlyQuery.data) return [];
@@ -164,7 +196,8 @@ export function useHomePageData({
     (planQuery.isFetching ||
       weeklyQuery.isFetching ||
       monthlyQuery.isFetching ||
-      streaksQuery.isFetching) &&
+      streaksQuery.isFetching ||
+      (needsPreviousWeek && previousWeekQuery.isFetching)) &&
     !isBootstrapping;
 
   const prefetchDailySummary = (date: string) => {
@@ -185,11 +218,7 @@ export function useHomePageData({
     });
   };
 
-  const invalidateDashboard = () => {
-    void queryClient.invalidateQueries({ queryKey: ['weeklyPlan'] });
-    void queryClient.invalidateQueries({ queryKey: ['dailyLog'] });
-    void queryClient.invalidateQueries({ queryKey: ['auth', 'userInfo'] });
-  };
+  const invalidateDashboard = () => invalidateDashboardQueries(queryClient);
 
   return {
     isBootstrapping,
@@ -205,6 +234,7 @@ export function useHomePageData({
     monthlyLogData: monthlyQuery.data?.totalDaysLogged ?? null,
     streakData: (streaksQuery.data as StreakData | null | undefined) ?? null,
     weeklyLogData: (calendarQuery.data as CalendarData | null | undefined) ?? null,
+    weekCalendarDays,
     selectedDayLog: (selectedDayQuery.data as DailySummary | null | undefined) ?? null,
     isDailyLogFetching: selectedDayQuery.isFetching,
     isCalendarFetching: calendarQuery.isFetching,

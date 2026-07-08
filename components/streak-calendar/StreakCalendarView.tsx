@@ -57,7 +57,7 @@ function dayCellClasses(day: CalendarDay | ActivityCalendarDay) {
       (day.hasLog
         ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
         : 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100'),
-    day.isToday && 'ring-2 ring-primary ring-offset-2 ring-offset-surface'
+    day.isToday && 'ring-2 ring-primary ring-offset-1 ring-offset-surface'
   );
 }
 
@@ -79,15 +79,23 @@ function CalendarDayCell({
       title={`${day.dayOfWeek}, ${dateLabel}${day.hasLog ? ' · Logged' : day.isFuture ? '' : ' · Missed'}`}
     >
       <span className="inline-flex h-full w-full flex-col items-center justify-center gap-0.5">
-        <span>{day.day}</span>
+        <span className="text-[11px] leading-none sm:text-sm">{day.day}</span>
         {!day.isFuture && (
-          day.hasLog ? (
-            <CheckCircle2 className="h-3 w-3 opacity-90" aria-hidden />
-          ) : (
-            <XCircle className="h-3 w-3 opacity-80" aria-hidden />
-          )
+          <span
+            className={cn(
+              'h-1.5 w-1.5 rounded-full sm:hidden',
+              day.hasLog ? 'bg-primary-foreground' : 'bg-rose-600'
+            )}
+            aria-hidden
+          />
         )}
-        {day.isFuture && <Clock className="h-3 w-3 opacity-50" aria-hidden />}
+        {!day.isFuture &&
+          (day.hasLog ? (
+            <CheckCircle2 className="hidden h-3 w-3 opacity-90 sm:block" aria-hidden />
+          ) : (
+            <XCircle className="hidden h-3 w-3 opacity-80 sm:block" aria-hidden />
+          ))}
+        {day.isFuture && <Clock className="hidden h-3 w-3 opacity-50 sm:block" aria-hidden />}
       </span>
     </button>
   );
@@ -98,9 +106,9 @@ function StatTile({ label, value, accent }: { label: string; value: string | num
     accent === 'success' ? 'text-success' : accent === 'primary' ? 'text-primary' : 'text-foreground';
 
   return (
-    <div className="rounded-xl bg-secondary/80 p-3 text-center">
-      <p className={cn('text-xl font-bold tabular-nums sm:text-2xl', valueClass)}>{value}</p>
-      <p className="text-xs text-muted-foreground">{label}</p>
+    <div className="rounded-xl bg-secondary/80 p-2.5 text-center sm:p-3">
+      <p className={cn('text-lg font-bold tabular-nums sm:text-2xl', valueClass)}>{value}</p>
+      <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground sm:text-xs">{label}</p>
     </div>
   );
 }
@@ -154,8 +162,10 @@ function LeaderboardSection({
               <div className="min-w-0 flex-1">
                 <p className={cn('truncate font-medium', isYou ? 'text-primary' : 'text-foreground')}>
                   {entry.user.name}
-                  {isYou && <span className="ml-2 text-xs font-semibold text-primary">(you)</span>}
                 </p>
+                {isYou && (
+                  <span className="mt-0.5 inline-block text-xs font-semibold text-primary">(you)</span>
+                )}
               </div>
               <p className="flex shrink-0 items-center gap-1 text-sm font-semibold tabular-nums text-foreground">
                 <Award className="h-4 w-4 text-primary" />
@@ -226,13 +236,13 @@ export function StreakCalendarView({
   const activityUnit = activityCalendarData?.calendarDays.find((d) => d.unit)?.unit;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 p-4 pb-8 sm:space-y-6">
+    <div className="mx-auto max-w-4xl space-y-5 sm:space-y-6">
       <PageHeader
         title="Streak calendar"
         subtitle="Track your consistency day by day and spot gaps before they break your streak."
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
         <StatCard
           label="Current streak"
           value={`${currentStreak} days`}
@@ -262,8 +272,8 @@ export function StreakCalendarView({
 
         <ChipTabs
           tabs={[
-            { id: 'overall', label: 'Overall' },
             { id: 'activity', label: 'By activity' },
+            { id: 'overall', label: 'Overall' },
           ]}
           active={filterType}
           onChange={(id) => onFilterChange(id as FilterType)}
@@ -312,7 +322,7 @@ export function StreakCalendarView({
 
       {showCalendar && activeCalendar && (
         <>
-          <section className="section-card p-4 sm:p-5">
+          <section className="section-card overflow-visible p-4 sm:p-5">
             {filterType === 'activity' && selectedActivityId && (
               <Button
                 type="button"
@@ -332,7 +342,7 @@ export function StreakCalendarView({
                 onClick={onPreviousMonth}
                 disabled={!activeCalendar.pagination.canGoPrevious}
                 aria-label="Previous month"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -357,7 +367,7 @@ export function StreakCalendarView({
                 onClick={onNextMonth}
                 disabled={!activeCalendar.pagination.canGoNext}
                 aria-label="Next month"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -406,15 +416,15 @@ export function StreakCalendarView({
               </div>
             )}
 
-            <div className="mb-1.5 grid grid-cols-7 gap-1">
+            <div className="mb-1.5 grid grid-cols-7 gap-1.5">
               {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
-                <div key={day} className="py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs">
+                <div key={day} className="py-1 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   {day}
                 </div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
               {Array.from({ length: firstDayOffset }).map((_, index) => (
                 <div key={`empty-${index}`} className="aspect-square" />
               ))}
@@ -426,29 +436,29 @@ export function StreakCalendarView({
             <div className="mt-5 border-t border-border pt-4">
               {activityCalendarData ? (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
-                    <StatTile label="Days logged" value={activityCalendarData.statistics.daysLogged || 0} />
-                    <StatTile label="Days missed" value={activityCalendarData.statistics.daysNotLogged || 0} />
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <StatTile label="Days logged" value={activityCalendarData.statistics?.daysLogged ?? 0} />
+                    <StatTile label="Days missed" value={activityCalendarData.statistics?.daysNotLogged ?? 0} />
                     <StatTile
                       label="Completion"
-                      value={`${activityCalendarData.statistics.completionPercentage || 0}%`}
+                      value={`${activityCalendarData.statistics?.completionPercentage ?? 0}%`}
                       accent="success"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <StatTile
                       label={`Total ${activityUnit || 'value'}`}
-                      value={activityCalendarData.statistics.totalValue || 0}
+                      value={activityCalendarData.statistics?.totalValue ?? 0}
                     />
                     <StatTile
                       label="Points earned"
-                      value={activityCalendarData.statistics.totalPoints.toFixed(1) || '0'}
+                      value={Number(activityCalendarData.statistics?.totalPoints ?? 0).toFixed(1)}
                       accent="primary"
                     />
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   <StatTile label="Days logged" value={calendarData?.statistics.daysLogged || 0} />
                   <StatTile label="Days missed" value={calendarData?.statistics.daysNotLogged || 0} />
                   <StatTile

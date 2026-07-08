@@ -87,7 +87,7 @@ export default function ActivitySelect({
   const label = selected?.name ?? placeholder;
 
   return (
-    <div ref={rootRef} className={cn('relative w-[9.5rem] shrink-0 sm:w-[10.5rem]', className)}>
+    <div ref={rootRef} className={cn('relative w-full sm:w-[10.5rem] sm:shrink-0', className)}>
       <button
         type="button"
         disabled={disabled}
@@ -98,19 +98,19 @@ export default function ActivitySelect({
           if (!disabled) setOpen((prev) => !prev);
         }}
         className={cn(
-          'flex h-9 w-full items-center justify-between gap-1.5 rounded-full border border-input bg-surface px-3 text-left text-xs font-medium transition-colors',
+          'flex h-10 w-full items-center justify-between gap-2 rounded-full border border-input bg-surface px-3.5 text-left text-xs font-medium transition-colors sm:h-9',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           disabled && 'cursor-not-allowed opacity-50'
         )}
       >
-        <span className="truncate text-foreground">{label}</span>
+        <span className="min-w-0 truncate text-foreground">{label}</span>
         <ChevronDown
-          className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
+          className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
         />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-1.5 w-52 overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-float)]">
+        <div className="absolute left-0 right-0 z-[60] mt-1.5 overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-float)] sm:left-auto sm:right-0 sm:w-52">
           <div className="border-b border-border p-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -125,7 +125,7 @@ export default function ActivitySelect({
             </div>
           </div>
 
-          <ul id={listId} role="listbox" className="max-h-48 overflow-y-auto p-1" aria-label="Activities">
+          <ul id={listId} role="listbox" className="max-h-56 overflow-y-auto p-1 sm:max-h-48" aria-label="Activities">
             <li role="option" aria-selected={value === ''}>
               <button
                 type="button"

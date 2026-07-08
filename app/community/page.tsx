@@ -99,7 +99,7 @@ export default function CommunityPage() {
                     type="button"
                     onClick={() => setCategory(item)}
                     className={cn(
-                      'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                      'min-h-10 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors',
                       category === item
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-secondary text-muted-foreground'
@@ -128,15 +128,13 @@ export default function CommunityPage() {
                         {community.emoji}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-semibold text-foreground">
-                            {community.name}
-                          </p>
-                          <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
-                            {community.category}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {community.name}
+                        </p>
+                        <span className="mt-1 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
+                          {community.category}
+                        </span>
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground sm:truncate">
                           {community.description}
                         </p>
                         <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -148,7 +146,7 @@ export default function CommunityPage() {
                         size="sm"
                         variant="outline"
                         disabled
-                        className="join-button shrink-0 px-3 text-xs"
+                        className="join-button min-h-10 shrink-0 px-4 text-xs"
                       >
                         Join
                       </Button>

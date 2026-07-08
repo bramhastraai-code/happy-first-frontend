@@ -2,8 +2,10 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store/authStore';
 import { dailyLogAPI, type SubmitPreviousDailyLogData } from '@/lib/api/dailyLog';
+import { invalidateDashboardQueries } from '@/lib/queries/invalidateDashboard';
 import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -44,6 +46,7 @@ export default function PreviousLogPage() {
 
 function PreviousLogPageContent() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const searchParams = useSearchParams();
     const { accessToken, user, isHydrated, selectedProfile } = useAuthStore();
     const [selectedDate, setSelectedDate] = useState<string>('');
@@ -107,11 +110,11 @@ function PreviousLogPageContent() {
         setSelectedDate(yesterday.toISODate()||'');
     }, [searchParams]);
 
-    // Redirect to home after showing congrats
+    // Redirect to home after showing congrats (dashboard refetches fresh score + streak)
     useEffect(() => {
         if (showCongrats) {
             const timer = setTimeout(() => {
-                router.push('/home');
+                router.push('/home?refresh=1');
             }, 3000);
 
             return () => clearTimeout(timer);
@@ -347,6 +350,7 @@ function PreviousLogPageContent() {
             const response = await dailyLogAPI.submitPrevious(submitData);
             setEarnedPoints(response.data.data.totalPoints);
             setShowCongrats(true);
+            await invalidateDashboardQueries(queryClient);
 
         } catch (err: unknown) {
             console.error('Error submitting previous log:', err);

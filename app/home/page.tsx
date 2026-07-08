@@ -75,12 +75,14 @@ function HomePageContent() {
     monthlyLogData,
     streakData,
     weeklyLogData,
+    weekCalendarDays,
     selectedDayLog,
     isDailyLogFetching,
     userData,
     activityList,
     prefetchDailySummary,
     prefetchCalendar,
+    invalidateDashboard,
   } = useHomePageData({
     profileId: selectedProfile?._id,
     logDateFilter,
@@ -147,6 +149,12 @@ function HomePageContent() {
   }, [accessToken, user, router, isHydrated]);
 
   useEffect(() => {
+    if (searchParams.get('refresh') !== '1' || !dataEnabled) return;
+    void invalidateDashboard();
+    router.replace('/home', { scroll: false });
+  }, [searchParams, dataEnabled, invalidateDashboard, router]);
+
+  useEffect(() => {
     if (userData) setUser(userData);
   }, [userData, setUser]);
 
@@ -180,6 +188,9 @@ function HomePageContent() {
   const stats = {
     points: summary?.totalPoints || 0,
   };
+  const weekDaysLogged = summary?.totalDaysLogged ?? 0;
+  const totalDaysLogged = streakData?.overallStreak.totalDaysLogged ?? 0;
+  const weekScoreHint = `${weekDaysLogged} days logged · ${totalDaysLogged} total`;
 
   // Get current week's days (Monday to Sunday)
   const getCurrentWeekDays = () => {
@@ -190,7 +201,7 @@ function HomePageContent() {
     for (let i = 0; i < 7; i++) {
       const day = startOfWeek.plus({ days: i });
       const dateString = day.toFormat('yyyy-MM-dd');
-      const calendarDay = weeklyLogData?.calendarDays.find(d => d.date.split('T')[0] == dateString);
+      const calendarDay = weekCalendarDays.find((d) => d.date.split('T')[0] === dateString);
       
       days.push({
         date: dateString,
@@ -312,40 +323,40 @@ function HomePageContent() {
         )}
 
         {/* Weekly Tracker */}
-        <Card className="week-tracker section-card app-card-hover">
+        <Card className="week-tracker section-card app-card-hover overflow-visible">
           <CardContent className="p-4 sm:p-5">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
               <div className="flex items-center gap-2">
-                <span className="inline-flex rounded-xl bg-primary-soft p-2 text-primary">
-                  <Calendar className="h-5 w-5" />
+                <span className="inline-flex shrink-0 rounded-lg bg-primary-soft p-1.5 text-primary">
+                  <Calendar className="h-4 w-4" />
                 </span>
-                <div>
-                  <h2 className="section-title">This week</h2>
-                  <p className="text-xs text-muted-foreground">{weekDays.filter(d => d.hasLog).length} of 7 days logged</p>
-                </div>
+                <span className="text-sm font-semibold text-foreground">This week</span>
+                <span className="chip shrink-0 text-[10px] text-muted-foreground">
+                  {daysLoggedThisWeek}/7 logged
+                </span>
               </div>
-              <span className="chip chip-active w-fit text-xs">
-                <Flame className="h-3.5 w-3.5" />
-                {streakData?.overallStreak.currentStreak || 0} day streak
+              <span className="chip chip-active ml-auto shrink-0 text-[10px]">
+                <Flame className="h-3 w-3" />
+                {streakData?.overallStreak.currentStreak || 0}d streak
               </span>
             </div>
-            <div className="grid grid-cols-7 gap-1 sm:gap-2.5">
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
               {weekDays.map((day, index) => (
                 <div
                   key={index}
                   onClick={() => !day.isFuture && handleBarClick(day.date)}
                   className={`
                     flex flex-col items-center justify-center rounded-xl p-1 transition-colors sm:p-2
-                    ${day.isToday ? 'bg-primary-soft ring-2 ring-primary ring-offset-1 ring-offset-surface sm:ring-offset-2' : ''}
+                    ${day.isToday ? 'bg-primary-soft ring-2 ring-primary ring-offset-1 ring-offset-surface' : ''}
                     ${day.isFuture ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}
                   `}
                 >
-                  <div className="mb-0.5 text-[10px] font-semibold tracking-wide text-gray-700 sm:mb-1 sm:text-xs">
+                  <div className="mb-0.5 text-xs font-semibold tracking-wide text-gray-700 sm:mb-1">
                     {day.dayName}
                   </div>
                   <div
                     className={`
-                      flex h-9 w-9 items-center justify-center rounded-2xl transition-colors sm:h-10 sm:w-10 md:h-12 md:w-12
+                      flex h-10 w-10 items-center justify-center rounded-2xl transition-colors sm:h-11 sm:w-11 md:h-12 md:w-12
                       ${day.hasLog
                         ? 'bg-gradient-to-br from-orange-400 to-red-500 shadow-md'
                         : day.isFuture
@@ -355,13 +366,13 @@ function HomePageContent() {
                     `}
                   >
                     {day.hasLog ? (
-                      <Flame className="h-5 w-5 text-white animate-pulse sm:h-6 sm:w-6 md:h-7 md:w-7" />
+                      <Flame className="h-4 w-4 text-white animate-pulse sm:h-6 sm:w-6 md:h-7 md:w-7" />
                     ) : (
-                      <Flame className="h-5 w-5 text-gray-300 sm:h-6 sm:w-6 md:h-7 md:w-7" />
+                      <Flame className="h-4 w-4 text-gray-300 sm:h-6 sm:w-6 md:h-7 md:w-7" />
                     )}
                   </div>
                   <div className={`
-                    mt-0.5 text-[10px] font-bold tracking-tight sm:mt-1 sm:text-xs
+                    mt-0.5 text-xs font-bold tracking-tight sm:mt-1
                     ${day.isToday ? 'text-primary' : 'text-gray-600'}
                   `}>
                     {day.dayNumber}
@@ -370,21 +381,25 @@ function HomePageContent() {
               ))}
             </div>
             <div className="mt-3 border-t border-border pt-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="text-gray-700 font-semibold">
-                  {weekDays.filter(d => d.hasLog).length} / 7 days logged
-                </span>
-                <span className="flex items-center gap-1 text-orange-600 font-bold">
-                  <Flame className="w-4 h-4" />
-                  Keep it up!
-                </span>
+              <div
+                className="h-1.5 overflow-hidden rounded-full bg-secondary"
+                role="progressbar"
+                aria-valuenow={daysLoggedThisWeek}
+                aria-valuemin={0}
+                aria-valuemax={7}
+                aria-label={`${daysLoggedThisWeek} of 7 days logged this week`}
+              >
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-orange-400 to-red-500 transition-all duration-500"
+                  style={{ width: `${(daysLoggedThisWeek / 7) * 100}%` }}
+                />
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Stats Grid */}
-        <div className="stats-grid grid grid-cols-2 gap-2 sm:gap-4">
+        <div className="stats-grid grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
           <div onClick={() => router.push('/streak-calendar')} className="h-full cursor-pointer">
             <StatCard
               label="Current streak"
@@ -397,8 +412,8 @@ function HomePageContent() {
           <div className="h-full">
           <StatCard
             label={isShowingPreviousWeek ? 'Previous week score' : 'Week score'}
-            value={stats.points.toFixed(0)}
-            hint={`${summary?.totalDaysLogged || 0} days logged`}
+            value={stats.points.toFixed(2)}
+            hint={weekScoreHint}
             icon={Trophy}
             accent="green"
           />
@@ -763,7 +778,7 @@ function HomePageContent() {
                 />
               )}
 
-              <div className="grid grid-cols-3 gap-2 border-t border-border pt-4 sm:gap-3">
+              <div className="grid grid-cols-1 gap-2 border-t border-border pt-4 sm:grid-cols-3 sm:gap-3">
                 {viewMode === 'week' ? (
                   <>
                     <div className="rounded-xl bg-secondary p-2 text-center sm:p-3">
@@ -821,6 +836,8 @@ function HomePageContent() {
           icon={Trophy}
           expanded={expandedSections.leaderboard}
           onToggle={() => toggleSection('leaderboard')}
+          overflowVisible
+          contentClassName="overflow-visible"
         >
           <Leaderboard />
         </CollapsibleSection>
@@ -852,15 +869,15 @@ function HomePageContent() {
               </div>
             </div>
 
-            <div className="mb-1.5 grid grid-cols-7 gap-1">
+            <div className="mb-1.5 grid grid-cols-7 gap-1.5">
               {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
-                <div key={day} className="py-1 text-center text-[10px] font-semibold text-muted-foreground sm:text-xs">
+                <div key={day} className="py-1 text-center text-xs font-semibold text-muted-foreground">
                   {day}
                 </div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
                   {Array.from({ length: trackerFirstDayOffset }).map((_, index) => (
                     <div key={`tracker-empty-${index}`} className="aspect-square" />
                   ))}

@@ -84,14 +84,14 @@ export default function TaskActivityRow({
 
       return (
         <>
-          <div className="relative w-[5.5rem] shrink-0">
+          <div className="relative w-[7.25rem] shrink-0">
             <input
               type="text"
               disabled
               placeholder={unitLabel}
-              className="h-9 w-full rounded-lg border border-input bg-secondary px-2.5 text-center text-xs text-muted-foreground opacity-70"
+              className="h-12 w-full rounded-lg border border-input bg-secondary px-3 text-center text-base text-muted-foreground opacity-70"
             />
-            <Lock className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Lock className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           </div>
           <StatusBadge tone="locked">
             <Timer className="h-3 w-3" />
@@ -116,14 +116,14 @@ export default function TaskActivityRow({
 
       return (
         <>
-          <div className="relative w-[5.5rem] shrink-0">
+          <div className="relative w-[7.25rem] shrink-0">
             <input
               type="text"
               disabled
               value={value || 0}
-              className="h-9 w-full rounded-lg border border-input bg-secondary px-2.5 text-center text-sm font-medium text-foreground opacity-80"
+              className="h-12 w-full rounded-lg border border-input bg-secondary px-3 text-center text-base font-semibold text-foreground opacity-80"
             />
-            <CheckCircle2 className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-success" />
+            <CheckCircle2 className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-success" />
           </div>
           <StatusBadge tone="logged">Logged</StatusBadge>
         </>
@@ -192,7 +192,7 @@ export default function TaskActivityRow({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center justify-end gap-2 sm:min-w-[11rem]">
+      <div className="flex shrink-0 items-center justify-end gap-2.5 sm:min-w-[13rem]">
         {renderControl()}
       </div>
     </div>

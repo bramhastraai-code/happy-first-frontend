@@ -54,10 +54,11 @@ export default function BottomNav() {
                     key={item.name}
                     type="button"
                     onClick={() => setShowMessage(true)}
-                    className="flex flex-1 flex-col items-center justify-center gap-1 text-muted-foreground"
+                    aria-label="Plan locked"
+                    className="flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 text-muted-foreground"
                   >
                     <Lock className="h-5 w-5" />
-                    <span className="text-[10px] font-semibold">{item.name}</span>
+                    <span className="text-xs font-semibold">{item.name}</span>
                   </button>
                 );
               }
@@ -67,7 +68,7 @@ export default function BottomNav() {
                   key={item.name}
                   href={item.href}
                   className={cn(
-                    'relative flex flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors',
+                    'relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 transition-colors',
                     isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
@@ -79,7 +80,7 @@ export default function BottomNav() {
                     />
                   )}
                   <Icon className={cn('h-5 w-5', isActive && 'stroke-[2.5]')} />
-                  <span className="text-[10px] font-semibold">{item.name}</span>
+                  <span className="text-xs font-semibold">{item.name}</span>
                 </Link>
               );
             })}

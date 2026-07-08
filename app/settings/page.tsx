@@ -33,13 +33,12 @@ import { Button } from '@/components/ui/button';
 import {
   mergeReminderSchedule,
   ReminderSchedule,
-  getReminderScheduleSummary,
+  getEnabledReminderCount,
 } from '@/lib/utils/reminderSchedule';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 
 const PAUSE_ALLOWED_DAY_INDEXES = [5, 6, 0, 1];
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MAX_FAMILY_MEMBERS = 5;
 
 type SettingsPanel =
@@ -86,7 +85,6 @@ export default function SettingsPage() {
 
   const currentDayIndex = new Date().getDay();
   const canChangePauseToday = PAUSE_ALLOWED_DAY_INDEXES.includes(currentDayIndex);
-  const currentDayName = WEEKDAY_NAMES[currentDayIndex];
   const hasFamilyMembers = profiles && profiles.length > 1;
   const familyCount = profiles?.length ?? 0;
 
@@ -390,11 +388,11 @@ export default function SettingsPage() {
             <CollapsibleSection
               id="reminder-schedule"
               title="Reminder schedule"
-              subtitle={getReminderScheduleSummary(reminderSchedule)}
+              badge={`${getEnabledReminderCount(reminderSchedule)} on`}
               icon={Bell}
               expanded={openPanel === 'reminders'}
               onToggle={() => togglePanel('reminders')}
-              contentClassName="space-y-4"
+              contentClassName="space-y-3"
             >
               <ReminderScheduleEditor schedule={reminderSchedule} onChange={setReminderSchedule} />
               <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center">
@@ -412,57 +410,66 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section aria-label="Pause service" className="section-card p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <h2 className="text-sm font-semibold text-foreground">Pause service</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                When paused, pending activities are hidden and daily log submission is disabled.
-              </p>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Can be changed on Fri, Sat, Sun, and Mon only. Today: {currentDayName}
-              </p>
-            </div>
+        <section aria-label="Pause service" className="section-card px-4 py-3.5 sm:px-5">
+          <div className="flex items-center gap-2.5">
+            <span
+              className={cn(
+                'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                isPauseEnabled ? 'bg-amber-100 text-amber-700' : 'bg-primary-soft text-primary'
+              )}
+            >
+              {isPauseEnabled ? (
+                <PauseCircle className="h-4 w-4" />
+              ) : (
+                <PlayCircle className="h-4 w-4" />
+              )}
+            </span>
+            <span className="shrink-0 text-sm font-semibold text-foreground">Pause service</span>
+            <span className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <span
+                className={cn(
+                  'h-2 w-2 rounded-full',
+                  isPauseEnabled ? 'bg-amber-500' : 'bg-primary'
+                )}
+                aria-hidden
+              />
+              {isPauseEnabled ? 'Paused' : 'Active'}
+            </span>
             <button
               type="button"
               onClick={handlePauseToggle}
               disabled={!selectedProfile || !canChangePauseToday || pauseLoading}
               className={cn(
-                'relative inline-flex h-10 w-24 shrink-0 items-center rounded-full px-1 transition-colors',
+                'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full px-0.5 transition-colors',
                 isPauseEnabled ? 'bg-amber-500' : 'bg-primary',
                 (!selectedProfile || !canChangePauseToday || pauseLoading) &&
-                  'cursor-not-allowed opacity-60'
+                  'cursor-not-allowed opacity-50'
               )}
-              title={isPauseEnabled ? 'Resume service' : 'Pause service'}
+              title={
+                !canChangePauseToday
+                  ? 'Can only change on Fri, Sat, Sun, or Mon'
+                  : isPauseEnabled
+                    ? 'Resume service'
+                    : 'Pause service'
+              }
             >
               <span
                 className={cn(
-                  'inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm transition-transform',
-                  isPauseEnabled ? 'translate-x-14' : 'translate-x-0'
+                  'inline-flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm transition-transform',
+                  isPauseEnabled ? 'translate-x-5' : 'translate-x-0'
                 )}
               >
                 {pauseLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                 ) : isPauseEnabled ? (
-                  <PauseCircle className="h-4 w-4 text-amber-600" />
+                  <PauseCircle className="h-3.5 w-3.5 text-amber-600" />
                 ) : (
-                  <PlayCircle className="h-4 w-4 text-primary" />
+                  <PlayCircle className="h-3.5 w-3.5 text-primary" />
                 )}
               </span>
             </button>
           </div>
-          <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-secondary px-3 py-1.5 text-sm">
-            <span
-              className={cn(
-                'h-2 w-2 rounded-full',
-                isPauseEnabled ? 'bg-amber-500' : 'bg-primary'
-              )}
-            />
-            <span className="font-medium text-foreground">
-              {isPauseEnabled ? 'Paused' : 'Active'}
-            </span>
-          </div>
-          {pauseError && <p className="mt-3 text-sm text-destructive">{pauseError}</p>}
+          {pauseError && <p className="mt-2 text-xs text-destructive">{pauseError}</p>}
         </section>
 
         <section aria-label="Security">

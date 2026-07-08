@@ -104,7 +104,7 @@ export default function CustomNumericInput({
       <div
         className={cn(
           'relative group',
-          compact ? 'w-[5.5rem] shrink-0' : 'flex-1',
+          compact ? 'w-[7.25rem] shrink-0' : 'flex-1',
           disabled && 'opacity-60'
         )}
       >
@@ -121,7 +121,7 @@ export default function CustomNumericInput({
             disabled={disabled}
             className={cn(
               'w-full rounded-lg border transition-all outline-none font-medium text-center',
-              compact ? 'h-9 px-2 pr-7 text-sm' : 'h-11 px-4 pr-20 rounded-xl border-2 text-base',
+              compact ? 'h-12 px-3 pr-9 text-base font-semibold' : 'h-11 px-4 pr-20 rounded-xl border-2 text-base',
               disabled
                 ? 'cursor-not-allowed border-input bg-secondary text-muted-foreground'
                 : isFocused
@@ -134,7 +134,7 @@ export default function CustomNumericInput({
             <div
               className={cn(
                 'absolute top-1/2 flex -translate-y-1/2 flex-col gap-0.5',
-                compact ? 'right-1' : 'right-2'
+                compact ? 'right-1.5' : 'right-2'
               )}
             >
               <button
@@ -143,12 +143,12 @@ export default function CustomNumericInput({
                 disabled={value >= max}
                 className={cn(
                   'flex items-center justify-center rounded bg-primary-soft transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:bg-secondary',
-                  compact ? 'h-3 w-5' : 'h-4 w-8'
+                  compact ? 'h-5 w-7' : 'h-4 w-8'
                 )}
               >
                 <svg
-                  width={compact ? 10 : 12}
-                  height={compact ? 10 : 12}
+                  width={compact ? 12 : 12}
+                  height={compact ? 12 : 12}
                   viewBox="0 0 12 12"
                   fill="none"
                   stroke="currentColor"
@@ -164,12 +164,12 @@ export default function CustomNumericInput({
                 disabled={value <= min}
                 className={cn(
                   'flex items-center justify-center rounded bg-primary-soft transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:bg-secondary',
-                  compact ? 'h-3 w-5' : 'h-4 w-8'
+                  compact ? 'h-5 w-7' : 'h-4 w-8'
                 )}
               >
                 <svg
-                  width={compact ? 10 : 12}
-                  height={compact ? 10 : 12}
+                  width={compact ? 12 : 12}
+                  height={compact ? 12 : 12}
                   viewBox="0 0 12 12"
                   fill="none"
                   stroke="currentColor"
@@ -187,7 +187,7 @@ export default function CustomNumericInput({
       <div
         className={cn(
           'text-muted-foreground text-right',
-          compact ? 'min-w-0 text-[11px] leading-tight' : 'min-w-24 text-sm'
+          compact ? 'min-w-[3.25rem] text-xs leading-tight' : 'min-w-24 text-sm'
         )}
       >
         <span className="font-semibold text-foreground">

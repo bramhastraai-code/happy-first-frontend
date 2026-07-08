@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import type { ActivityCalendarData, CalendarData } from '@/lib/api/dailyLog';
@@ -14,11 +14,12 @@ type FilterType = 'overall' | 'activity';
 export default function StreakCalendarPage() {
   const router = useRouter();
   const { accessToken, isHydrated, selectedProfile } = useAuthStore();
-  const [filterType, setFilterType] = useState<FilterType>('overall');
+  const [filterType, setFilterType] = useState<FilterType>('activity');
   const [selectedActivityId, setSelectedActivityId] = useState<string>('');
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1);
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [showActivityList, setShowActivityList] = useState(true);
+  const didAutoSelectActivity = useRef(false);
 
   const enabled = isHydrated && !!accessToken && !!selectedProfile?._id;
 
@@ -44,6 +45,21 @@ export default function StreakCalendarPage() {
       router.push('/login');
     }
   }, [accessToken, isHydrated, selectedProfile, router]);
+
+  useEffect(() => {
+    if (
+      didAutoSelectActivity.current ||
+      filterType !== 'activity' ||
+      selectedActivityId ||
+      !streakQuery.data?.activityStreaks.length
+    ) {
+      return;
+    }
+    didAutoSelectActivity.current = true;
+    const firstActivityId = streakQuery.data.activityStreaks[0].activityId;
+    setSelectedActivityId(firstActivityId);
+    setShowActivityList(false);
+  }, [filterType, selectedActivityId, streakQuery.data]);
 
   const handlePreviousMonth = () => {
     const currentCalendar = activityCalendarData || calendarData;

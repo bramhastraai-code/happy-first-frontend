@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store/authStore';
 import { dailyLogAPI, type SubmitDailyLogData } from '@/lib/api/dailyLog';
+import { invalidateDashboardQueries } from '@/lib/queries/invalidateDashboard';
 import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import TaskCategorySection from '@/components/tasks/TaskCategorySection';
-import { Activity, Calendar, ChevronRight, Timer, TrendingUp, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Calendar, ChevronRight, Timer, TrendingUp, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { WeeklyPlan, WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import GuidedTour from '@/components/ui/GuidedTour';
@@ -17,9 +19,11 @@ import TourStartButton from '@/components/ui/TourStartButton';
 import { tasksTourSteps } from '@/lib/utils/tourSteps';
 import { activityAPI, Activity as ActivityType } from '@/lib/api/activity';
 import { DateTime } from 'luxon';
+import { formatWeekRangeLabel, formatWeekRangeShort } from '@/lib/utils/weekDate';
 
 export default function TasksPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { accessToken, user, isHydrated, selectedProfile } = useAuthStore();
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
   const [activities, setActivities] = useState<Record<string, number>>({});
@@ -54,12 +58,12 @@ export default function TasksPage() {
     setIsMounted(true);
   }, []);
 
-  // Redirect to home after showing congrats
+  // Redirect to home after showing congrats (dashboard refetches fresh score + streak)
   useEffect(() => {
     if (showCongrats) {
       const timer = setTimeout(() => {
-        router.push('/home');
-      }, 3000); // Redirect after 3 seconds
+        router.push('/home?refresh=1');
+      }, 3000);
 
       return () => clearTimeout(timer);
     }
@@ -240,6 +244,8 @@ export default function TasksPage() {
       const response = await dailyLogAPI.submit(submitData);
       setEarnedPoints(response.data.data.totalPoints);
       setShowCongrats(true);
+
+      await invalidateDashboardQueries(queryClient);
       
       if(response.status===201){
         // Update weeklyPlan to mark all activities as logged for today
@@ -406,63 +412,95 @@ export default function TasksPage() {
         <TourStartButton onClick={handleStartTour} />
       )}
 
-      <div className="tasks-header">
+      <div className="tasks-header mb-6 space-y-3">
       <PageHeader
+        className="mb-0"
         title="Daily tasks"
         subtitle={new Date().toLocaleDateString('en-US', {
           weekday: 'long',
           month: 'long',
           day: 'numeric',
         })}
-        action={
-          <span className="chip chip-active text-xs">
-            Week {Math.ceil(new Date().getDate() / 7)}
-          </span>
-        }
       />
+      {weeklyPlan && (
+        <div
+          className="chip chip-active flex w-full items-center justify-center px-4 py-2.5 text-sm font-semibold"
+          title={formatWeekRangeLabel(weeklyPlan.weekStart, weeklyPlan.weekEnd)}
+        >
+          Week · {formatWeekRangeShort(weeklyPlan.weekStart, weeklyPlan.weekEnd)}
+        </div>
+      )}
       </div>
 
       <div className="space-y-4">
         {/* Today's Progress */}
-        <div className="tasks-progress app-card p-4">
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <div className="mb-1 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                <h2 className="text-sm font-semibold text-foreground">Today&apos;s progress</h2>
+        <div className="tasks-progress overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary-soft/60 via-surface to-surface p-4 shadow-[var(--shadow-card)] sm:p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="mb-3 flex items-center gap-2.5">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                  <TrendingUp className="h-4 w-4" strokeWidth={2.5} />
+                </span>
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Today&apos;s progress</h2>
+                  <p className="text-xs text-muted-foreground">Activities logged today</p>
+                </div>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold tracking-tight text-foreground">
+
+              <div className="flex items-end gap-1.5">
+                <span className="text-4xl font-bold leading-none tabular-nums tracking-tight text-foreground">
                   {progress.completed}
                 </span>
-                <span className="text-sm font-medium text-muted-foreground">/ {progress.total}</span>
-                <span className="chip chip-active ml-1 px-2 py-0.5 text-[11px]">
+                <span className="pb-1 text-lg font-medium text-muted-foreground">/ {progress.total}</span>
+              </div>
+
+              <p className="mt-2 text-xs text-muted-foreground">
+                {progress.total === 0
+                  ? 'No tasks in your plan today'
+                  : progress.completed === progress.total
+                    ? 'Great work — you logged everything'
+                    : `${progress.total - progress.completed} task${progress.total - progress.completed === 1 ? '' : 's'} left to log`}
+              </p>
+            </div>
+
+            <div
+              className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full"
+              style={{
+                background: `conic-gradient(${
+                  progress.percentage === 100 ? 'var(--color-success)' : 'var(--color-primary)'
+                } ${progress.percentage * 3.6}deg, var(--color-secondary) 0deg)`,
+              }}
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface shadow-sm">
+                <span className="text-sm font-bold tabular-nums text-foreground">
                   {Math.round(progress.percentage)}%
                 </span>
               </div>
             </div>
-            <span
-              className={`inline-flex rounded-xl p-2.5 ${
-                progress.percentage === 100 ? 'bg-success-soft text-success' : 'bg-primary-soft text-primary'
-              }`}
-            >
-              {progress.percentage === 100 ? (
-                <CheckCircle2 className="h-5 w-5" />
-              ) : (
-                <Activity className="h-5 w-5" />
-              )}
-            </span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-secondary">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                progress.percentage === 100 ? 'bg-success' : 'bg-primary'
-              }`}
-              style={{ width: `${progress.percentage}%` }}
-            />
+
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-center justify-between text-xs font-medium">
+              <span className="text-muted-foreground">Completion</span>
+              <span className={progress.percentage === 100 ? 'text-success' : 'text-primary'}>
+                {progress.completed} of {progress.total}
+              </span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  progress.percentage === 100 ? 'bg-success' : 'bg-primary'
+                }`}
+                style={{ width: `${progress.percentage}%` }}
+              />
+            </div>
           </div>
+
           {progress.percentage === 100 && (
-            <p className="mt-2 text-center text-xs font-medium text-success">All tasks completed</p>
+            <div className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-success-soft px-3 py-2 text-xs font-semibold text-success">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              All tasks completed
+            </div>
           )}
         </div>
 
@@ -512,10 +550,10 @@ export default function TasksPage() {
 
         {/* Today's Tasks Form */}
         <div className="weekly-activities space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="section-title">Submit daily logs</h3>
             {!isAfter6PM && timeUntilMidnight && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-[11px] font-semibold text-accent-foreground">
+              <span className="inline-flex w-fit items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1.5 text-xs font-semibold text-accent-foreground">
                 <Timer className="h-3 w-3" />
                 <span className="font-mono">{timeUntilMidnight}</span>
               </span>

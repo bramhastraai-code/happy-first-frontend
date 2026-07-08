@@ -5,8 +5,10 @@ import { authAPI } from '@/lib/api/auth';
 import { useAuthStore } from '@/lib/store/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AppSelect } from '@/components/ui/AppSelect';
 import { UserPlus, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TIMEZONE_OPTIONS } from '@/lib/utils/timezones';
 
 const RELATIONSHIPS = [
   { value: 'spouse', label: 'Spouse/Partner' },
@@ -16,16 +18,6 @@ const RELATIONSHIPS = [
   { value: 'grandparent', label: 'Grandparent' },
   { value: 'grandchild', label: 'Grandchild' },
   { value: 'other', label: 'Other' },
-];
-
-const TIMEZONES = [
-  { value: 'Asia/Kolkata', label: 'Asia/Kolkata (IST)' },
-  { value: 'Asia/Dubai', label: 'Asia/Dubai (GST)' },
-  { value: 'Asia/Singapore', label: 'Asia/Singapore (SGT)' },
-  { value: 'Europe/London', label: 'Europe/London (GMT)' },
-  { value: 'America/New_York', label: 'America/New_York (EST)' },
-  { value: 'America/Los_Angeles', label: 'America/Los_Angeles (PST)' },
-  { value: 'Australia/Sydney', label: 'Australia/Sydney (AEDT)' },
 ];
 
 const MAX_MEMBERS = 5;
@@ -170,12 +162,11 @@ export default function AddFamilyMemberForm({ onSuccess }: AddFamilyMemberFormPr
 
         <div>
           <label className="mb-1.5 block text-xs font-medium text-foreground">Relationship</label>
-          <select
+          <AppSelect
             name="relationship"
             value={formData.relationship}
             onChange={handleInputChange}
             disabled={loading}
-            className="h-10 w-full rounded-xl border border-input bg-surface px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="">Select relationship</option>
             {RELATIONSHIPS.map((rel) => (
@@ -183,7 +174,7 @@ export default function AddFamilyMemberForm({ onSuccess }: AddFamilyMemberFormPr
                 {rel.label}
               </option>
             ))}
-          </select>
+          </AppSelect>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -198,23 +189,23 @@ export default function AddFamilyMemberForm({ onSuccess }: AddFamilyMemberFormPr
               min={1}
               max={120}
               disabled={loading}
+              className="h-10 rounded-xl px-3 text-sm shadow-none"
             />
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-foreground">Timezone</label>
-            <select
+            <AppSelect
               name="timezone"
               value={formData.timezone}
               onChange={handleInputChange}
               disabled={loading}
-              className="h-10 w-full rounded-xl border border-input bg-surface px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
             >
-              {TIMEZONES.map((tz) => (
+              {TIMEZONE_OPTIONS.map((tz) => (
                 <option key={tz.value} value={tz.value}>
                   {tz.label}
                 </option>
               ))}
-            </select>
+            </AppSelect>
           </div>
         </div>
 

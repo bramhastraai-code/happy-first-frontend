@@ -57,23 +57,21 @@ export default function Leaderboard() {
   const unit = activities.find((a) => a._id === selectedActivity)?.baseUnit || 'points';
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <ChipTabs
-          tabs={[
-            { id: 'current', label: 'This week' },
-            { id: 'previous', label: 'Last week' },
-          ]}
-          active={weekView}
-          onChange={(id) => setWeekView(id as WeekViewType)}
-          className="min-w-0 flex-1"
-        />
-        <ActivitySelect
-          value={selectedActivity}
-          onChange={setSelectedActivity}
-          activities={activities}
-        />
-      </div>
+    <div className="space-y-3 overflow-visible">
+      <ChipTabs
+        tabs={[
+          { id: 'current', label: 'This week' },
+          { id: 'previous', label: 'Last week' },
+        ]}
+        active={weekView}
+        onChange={(id) => setWeekView(id as WeekViewType)}
+        layout="balanced"
+      />
+      <ActivitySelect
+        value={selectedActivity}
+        onChange={setSelectedActivity}
+        activities={activities}
+      />
 
       {loading && (
         <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">

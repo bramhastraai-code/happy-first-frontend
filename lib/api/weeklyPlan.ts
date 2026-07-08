@@ -34,7 +34,7 @@ export interface WeeklyPlan {
   activities: WeeklyPlanActivity[];
   weekStart: string;
   weekEnd: string;
-  status: 'active' | 'completed';
+  status: 'active' | 'completed' | 'carried-forward';
   unloockedSets : number[];
   surpriseActivityStatus?: 'assigned' | 'none-left' | 'not-configured' | 'none';
 }

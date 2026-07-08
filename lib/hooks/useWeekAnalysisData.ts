@@ -13,6 +13,25 @@ export interface WeekAnalysisData {
   pointLosses: PointLossesData;
 }
 
+function normalizePointLosses(
+  raw: Partial<PointLossesData> & { earnedPoints?: number; potentialPoints?: number },
+  weekStart: string
+): PointLossesData {
+  return {
+    weekStart: String(raw.weekStart ?? weekStart),
+    weekEnd: String(raw.weekEnd ?? ''),
+    totalPotentialPoints: Number(raw.totalPotentialPoints ?? raw.potentialPoints ?? 0),
+    totalPointsEarned: Number(raw.totalPointsEarned ?? raw.earnedPoints ?? 0),
+    totalPointsLost: Number(raw.totalPointsLost ?? 0),
+    lossPercentage: raw.lossPercentage ?? '0.00',
+    pointLossDetails: raw.pointLossDetails ?? [],
+    summary: raw.summary ?? {
+      activitiesWithLosses: 0,
+      totalActivities: 0,
+    },
+  };
+}
+
 function extractErrorMessage(error: unknown, fallback: string): string {
   if (
     typeof error === 'object' &&
@@ -39,7 +58,7 @@ export function useWeekAnalysisData(weekStartInput?: string | null) {
       ]);
 
       const plan = planResponse.data.data ?? null;
-      const pointLosses = pointLossesResponse.data.data;
+      const pointLosses = normalizePointLosses(pointLossesResponse.data.data ?? {}, weekStart);
 
       let analytics: WeeklyPlanAnalytics | null = null;
       if (plan?._id) {

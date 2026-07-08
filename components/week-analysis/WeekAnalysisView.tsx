@@ -77,10 +77,11 @@ function ActivityPerformanceCard({ activity }: { activity: ActivityAnalytics }) 
 
       {activity.rank != null && (
         <div className="mt-4 rounded-xl bg-secondary/70 p-3">
-          <div className="mb-2 flex items-center justify-between text-sm">
+          <div className="mb-2 flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
             <span className="text-muted-foreground">Community rank</span>
             <span className="font-semibold text-foreground">
-              Top {activity.rankPercentile}% · {activity.rank}/{activity.totalParticipants}
+              Top {activity.rankPercentile}%
+              <span className="text-muted-foreground"> · #{activity.rank}/{activity.totalParticipants}</span>
             </span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-border">
@@ -291,7 +292,7 @@ export function WeekAnalysisView({ data }: WeekAnalysisViewProps) {
         }
       />
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Points earned"
           value={pointLosses.totalPointsEarned.toFixed(1)}
