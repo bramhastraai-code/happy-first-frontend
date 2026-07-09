@@ -26,6 +26,7 @@ import type {
   ActivityCalendarDay,
   CalendarData,
   CalendarDay,
+  LeaderboardData,
   StreakData,
 } from '@/lib/api/dailyLog';
 
@@ -45,6 +46,8 @@ interface StreakCalendarViewProps {
   onBackToActivityList: () => void;
   onPreviousMonth: () => void;
   onNextMonth: () => void;
+  onMonthlyLeaderboardPageChange: (page: number) => void;
+  onAllTimeLeaderboardPageChange: (page: number) => void;
 }
 
 function dayCellClasses(day: CalendarDay | ActivityCalendarDay) {
@@ -116,66 +119,122 @@ function StatTile({ label, value, accent }: { label: string; value: string | num
 function LeaderboardSection({
   title,
   subtitle,
-  ranks,
+  leaderboard,
   selectedProfileId,
   unit,
+  isLoading,
+  onPageChange,
 }: {
   title: string;
   subtitle?: string;
-  ranks: NonNullable<CalendarData['leaderboard']>['ranks'];
+  leaderboard: LeaderboardData;
   selectedProfileId?: string;
   unit?: string;
+  isLoading?: boolean;
+  onPageChange: (page: number) => void;
 }) {
+  const { ranks, totalLeaders, pagination } = leaderboard;
+  const startRank = totalLeaders === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
+  const endRank = Math.min(pagination.page * pagination.limit, totalLeaders);
+
   return (
     <section className="section-card p-4 sm:p-5">
       <div className="mb-4 flex items-center gap-3">
         <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-primary">
           <Medal className="h-5 w-5" />
         </span>
-        <div>
+        <div className="min-w-0 flex-1">
           <h2 className="section-title">{title}</h2>
           {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
         </div>
       </div>
 
-      <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
-        {ranks.map((entry) => {
-          const isYou = entry.user._id === selectedProfileId;
-          const isTop3 = entry.rank <= 3;
+      {ranks.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-secondary/50 px-4 py-10 text-center">
+          <Trophy className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-foreground">No rankings yet</p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
+          {ranks.map((entry) => {
+            const isYou = entry.isCurrentUser || entry.user._id === selectedProfileId;
+            const isTop3 = entry.rank <= 3;
 
-          return (
-            <li
-              key={entry.user._id}
-              className={cn('flex items-center gap-3 px-4 py-3', isYou && 'bg-accent/70')}
-            >
-              <span
-                className={cn(
-                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold',
-                  entry.rank === 1 && 'bg-amber-100 text-amber-800',
-                  entry.rank === 2 && 'bg-stone-200 text-stone-700',
-                  entry.rank === 3 && 'bg-orange-100 text-orange-800',
-                  !isTop3 && 'bg-secondary text-muted-foreground'
-                )}
+            return (
+              <li
+                key={`${entry.user._id}-${entry.rank}`}
+                className={cn('flex items-center gap-3 px-4 py-3', isYou && 'bg-accent/70')}
               >
-                {isTop3 ? <Medal className="h-4 w-4" /> : entry.rank}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className={cn('truncate font-medium', isYou ? 'text-primary' : 'text-foreground')}>
-                  {entry.user.name}
+                <span
+                  className={cn(
+                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold',
+                    entry.rank === 1 && 'bg-amber-100 text-amber-800',
+                    entry.rank === 2 && 'bg-stone-200 text-stone-700',
+                    entry.rank === 3 && 'bg-orange-100 text-orange-800',
+                    !isTop3 && 'bg-secondary text-muted-foreground'
+                  )}
+                >
+                  {isTop3 ? <Medal className="h-4 w-4" /> : entry.rank}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className={cn('truncate font-medium', isYou ? 'text-primary' : 'text-foreground')}>
+                    {entry.user.name}
+                  </p>
+                  {isYou && (
+                    <span className="mt-0.5 inline-block text-xs font-semibold text-primary">(you)</span>
+                  )}
+                </div>
+                <p className="flex shrink-0 items-center gap-1 text-sm font-semibold tabular-nums text-foreground">
+                  <Award className="h-4 w-4 text-primary" />
+                  {entry.value}
+                  {unit && <span className="text-xs font-normal text-muted-foreground">{unit}</span>}
                 </p>
-                {isYou && (
-                  <span className="mt-0.5 inline-block text-xs font-semibold text-primary">(you)</span>
-                )}
-              </div>
-              <p className="flex shrink-0 items-center gap-1 text-sm font-semibold tabular-nums text-foreground">
-                <Award className="h-4 w-4 text-primary" />
-                {entry.value}
-                {unit && <span className="text-xs font-normal text-muted-foreground">{unit}</span>}
-              </p>
-            </li>
-          );
-        })}
-      </ul>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {totalLeaders > 0 && (
+        <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            Showing {startRank}–{endRank} of {totalLeaders}
+            {isLoading && (
+              <span className="ml-2 inline-flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Updating
+              </span>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!pagination.hasPreviousPage || isLoading}
+              onClick={() => onPageChange(pagination.page - 1)}
+              className="gap-1"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <span className="min-w-[4.5rem] text-center text-xs font-medium text-muted-foreground">
+              Page {pagination.page} / {pagination.totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!pagination.hasNextPage || isLoading}
+              onClick={() => onPageChange(pagination.page + 1)}
+              className="gap-1"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -194,6 +253,8 @@ export function StreakCalendarView({
   onBackToActivityList,
   onPreviousMonth,
   onNextMonth,
+  onMonthlyLeaderboardPageChange,
+  onAllTimeLeaderboardPageChange,
 }: StreakCalendarViewProps) {
   const router = useRouter();
   const [legendOpen, setLegendOpen] = useState(false);
@@ -475,11 +536,25 @@ export function StreakCalendarView({
             <LeaderboardSection
               title={`${activeCalendar.monthName} leaderboard`}
               subtitle={activityCalendarData ? activityCalendarData.activityName : 'Overall performance'}
-              ranks={
-                (activityCalendarData?.leaderboard?.ranks || calendarData?.leaderboard?.ranks) ?? []
+              leaderboard={
+                activityCalendarData?.leaderboard || calendarData?.leaderboard!
               }
               selectedProfileId={selectedProfileId}
               unit={activityUnit ?? undefined}
+              isLoading={isCalendarFetching}
+              onPageChange={onMonthlyLeaderboardPageChange}
+            />
+          )}
+
+          {activityCalendarData?.allTimeLeaderboard && (
+            <LeaderboardSection
+              title="Overall leaderboard"
+              subtitle={`Best all-time · ${activityCalendarData.allTimeLeaderboard.totalLeaders} participants`}
+              leaderboard={activityCalendarData.allTimeLeaderboard}
+              selectedProfileId={selectedProfileId}
+              unit={activityUnit ?? undefined}
+              isLoading={isCalendarFetching}
+              onPageChange={onAllTimeLeaderboardPageChange}
             />
           )}
         </>

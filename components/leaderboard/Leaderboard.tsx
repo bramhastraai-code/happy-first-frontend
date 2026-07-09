@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { leaderboardAPI } from '@/lib/api/leaderboard';
+import type { LeaderboardData } from '@/lib/api/leaderboard';
 import { activityAPI, Activity } from '@/lib/api/activity';
 import { useAuthStore } from '@/lib/store/authStore';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import ActivitySelect from '@/components/ui/ActivitySelect';
-import { Loader2, Trophy, Medal } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight, Loader2, Trophy, Medal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type WeekViewType = 'current' | 'previous';
@@ -14,12 +16,12 @@ type WeekViewType = 'current' | 'previous';
 export default function Leaderboard() {
   const { selectedProfile } = useAuthStore();
   const [weekView, setWeekView] = useState<WeekViewType>('current');
-  const [leaderboardData, setLeaderboardData] = useState<{ rank: number; user: { _id: string; name: string }; value: number }[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<string>('');
-  const [userRank, setUserRank] = useState<{ rank: number; user: { _id: string; name: string }; value: number } | null>(null);
 
   useEffect(() => {
     void activityAPI.getList().then((response) => {
@@ -29,6 +31,10 @@ export default function Leaderboard() {
   }, []);
 
   useEffect(() => {
+    setPage(1);
+  }, [selectedActivity, weekView]);
+
+  useEffect(() => {
     const fetchLeaderboard = async () => {
       setLoading(true);
       setError(null);
@@ -36,12 +42,10 @@ export default function Leaderboard() {
         const date = new Date();
         if (weekView === 'previous') date.setDate(date.getDate() - 7);
         const dateToUse = date.toISOString().split('T')[0];
-        const response = await leaderboardAPI.getWeekly(selectedActivity, dateToUse);
+        const response = await leaderboardAPI.getWeekly(selectedActivity, dateToUse, page);
 
         if (response.data?.data) {
-          setLeaderboardData(response.data.data.ranks);
-          const rank = response.data.data.ranks.find((entry) => entry.user._id === selectedProfile?._id) ?? null;
-          setUserRank(rank);
+          setLeaderboard(response.data.data);
         }
       } catch (err) {
         setError('Failed to load leaderboard');
@@ -52,9 +56,17 @@ export default function Leaderboard() {
     };
 
     void fetchLeaderboard();
-  }, [selectedActivity, weekView, selectedProfile?._id]);
+  }, [selectedActivity, weekView, page, selectedProfile?._id]);
 
   const unit = activities.find((a) => a._id === selectedActivity)?.baseUnit || 'points';
+  const ranks = leaderboard?.ranks ?? [];
+  const pagination = leaderboard?.pagination;
+  const totalLeaders = leaderboard?.totalLeaders ?? 0;
+  const userRank = ranks.find(
+    (entry) => entry.isCurrentUser || entry.user._id === selectedProfile?._id
+  ) ?? null;
+  const startRank = totalLeaders === 0 || !pagination ? 0 : (pagination.page - 1) * pagination.limit + 1;
+  const endRank = pagination ? Math.min(pagination.page * pagination.limit, totalLeaders) : 0;
 
   return (
     <div className="space-y-3 overflow-visible">
@@ -73,7 +85,7 @@ export default function Leaderboard() {
         activities={activities}
       />
 
-      {loading && (
+      {loading && !leaderboard && (
         <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
           Loading ranks…
@@ -84,9 +96,9 @@ export default function Leaderboard() {
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
-      {!loading && !error && userRank && (
+      {!error && userRank && (
         <div className="rounded-2xl border border-primary/20 bg-primary-soft p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Your rank</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Your rank on this page</p>
           <div className="mt-1 flex items-end justify-between gap-3">
             <p className="text-2xl font-bold text-foreground">#{userRank.rank}</p>
             <p className="text-sm font-semibold text-foreground">
@@ -96,17 +108,22 @@ export default function Leaderboard() {
         </div>
       )}
 
-      {!loading && !error && (
+      {!error && (
         <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
-          {leaderboardData.length === 0 ? (
+          {loading && leaderboard ? (
+            <li className="flex items-center justify-center gap-2 px-4 py-8 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              Updating ranks…
+            </li>
+          ) : ranks.length === 0 ? (
             <li className="px-4 py-10 text-center">
               <Trophy className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
               <p className="text-sm font-medium text-foreground">No rankings yet</p>
               <p className="mt-1 text-xs text-muted-foreground">Complete activities to appear here.</p>
             </li>
           ) : (
-            leaderboardData.map((entry) => {
-              const isYou = entry.user._id === selectedProfile?._id;
+            ranks.map((entry) => {
+              const isYou = entry.isCurrentUser || entry.user._id === selectedProfile?._id;
               const isTop3 = entry.rank <= 3;
 
               return (
@@ -142,6 +159,41 @@ export default function Leaderboard() {
             })
           )}
         </ul>
+      )}
+
+      {!error && pagination && totalLeaders > 0 && (
+        <div className="flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            Showing {startRank}–{endRank} of {totalLeaders}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!pagination.hasPreviousPage || loading}
+              onClick={() => setPage((current) => current - 1)}
+              className="gap-1"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <span className="min-w-[4.5rem] text-center text-xs font-medium text-muted-foreground">
+              Page {pagination.page} / {pagination.totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!pagination.hasNextPage || loading}
+              onClick={() => setPage((current) => current + 1)}
+              className="gap-1"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

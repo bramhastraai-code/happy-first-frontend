@@ -167,11 +167,21 @@ export interface LeaderboardEntry {
     _id: string;
     name: string;
   };
+  isCurrentUser?: boolean;
+}
+
+export interface LeaderboardPagination {
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 }
 
 export interface LeaderboardData {
   ranks: LeaderboardEntry[];
   totalLeaders: number;
+  pagination: LeaderboardPagination;
 }
 
 export interface CalendarData {
@@ -238,6 +248,7 @@ export interface ActivityCalendarData {
     canGoNext: boolean;
   };
   leaderboard?: LeaderboardData;
+  allTimeLeaderboard?: LeaderboardData;
 }
 
 export const dailyLogAPI = {
@@ -282,10 +293,26 @@ export const dailyLogAPI = {
     }>(`/dailyLog/calendar/${profileId}`, { params });
   },
 
-  getActivityCalendar: (profileId: string, activityId: string, month?: number, year?: number) => {
-    const params: { month?: number; year?: number } = {};
-    if (month !== undefined) params.month = month;
-    if (year !== undefined) params.year = year;
+  getActivityCalendar: (
+    profileId: string,
+    activityId: string,
+    options?: {
+      month?: number;
+      year?: number;
+      leaderboardPage?: number;
+      allTimeLeaderboardPage?: number;
+    }
+  ) => {
+    const params: {
+      month?: number;
+      year?: number;
+      leaderboardPage?: number;
+      allTimeLeaderboardPage?: number;
+    } = {};
+    if (options?.month !== undefined) params.month = options.month;
+    if (options?.year !== undefined) params.year = options.year;
+    if (options?.leaderboardPage !== undefined) params.leaderboardPage = options.leaderboardPage;
+    if (options?.allTimeLeaderboardPage !== undefined) params.allTimeLeaderboardPage = options.allTimeLeaderboardPage;
     return api.get<{
       success: boolean;
       message: string;

@@ -25,17 +25,33 @@ export function useCalendarData(
   year: number,
   filterType: FilterType,
   activityId: string,
+  leaderboardPage: number,
+  allTimeLeaderboardPage: number,
   enabled = true
 ) {
   const isActivity = filterType === 'activity' && !!activityId;
 
   return useQuery({
     queryKey: isActivity
-      ? queryKeys.dailyLog.activityCalendar(profileId ?? '', activityId, month, year)
+      ? queryKeys.dailyLog.activityCalendar(
+          profileId ?? '',
+          activityId,
+          month,
+          year,
+          leaderboardPage,
+          allTimeLeaderboardPage
+        )
       : queryKeys.dailyLog.calendar(profileId ?? '', month, year),
     queryFn: () =>
       isActivity
-        ? fetchActivityCalendar(profileId!, activityId, month, year)
+        ? fetchActivityCalendar(
+            profileId!,
+            activityId,
+            month,
+            year,
+            leaderboardPage,
+            allTimeLeaderboardPage
+          )
         : fetchCalendar(profileId!, month, year),
     staleTime: STALE.calendar,
     enabled: enabled && !!profileId && (filterType === 'overall' || !!activityId),

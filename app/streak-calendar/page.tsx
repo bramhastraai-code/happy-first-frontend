@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import type { ActivityCalendarData, CalendarData } from '@/lib/api/dailyLog';
@@ -19,7 +19,8 @@ export default function StreakCalendarPage() {
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1);
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [showActivityList, setShowActivityList] = useState(true);
-  const didAutoSelectActivity = useRef(false);
+  const [monthlyLeaderboardPage, setMonthlyLeaderboardPage] = useState(1);
+  const [allTimeLeaderboardPage, setAllTimeLeaderboardPage] = useState(1);
 
   const enabled = isHydrated && !!accessToken && !!selectedProfile?._id;
 
@@ -30,6 +31,8 @@ export default function StreakCalendarPage() {
     currentYear,
     filterType,
     selectedActivityId,
+    monthlyLeaderboardPage,
+    allTimeLeaderboardPage,
     enabled
   );
 
@@ -46,26 +49,12 @@ export default function StreakCalendarPage() {
     }
   }, [accessToken, isHydrated, selectedProfile, router]);
 
-  useEffect(() => {
-    if (
-      didAutoSelectActivity.current ||
-      filterType !== 'activity' ||
-      selectedActivityId ||
-      !streakQuery.data?.activityStreaks.length
-    ) {
-      return;
-    }
-    didAutoSelectActivity.current = true;
-    const firstActivityId = streakQuery.data.activityStreaks[0].activityId;
-    setSelectedActivityId(firstActivityId);
-    setShowActivityList(false);
-  }, [filterType, selectedActivityId, streakQuery.data]);
-
   const handlePreviousMonth = () => {
     const currentCalendar = activityCalendarData || calendarData;
     if (currentCalendar?.pagination.canGoPrevious) {
       setCurrentMonth(currentCalendar.pagination.previousMonth.month);
       setCurrentYear(currentCalendar.pagination.previousMonth.year);
+      setMonthlyLeaderboardPage(1);
     }
   };
 
@@ -74,6 +63,7 @@ export default function StreakCalendarPage() {
     if (currentCalendar?.pagination.canGoNext) {
       setCurrentMonth(currentCalendar.pagination.nextMonth.month);
       setCurrentYear(currentCalendar.pagination.nextMonth.year);
+      setMonthlyLeaderboardPage(1);
     }
   };
 
@@ -81,11 +71,12 @@ export default function StreakCalendarPage() {
     setFilterType(type);
     if (type === 'overall') {
       setSelectedActivityId('');
-      setShowActivityList(true);
-    } else {
-      setShowActivityList(true);
-      setSelectedActivityId('');
+      setShowActivityList(false);
+      return;
     }
+
+    setSelectedActivityId('');
+    setShowActivityList(true);
   };
 
   const handleActivitySelect = (activityId: string) => {
@@ -94,6 +85,8 @@ export default function StreakCalendarPage() {
     setShowActivityList(false);
     setCurrentMonth(new Date().getMonth() + 1);
     setCurrentYear(new Date().getFullYear());
+    setMonthlyLeaderboardPage(1);
+    setAllTimeLeaderboardPage(1);
   };
 
   const handleBackToActivityList = () => {
@@ -133,6 +126,8 @@ export default function StreakCalendarPage() {
         onBackToActivityList={handleBackToActivityList}
         onPreviousMonth={handlePreviousMonth}
         onNextMonth={handleNextMonth}
+        onMonthlyLeaderboardPageChange={setMonthlyLeaderboardPage}
+        onAllTimeLeaderboardPageChange={setAllTimeLeaderboardPage}
       />
     </MainLayout>
   );

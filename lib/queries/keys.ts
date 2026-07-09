@@ -28,8 +28,15 @@ export const queryKeys = {
     streaks: (profileId: string) => ['dailyLog', 'streaks', profileId] as const,
     calendar: (profileId: string, month: number, year: number) =>
       ['dailyLog', 'calendar', profileId, month, year] as const,
-    activityCalendar: (profileId: string, activityId: string, month: number, year: number) =>
-      ['dailyLog', 'activityCalendar', profileId, activityId, month, year] as const,
+    activityCalendar: (
+      profileId: string,
+      activityId: string,
+      month: number,
+      year: number,
+      leaderboardPage: number,
+      allTimeLeaderboardPage: number
+    ) =>
+      ['dailyLog', 'activityCalendar', profileId, activityId, month, year, leaderboardPage, allTimeLeaderboardPage] as const,
   },
   auth: {
     userInfo: (profileId?: string) => ['auth', 'userInfo', profileId ?? 'none'] as const,

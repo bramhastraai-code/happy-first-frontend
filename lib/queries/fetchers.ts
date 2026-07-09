@@ -47,9 +47,16 @@ export async function fetchActivityCalendar(
   profileId: string,
   activityId: string,
   month: number,
-  year: number
+  year: number,
+  leaderboardPage = 1,
+  allTimeLeaderboardPage = 1
 ): Promise<ActivityCalendarData> {
-  const res = await dailyLogAPI.getActivityCalendar(profileId, activityId, month, year);
+  const res = await dailyLogAPI.getActivityCalendar(profileId, activityId, {
+    month,
+    year,
+    leaderboardPage,
+    allTimeLeaderboardPage,
+  });
   return res.data.data;
 }
 

@@ -18,6 +18,8 @@ import type { WeeklyPlan, WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { activityAPI, Activity as ActivityType } from '@/lib/api/activity';
 import { DateTime } from 'luxon';
 import { cn } from '@/lib/utils';
+import { resolveActivityId } from '@/lib/utils/activityId';
+import { canSubmitPartialLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
 
 type SummaryWithLogStatus = {
     isTodayLogged?: boolean;
@@ -216,9 +218,7 @@ function PreviousLogPageContent() {
                     const initialPendingSliders: Record<string, boolean> = {};
 
                     plan.activities.forEach((activity) => {
-                        const activityId = typeof activity.activity === 'object'
-                            ? activity.activity
-                            : activity.activity;
+                        const activityId = resolveActivityId(activity);
 
                         if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
                             initialCheckboxActivities[activityId] = false;
@@ -295,7 +295,9 @@ function PreviousLogPageContent() {
         
         Object.entries(activities).forEach(([activityId, value]) => {
             if (value > 0) {
-                const activity = weeklyPlan?.activities.find(a => a.activity === activityId);
+                const activity = weeklyPlan?.activities.find(
+                    (a) => resolveActivityId(a) === activityId
+                );
                 if (activity && activity.cadence !== 'weekly' && activity.label) {
                     const targetValue =  activity.targetValue;
                     const percentage = (value / targetValue) * 100;
@@ -319,36 +321,27 @@ function PreviousLogPageContent() {
             return;
         }
 
+        if (!weeklyPlan) {
+            setError('No weekly plan found for the selected date.');
+            return;
+        }
+
+        const validation = validateLogSubmit(weeklyPlan, activities, checkboxActivities, pendingSliders);
+        if (!validation.ok) {
+            setError(validation.error);
+            return;
+        }
+
         setLoading(true);
 
         try {
-            // Combine numeric activities and checkbox activities
-            const numericActivities = Object.entries(activities)
-                .filter(([, value]) => value > 0)
-                .map(([activityId, value]) => ({
-                    activityId,
-                    value,
-                }));
-
-            const checkboxActivityEntries = Object.entries(checkboxActivities)
-                .map(([activityId, checked]) => ({
-                    activityId,
-                    value: checked ? 1 : 0,
-                }));
-
-            if (numericActivities.length === 0 && checkboxActivityEntries.every((activity) => activity.value === 0)) {
-                setError('Please add at least one activity value before submitting.');
-                setLoading(false);
-                return;
-            }
-
             const submitData: SubmitPreviousDailyLogData = {
                 date: selectedDate,
-                activities: [...numericActivities, ...checkboxActivityEntries],
+                activities: validation.payload,
             };
 
             const response = await dailyLogAPI.submitPrevious(submitData);
-            setEarnedPoints(response.data.data.totalPoints);
+            setEarnedPoints(extractEarnedPoints(response.data.data));
             setShowCongrats(true);
             await invalidateDashboardQueries(queryClient);
 
@@ -533,6 +526,7 @@ function PreviousLogPageContent() {
                                 timeUntilMidnight=""
                                 activityValues={activities}
                                 checkboxActivities={checkboxActivities}
+                                pendingSliders={pendingSliders}
                                 onActivityChange={handleActivityChange}
                                 onCheckboxChange={handleCheckboxChange}
                                 onPendingChange={handlePendingChange}
@@ -563,7 +557,8 @@ function PreviousLogPageContent() {
                             loading ||
                             !canSubmit ||
                             checkingLog ||
-                            Object.values(pendingSliders).some((isPending) => isPending)
+                            !weeklyPlan ||
+                            !canSubmitPartialLog(weeklyPlan, activities, checkboxActivities, pendingSliders)
                         }
                         className="w-full py-5 text-base font-semibold"
                     >
@@ -571,9 +566,7 @@ function PreviousLogPageContent() {
                             ? 'Submitting…'
                             : checkingLog
                               ? 'Checking…'
-                              : Object.values(pendingSliders).some((isPending) => isPending)
-                                ? 'Complete all sliders'
-                                : 'Submit missed log'}
+                              : 'Submit missed log'}
                     </Button>
                 )}
 

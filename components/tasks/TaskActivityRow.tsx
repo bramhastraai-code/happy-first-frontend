@@ -16,6 +16,7 @@ interface TaskActivityRowProps {
   timeUntilMidnight: string;
   value: number;
   checkboxChecked: boolean;
+  isPending: boolean;
   onActivityChange: (activityId: string, value: string) => void;
   onCheckboxChange: (activityId: string, checked: boolean) => void;
   onPendingChange: (activityId: string, isPending: boolean) => void;
@@ -57,6 +58,7 @@ export default function TaskActivityRow({
   timeUntilMidnight,
   value,
   checkboxChecked,
+  isPending,
   onActivityChange,
   onCheckboxChange,
   onPendingChange,
@@ -135,8 +137,9 @@ export default function TaskActivityRow({
         <>
           <CustomSlider
             checked={checkboxChecked}
+            isPending={isPending}
             onChange={(checked) => onCheckboxChange(activityId, checked)}
-            onPendingChange={(isPending) => onPendingChange(activityId, isPending)}
+            onPendingChange={(pending) => onPendingChange(activityId, pending)}
           />
           <StatusBadge tone="points">
             {(activity.pointsPerUnit ?? 0).toFixed(1)} pts

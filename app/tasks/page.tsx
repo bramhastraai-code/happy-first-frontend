@@ -20,6 +20,8 @@ import { tasksTourSteps } from '@/lib/utils/tourSteps';
 import { activityAPI, Activity as ActivityType } from '@/lib/api/activity';
 import { DateTime } from 'luxon';
 import { formatWeekRangeLabel, formatWeekRangeShort } from '@/lib/utils/weekDate';
+import { resolveActivityId } from '@/lib/utils/activityId';
+import { buildLogSubmitPayload, canSubmitPartialLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -117,14 +119,12 @@ export default function TasksPage() {
         const initialCheckboxValues: Record<string, boolean> = {};
         const initialPendingSliders: Record<string, boolean> = {};
         plan.activities.forEach((activity: WeeklyPlanActivity) => {
-          const activityId = typeof activity.activity === 'object' 
-            ? activity.activity 
-            : activity.activity;
+          const activityId = resolveActivityId(activity);
           
           // Check if it's a weekly activity with "days" unit
           if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
             initialCheckboxValues[activityId] = false;
-            initialPendingSliders[activityId] = true; // Start as pending
+            initialPendingSliders[activityId] = true;
           } else {
             initialValues[activityId] = 0;
           }
@@ -195,7 +195,9 @@ export default function TasksPage() {
     
     Object.entries(activities).forEach(([activityId, value]) => {
       if (value > 0) {
-        const activity = weeklyPlan?.activities.find(a => a.activity === activityId);
+        const activity = weeklyPlan?.activities.find(
+          (a) => resolveActivityId(a) === activityId
+        );
         if (activity && activity.cadence !== 'weekly' && activity.label) {
           const targetValue =  activity.targetValue ;
           const percentage = (value / targetValue) * 100;
@@ -219,57 +221,76 @@ export default function TasksPage() {
       return;
     }
 
+    if (!weeklyPlan) {
+      setError('No weekly plan found.');
+      return;
+    }
+
+    const validation = validateLogSubmit(weeklyPlan, activities, checkboxActivities, pendingSliders);
+    if (!validation.ok) {
+      setError(validation.error);
+      return;
+    }
+
     // Proceed with submission
     setLoading(true);
 
     try {
-      // Combine numeric activities and checkbox activities
-      const numericActivities = Object.entries(activities)
-        .filter(([, value]) => value > 0)
-        .map(([activityId, value]) => ({
-          activityId,
-          value,
-        }));
-      
-      const checkboxActivityEntries = Object.entries(checkboxActivities)
-        .map(([activityId, checked]) => ({
-          activityId,
-          value: checked ? 1 : 0,
-        })).filter(entry => entry.value > 0 ); // Include only if checked or explicitly marked as not pending
-      
       const submitData: SubmitDailyLogData = {
-        activities: [...numericActivities, ...checkboxActivityEntries],
+        activities: validation.payload,
       };
 
       const response = await dailyLogAPI.submit(submitData);
-      setEarnedPoints(response.data.data.totalPoints);
-      setShowCongrats(true);
+      const points = extractEarnedPoints(response.data.data);
+      setEarnedPoints(points);
 
       await invalidateDashboardQueries(queryClient);
       
       if(response.status===201){
-        // Update weeklyPlan to mark all activities as logged for today
-        setWeeklyPlan(prev => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            activities: prev.activities.map(activity => ({
-              ...activity,
-              TodayLogged: true
-            }))
-          };
-        });
+        const submittedById = new Map(
+          validation.payload.map((entry) => [entry.activityId, entry.value])
+        );
+
+        const nextPlan = weeklyPlan
+          ? {
+              ...weeklyPlan,
+              activities: weeklyPlan.activities.map((activity) => {
+                const activityId = resolveActivityId(activity);
+                if (!submittedById.has(activityId)) return activity;
+                return {
+                  ...activity,
+                  TodayLogged: true,
+                  achieved: submittedById.get(activityId) ?? activity.achieved,
+                };
+              }),
+            }
+          : weeklyPlan;
+
+        if (nextPlan) {
+          setWeeklyPlan(nextPlan);
+        }
+
+        const hasRemainingActivities = nextPlan?.activities.some((activity) => !activity.TodayLogged);
+
+        if (hasRemainingActivities) {
+          setSuccess(
+            `Logged ${validation.payload.length} activit${validation.payload.length === 1 ? 'y' : 'ies'} (+${points.toFixed(2)} pts). You can continue logging the rest.`
+          );
+        } else {
+          setShowCongrats(true);
+        }
       }
       
-      // Reset form
-      const resetValues: Record<string, number> = {};
-      const resetCheckboxValues: Record<string, boolean> = {};
-      const resetPendingSliders: Record<string, boolean> = {};
+      // Reset only submitted fields; keep pending/skipped activities editable
+      const submittedIds = new Set(validation.payload.map((entry) => entry.activityId));
+      const resetValues: Record<string, number> = { ...activities };
+      const resetCheckboxValues: Record<string, boolean> = { ...checkboxActivities };
+      const resetPendingSliders: Record<string, boolean> = { ...pendingSliders };
+
       weeklyPlan?.activities.forEach((activity) => {
-        const activityId = typeof activity.activity === 'object' 
-          ? activity.activity 
-          : activity.activity;
-        
+        const activityId = resolveActivityId(activity);
+        if (!submittedIds.has(activityId)) return;
+
         if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
           resetCheckboxValues[activityId] = false;
           resetPendingSliders[activityId] = true;
@@ -309,9 +330,7 @@ export default function TasksPage() {
     const total = weeklyPlan.activities.length;
 
     weeklyPlan.activities.forEach((activity) => {
-      const activityId = typeof activity.activity === 'object' 
-        ? activity.activity 
-        : activity.activity;
+      const activityId = resolveActivityId(activity);
       
       if(activity.cadence=="daily"&&activity.achieved &&activity.achieved>=activity.targetValue){
         completed += 1;
@@ -376,13 +395,15 @@ export default function TasksPage() {
               Congratulations!
             </h1>
             <p className="text-2xl text-white/90 mb-6">
-              You&apos;ve successfully logged your activities!
+              {earnedPoints > 0
+                ? "You've successfully logged your activities!"
+                : 'Your log was saved, but no points were earned for the values submitted.'}
             </p>
             
             {/* Points Card */}
             <div className="inline-block bg-white rounded-2xl shadow-2xl px-8 py-6 mb-8">
               <p className="text-sm text-slate-600 font-medium mb-2">Points Earned</p>
-              <p className="text-5xl font-bold text-green-600">
+              <p className={`text-5xl font-bold ${earnedPoints > 0 ? 'text-green-600' : 'text-slate-500'}`}>
                 +{earnedPoints.toFixed(2)}
               </p>
             </div>
@@ -584,6 +605,7 @@ export default function TasksPage() {
                   timeUntilMidnight={timeUntilMidnight}
                   activityValues={activities}
                   checkboxActivities={checkboxActivities}
+                  pendingSliders={pendingSliders}
                   onActivityChange={handleActivityChange}
                   onCheckboxChange={handleCheckboxChange}
                   onPendingChange={handlePendingChange}
@@ -685,7 +707,12 @@ export default function TasksPage() {
           )}
             <Button
               type="submit"
-              disabled={!isAfter6PM || loading||weeklyPlan?.activities.every(activity => activity.TodayLogged)||Object.values(activities).every(value => value === 0) && Object.values(checkboxActivities).every(checked => !checked) || Object.values(pendingSliders).some(isPending => isPending)}
+              disabled={
+                !isAfter6PM ||
+                loading ||
+                !weeklyPlan ||
+                !canSubmitPartialLog(weeklyPlan, activities, checkboxActivities, pendingSliders)
+              }
               className="submit-log-button w-full py-5 text-base font-semibold"
             >
               {loading ? (
@@ -693,7 +720,7 @@ export default function TasksPage() {
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   Submitting...
                 </span>
-              ) : !isAfter6PM ? 'Available After 6 PM' : Object.values(pendingSliders).some(isPending => isPending) ? 'Please Complete All Sliders' : 'Submit Daily Log'}
+              ) : !isAfter6PM ? 'Available After 6 PM' : 'Submit Daily Log'}
             </Button>
           </form>
           )}

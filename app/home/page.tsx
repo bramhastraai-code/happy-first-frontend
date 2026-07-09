@@ -190,7 +190,7 @@ function HomePageContent() {
   };
   const weekDaysLogged = summary?.totalDaysLogged ?? 0;
   const totalDaysLogged = streakData?.overallStreak.totalDaysLogged ?? 0;
-  const weekScoreHint = `${weekDaysLogged} days logged · ${totalDaysLogged} total`;
+  const weekScoreHint = `${weekDaysLogged} of 7 days`;
 
   // Get current week's days (Monday to Sunday)
   const getCurrentWeekDays = () => {
@@ -219,6 +219,7 @@ function HomePageContent() {
   const weekDays = getCurrentWeekDays();
   const todayLogged = weekDays.find((d) => d.isToday)?.hasLog ?? false;
   const daysLoggedThisWeek = weekDays.filter((d) => d.hasLog).length;
+  const daysLoggedHint = `${totalDaysLogged} total logged`;
   const pendingDailyCount =
     weeklyPlan?.activities.filter((a) => a.cadence === 'daily' && !a.TodayLogged).length ?? 0;
   const weekTips = buildWeekTips({
@@ -399,7 +400,7 @@ function HomePageContent() {
         </Card>
 
         {/* Stats Grid */}
-        <div className="stats-grid grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+        <div className="stats-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4">
           <div onClick={() => router.push('/streak-calendar')} className="h-full cursor-pointer">
             <StatCard
               label="Current streak"
@@ -407,6 +408,15 @@ function HomePageContent() {
               hint={`Best: ${streakData?.overallStreak.longestStreak || 0} days`}
               icon={Flame}
               accent="orange"
+            />
+          </div>
+          <div onClick={() => router.push('/streak-calendar')} className="h-full cursor-pointer">
+            <StatCard
+              label="Days logged"
+              value={daysLoggedThisWeek}
+              hint={daysLoggedHint}
+              icon={CalendarDays}
+              accent="neutral"
             />
           </div>
           <div className="h-full">

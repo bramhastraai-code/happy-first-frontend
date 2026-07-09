@@ -3,6 +3,7 @@
 import TaskActivityRow from '@/components/tasks/TaskActivityRow';
 import type { WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import type { Activity as ActivityType } from '@/lib/api/activity';
+import { resolveActivityId } from '@/lib/utils/activityId';
 
 const CATEGORY_META: Record<
   string,
@@ -21,6 +22,7 @@ interface TaskCategorySectionProps {
   timeUntilMidnight: string;
   activityValues: Record<string, number>;
   checkboxActivities: Record<string, boolean>;
+  pendingSliders: Record<string, boolean>;
   onActivityChange: (activityId: string, value: string) => void;
   onCheckboxChange: (activityId: string, checked: boolean) => void;
   onPendingChange: (activityId: string, isPending: boolean) => void;
@@ -35,6 +37,7 @@ export default function TaskCategorySection({
   timeUntilMidnight,
   activityValues,
   checkboxActivities,
+  pendingSliders,
   onActivityChange,
   onCheckboxChange,
   onPendingChange,
@@ -44,7 +47,7 @@ export default function TaskCategorySection({
   if (!meta) return null;
 
   const categoryActivities = activities.filter((activity) => {
-    const activityData = actlist.find((act) => act._id === activity.activity);
+    const activityData = actlist.find((act) => act._id === resolveActivityId(activity));
     return activityData?.category.toLowerCase() === category.toLowerCase();
   });
 
@@ -61,8 +64,7 @@ export default function TaskCategorySection({
       </div>
 
       {categoryActivities.map((activity, index) => {
-        const activityId =
-          typeof activity.activity === 'object' ? activity.activity : activity.activity;
+        const activityId = resolveActivityId(activity);
         const activityData = actlist.find((act) => act._id === activityId);
 
         return (
@@ -76,6 +78,7 @@ export default function TaskCategorySection({
             timeUntilMidnight={timeUntilMidnight}
             value={activityValues[activityId] || 0}
             checkboxChecked={checkboxActivities[activityId] || false}
+            isPending={pendingSliders[activityId] ?? true}
             onActivityChange={onActivityChange}
             onCheckboxChange={onCheckboxChange}
             onPendingChange={onPendingChange}

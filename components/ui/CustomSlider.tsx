@@ -4,19 +4,32 @@ import { useState, useEffect } from 'react';
 
 interface CustomSliderProps {
   checked: boolean;
+  isPending?: boolean;
   onChange: (checked: boolean) => void;
   onPendingChange?: (isPending: boolean) => void;
   disabled?: boolean;
 }
 
-export default function CustomSlider({ checked, onChange, onPendingChange, disabled = false }: CustomSliderProps) {
+function resolvePosition(checked: boolean, isPending: boolean): 'left' | 'center' | 'right' {
+  if (checked) return 'right';
+  if (isPending) return 'center';
+  return 'left';
+}
+
+export default function CustomSlider({
+  checked,
+  isPending = true,
+  onChange,
+  onPendingChange,
+  disabled = false,
+}: CustomSliderProps) {
   const [position, setPosition] = useState<'left' | 'center' | 'right'>(
-    checked ? 'right' : 'center'
+    resolvePosition(checked, isPending)
   );
 
   useEffect(() => {
-    setPosition(checked ? 'right' : 'center');
-  }, [checked]);
+    setPosition(resolvePosition(checked, isPending));
+  }, [checked, isPending]);
 
   const handleTabClick = (tab: 'left' | 'center' | 'right') => {
     if (disabled) return;
