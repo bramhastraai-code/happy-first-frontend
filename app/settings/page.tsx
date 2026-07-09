@@ -34,6 +34,8 @@ import {
   mergeReminderSchedule,
   ReminderSchedule,
   getEnabledReminderCount,
+  hasValidReminderSchedule,
+  getReminderScheduleIssues,
 } from '@/lib/utils/reminderSchedule';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
@@ -133,6 +135,12 @@ export default function SettingsPage() {
 
   const handleSaveReminders = async () => {
     if (!selectedProfile || reminderSaving) return;
+
+    if (!hasValidReminderSchedule(reminderSchedule)) {
+      setReminderError(getReminderScheduleIssues(reminderSchedule)[0]);
+      setReminderMessage('');
+      return;
+    }
 
     setReminderSaving(true);
     setReminderMessage('');
@@ -388,7 +396,11 @@ export default function SettingsPage() {
             <CollapsibleSection
               id="reminder-schedule"
               title="Reminder schedule"
-              badge={`${getEnabledReminderCount(reminderSchedule)} on`}
+              badge={
+                getEnabledReminderCount(reminderSchedule) === 0
+                  ? 'None active'
+                  : `${getEnabledReminderCount(reminderSchedule)} active`
+              }
               icon={Bell}
               expanded={openPanel === 'reminders'}
               onToggle={() => togglePanel('reminders')}
@@ -398,7 +410,11 @@ export default function SettingsPage() {
               <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center">
                 <Button
                   onClick={handleSaveReminders}
-                  disabled={!selectedProfile || reminderSaving}
+                  disabled={
+                    !selectedProfile ||
+                    reminderSaving ||
+                    !hasValidReminderSchedule(reminderSchedule)
+                  }
                   className="sm:w-auto"
                 >
                   {reminderSaving ? 'Saving…' : 'Save schedule'}

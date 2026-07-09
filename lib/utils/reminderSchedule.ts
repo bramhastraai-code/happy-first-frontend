@@ -54,6 +54,20 @@ export const DAILY_REMINDER_UI_ORDER: ReminderSlot[] = [
   'evening',
 ];
 
+export function isValidReminderTime(time: string | undefined): boolean {
+  if (!time) return false;
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  return Boolean(match);
+}
+
+export function isReminderSlotActive(config: ReminderSlotConfig): boolean {
+  return config.enabled && isValidReminderTime(config.time);
+}
+
+export function getDefaultTimeForSlot(slot: ReminderSlot): string {
+  return DEFAULT_REMINDER_SCHEDULE[slot].time;
+}
+
 export function formatReminderTime12h(time: string): string {
   const [hours, minutes] = time.split(':').map(Number);
   if (Number.isNaN(hours) || Number.isNaN(minutes)) return time;
@@ -62,32 +76,52 @@ export function formatReminderTime12h(time: string): string {
   return `${hour12}:${String(minutes).padStart(2, '0')} ${period}`;
 }
 
+/** Count reminders that are on and have a valid time. */
 export function getEnabledReminderCount(schedule: ReminderSchedule): number {
-  const dailyCount = DAILY_REMINDER_SLOTS.filter((slot) => schedule[slot].enabled).length;
-  const weeklyCount = schedule.weekly.enabled ? 1 : 0;
+  const dailyCount = DAILY_REMINDER_SLOTS.filter((slot) =>
+    isReminderSlotActive(schedule[slot])
+  ).length;
+  const weeklyCount = isReminderSlotActive(schedule.weekly) ? 1 : 0;
   return dailyCount + weeklyCount;
 }
 
+export function getReminderScheduleIssues(schedule: ReminderSchedule): string[] {
+  const issues: string[] = [];
+
+  for (const slot of [...DAILY_REMINDER_SLOTS, 'weekly'] as ReminderSlot[]) {
+    const config = schedule[slot];
+    if (config.enabled && !isValidReminderTime(config.time)) {
+      issues.push(`${REMINDER_SLOT_LABELS[slot]} is on but has no time set`);
+    }
+  }
+
+  return issues;
+}
+
+export function hasValidReminderSchedule(schedule: ReminderSchedule): boolean {
+  return getReminderScheduleIssues(schedule).length === 0;
+}
+
 export function getReminderScheduleSummary(schedule: ReminderSchedule): string {
-  const enabledDaily = DAILY_REMINDER_SLOTS.filter((slot) => schedule[slot].enabled);
+  const activeDaily = DAILY_REMINDER_SLOTS.filter((slot) => isReminderSlotActive(schedule[slot]));
   const weeklyDay =
     WEEKDAY_OPTIONS.find((day) => day.value === (schedule.weekly.day || 1))?.label ?? 'Monday';
 
   let dailyPart: string;
-  if (enabledDaily.length === 0) {
+  if (activeDaily.length === 0) {
     dailyPart = 'No daily reminders';
-  } else if (enabledDaily.length === 1) {
-    const slot = enabledDaily[0];
+  } else if (activeDaily.length === 1) {
+    const slot = activeDaily[0];
     const label = slot === 'night' ? 'Daily' : REMINDER_SLOT_LABELS[slot];
     dailyPart = `${label} ${formatReminderTime12h(schedule[slot].time)}`;
   } else {
-    const times = enabledDaily
+    const times = activeDaily
       .map((slot) => `${REMINDER_SLOT_LABELS[slot].replace(' reminder', '')} ${formatReminderTime12h(schedule[slot].time)}`)
       .join(', ');
     dailyPart = times;
   }
 
-  if (!schedule.weekly.enabled) {
+  if (!isReminderSlotActive(schedule.weekly)) {
     return `${dailyPart} · Weekly off`;
   }
 
@@ -115,5 +149,16 @@ export function mergeReminderSchedule(
       schedule[slot] = { ...schedule[slot], ...existing[slot] };
     }
   }
+
+  for (const slot of Object.keys(schedule) as ReminderSlot[]) {
+    const config = schedule[slot];
+    if (config.enabled && !isValidReminderTime(config.time)) {
+      schedule[slot] = {
+        ...config,
+        time: getDefaultTimeForSlot(slot),
+      };
+    }
+  }
+
   return schedule;
 }
