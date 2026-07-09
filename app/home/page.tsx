@@ -219,7 +219,7 @@ function HomePageContent() {
   const weekDays = getCurrentWeekDays();
   const todayLogged = weekDays.find((d) => d.isToday)?.hasLog ?? false;
   const daysLoggedThisWeek = weekDays.filter((d) => d.hasLog).length;
-  const daysLoggedHint = `${totalDaysLogged} total logged`;
+  const daysLoggedHint = `${daysLoggedThisWeek} this week`;
   const pendingDailyCount =
     weeklyPlan?.activities.filter((a) => a.cadence === 'daily' && !a.TodayLogged).length ?? 0;
   const weekTips = buildWeekTips({
@@ -413,7 +413,7 @@ function HomePageContent() {
           <div onClick={() => router.push('/streak-calendar')} className="h-full cursor-pointer">
             <StatCard
               label="Days logged"
-              value={daysLoggedThisWeek}
+              value={totalDaysLogged}
               hint={daysLoggedHint}
               icon={CalendarDays}
               accent="neutral"
