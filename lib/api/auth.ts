@@ -51,6 +51,18 @@ export interface ChangePasswordData {
   newPassword: string;
 }
 
+export interface ForgotPasswordRequestData {
+  phoneNumber: string;
+  countryCode: string;
+}
+
+export interface ResetPasswordData {
+  phoneNumber: string;
+  countryCode: string;
+  otp: string;
+  newPassword: string;
+}
+
 export interface AddFamilyMemberData {
   name: string;
   relationship: string;
@@ -131,6 +143,11 @@ export const authAPI = {
   updateProfile: (data: UpdateProfileData) => api.patch('/userAuth/update-profile', data),
   
   changePassword: (data: ChangePasswordData) => api.post('/userAuth/change-password', data),
+
+  requestForgotPasswordOTP: (data: ForgotPasswordRequestData) =>
+    api.post<{ data?: { otpExpiresInSeconds?: number } }>('/userAuth/forgot-password/request', data),
+
+  resetPasswordWithOTP: (data: ResetPasswordData) => api.post('/userAuth/forgot-password/reset', data),
   
   addFamilyMember: (data: AddFamilyMemberData) => api.post('/userAuth/add-family-member', data),
   

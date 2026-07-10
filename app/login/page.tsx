@@ -264,9 +264,14 @@ export default function LoginPage() {
 
         {loginMethod === 'password' && (
           <div>
-            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-foreground">
-              Password
-            </label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label htmlFor="password" className="text-sm font-medium text-foreground">
+                Password
+              </label>
+              <Link href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <Input
               id="password"
               type="password"

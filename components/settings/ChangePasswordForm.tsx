@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { authAPI } from '@/lib/api/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -144,10 +145,20 @@ export default function ChangePasswordForm() {
     label: string,
     name: 'currentPassword' | 'newPassword' | 'confirmPassword',
     field: 'current' | 'new' | 'confirm',
-    placeholder: string
+    placeholder: string,
+    labelAction?: ReactNode
   ) => (
     <div>
-      <label className="mb-1.5 block text-xs font-medium text-foreground">{label}</label>
+      {(label || labelAction) && (
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          {label ? (
+            <label className="text-xs font-medium text-foreground">{label}</label>
+          ) : (
+            <span />
+          )}
+          {labelAction}
+        </div>
+      )}
       <div className="relative">
         <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -191,7 +202,17 @@ export default function ChangePasswordForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {renderPasswordField('Current password', 'currentPassword', 'current', 'Enter current password')}
+      {renderPasswordField(
+        'Current password',
+        'currentPassword',
+        'current',
+        'Enter current password',
+        (
+          <Link href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
+            Forgot password?
+          </Link>
+        )
+      )}
       {renderPasswordField('New password', 'newPassword', 'new', 'Enter new password')}
 
       {formData.newPassword && (
