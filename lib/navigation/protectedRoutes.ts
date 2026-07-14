@@ -13,6 +13,7 @@ export const PROTECTED_APP_ROUTES = [
   '/week-analysis',
   '/streak-calendar',
   '/previous-log',
+  '/tracker',
 ] as const;
 
 export const AUTH_ROUTES = ['/login', '/register', '/verify-otp'] as const;

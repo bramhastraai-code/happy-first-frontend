@@ -327,7 +327,7 @@ export default function UpcomingPage() {
             </span>
             <h2 className="text-xl font-bold text-foreground">No upcoming plan yet</h2>
             <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-              Create next week&apos;s plan on Friday through Monday. Once saved, it will appear here so you
+              Create your next week&apos;s plan anytime. Once saved, it will appear here so you
               can preview your goals before they go live.
             </p>
             <div className="mt-6 flex w-full max-w-xs flex-col gap-2">

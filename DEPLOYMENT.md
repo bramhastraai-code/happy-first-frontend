@@ -300,16 +300,23 @@ export default nextConfig;
 ### Development (`.env.local`)
 ```env
 NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api/v1
+API_BACKEND_URL=http://localhost:8000
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+NEXT_PUBLIC_SOCKET_URL=http://localhost:8000
 ```
 
 ### Staging (`.env.staging`)
 ```env
 NEXT_PUBLIC_API_BASE_URL=https://staging-api.happyfirstclub.com/api/v1
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+NEXT_PUBLIC_SOCKET_URL=https://staging-api.happyfirstclub.com
 ```
 
 ### Production (`.env.production`)
 ```env
 NEXT_PUBLIC_API_BASE_URL=https://api.happyfirstclub.com/api/v1
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+NEXT_PUBLIC_SOCKET_URL=https://api.happyfirstclub.com
 ```
 
 **Important**: Never commit `.env` files to version control!
@@ -435,7 +442,12 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()',
+            value: 'camera=(), microphone=(), geolocation=(self)',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value:
+              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://maps.googleapis.com https://maps.gstatic.com https://*.googleusercontent.com; connect-src 'self' https://maps.googleapis.com https://maps.gstatic.com ws: wss:; font-src 'self' https://fonts.gstatic.com;",
           },
         ],
       },

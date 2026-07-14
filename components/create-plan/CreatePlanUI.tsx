@@ -1,8 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { CheckCircle2, Lock, Calendar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { CheckCircle2 } from 'lucide-react';
 
 export function PlanStepProgress({ step }: { step: 'choice' | 'select' | 'configure' }) {
   const steps = ['choice', 'select', 'configure'] as const;
@@ -16,55 +15,6 @@ export function PlanStepProgress({ step }: { step: 'choice' | 'select' | 'config
           className={cn('h-1.5 flex-1 rounded-full transition-colors', index <= current ? 'bg-primary' : 'bg-secondary')}
         />
       ))}
-    </div>
-  );
-}
-
-export function PlanStatusScreen({
-  icon: Icon,
-  iconClassName,
-  title,
-  description,
-  children,
-  actions,
-}: {
-  icon: typeof Lock;
-  iconClassName?: string;
-  title: string;
-  description: string;
-  children?: React.ReactNode;
-  actions?: React.ReactNode;
-}) {
-  return (
-    <div className="flex min-h-[60vh] items-center justify-center p-4">
-      <div className="app-card w-full max-w-md p-6 text-center">
-        <div className={cn('mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary', iconClassName)}>
-          <Icon className="h-7 w-7" />
-        </div>
-        <h1 className="text-xl font-bold text-foreground">{title}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-        {children && <div className="mt-4 text-left">{children}</div>}
-        {actions && <div className="mt-6 space-y-2">{actions}</div>}
-      </div>
-    </div>
-  );
-}
-
-export function PlanUnlockInfo({ currentDay }: { currentDay: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-secondary p-4 text-center">
-      <Calendar className="mx-auto mb-2 h-5 w-5 text-primary" />
-      <p className="text-sm font-semibold text-foreground">Available days</p>
-      <div className="mt-2 flex flex-wrap justify-center gap-1.5">
-        {['Fri', 'Sat', 'Sun', 'Mon'].map((day) => (
-          <span key={day} className="chip chip-active px-2.5 py-1 text-[11px]">
-            {day}
-          </span>
-        ))}
-      </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        Today is <span className="font-semibold text-foreground">{currentDay}</span>
-      </p>
     </div>
   );
 }

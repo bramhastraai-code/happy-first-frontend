@@ -6,6 +6,7 @@ export const NO_INDEX_ROUTES = [
   ...AUTH_ROUTES,
   '/magic-link',
   '/forgot-password',
+  '/tracker',
 ] as const;
 
 /** Paths for robots.txt disallow rules (includes nested routes). */

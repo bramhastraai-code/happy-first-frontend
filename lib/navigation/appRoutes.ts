@@ -10,6 +10,7 @@ import {
   Share2,
   Sparkles,
   Users,
+  MapPin,
   type LucideIcon,
 } from 'lucide-react';
 import { DateTime } from 'luxon';
@@ -84,6 +85,12 @@ export function getAppQuickLinks(): AppQuickLink[] {
       label: 'Community',
       description: 'Discover wellness groups',
       icon: Users,
+    },
+    {
+      href: '/tracker',
+      label: 'Fitness tracker',
+      description: 'GPS workouts, maps, and goals',
+      icon: MapPin,
     },
     {
       href: '/settings',

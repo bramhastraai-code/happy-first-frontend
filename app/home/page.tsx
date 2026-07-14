@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore, getCookie, setCookie } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Flame, Activity, ChevronDown, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, LayoutGrid } from 'lucide-react';
+import { Trophy, Flame, Activity, ChevronDown, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, LayoutGrid, MapPin } from 'lucide-react';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { AppQuickLinks } from '@/components/nav/AppQuickLinks';
 import { ChipTabs } from '@/components/ui/ChipTabs';
@@ -25,6 +25,7 @@ import { WeekTips, buildWeekTips } from '@/components/ui/WeekTips';
 import CompactDatePicker from '@/components/ui/CompactDatePicker';
 import { useHomePageData } from '@/lib/queries/useHomePageData';
 import { resolveActivityIcon } from '@/lib/utils/activityIcon';
+import Link from 'next/link';
 
 export default function HomePage() {
   return (
@@ -284,6 +285,30 @@ function HomePageContent() {
           isPaused={isProfilePaused}
           onLogout={requestLogout}
         />
+
+        <Card className="section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft/80 to-surface">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <MapPin className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-sm font-bold text-foreground">GPS Fitness Tracker</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Record runs, walks, and rides with live maps and workout stats.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 sm:shrink-0">
+              <Button asChild size="sm" className="flex-1 sm:flex-none">
+                <Link href="/tracker/live">Start workout</Link>
+              </Button>
+              <Button asChild variant="outline" size="sm" className="flex-1 sm:flex-none">
+                <Link href="/tracker">Open tracker</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {isRefreshing && (
           <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">

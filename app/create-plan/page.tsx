@@ -13,13 +13,11 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 import {
   ActivityPickCard,
   ConfigureActivityCard,
-  PlanStatusScreen,
   PlanStepProgress,
-  PlanUnlockInfo,
 } from '@/components/create-plan/CreatePlanUI';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Lock, CheckCircle2, ArrowRight, ArrowLeft, RefreshCw, PlusCircle } from 'lucide-react';
+import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw, PlusCircle } from 'lucide-react';
 import CadenceSlider, { type CadenceValue } from '@/components/ui/CadenceSlider';
 import { cn } from '@/lib/utils';
 
@@ -66,8 +64,6 @@ function CreatePlanPageContent() {
   const [selectedActivities, setSelectedActivities] = useState<SelectedActivity[]>([]);
   const [step, setStep] = useState<'choice' | 'select' | 'configure'>(isOnboarding ? 'select' : 'choice');
   const [error, setError] = useState('');
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [currentDay, setCurrentDay] = useState('');
   const [tiers, setTiers] = useState<number>(1);
   const [repeatLoading, setRepeatLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<'body' | 'mind' | 'soul'>('body');
@@ -76,7 +72,6 @@ function CreatePlanPageContent() {
   const [weight, setWeight] = useState<number>(selectedProfile?.profile?.weight || 0);
   const [showWeightOverlay, setShowWeightOverlay] = useState(false);
   const [mandatoryActivity, setMandatoryActivity] = useState<Activity | null>(null);
-  const [hasCurrentPlan, setHasCurrentPlan] = useState(false);
   const [showCongratulation, setShowCongratulation] = useState(false);
   const [surpriseActivity, setSurpriseActivity] = useState<{name: string, icon: string, targetValue: number, unit: string} | null>(null);
   const [surpriseActivityStatus, setSurpriseActivityStatus] = useState<'assigned' | 'none-left' | 'not-configured' | 'none'>('none');
@@ -124,37 +119,6 @@ function CreatePlanPageContent() {
       } catch (err) {
         console.log('No upcoming plan found, user can create one', err);
       }
-
-      const today = new Date();
-      const dayOfWeek = today.getDay();
-      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      setCurrentDay(dayNames[dayOfWeek]);
-
-      if (isOnboarding) {
-        setIsUnlocked(true);
-        return;
-      }
-
-      if (dayOfWeek === 1) {
-        try {
-          const currentPlanResponse = await weeklyPlanAPI.getCurrent();
-          if (
-            currentPlanResponse.data.data &&
-            currentPlanResponse.data.data.activities &&
-            currentPlanResponse.data.data.activities.length > 0
-          ) {
-            setHasCurrentPlan(true);
-            setIsUnlocked(false);
-            setCurrentDay(dayNames[dayOfWeek]);
-            return;
-          }
-        } catch (err) {
-          console.log('No current plan found on Monday, user can create one', err);
-        }
-      }
-
-      const unlocked = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0 || dayOfWeek === 1;
-      setIsUnlocked(unlocked);
     };
 
     void checkUpcomingPlan();
@@ -429,53 +393,6 @@ function CreatePlanPageContent() {
     }
   };
 
-  // Locked state UI
-  if (!isUnlocked) {
-    // Show different UI if user already has a current plan
-    if (hasCurrentPlan) {
-      return (
-        <MainLayout hideBottomNav={isOnboarding}>
-          <PlanStatusScreen
-            icon={CheckCircle2}
-            iconClassName="bg-success-soft text-success"
-            title="Active plan in progress"
-            description="You can't create a new plan while your current weekly plan is still running."
-            actions={
-              <Button onClick={() => router.push('/home')} className="w-full">
-                View current plan
-              </Button>
-            }
-          >
-            <div className="rounded-xl border border-border bg-secondary p-4 text-sm text-muted-foreground">
-              Complete this week&apos;s activities. Plan creation opens again on{' '}
-              <span className="font-semibold text-foreground">Friday</span>.
-            </div>
-          </PlanStatusScreen>
-        </MainLayout>
-      );
-    }
-    
-    const nextUnlockDay = currentDay === 'Monday' || currentDay === 'Tuesday' || currentDay === 'Wednesday' || currentDay === 'Thursday' 
-      ? 'Friday' 
-      : 'Friday';
-    
-    return (
-      <MainLayout hideBottomNav={isOnboarding}>
-        <PlanStatusScreen
-          icon={Lock}
-          iconClassName="text-muted-foreground"
-          title="Plan creation locked"
-          description="Weekly plans can only be created on Fri, Sat, Sun, or Mon."
-        >
-          <PlanUnlockInfo currentDay={currentDay} />
-          <p className="mt-3 text-center text-xs text-muted-foreground">
-            Next unlock: <span className="font-semibold text-foreground">{nextUnlockDay}</span>
-          </p>
-        </PlanStatusScreen>
-      </MainLayout>
-    );
-  }
-
   // Congratulation Screen
   if (showCongratulation) {
     return (
@@ -550,9 +467,9 @@ function CreatePlanPageContent() {
           title={stepTitle}
           subtitle={stepSubtitle}
           action={
-            <span className="chip chip-active text-xs">
-              {isOnboarding ? 'Setup' : 'Unlocked'}
-            </span>
+            isOnboarding ? (
+              <span className="chip chip-active text-xs">Setup</span>
+            ) : undefined
           }
         />
 

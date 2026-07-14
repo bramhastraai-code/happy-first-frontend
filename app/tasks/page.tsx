@@ -21,7 +21,7 @@ import { activityAPI, Activity as ActivityType } from '@/lib/api/activity';
 import { DateTime } from 'luxon';
 import { formatWeekRangeLabel, formatWeekRangeShort } from '@/lib/utils/weekDate';
 import { resolveActivityId } from '@/lib/utils/activityId';
-import { buildLogSubmitPayload, canSubmitPartialLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
+import { canSubmitPartialLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -157,7 +157,7 @@ export default function TasksPage() {
         // After 6 PM, show time until 6 AM next day (when logs reset)
         const next6AM = new Date();
         next6AM.setDate(next6AM.getDate() + 1);
-        next6AM.setHours(18, 0, 0, 0);
+        next6AM.setHours(6, 0, 0, 0);
         
         const diff = next6AM.getTime() - now.getTime();
         const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -251,56 +251,49 @@ export default function TasksPage() {
           validation.payload.map((entry) => [entry.activityId, entry.value])
         );
 
-        const nextPlan = weeklyPlan
-          ? {
-              ...weeklyPlan,
-              activities: weeklyPlan.activities.map((activity) => {
-                const activityId = resolveActivityId(activity);
-                if (!submittedById.has(activityId)) return activity;
-                return {
-                  ...activity,
-                  TodayLogged: true,
-                  achieved: submittedById.get(activityId) ?? activity.achieved,
-                };
-              }),
-            }
-          : weeklyPlan;
-
-        if (nextPlan) {
-          setWeeklyPlan(nextPlan);
+        // Refetch plan so TodayLogged reflects server state for accurate partial vs complete UX
+        let planForCompletion = await weeklyPlanAPI.getCurrentPlan();
+        if (!planForCompletion && weeklyPlan) {
+          planForCompletion = {
+            ...weeklyPlan,
+            activities: weeklyPlan.activities.map((activity) => {
+              const activityId = resolveActivityId(activity);
+              if (!submittedById.has(activityId)) return activity;
+              return {
+                ...activity,
+                TodayLogged: true,
+                achieved: submittedById.get(activityId) ?? activity.achieved,
+              };
+            }),
+          };
+        }
+        if (planForCompletion) {
+          setWeeklyPlan(planForCompletion);
         }
 
-        const hasRemainingActivities = nextPlan?.activities.some((activity) => !activity.TodayLogged);
+        setShowCongrats(true);
 
-        if (hasRemainingActivities) {
-          setSuccess(
-            `Logged ${validation.payload.length} activit${validation.payload.length === 1 ? 'y' : 'ies'} (+${points.toFixed(2)} pts). You can continue logging the rest.`
-          );
-        } else {
-          setShowCongrats(true);
-        }
+        // Reset only submitted fields; keep pending/skipped activities editable
+        const submittedIds = new Set(submittedById.keys());
+        const resetValues: Record<string, number> = { ...activities };
+        const resetCheckboxValues: Record<string, boolean> = { ...checkboxActivities };
+        const resetPendingSliders: Record<string, boolean> = { ...pendingSliders };
+
+        planForCompletion?.activities.forEach((activity) => {
+          const activityId = resolveActivityId(activity);
+          if (!submittedIds.has(activityId)) return;
+
+          if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
+            resetCheckboxValues[activityId] = false;
+            resetPendingSliders[activityId] = true;
+          } else {
+            resetValues[activityId] = 0;
+          }
+        });
+        setActivities(resetValues);
+        setCheckboxActivities(resetCheckboxValues);
+        setPendingSliders(resetPendingSliders);
       }
-      
-      // Reset only submitted fields; keep pending/skipped activities editable
-      const submittedIds = new Set(validation.payload.map((entry) => entry.activityId));
-      const resetValues: Record<string, number> = { ...activities };
-      const resetCheckboxValues: Record<string, boolean> = { ...checkboxActivities };
-      const resetPendingSliders: Record<string, boolean> = { ...pendingSliders };
-
-      weeklyPlan?.activities.forEach((activity) => {
-        const activityId = resolveActivityId(activity);
-        if (!submittedIds.has(activityId)) return;
-
-        if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
-          resetCheckboxValues[activityId] = false;
-          resetPendingSliders[activityId] = true;
-        } else {
-          resetValues[activityId] = 0;
-        }
-      });
-      setActivities(resetValues);
-      setCheckboxActivities(resetCheckboxValues);
-      setPendingSliders(resetPendingSliders);
     } catch (err: unknown) {
       setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to submit daily log');
     } finally {
@@ -330,7 +323,10 @@ export default function TasksPage() {
     const total = weeklyPlan.activities.length;
 
     weeklyPlan.activities.forEach((activity) => {
-      const activityId = resolveActivityId(activity);
+      if (activity.TodayLogged) {
+        completed += 1;
+        return;
+      }
       
       if(activity.cadence=="daily"&&activity.achieved &&activity.achieved>=activity.targetValue){
         completed += 1;

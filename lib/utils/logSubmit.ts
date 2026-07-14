@@ -59,6 +59,18 @@ export function canSubmitPartialLog(
   return buildLogSubmitPayload(weeklyPlan, activities, checkboxActivities, pendingSliders).length > 0;
 }
 
+/** True when at least one plan activity has not been logged for the day yet. */
+export function hasRemainingActivitiesToLog(weeklyPlan: WeeklyPlan | null | undefined): boolean {
+  if (!weeklyPlan?.activities?.length) return false;
+  return weeklyPlan.activities.some((activity) => !activity.TodayLogged);
+}
+
+/** True when every plan activity has been logged for the day. */
+export function isAllActivitiesLogged(weeklyPlan: WeeklyPlan | null | undefined): boolean {
+  if (!weeklyPlan?.activities?.length) return false;
+  return weeklyPlan.activities.every((activity) => activity.TodayLogged);
+}
+
 export function validateLogSubmit(
   weeklyPlan: WeeklyPlan,
   activities: Record<string, number>,

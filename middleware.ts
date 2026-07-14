@@ -14,6 +14,9 @@ export function middleware(request: NextRequest) {
   }
 
   if (PROTECTED_APP_ROUTES.some((route) => pathname.startsWith(route))) {
+    if (pathname.startsWith('/tracker/live/share/')) {
+      return NextResponse.next();
+    }
     if (!token) {
       return NextResponse.redirect(new URL('/login', request.url));
     }

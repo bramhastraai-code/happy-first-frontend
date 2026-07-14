@@ -32,6 +32,7 @@ export interface DailySummary {
   totalPoints: number;
   streak?: number;
   isTodayLogged?: boolean;
+  isFullyLogged?: boolean;
 }
 
 export interface WeeklySummary {

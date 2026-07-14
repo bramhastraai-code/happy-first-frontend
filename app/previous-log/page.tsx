@@ -23,6 +23,7 @@ import { canSubmitPartialLog, extractEarnedPoints, validateLogSubmit } from '@/l
 
 type SummaryWithLogStatus = {
     isTodayLogged?: boolean;
+    isFullyLogged?: boolean;
 };
 
 const getActivityInputMax = (activity: WeeklyPlanActivity, activityData?: ActivityType) => {
@@ -177,14 +178,12 @@ function PreviousLogPageContent() {
                 setError('');
                 setLogAlreadyExists(false);
 
-                // Check if log already exists for this date
+                // Check if all activities are already logged for this date
                 try {
                     const summaryResponse = await dailyLogAPI.getSummary('daily', selectedDate);
-                    // If we get a successful response with data, a log exists
                     if (summaryResponse.data.data ) {
                         const summaryData = summaryResponse.data.data as SummaryWithLogStatus;
-                        // Check if there are any activities logged (meaning log exists)
-                        if (summaryData.isTodayLogged ) {
+                        if (summaryData.isFullyLogged) {
                             setLogAlreadyExists(true);
                             setCanSubmit(false);
                             setError('Log already submitted for this date.');
@@ -341,9 +340,38 @@ function PreviousLogPageContent() {
             };
 
             const response = await dailyLogAPI.submitPrevious(submitData);
-            setEarnedPoints(extractEarnedPoints(response.data.data));
-            setShowCongrats(true);
+            const points = extractEarnedPoints(response.data.data);
+            setEarnedPoints(points);
             await invalidateDashboardQueries(queryClient);
+
+            const refreshedPlanResponse = await weeklyPlanAPI.getCurrent(selectedDate);
+            const refreshedPlan = refreshedPlanResponse.data.data;
+            if (refreshedPlan) {
+                setWeeklyPlan(refreshedPlan);
+
+                const resetValues: Record<string, number> = { ...activities };
+                const resetCheckboxValues: Record<string, boolean> = { ...checkboxActivities };
+                const resetPendingSliders: Record<string, boolean> = { ...pendingSliders };
+                const submittedIds = new Set(validation.payload.map((entry) => entry.activityId));
+
+                refreshedPlan.activities.forEach((activity) => {
+                    const activityId = resolveActivityId(activity);
+                    if (!submittedIds.has(activityId)) return;
+
+                    if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
+                        resetCheckboxValues[activityId] = false;
+                        resetPendingSliders[activityId] = true;
+                    } else {
+                        resetValues[activityId] = 0;
+                    }
+                });
+
+                setActivities(resetValues);
+                setCheckboxActivities(resetCheckboxValues);
+                setPendingSliders(resetPendingSliders);
+            }
+
+            setShowCongrats(true);
 
         } catch (err: unknown) {
             console.error('Error submitting previous log:', err);
