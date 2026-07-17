@@ -6,7 +6,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useShallow } from 'zustand/react/shallow';
 import { fitnessTrackerAPI } from '@/lib/tracker/api/fitnessTracker';
 import { useTrackingStore } from '@/lib/tracker/store/trackingStore';
-import { queuePointBatch, registerOnlineSync } from '@/lib/tracker/sync/syncManager';
+import {
+  flushQueuedPointBatches,
+  processSyncQueue,
+  queuePointBatch,
+  registerOnlineSync,
+  syncLocalSession,
+} from '@/lib/tracker/sync/syncManager';
 import { generateLocalId, trackerDb } from '@/lib/tracker/db/trackerDb';
 import {
   fetchActiveSession,
@@ -35,6 +41,7 @@ export function useTracking() {
       status: s.status,
       startedAt: s.startedAt,
       totalPausedSec: s.totalPausedSec,
+      pausedAt: s.pausedAt,
       points: s.points,
       batchIndex: s.batchIndex,
       watchId: s.watchId,
@@ -48,26 +55,42 @@ export function useTracking() {
   const pendingBatchRef = useRef<TrackPoint[]>([]);
   const lastFlushRef = useRef<number>(Date.now());
   const localSessionIdRef = useRef<string | null>(null);
+  /** Serializes uploads so Finish never races ahead of an in-flight GPS batch. */
+  const flushChainRef = useRef<Promise<void>>(Promise.resolve());
 
   const flushBatch = useCallback(async () => {
-    const { sessionId, incrementBatch } = useTrackingStore.getState();
-    const batch = pendingBatchRef.current;
-    if (!sessionId || batch.length === 0) return;
+    const run = async () => {
+      const { sessionId, incrementBatch } = useTrackingStore.getState();
+      const batch = pendingBatchRef.current;
+      if (!sessionId || batch.length === 0) return;
 
-    const batchIndex = incrementBatch();
-    const points = [...batch];
-    pendingBatchRef.current = [];
+      const batchIndex = incrementBatch();
+      const points = [...batch];
+      pendingBatchRef.current = [];
 
-    if (!navigator.onLine) {
-      await queuePointBatch(localSessionIdRef.current || sessionId, sessionId, batchIndex, points);
-      return;
-    }
+      const localId = localSessionIdRef.current || sessionId;
+      const isLocal = sessionId.startsWith('local_');
+      const serverId = isLocal ? undefined : sessionId;
 
-    try {
-      await fitnessTrackerAPI.appendPoints(sessionId, batchIndex, points);
-    } catch {
-      await queuePointBatch(localSessionIdRef.current || sessionId, sessionId, batchIndex, points);
-    }
+      // Offline / local sessions always queue — never POST a local_ id to the API.
+      if (!navigator.onLine || isLocal) {
+        await queuePointBatch(localId, serverId, batchIndex, points);
+        return;
+      }
+
+      try {
+        await fitnessTrackerAPI.appendPoints(sessionId, batchIndex, points);
+      } catch {
+        await queuePointBatch(localId, sessionId, batchIndex, points);
+      }
+    };
+
+    const next = flushChainRef.current.then(run, run);
+    flushChainRef.current = next.then(
+      () => undefined,
+      () => undefined
+    );
+    await next;
   }, []);
 
   const handlePoint = useCallback(
@@ -90,6 +113,7 @@ export function useTracking() {
 
   const { permission, error: locationError, accuracy, fixQuality, liveFix, isStationary, requestPermission, recordAnchorPoint, startWatching, stopWatching } = useLocation({
     enabled: storeState.status === 'active',
+    activityType: storeState.activityType,
     onPoint: handlePoint,
   });
 
@@ -140,7 +164,11 @@ export function useTracking() {
     storeState.activityType,
     storeState.startedAt ?? undefined,
     storeState.totalPausedSec,
-    storeState.status === 'active' ? now : undefined
+    storeState.status === 'active'
+      ? now
+      : storeState.status === 'paused'
+        ? (storeState.pausedAt ?? undefined)
+        : undefined
   );
 
   const restoreActiveSession = useCallback(
@@ -242,22 +270,66 @@ export function useTracking() {
   );
 
   const pause = useCallback(async () => {
-    const { sessionId, setStatus } = useTrackingStore.getState();
+    const { sessionId, setStatus, setPausedAt } = useTrackingStore.getState();
     if (!sessionId) return;
     stopWatching();
     await flushBatch();
-    if (navigator.onLine && !sessionId.startsWith('local_')) {
-      await fitnessTrackerAPI.pauseSession(sessionId);
-    }
+    // Track the pause locally first so paused time is never lost,
+    // even if the server call fails or we're offline.
+    setPausedAt(Date.now());
     setStatus('paused');
+    if (navigator.onLine && !sessionId.startsWith('local_')) {
+      try {
+        await fitnessTrackerAPI.pauseSession(sessionId);
+      } catch {
+        // Server missed the pause; local pausedAt covers it and
+        // totalPausedSec is reconciled on resume/finish.
+      }
+    }
+    if (sessionId.startsWith('local_') && trackerDb) {
+      await trackerDb.pendingSessions.update(sessionId, { status: 'paused' });
+    }
   }, [stopWatching, flushBatch]);
 
   const resume = useCallback(async () => {
-    const { sessionId, setStatus } = useTrackingStore.getState();
+    const {
+      sessionId,
+      pausedAt,
+      setStatus,
+      setPausedAt,
+      addPausedSec,
+      setTotalPausedSec,
+    } = useTrackingStore.getState();
     if (!sessionId) return;
+
+    const localPauseSec = pausedAt
+      ? Math.max(0, Math.round((Date.now() - pausedAt) / 1000))
+      : 0;
+    addPausedSec(localPauseSec);
+
     if (navigator.onLine && !sessionId.startsWith('local_')) {
-      await fitnessTrackerAPI.resumeSession(sessionId);
+      try {
+        const res = await fitnessTrackerAPI.resumeSession(sessionId);
+        const serverTotal = res.data.data.totalPausedSec;
+        if (typeof serverTotal === 'number') {
+          setTotalPausedSec(
+            Math.max(serverTotal, useTrackingStore.getState().totalPausedSec)
+          );
+        }
+      } catch {
+        // e.g. the pause never reached the server — keep local accounting;
+        // the correct total is sent to the server on finish.
+      }
     }
+
+    if (sessionId.startsWith('local_') && trackerDb) {
+      await trackerDb.pendingSessions.update(sessionId, {
+        status: 'active',
+        totalPausedSec: useTrackingStore.getState().totalPausedSec,
+      });
+    }
+
+    setPausedAt(null);
     setStatus('active');
     startWatching();
   }, [startWatching]);
@@ -266,9 +338,20 @@ export function useTracking() {
     const { sessionId, reset } = useTrackingStore.getState();
     if (!sessionId) return;
     stopWatching();
+    const localId = localSessionIdRef.current || sessionId;
     if (navigator.onLine && !sessionId.startsWith('local_')) {
-      await fitnessTrackerAPI.cancelSession(sessionId);
+      try {
+        await fitnessTrackerAPI.cancelSession(sessionId);
+      } catch {
+        // Local cleanup still proceeds below.
+      }
     }
+    if (trackerDb) {
+      await trackerDb.pendingSessions.delete(localId);
+      await trackerDb.pendingPointBatches.where('localSessionId').equals(localId).delete();
+      await trackerDb.syncQueue.where('localSessionId').equals(localId).delete();
+    }
+    pendingBatchRef.current = [];
     reset();
     router.push('/tracker');
   }, [stopWatching, router]);
@@ -278,18 +361,101 @@ export function useTracking() {
   }, [queryClient]);
 
   const stop = useCallback(async () => {
-    const { sessionId, reset } = useTrackingStore.getState();
+    const state = useTrackingStore.getState();
+    const { sessionId, reset, activityType, startedAt } = state;
     if (!sessionId) return;
     stopWatching();
     await flushFinalAnchor();
-    let finishedId = sessionId;
-    if (navigator.onLine && !sessionId.startsWith('local_')) {
-      const res = await fitnessTrackerAPI.finishSession(sessionId);
-      finishedId = res.data.data._id;
+
+    // If finishing while paused, fold the in-progress pause into the total.
+    const { pausedAt, addPausedSec, setPausedAt } = useTrackingStore.getState();
+    if (pausedAt) {
+      addPausedSec(Math.max(0, Math.round((Date.now() - pausedAt) / 1000)));
+      setPausedAt(null);
     }
+    const { totalPausedSec, batchIndex } = useTrackingStore.getState();
+    const endedAt = new Date().toISOString();
+    const isLocal = sessionId.startsWith('local_');
+    const localId = localSessionIdRef.current || (isLocal ? sessionId : null);
+
+    let finishedId = sessionId;
+
+    try {
+      if (isLocal && localId) {
+        // Persist completion locally first so a failed upload can retry later.
+        if (trackerDb) {
+          await trackerDb.pendingSessions.update(localId, {
+            status: 'completed',
+            endedAt,
+            totalPausedSec,
+            activityType,
+            startedAt: startedAt ?? endedAt,
+          });
+        }
+
+        if (navigator.onLine) {
+          const serverId = await syncLocalSession(localId, {
+            finish: true,
+            activityType,
+            startedAt: startedAt ?? endedAt,
+            endedAt,
+            totalPausedSec,
+            // Anything still sitting in the in-memory buffer (shouldn't after flush,
+            // but keep as a safety net) uses the next batch index.
+            extraPoints: pendingBatchRef.current.length
+              ? [...pendingBatchRef.current]
+              : undefined,
+            nextBatchIndex: batchIndex,
+          });
+          pendingBatchRef.current = [];
+          if (serverId) finishedId = serverId;
+        }
+      } else if (navigator.onLine) {
+        // Upload any batches that failed earlier / were queued while offline
+        // BEFORE finishing, so metrics + map are computed from the full track.
+        await flushQueuedPointBatches();
+        const res = await fitnessTrackerAPI.finishSession(sessionId, {
+          totalPausedSec,
+          endedAt,
+        });
+        finishedId = res.data.data._id;
+      } else if (trackerDb && localId) {
+        // Went offline mid-session: stash as a completed local session for later sync.
+        await trackerDb.pendingSessions.put({
+          localId,
+          activityType,
+          startedAt: startedAt ?? endedAt,
+          endedAt,
+          status: 'completed',
+          totalPausedSec,
+          serverSessionId: isLocal ? undefined : sessionId,
+        });
+      }
+    } catch {
+      // Keep the local completed record so processSyncQueue can retry.
+      if (trackerDb && localId) {
+        await trackerDb.pendingSessions.put({
+          localId,
+          activityType,
+          startedAt: startedAt ?? endedAt,
+          endedAt,
+          status: 'completed',
+          totalPausedSec,
+          serverSessionId: isLocal ? undefined : sessionId,
+        });
+      }
+    }
+
     reset();
     await invalidateDashboard();
-    router.push(`/tracker/session/${finishedId}`);
+    // Only navigate to the server detail page when we have a real id.
+    if (finishedId.startsWith('local_')) {
+      router.push('/tracker/history');
+    } else {
+      router.push(`/tracker/session/${finishedId}`);
+    }
+    // Kick a background sync in case anything is still queued.
+    void processSyncQueue();
   }, [stopWatching, flushFinalAnchor, router, invalidateDashboard]);
 
   return {

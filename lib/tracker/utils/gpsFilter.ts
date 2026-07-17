@@ -1,16 +1,23 @@
 import { getDistance } from 'geolib';
-import type { TrackPoint } from '@/lib/tracker/types';
+import type { ActivityType, TrackPoint } from '@/lib/tracker/types';
 
 /** Minimum movement before adding a new route point (reduces zig-zag when still). */
-const MIN_DISTANCE_M = 10;
+const MIN_DISTANCE_M = 8;
 /** Reject fixes worse than this for route recording. */
 const MAX_RECORD_ACCURACY_M = 65;
 /** Still show live map pin up to this accuracy. */
 const MAX_DISPLAY_ACCURACY_M = 100;
 /** Minimum gap between recorded points. */
-const MIN_INTERVAL_MS = 2500;
-/** Max realistic speed between two points (m/s) — ~43 km/h on foot. */
-const MAX_IMPLIED_SPEED_MS = 12;
+const MIN_INTERVAL_MS = 2000;
+
+/** Max realistic implied speed (m/s) by activity — rejects GPS jumps. */
+const MAX_IMPLIED_SPEED_MS: Record<ActivityType, number> = {
+  walk: 8, // ~29 km/h
+  hike: 8,
+  run: 12, // ~43 km/h
+  other: 12,
+  cycle: 25, // ~90 km/h
+};
 
 export type GpsFixQuality = 'searching' | 'weak' | 'fair' | 'good';
 
@@ -37,7 +44,8 @@ export function isDisplayAccuracyAcceptable(accuracy: number | null | undefined)
 
 export function shouldRecordRoutePoint(
   point: TrackPoint,
-  lastRecorded: TrackPoint | null
+  lastRecorded: TrackPoint | null,
+  activityType: ActivityType = 'run'
 ): boolean {
   if (!isAccuracyAcceptable(point.accuracy)) return false;
   if (!lastRecorded) return true;
@@ -52,15 +60,16 @@ export function shouldRecordRoutePoint(
   );
 
   const accuracy = point.accuracy ?? MIN_DISTANCE_M;
-  const movementThreshold = Math.max(MIN_DISTANCE_M, Math.min(accuracy * 0.6, 25));
+  const movementThreshold = Math.max(MIN_DISTANCE_M, Math.min(accuracy * 0.55, 22));
 
   if (distanceM < movementThreshold) return false;
 
+  const maxSpeed = MAX_IMPLIED_SPEED_MS[activityType] ?? MAX_IMPLIED_SPEED_MS.run;
   const impliedSpeed = distanceM / (elapsedMs / 1000);
-  if (impliedSpeed > MAX_IMPLIED_SPEED_MS) return false;
+  if (impliedSpeed > maxSpeed) return false;
 
   const deviceSpeed = point.speed;
-  if (deviceSpeed != null && deviceSpeed >= 0 && deviceSpeed < 0.4 && distanceM < accuracy) {
+  if (deviceSpeed != null && deviceSpeed >= 0 && deviceSpeed < 0.35 && distanceM < accuracy) {
     return false;
   }
 

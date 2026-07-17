@@ -8,6 +8,8 @@ interface TrackingState {
   status: SessionStatus | 'idle';
   startedAt: string | null;
   totalPausedSec: number;
+  /** Epoch ms of when the current pause began (null when not paused). */
+  pausedAt: number | null;
   points: TrackPoint[];
   batchIndex: number;
   watchId: number | null;
@@ -28,10 +30,13 @@ interface TrackingState {
     shareCode?: string | null;
     status: SessionStatus | 'idle';
     totalPausedSec?: number;
+    pausedAt?: number | null;
     points?: TrackPoint[];
     batchIndex?: number;
   }) => void;
   setStatus: (status: SessionStatus | 'idle') => void;
+  setPausedAt: (pausedAt: number | null) => void;
+  setTotalPausedSec: (sec: number) => void;
   addPoint: (point: TrackPoint) => void;
   setPoints: (points: TrackPoint[]) => void;
   incrementBatch: () => number;
@@ -50,6 +55,7 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
   status: 'idle',
   startedAt: null,
   totalPausedSec: 0,
+  pausedAt: null,
   points: [],
   batchIndex: 0,
   watchId: null,
@@ -68,6 +74,7 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
       points: [],
       batchIndex: 0,
       totalPausedSec: 0,
+      pausedAt: null,
       liveMetrics: computeLiveMetrics([], activityType, startedAt),
     }),
 
@@ -78,6 +85,7 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
     shareCode,
     status,
     totalPausedSec = 0,
+    pausedAt = null,
     points = [],
     batchIndex = 0,
   }) =>
@@ -90,10 +98,15 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
       points,
       batchIndex,
       totalPausedSec,
+      pausedAt,
       liveMetrics: computeLiveMetrics(points, activityType, startedAt, totalPausedSec),
     }),
 
   setStatus: (status) => set({ status }),
+
+  setPausedAt: (pausedAt) => set({ pausedAt }),
+
+  setTotalPausedSec: (totalPausedSec) => set({ totalPausedSec }),
 
   addPoint: (point) => {
     const state = get();
@@ -141,6 +154,7 @@ export const useTrackingStore = create<TrackingState>((set, get) => ({
       status: 'idle',
       startedAt: null,
       totalPausedSec: 0,
+      pausedAt: null,
       points: [],
       batchIndex: 0,
       watchId: null,

@@ -5,12 +5,14 @@ export interface PendingSession {
   localId: string;
   activityType: ActivityType;
   startedAt: string;
+  endedAt?: string;
   status: 'active' | 'paused' | 'completed' | 'cancelled';
   totalPausedSec: number;
   serverSessionId?: string;
 }
 
 export interface PendingPointBatch {
+  id?: number;
   localSessionId: string;
   serverSessionId?: string;
   batchIndex: number;

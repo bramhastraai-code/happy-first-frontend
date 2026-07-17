@@ -20,9 +20,10 @@ export const fitnessTrackerAPI = {
   getActiveSession: () =>
     api.get<ApiResponse<WorkoutSession | null>>('/fitnessTracker/sessions/active'),
 
-  startSession: (activityType: ActivityType) =>
+  startSession: (activityType: ActivityType, startedAt?: string) =>
     api.post<ApiResponse<WorkoutSession>>('/fitnessTracker/sessions', {
       activityType,
+      ...(startedAt ? { startedAt } : {}),
       deviceMeta: {
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
         platform: typeof navigator !== 'undefined' ? navigator.platform : '',
@@ -41,8 +42,24 @@ export const fitnessTrackerAPI = {
       { batchIndex, points }
     ),
 
-  finishSession: (id: string) =>
-    api.post<ApiResponse<WorkoutSession>>(`/fitnessTracker/sessions/${id}/finish`),
+  finishSession: (
+    id: string,
+    options?: number | { totalPausedSec?: number; endedAt?: string }
+  ) => {
+    const body =
+      typeof options === 'number'
+        ? { totalPausedSec: options }
+        : {
+            ...(options?.totalPausedSec != null
+              ? { totalPausedSec: options.totalPausedSec }
+              : {}),
+            ...(options?.endedAt ? { endedAt: options.endedAt } : {}),
+          };
+    return api.post<ApiResponse<WorkoutSession>>(
+      `/fitnessTracker/sessions/${id}/finish`,
+      body
+    );
+  },
 
   cancelSession: (id: string) =>
     api.delete<ApiResponse<WorkoutSession>>(`/fitnessTracker/sessions/${id}`),

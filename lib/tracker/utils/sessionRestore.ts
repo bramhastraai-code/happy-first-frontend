@@ -53,6 +53,10 @@ export async function hydrateActiveSession(session: WorkoutSession) {
     shareCode: session.shareCode,
     status: session.status === 'paused' ? ('paused' as const) : ('active' as const),
     totalPausedSec: session.totalPausedSec ?? 0,
+    pausedAt:
+      session.status === 'paused' && session.pausedAt
+        ? new Date(session.pausedAt).getTime()
+        : null,
     points,
     batchIndex: nextBatchIndex,
   };

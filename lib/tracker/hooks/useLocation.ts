@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TrackPoint } from '@/lib/tracker/types';
+import type { ActivityType, TrackPoint } from '@/lib/tracker/types';
 import {
   getFixQuality,
   isAccuracyAcceptable,
@@ -15,6 +15,7 @@ export type LocationPermission = 'prompt' | 'granted' | 'denied' | 'unsupported'
 
 interface UseLocationOptions {
   enabled?: boolean;
+  activityType?: ActivityType;
   onPoint?: (point: TrackPoint) => void;
 }
 
@@ -24,7 +25,11 @@ const GEO_OPTIONS: PositionOptions = {
   timeout: 20000,
 };
 
-export function useLocation({ enabled = false, onPoint }: UseLocationOptions = {}) {
+export function useLocation({
+  enabled = false,
+  activityType = 'run',
+  onPoint,
+}: UseLocationOptions = {}) {
   const [permission, setPermission] = useState<LocationPermission>('prompt');
   const [error, setError] = useState<string | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
@@ -34,11 +39,13 @@ export function useLocation({ enabled = false, onPoint }: UseLocationOptions = {
 
   const watchIdRef = useRef<number | null>(null);
   const onPointRef = useRef(onPoint);
+  const activityTypeRef = useRef(activityType);
   const lastRecordedRef = useRef<TrackPoint | null>(null);
   const lastRawPointRef = useRef<TrackPoint | null>(null);
   const smoothedFixRef = useRef<{ lat: number; lng: number } | null>(null);
 
   onPointRef.current = onPoint;
+  activityTypeRef.current = activityType;
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -94,7 +101,7 @@ export function useLocation({ enabled = false, onPoint }: UseLocationOptions = {
     smoothedFixRef.current = smoothed;
     setLiveFix(smoothed);
 
-    if (shouldRecordRoutePoint(point, lastRecordedRef.current)) {
+    if (shouldRecordRoutePoint(point, lastRecordedRef.current, activityTypeRef.current)) {
       lastRecordedRef.current = point;
       setIsStationary(false);
       onPointRef.current?.(point);

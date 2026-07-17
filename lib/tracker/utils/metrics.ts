@@ -3,6 +3,7 @@ import type { ActivityType, LiveMetrics, TrackPoint } from '@/lib/tracker/types'
 
 const MOVING_SPEED_THRESHOLD_MS = 0.5;
 const MAX_SEGMENT_SPEED_MS = 50;
+/** Segments longer than this are treated as pause gaps (no distance / moving time). */
 const MAX_TIME_GAP_MS = 120000;
 
 const MET_VALUES: Record<ActivityType, number> = {
