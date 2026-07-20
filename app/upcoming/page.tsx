@@ -306,15 +306,24 @@ export default function UpcomingPage() {
             <section className="section-card p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-semibold text-foreground">Ready when the week starts</h3>
-                <Button className="shrink-0 gap-2" onClick={() => router.push('/tasks')}>
-                  Go to today&apos;s tasks
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    className="shrink-0 gap-2"
+                    onClick={() => router.push(`/create-plan?edit=${weeklyPlan._id}`)}
+                  >
+                    Edit plan
+                  </Button>
+                  <Button className="shrink-0 gap-2" onClick={() => router.push('/tasks')}>
+                    Go to today&apos;s tasks
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 Your plan activates automatically on{' '}
                 {DateTime.fromISO(weeklyPlan.weekStart).toFormat('EEEE, MMM d')}. Until then, keep logging
-                this week&apos;s tasks.
+                this week&apos;s tasks. You can edit activities anytime before the week ends.
               </p>
             </section>
           </>

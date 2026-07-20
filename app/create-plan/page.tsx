@@ -58,11 +58,15 @@ function CreatePlanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isOnboarding = searchParams.get('mode') === 'first-setup';
+  const editPlanId = searchParams.get('edit');
+  const isEditMode = Boolean(editPlanId);
   const { user, accessToken, isHydrated,selectedProfile } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<SelectedActivity[]>([]);
-  const [step, setStep] = useState<'choice' | 'select' | 'configure'>(isOnboarding ? 'select' : 'choice');
+  const [step, setStep] = useState<'choice' | 'select' | 'configure'>(
+    isOnboarding || isEditMode ? 'select' : 'choice'
+  );
   const [error, setError] = useState('');
   const [tiers, setTiers] = useState<number>(1);
   const [repeatLoading, setRepeatLoading] = useState(false);
@@ -96,7 +100,6 @@ function CreatePlanPageContent() {
   }, [isOnboarding]);
 
   useEffect(() => {
-    // Wait for hydration before checking auth
     if (!isHydrated) return;
 
     if (!accessToken || !user) {
@@ -108,12 +111,56 @@ function CreatePlanPageContent() {
     if (planInitRef.current) return;
     planInitRef.current = true;
 
-    // Check if an upcoming plan already exists
-    const checkUpcomingPlan = async () => {
+    const bootstrap = async () => {
+      if (isEditMode && editPlanId) {
+        try {
+          const [optionsRes, planRes] = await Promise.all([
+            weeklyPlanAPI.getOptions(),
+            weeklyPlanAPI.getById(editPlanId),
+          ]);
+          const fetchedActivities = optionsRes.data.data.activities as Activity[];
+          setActivities(fetchedActivities);
+          setTiers(optionsRes.data.data.tier);
+
+          const happyDaysActivity = fetchedActivities.find(
+            (activity: Activity) => activity.name.toLowerCase() === 'happy days'
+          );
+          if (happyDaysActivity) setMandatoryActivity(happyDaysActivity);
+
+          const plan = planRes.data.data;
+          const preselected: SelectedActivity[] = (plan.activities || [])
+            .filter((a) => !a.isSurpriseActivity)
+            .map((a) => {
+              const meta = fetchedActivities.find((act) => act._id === a.activity);
+              return {
+                activityId: a.activity,
+                name: a.label || meta?.name || 'Activity',
+                cadence: a.cadence,
+                targetValue: a.targetValue,
+                baseUnit: a.unit || meta?.baseUnit || '',
+                icon: meta?.icon || '🏃',
+                values: meta?.values || a.values || [{ tier: 1, minVal: 0, maxVal: 100 }],
+                allowedCadence: meta?.allowedCadence || ['weekly'],
+              };
+            });
+          setSelectedActivities(preselected);
+          setVisitedCategories(new Set(['body', 'mind', 'soul']));
+          setStep('select');
+          setError('');
+        } catch (err) {
+          console.error('Failed to load plan for editing:', err);
+          setError(apiErrorMessage(err, 'Failed to load plan for editing.'));
+        }
+        return;
+      }
+
+      if (isOnboarding) return;
+
+      // Check if an upcoming plan already exists — send user to edit it
       try {
         const upcomingPlan = await weeklyPlanAPI.getUpcomingPlan();
-        if (upcomingPlan) {
-          router.push('/upcoming');
+        if (upcomingPlan?._id) {
+          router.replace(`/create-plan?edit=${upcomingPlan._id}`);
           return;
         }
       } catch (err) {
@@ -121,8 +168,8 @@ function CreatePlanPageContent() {
       }
     };
 
-    void checkUpcomingPlan();
-  }, [accessToken, user, router, isHydrated, isOnboarding]);
+    void bootstrap();
+  }, [accessToken, user, router, isHydrated, isOnboarding, isEditMode, editPlanId]);
 
   const fetchActivities = async () => {
     try {
@@ -263,6 +310,8 @@ function CreatePlanPageContent() {
       } else if (selectedCategory === 'body') {
         if (isOnboarding) {
           router.back();
+        } else if (isEditMode) {
+          router.push('/upcoming');
         } else {
           setStep('choice');
           // Clear selected activities when going back to choice
@@ -347,7 +396,7 @@ function CreatePlanPageContent() {
         },
       });
 
-      // Create weekly plan with selected activities
+      // Create or update weekly plan with selected activities
       const planData: CreateWeeklyPlanData = {
         activities: selectedActivities.map((act) => ({
           activityId: act.activityId,
@@ -355,6 +404,18 @@ function CreatePlanPageContent() {
           targetValue: act.targetValue,
         })),
       };
+
+      if (isEditMode && editPlanId) {
+        await weeklyPlanAPI.update(editPlanId, planData);
+        const planRes = await weeklyPlanAPI.getById(editPlanId);
+        const updatedPlan = planRes.data.data;
+        const weekStart = updatedPlan?.weekStart ? new Date(updatedPlan.weekStart) : null;
+        const weekEnd = updatedPlan?.weekEnd ? new Date(updatedPlan.weekEnd) : null;
+        const now = new Date();
+        const isCurrentWeekPlan = !!(weekStart && weekEnd && weekStart <= now && weekEnd >= now);
+        router.replace(isCurrentWeekPlan ? '/home' : '/upcoming');
+        return;
+      }
       
       const response = isOnboarding
         ? await weeklyPlanAPI.firstSetup(planData)
@@ -446,19 +507,27 @@ function CreatePlanPageContent() {
     step === 'choice'
       ? 'Choose plan type'
       : step === 'select'
-        ? 'Select activities'
+        ? isEditMode
+          ? 'Edit activities'
+          : 'Select activities'
         : isOnboarding
           ? 'Review your first plan'
-          : 'Configure your plan';
+          : isEditMode
+            ? 'Update your plan'
+            : 'Configure your plan';
 
   const stepSubtitle =
     step === 'choice'
       ? 'Create a new plan or repeat last week.'
       : step === 'select'
-        ? `Browse ${selectedCategory} activities and pick at least 4.`
+        ? isEditMode
+          ? `Update your ${selectedCategory} activities — keep at least 4.`
+          : `Browse ${selectedCategory} activities and pick at least 4.`
         : isOnboarding
           ? 'Confirm targets and enter your weight.'
-          : 'Review targets before creating your plan.';
+          : isEditMode
+            ? 'Review targets before saving your changes.'
+            : 'Review targets before creating your plan.';
 
   return (
     <MainLayout hideBottomNav={isOnboarding}>
@@ -643,10 +712,14 @@ function CreatePlanPageContent() {
                 {loading
                   ? isOnboarding
                     ? 'Saving plan…'
-                    : 'Creating plan…'
+                    : isEditMode
+                      ? 'Saving changes…'
+                      : 'Creating plan…'
                   : isOnboarding
                     ? 'Save & continue'
-                    : 'Create weekly plan'}
+                    : isEditMode
+                      ? 'Save plan changes'
+                      : 'Create weekly plan'}
               </Button>
             </div>
           </div>

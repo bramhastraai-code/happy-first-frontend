@@ -20,6 +20,7 @@ import { DateTime } from 'luxon';
 import { cn } from '@/lib/utils';
 import { resolveActivityId } from '@/lib/utils/activityId';
 import { canSubmitPartialLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
+import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 
 type SummaryWithLogStatus = {
     isTodayLogged?: boolean;
@@ -413,22 +414,10 @@ function PreviousLogPageContent() {
     return (
         <MainLayout>
             {showCongrats && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-900/50 p-4">
-                    <div className="app-card w-full max-w-sm p-6 text-center animate-scale-in">
-                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-success-soft text-3xl">
-                            ✓
-                        </div>
-                        <h1 className="text-xl font-bold text-foreground">Log submitted</h1>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            Your missed day log was saved successfully.
-                        </p>
-                        <p className="mt-4 text-3xl font-bold tabular-nums text-primary">
-                            +{earnedPoints.toFixed(2)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Points earned</p>
-                        <p className="mt-4 text-xs text-muted-foreground">Redirecting to home…</p>
-                    </div>
-                </div>
+                <LogSuccessOverlay
+                    points={earnedPoints}
+                    message="Your missed day log was saved successfully!"
+                />
             )}
 
             <PageHeader

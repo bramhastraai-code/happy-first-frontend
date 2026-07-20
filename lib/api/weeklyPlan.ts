@@ -90,6 +90,17 @@ export const weeklyPlanAPI = {
     ),
   
   create: (data: CreateWeeklyPlanData) => api.post('/weeklyPlan/create', data),
+
+  update: (planId: string, data: CreateWeeklyPlanData) =>
+    api.put<{ success: boolean; message: string; data: WeeklyPlan }>(
+      `/weeklyPlan/${planId}`,
+      data
+    ),
+
+  getById: (planId: string) =>
+    api.get<{ success: boolean; message: string; data: WeeklyPlan }>(
+      `/weeklyPlan/${planId}`
+    ),
   
   getCurrent: (date? : string) => api.get<{ success: boolean; message: string; data: WeeklyPlan }>(
     '/weeklyPlan/current',{params:{date: date ?? DateTime.local().toFormat('yyyy-MM-dd')}}

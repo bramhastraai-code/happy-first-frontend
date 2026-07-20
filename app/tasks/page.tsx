@@ -22,6 +22,7 @@ import { DateTime } from 'luxon';
 import { formatWeekRangeLabel, formatWeekRangeShort } from '@/lib/utils/weekDate';
 import { resolveActivityId } from '@/lib/utils/activityId';
 import { canSubmitPartialLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
+import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -375,50 +376,11 @@ export default function TasksPage() {
 
   return (
     <MainLayout>
-      {/* Congratulations Screen */}
       {showCongrats && (
-        <div className="fixed inset-0 z-[100] bg-gradient-to-br from-green-500 via-emerald-500 to-teal-500 flex items-center justify-center animate-fade-in">
-          <div className="text-center px-6 animate-scale-up">
-            {/* Trophy Icon */}
-            <div className="mb-6 animate-bounce">
-              <div className="inline-flex items-center justify-center w-32 h-32 bg-white rounded-full shadow-2xl">
-                <span className="text-7xl">🏆</span>
-              </div>
-            </div>
-            
-            {/* Congratulations Text */}
-            <h1 className="text-5xl font-bold text-white mb-4 drop-shadow-lg">
-              Congratulations!
-            </h1>
-            <p className="text-2xl text-white/90 mb-6">
-              {earnedPoints > 0
-                ? "You've successfully logged your activities!"
-                : 'Your log was saved, but no points were earned for the values submitted.'}
-            </p>
-            
-            {/* Points Card */}
-            <div className="inline-block bg-white rounded-2xl shadow-2xl px-8 py-6 mb-8">
-              <p className="text-sm text-slate-600 font-medium mb-2">Points Earned</p>
-              <p className={`text-5xl font-bold ${earnedPoints > 0 ? 'text-green-600' : 'text-slate-500'}`}>
-                +{earnedPoints.toFixed(2)}
-              </p>
-            </div>
-            
-            {/* Confetti/Stars */}
-            <div className="flex justify-center gap-4 text-4xl mb-6 animate-pulse">
-              <span>⭐</span>
-              <span>🎉</span>
-              <span>✨</span>
-              <span>🎊</span>
-              <span>⭐</span>
-            </div>
-            
-            {/* Redirecting message */}
-            <p className="text-white/80 text-sm">
-              Redirecting to home...
-            </p>
-          </div>
-        </div>
+        <LogSuccessOverlay
+          points={earnedPoints}
+          message="You've successfully logged your activities!"
+        />
       )}
 
       {/* Guided Tour - Only render on client */}
@@ -535,7 +497,7 @@ export default function TasksPage() {
                   </span>
                   <div>
                     <p className="text-sm font-semibold text-foreground">Upcoming plan</p>
-                    <p className="text-xs text-muted-foreground">View your locked plan for next week</p>
+                    <p className="text-xs text-muted-foreground">View or edit next week&apos;s plan</p>
                   </div>
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />

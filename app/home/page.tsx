@@ -361,10 +361,23 @@ function HomePageContent() {
                   {daysLoggedThisWeek}/7 logged
                 </span>
               </div>
-              <span className="chip chip-active ml-auto shrink-0 text-[10px]">
-                <Flame className="h-3 w-3" />
-                {streakData?.overallStreak.currentStreak || 0}d streak
-              </span>
+              <div className="ml-auto flex items-center gap-2">
+                {weeklyPlan?._id &&
+                  (weeklyPlan.status === 'active' || weeklyPlan.status === 'carried-forward') && (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2.5 text-[11px]"
+                    >
+                      <Link href={`/create-plan?edit=${weeklyPlan._id}`}>Edit plan</Link>
+                    </Button>
+                  )}
+                <span className="chip chip-active shrink-0 text-[10px]">
+                  <Flame className="h-3 w-3" />
+                  {streakData?.overallStreak.currentStreak || 0}d streak
+                </span>
+              </div>
             </div>
             <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
               {weekDays.map((day, index) => (
