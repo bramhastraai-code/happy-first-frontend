@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withSerwist } from '@serwist/turbopack';
 
 const apiBackendUrl = (process.env.API_BACKEND_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 
@@ -23,6 +24,19 @@ const nextConfig: NextConfig = {
       {
         source: '/:path*',
         headers: securityHeaders,
+      },
+      {
+        source: '/serwist/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
+      {
+        source: '/manifest.webmanifest',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+        ],
       },
     ];
   },
@@ -60,4 +74,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSerwist(nextConfig);

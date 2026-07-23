@@ -1,4 +1,4 @@
-/** Shared mark for app/icon, apple-icon, and opengraph-image routes. */
+/** Shared mark for app/icon, apple-icon, opengraph-image, and PWA icon routes. */
 export function BrandIconImage({
   size,
   radius,
@@ -32,6 +32,50 @@ export function BrandIconImage({
       >
         HF
       </span>
+    </div>
+  );
+}
+
+/** Full-bleed mark with safe padding for Android maskable icons. */
+export function BrandMaskableIconImage({ size }: { size: number }) {
+  const inset = Math.round(size * 0.2);
+  const markSize = size - inset * 2;
+  const fontSize = Math.round(markSize * 0.42);
+
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#c2410c',
+      }}
+    >
+      <div
+        style={{
+          width: markSize,
+          height: markSize,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+          borderRadius: Math.round(markSize * 0.22),
+        }}
+      >
+        <span
+          style={{
+            color: '#ffffff',
+            fontSize,
+            fontWeight: 800,
+            letterSpacing: '-0.02em',
+            fontFamily: 'system-ui, sans-serif',
+          }}
+        >
+          HF
+        </span>
+      </div>
     </div>
   );
 }

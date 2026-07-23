@@ -22,6 +22,14 @@ export const siteMetadata: Metadata = {
   creator: BRAND_NAME,
   publisher: BRAND_NAME,
   category: 'health',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: BRAND_NAME,
+  },
+  formatDetection: {
+    telephone: false,
+  },
   openGraph: {
     type: 'website',
     locale: 'en_IN',
@@ -46,8 +54,12 @@ export const siteMetadata: Metadata = {
     },
   },
   icons: {
-    icon: [{ url: '/icon', type: 'image/png' }],
-    apple: [{ url: '/apple-icon', type: 'image/png' }],
+    icon: [
+      { url: '/icon', type: 'image/png' },
+      { url: '/icons/icon-192', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-icon', type: 'image/png', sizes: '180x180' }],
   },
   manifest: '/manifest.webmanifest',
 };
