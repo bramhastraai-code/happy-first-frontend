@@ -1,4 +1,4 @@
-/** Resolve activity photo URLs (app uploads are relative `/uploads/...`). */
+/** Resolve activity photo URLs (absolute S3/CloudFront, or relative app paths). */
 export function resolveMediaUrl(url: string | undefined | null): string {
   if (!url) return '';
   if (

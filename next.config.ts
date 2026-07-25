@@ -46,10 +46,6 @@ const nextConfig: NextConfig = {
         source: '/api/v1/:path*',
         destination: `${apiBackendUrl}/api/v1/:path*`,
       },
-      {
-        source: '/uploads/:path*',
-        destination: `${apiBackendUrl}/uploads/:path*`,
-      },
     ];
   },
   async redirects() {
