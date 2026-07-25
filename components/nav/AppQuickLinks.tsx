@@ -10,11 +10,20 @@ interface AppQuickLinksProps {
   className?: string;
   /** 1 = stacked list (best for mobile sidebars); 2 = two columns from sm breakpoint up */
   columns?: 1 | 2;
+  /** Path prefixes to hide (e.g. bottom-nav pages already reachable elsewhere) */
+  exclude?: string[];
 }
 
-export function AppQuickLinks({ className, columns = 1 }: AppQuickLinksProps) {
+export function AppQuickLinks({ className, columns = 1, exclude = [] }: AppQuickLinksProps) {
   const pathname = usePathname();
-  const links = getAppQuickLinks();
+  const links = getAppQuickLinks().filter((link) => {
+    const pathOnly = link.href.split('?')[0];
+    return !exclude.some(
+      (path) => pathOnly === path || pathOnly.startsWith(`${path}/`)
+    );
+  });
+
+  if (links.length === 0) return null;
 
   return (
     <ul

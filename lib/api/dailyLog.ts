@@ -214,6 +214,7 @@ export interface CalendarData {
     canGoNext: boolean;
   };
   leaderboard?: LeaderboardData;
+  allTimeLeaderboard?: LeaderboardData;
 }
 
 export interface ActivityCalendarData {
@@ -283,10 +284,27 @@ export const dailyLogAPI = {
     }>(`/dailyLog/streaks/${profileId}`);
   },
 
-  getCalendar: (profileId: string, month?: number, year?: number) => {
-    const params: { month?: number; year?: number } = {};
-    if (month !== undefined) params.month = month;
-    if (year !== undefined) params.year = year;
+  getCalendar: (
+    profileId: string,
+    options?: {
+      month?: number;
+      year?: number;
+      leaderboardPage?: number;
+      allTimeLeaderboardPage?: number;
+    }
+  ) => {
+    const params: {
+      month?: number;
+      year?: number;
+      leaderboardPage?: number;
+      allTimeLeaderboardPage?: number;
+    } = {};
+    if (options?.month !== undefined) params.month = options.month;
+    if (options?.year !== undefined) params.year = options.year;
+    if (options?.leaderboardPage !== undefined) params.leaderboardPage = options.leaderboardPage;
+    if (options?.allTimeLeaderboardPage !== undefined) {
+      params.allTimeLeaderboardPage = options.allTimeLeaderboardPage;
+    }
     return api.get<{
       success: boolean;
       message: string;

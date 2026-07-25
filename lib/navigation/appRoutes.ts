@@ -1,11 +1,11 @@
 import {
   BarChart3,
   Calendar,
-  Camera,
   ClipboardList,
   History,
   LayoutGrid,
   PlusCircle,
+  Rss,
   Settings,
   Share2,
   Sparkles,
@@ -39,6 +39,18 @@ export function getAppQuickLinks(): AppQuickLink[] {
       icon: ClipboardList,
     },
     {
+      href: '/feed',
+      label: 'Feed',
+      description: 'Social stories, photos, videos, and messages',
+      icon: Rss,
+    },
+    {
+      href: '/community',
+      label: 'Community',
+      description: 'Discover wellness groups (separate from Feed)',
+      icon: Users,
+    },
+    {
       href: '/streak-calendar',
       label: 'Streak calendar',
       description: 'Monthly log heatmap',
@@ -57,12 +69,6 @@ export function getAppQuickLinks(): AppQuickLink[] {
       icon: History,
     },
     {
-      href: '/activity-photos',
-      label: 'Activity photos',
-      description: 'Community photo gallery',
-      icon: Camera,
-    },
-    {
       href: '/upcoming',
       label: 'Upcoming plan',
       description: 'Next week’s plan preview',
@@ -79,12 +85,6 @@ export function getAppQuickLinks(): AppQuickLink[] {
       label: 'Refer friends',
       description: 'Share and earn points',
       icon: Share2,
-    },
-    {
-      href: '/community',
-      label: 'Community',
-      description: 'Discover wellness groups',
-      icon: Users,
     },
     {
       href: '/tracker',

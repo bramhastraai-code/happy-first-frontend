@@ -82,6 +82,9 @@ export interface UpdateProfileData {
   timezone?: string;
   reminderTime?: string;
   reminderSchedule?: ReminderScheduleInput;
+  avatarSeed?: string | null;
+  avatarStyle?: string | null;
+  avatarUrl?: string | null;
   profile?: {
     health?: string;
     family?: string;

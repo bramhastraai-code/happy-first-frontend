@@ -1,8 +1,8 @@
 'use client';
 
 import MainLayout from '@/components/layout/MainLayout';
+import { CommunityTopBar } from '@/components/community/CommunityTopBar';
 import { ChipTabs } from '@/components/ui/ChipTabs';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Users, Search, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -41,17 +41,9 @@ export default function CommunityPage() {
 
   return (
     <MainLayout>
-      <PageHeader
-        title="Community"
-        subtitle="Find groups that match your wellness goals"
-        action={
-          <span className="chip chip-active text-xs">
-            {trendingCommunities.length} groups
-          </span>
-        }
-      />
+      <CommunityTopBar />
 
-      <div className="community-header space-y-4">
+      <div className="community-header mt-3 space-y-4">
         <ChipTabs
           className="community-tabs"
           tabs={[
@@ -119,7 +111,7 @@ export default function CommunityPage() {
 
               {filtered.length > 0 ? (
                 <ul className="section-card divide-y divide-border">
-                  {filtered.map((community, index) => (
+                  {filtered.map((community) => (
                     <li
                       key={community.id}
                       className="community-card flex items-center gap-3 px-4 py-3.5"

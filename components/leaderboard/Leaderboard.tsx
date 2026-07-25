@@ -70,21 +70,24 @@ export default function Leaderboard() {
 
   return (
     <div className="space-y-3 overflow-visible">
-      <ChipTabs
-        tabs={[
-          { id: 'current', label: 'This week' },
-          { id: 'previous', label: 'Last week' },
-        ]}
-        active={weekView}
-        onChange={(id) => setWeekView(id as WeekViewType)}
-        layout="balanced"
-      />
-      <ActivitySelect
-        value={selectedActivity}
-        onChange={setSelectedActivity}
-        activities={activities}
-      />
-
+      <div className="flex w-full flex-col items-stretch gap-3">
+        <ChipTabs
+          className="w-full"
+          tabs={[
+            { id: 'current', label: 'This week' },
+            { id: 'previous', label: 'Last week' },
+          ]}
+          active={weekView}
+          onChange={(id) => setWeekView(id as WeekViewType)}
+          layout="balanced"
+        />
+        <ActivitySelect
+          className="w-full"
+          value={selectedActivity}
+          onChange={setSelectedActivity}
+          activities={activities}
+        />
+      </div>
       {loading && !leaderboard && (
         <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />

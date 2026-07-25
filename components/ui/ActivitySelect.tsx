@@ -87,7 +87,7 @@ export default function ActivitySelect({
   const label = selected?.name ?? placeholder;
 
   return (
-    <div ref={rootRef} className={cn('relative w-full sm:w-[10.5rem] sm:shrink-0', className)}>
+    <div ref={rootRef} className={cn('relative w-full', className)}>
       <button
         type="button"
         disabled={disabled}
@@ -110,7 +110,7 @@ export default function ActivitySelect({
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 z-[60] mt-1.5 overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-float)] sm:left-auto sm:right-0 sm:w-52">
+        <div className="absolute left-0 right-0 z-[60] mt-1.5 overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-float)]">
           <div className="border-b border-border p-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />

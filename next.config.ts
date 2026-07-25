@@ -46,10 +46,19 @@ const nextConfig: NextConfig = {
         source: '/api/v1/:path*',
         destination: `${apiBackendUrl}/api/v1/:path*`,
       },
+      {
+        source: '/uploads/:path*',
+        destination: `${apiBackendUrl}/uploads/:path*`,
+      },
     ];
   },
   async redirects() {
     return [
+      {
+        source: '/activity-photos',
+        destination: '/feed',
+        permanent: true,
+      },
       {
         source: '/activity-selection',
         destination: '/create-plan?mode=first-setup',

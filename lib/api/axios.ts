@@ -98,6 +98,12 @@ api.interceptors.request.use(
       config.params = { ...config.params, profile: selectedProfile._id };
     }
 
+    // Let the browser set multipart boundary for FormData uploads.
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      config.headers.delete?.('Content-Type');
+      delete (config.headers as Record<string, unknown>)['Content-Type'];
+    }
+
     return config;
   },
   (error) => Promise.reject(error)

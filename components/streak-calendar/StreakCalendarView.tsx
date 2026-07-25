@@ -186,7 +186,7 @@ function LeaderboardSection({
                 </div>
                 <p className="flex shrink-0 items-center gap-1 text-sm font-semibold tabular-nums text-foreground">
                   <Award className="h-4 w-4 text-primary" />
-                  {entry.value}
+                  {Number(entry.value).toFixed(2)}
                   {unit && <span className="text-xs font-normal text-muted-foreground">{unit}</span>}
                 </p>
               </li>
@@ -333,8 +333,8 @@ export function StreakCalendarView({
 
         <ChipTabs
           tabs={[
-            { id: 'activity', label: 'By activity' },
             { id: 'overall', label: 'Overall' },
+            { id: 'activity', label: 'By activity' },
           ]}
           active={filterType}
           onChange={(id) => onFilterChange(id as FilterType)}
@@ -535,24 +535,33 @@ export function StreakCalendarView({
           {(activityCalendarData?.leaderboard || calendarData?.leaderboard) && (
             <LeaderboardSection
               title={`${activeCalendar.monthName} leaderboard`}
-              subtitle={activityCalendarData ? activityCalendarData.activityName : 'Overall performance'}
+              subtitle={
+                activityCalendarData
+                  ? activityCalendarData.activityName
+                  : 'Points this month'
+              }
               leaderboard={
                 activityCalendarData?.leaderboard || calendarData?.leaderboard!
               }
               selectedProfileId={selectedProfileId}
-              unit={activityUnit ?? undefined}
+              unit={activityCalendarData ? activityUnit ?? undefined : 'pts'}
               isLoading={isCalendarFetching}
               onPageChange={onMonthlyLeaderboardPageChange}
             />
           )}
 
-          {activityCalendarData?.allTimeLeaderboard && (
+          {(activityCalendarData?.allTimeLeaderboard || calendarData?.allTimeLeaderboard) && (
             <LeaderboardSection
               title="Overall leaderboard"
-              subtitle={`Best all-time · ${activityCalendarData.allTimeLeaderboard.totalLeaders} participants`}
-              leaderboard={activityCalendarData.allTimeLeaderboard}
+              subtitle={`All-time points · ${
+                (activityCalendarData?.allTimeLeaderboard || calendarData?.allTimeLeaderboard)!
+                  .totalLeaders
+              } participants`}
+              leaderboard={
+                activityCalendarData?.allTimeLeaderboard || calendarData?.allTimeLeaderboard!
+              }
               selectedProfileId={selectedProfileId}
-              unit={activityUnit ?? undefined}
+              unit={activityCalendarData ? activityUnit ?? undefined : 'pts'}
               isLoading={isCalendarFetching}
               onPageChange={onAllTimeLeaderboardPageChange}
             />

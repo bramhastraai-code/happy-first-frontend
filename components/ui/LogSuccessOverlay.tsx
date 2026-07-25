@@ -1,62 +1,73 @@
 'use client';
 
+import { Check, Sparkles } from 'lucide-react';
+
 interface LogSuccessOverlayProps {
   points: number;
   message?: string;
-  redirectHint?: string;
 }
 
 /**
- * Full-screen green celebration shown after a successful daily / previous-day log.
+ * Full-screen celebration after a successful daily / previous-day log.
+ * Uses the app orange theme (no green).
  */
 export default function LogSuccessOverlay({
   points,
   message = "You've successfully logged your activities!",
-  redirectHint = 'Redirecting to home...',
 }: LogSuccessOverlayProps) {
   const earned = Number(points) || 0;
   const hasPoints = earned > 0;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gradient-to-br from-green-500 via-emerald-500 to-teal-500 animate-fade-in">
-      <div className="px-6 text-center animate-scale-up">
-        <div className="mb-6 animate-bounce">
-          <div className="inline-flex h-32 w-32 items-center justify-center rounded-full bg-white shadow-2xl">
-            <span className="text-7xl" aria-hidden>
-              🏆
-            </span>
-          </div>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden animate-fade-in">
+      {/* Atmosphere — warm orange wash, soft radial light */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 90% 70% at 50% 20%, #fdba74 0%, transparent 55%), linear-gradient(160deg, #ea580c 0%, #c2410c 48%, #9a3412 100%)',
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-30"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 18% 78%, rgb(255 255 255 / 0.35) 0%, transparent 28%), radial-gradient(circle at 86% 22%, rgb(255 247 237 / 0.4) 0%, transparent 32%)',
+        }}
+      />
+
+      <div className="relative z-10 mx-4 w-full max-w-sm animate-scale-in px-2 text-center">
+        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-white shadow-[var(--shadow-float)] ring-4 ring-white/25">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+            <Check className="h-7 w-7 stroke-[2.5]" aria-hidden />
+          </span>
         </div>
 
-        <h1 className="mb-4 text-4xl font-bold text-white drop-shadow-lg sm:text-5xl">
-          Congratulations!
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-orange-100/90">
+          Logged
+        </p>
+        <h1 className="mb-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          Nice work
         </h1>
-        <p className="mb-6 text-xl text-white/90 sm:text-2xl">
+        <p className="mx-auto mb-8 max-w-xs text-base leading-relaxed text-orange-50/90 sm:text-lg">
           {hasPoints
             ? message
             : 'Your log was saved, but no points were earned for the values submitted.'}
         </p>
 
-        <div className="mb-8 inline-block rounded-2xl bg-white px-8 py-6 shadow-2xl">
-          <p className="mb-2 text-sm font-medium text-slate-600">Points Earned</p>
+        <div className="overflow-hidden rounded-2xl border border-white/20 bg-white/95 p-5 shadow-[var(--shadow-float)] backdrop-blur-sm">
+          <div className="mb-1 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden />
+            Points earned
+          </div>
           <p
-            className={`text-5xl font-bold tabular-nums ${
-              hasPoints ? 'text-green-600' : 'text-slate-500'
+            className={`text-4xl font-bold tabular-nums tracking-tight sm:text-5xl ${
+              hasPoints ? 'text-primary' : 'text-muted-foreground'
             }`}
           >
             +{earned.toFixed(2)}
           </p>
         </div>
-
-        <div className="mb-6 flex justify-center gap-4 text-4xl animate-pulse" aria-hidden>
-          <span>⭐</span>
-          <span>🎉</span>
-          <span>✨</span>
-          <span>🎊</span>
-          <span>⭐</span>
-        </div>
-
-        <p className="text-sm text-white/80">{redirectHint}</p>
       </div>
     </div>
   );

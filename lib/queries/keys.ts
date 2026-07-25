@@ -26,8 +26,14 @@ export const queryKeys = {
     summary: (period: 'daily' | 'weekly' | 'monthly', date: string, profileId?: string) =>
       ['dailyLog', 'summary', period, date, profileId ?? 'none'] as const,
     streaks: (profileId: string) => ['dailyLog', 'streaks', profileId] as const,
-    calendar: (profileId: string, month: number, year: number) =>
-      ['dailyLog', 'calendar', profileId, month, year] as const,
+    calendar: (
+      profileId: string,
+      month: number,
+      year: number,
+      leaderboardPage = 1,
+      allTimeLeaderboardPage = 1
+    ) =>
+      ['dailyLog', 'calendar', profileId, month, year, leaderboardPage, allTimeLeaderboardPage] as const,
     activityCalendar: (
       profileId: string,
       activityId: string,

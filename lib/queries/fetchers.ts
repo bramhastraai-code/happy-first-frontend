@@ -37,9 +37,16 @@ export async function fetchStreaks(profileId: string): Promise<StreakData> {
 export async function fetchCalendar(
   profileId: string,
   month: number,
-  year: number
+  year: number,
+  leaderboardPage = 1,
+  allTimeLeaderboardPage = 1
 ): Promise<CalendarData> {
-  const res = await dailyLogAPI.getCalendar(profileId, month, year);
+  const res = await dailyLogAPI.getCalendar(profileId, {
+    month,
+    year,
+    leaderboardPage,
+    allTimeLeaderboardPage,
+  });
   return res.data.data;
 }
 

@@ -5,6 +5,11 @@ import { authAPI } from '@/lib/api/auth';
 import { useAuthStore, type Profile } from '@/lib/store/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AvatarPicker } from '@/components/settings/AvatarPicker';
+import {
+  AVATAR_STYLE,
+  buildDiceBearAvatarUrl,
+} from '@/lib/utils/avatar';
 import { cn } from '@/lib/utils';
 
 const FIELD_CLASS =
@@ -15,10 +20,12 @@ interface EditProfileFormProps {
 }
 
 export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
-  const { selectedProfile, setProfiles, setSelectedProfile } = useAuthStore();
+  const { selectedProfile, setProfiles, setSelectedProfile, setUser, user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [name, setName] = useState('');
+  const [avatarSeed, setAvatarSeed] = useState('');
   const [profileData, setProfileData] = useState({
     profile: {
       health: '',
@@ -39,6 +46,13 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
 
   useEffect(() => {
     if (!selectedProfile) return;
+    setName(selectedProfile.name ?? '');
+    setAvatarSeed(
+      selectedProfile.avatarSeed ||
+        selectedProfile.name ||
+        selectedProfile._id ||
+        'happy-first'
+    );
     setProfileData({
       profile: {
         health: selectedProfile.profile?.health ?? '',
@@ -71,12 +85,25 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
     e.preventDefault();
     if (!selectedProfile || loading) return;
 
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError('Please enter your name.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setMessage('');
 
+    const seed = avatarSeed.trim() || trimmedName;
+    const avatarUrl = buildDiceBearAvatarUrl(seed, AVATAR_STYLE);
+
     try {
       const response = await authAPI.updateProfile({
+        name: trimmedName,
+        avatarSeed: seed,
+        avatarStyle: AVATAR_STYLE,
+        avatarUrl,
         profile: profileData.profile,
         preferences: profileData.preferences,
       });
@@ -85,6 +112,15 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
       const updated =
         updatedProfiles.find((profile) => profile._id === selectedProfile._id) || null;
       setSelectedProfile(updated);
+
+      if (
+        user &&
+        updated &&
+        (updated.type === 'primary' || updated.relationship === 'self')
+      ) {
+        setUser({ ...user, name: trimmedName });
+      }
+
       setMessage('Profile updated successfully.');
       onSaved?.();
     } catch (err: unknown) {
@@ -97,6 +133,39 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <div>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Name & avatar
+        </h3>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">
+              Display name
+            </label>
+            <Input
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setError('');
+                setMessage('');
+              }}
+              placeholder="Your name"
+              maxLength={80}
+              required
+            />
+          </div>
+          <AvatarPicker
+            name={name}
+            seed={avatarSeed}
+            onSeedChange={(seed) => {
+              setAvatarSeed(seed);
+              setError('');
+              setMessage('');
+            }}
+          />
+        </div>
+      </div>
+
       <div>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           About you

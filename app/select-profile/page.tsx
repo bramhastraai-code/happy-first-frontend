@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { User, UserPlus, Heart, Users } from 'lucide-react';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { resolveProfileAvatarUrl } from '@/lib/utils/avatar';
 
 export default function SelectProfilePage() {
   const router = useRouter();
@@ -89,9 +91,20 @@ export default function SelectProfilePage() {
                 onClick={() => handleSelectProfile(profile)}
               >
                 <div className="flex items-center gap-4 p-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
-                    {getRelationshipIcon(profile.relationship || 'self')}
-                  </div>
+                  {resolveProfileAvatarUrl(profile) ? (
+                    <ProfileAvatar
+                      name={profile.name}
+                      avatarUrl={profile.avatarUrl}
+                      avatarSeed={profile.avatarSeed}
+                      avatarStyle={profile.avatarStyle}
+                      size="xl"
+                      rounded="2xl"
+                    />
+                  ) : (
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+                      {getRelationshipIcon(profile.relationship || 'self')}
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <h3 className="truncate font-semibold text-foreground">{profile.name}</h3>
                     <p className="text-sm capitalize text-muted-foreground">{profile.relationship || 'self'}</p>

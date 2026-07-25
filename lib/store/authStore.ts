@@ -30,6 +30,9 @@ export interface Profile {
   relationship: string;
   age: number;
   gender: "male" | "female" | "other";
+  avatarSeed?: string | null;
+  avatarStyle?: string | null;
+  avatarUrl?: string | null;
   level: 'newbie' | 'bronze' | 'silver' | 'gold' | 'diamond' | 'legend';
   profile:lifestyle;
   timezone: string;

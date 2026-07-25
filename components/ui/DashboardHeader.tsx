@@ -1,8 +1,10 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { LogOut, RefreshCw, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { cn } from '@/lib/utils';
 
 interface DashboardHeaderProps {
@@ -11,6 +13,7 @@ interface DashboardHeaderProps {
   isPaused?: boolean;
   onLogout?: () => void;
   className?: string;
+  extraActions?: ReactNode;
 }
 
 function getTimeGreeting() {
@@ -26,12 +29,12 @@ export function DashboardHeader({
   isPaused = false,
   onLogout,
   className,
+  extraActions,
 }: DashboardHeaderProps) {
   const router = useRouter();
   const { user, selectedProfile, profiles, setProfileSelectedInSession } = useAuthStore();
 
   const displayName = selectedProfile?.name || user?.name || 'there';
-  const initial = displayName.charAt(0).toUpperCase();
   const isMainProfile = !selectedProfile || selectedProfile.relationship === 'self';
   const canSwitchProfile = profiles && profiles.length > 1;
 
@@ -43,12 +46,15 @@ export function DashboardHeader({
   return (
     <header className={cn('welcome-banner section-card mb-5 overflow-hidden p-3 sm:p-4', className)}>
       <div className="flex min-w-0 items-start gap-3">
-        <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-[#c2410c] text-base font-bold text-primary-foreground shadow-sm sm:h-12 sm:w-12 sm:text-lg"
-          aria-hidden
-        >
-          {initial}
-        </div>
+        <ProfileAvatar
+          name={displayName}
+          avatarUrl={selectedProfile?.avatarUrl}
+          avatarSeed={selectedProfile?.avatarSeed}
+          avatarStyle={selectedProfile?.avatarStyle}
+          size="lg"
+          rounded="2xl"
+          className="shadow-sm sm:h-12 sm:w-12 sm:text-lg"
+        />
 
         <div className="min-w-0 flex-1">
           {subtitle && (
@@ -82,6 +88,8 @@ export function DashboardHeader({
         </div>
 
         <div className="profile-switcher flex shrink-0 items-center gap-1.5 self-center">
+          {extraActions}
+
           {canSwitchProfile && (
             <button
               type="button"

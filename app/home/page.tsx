@@ -2,15 +2,13 @@
 
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuthStore, getCookie, setCookie } from '@/lib/store/authStore';
+import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Flame, Activity, ChevronDown, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, LayoutGrid, MapPin } from 'lucide-react';
+import { Trophy, Flame, Activity, ChevronDown, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, MapPin } from 'lucide-react';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
-import { AppQuickLinks } from '@/components/nav/AppQuickLinks';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
-import WelcomeBanner from '@/components/ui/WelcomeBanner';
 import Leaderboard from '@/components/leaderboard/Leaderboard';
 import { useLogoutConfirm } from '@/lib/hooks/useLogoutConfirm';
 import { DashboardHeader } from '@/components/ui/DashboardHeader';
@@ -50,11 +48,8 @@ function HomePageContent() {
     pendingActivities: false,
     leaderboard: false,
     logTracker: false,
-    recommendations: false,
-    explore: false,
   });
   const [logDateFilter, setLogDateFilter] = useState<string>(DateTime.local().toFormat('yyyy-MM-dd'));
-  const [showWelcomeBanner, setShowWelcomeBanner] = useState(false);
   const [runTour, setRunTour] = useState(false);
   const [showTourButton, setShowTourButton] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
@@ -119,7 +114,6 @@ function HomePageContent() {
   const handleTourFinish = () => {
     setRunTour(false);
     setShowTourButton(true);
-    setCookie('hasSeenWelcomeBanner', 'true', 30);
     localStorage.setItem('tourCompleted', 'true');
   };
 
@@ -164,7 +158,7 @@ function HomePageContent() {
     const isUserCreatedToday = selectedProfile.createdAt
       ? new Date(selectedProfile.createdAt).toDateString() === new Date().toDateString()
       : false;
-    if (isUserCreatedToday && (getCookie('hasSeenWelcomeBanner') == null || getCookie('hasSeenWelcomeBanner') === 'false')) {
+    if (isUserCreatedToday && localStorage.getItem('tourCompleted') !== 'true') {
       setRunTour(true);
       setShowTourButton(false);
     }
@@ -179,11 +173,6 @@ function HomePageContent() {
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
-
-  const handleCloseWelcomeBanner = () => {
-    setShowWelcomeBanner(false);
-    setCookie('hasSeenWelcomeBanner', 'true', 30);
   };
 
   const stats = {
@@ -267,16 +256,8 @@ function HomePageContent() {
       {/* Guided Tour - Only render on client */}
       {isMounted && <GuidedTour run={runTour} onFinish={handleTourFinish} steps={homeTourSteps} />}
 
-      {isMounted && showTourButton && !showWelcomeBanner && (
+      {isMounted && showTourButton && (
         <TourStartButton onClick={handleStartTour} />
-      )}
-
-      {/* Welcome Banner for New Users */}
-      {showWelcomeBanner && (
-        <WelcomeBanner
-          userName={user?.name || 'there'}
-          onClose={handleCloseWelcomeBanner}
-        />
       )}
 
       <div className="w-full space-y-5">
@@ -362,15 +343,14 @@ function HomePageContent() {
                 </span>
               </div>
               <div className="ml-auto flex items-center gap-2">
-                {weeklyPlan?._id &&
-                  (weeklyPlan.status === 'active' || weeklyPlan.status === 'carried-forward') && (
+                {upcomingPlan?._id && (
                     <Button
                       asChild
                       variant="outline"
                       size="sm"
                       className="h-7 px-2.5 text-[11px]"
                     >
-                      <Link href={`/create-plan?edit=${weeklyPlan._id}`}>Edit plan</Link>
+                      <Link href={`/create-plan?edit=${upcomingPlan._id}`}>Edit upcoming</Link>
                     </Button>
                   )}
                 <span className="chip chip-active shrink-0 text-[10px]">
@@ -467,17 +447,6 @@ function HomePageContent() {
           />
           </div>
         </div>
-
-        <CollapsibleSection
-          title="Explore app"
-          subtitle="Shortcuts to every main page"
-          icon={LayoutGrid}
-          expanded={expandedSections.explore}
-          onToggle={() => toggleSection('explore')}
-          contentClassName="px-4 pb-4 sm:px-5 sm:pb-5"
-        >
-          <AppQuickLinks />
-        </CollapsibleSection>
 
         <CollapsibleSection
           className="pending-activities"

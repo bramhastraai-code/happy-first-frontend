@@ -11,7 +11,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import TaskCategorySection from '@/components/tasks/TaskCategorySection';
-import { Calendar, ChevronRight, Timer, TrendingUp, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Calendar, ChevronRight, Timer, TrendingUp, CheckCircle2, AlertCircle, Pencil } from 'lucide-react';
 import type { WeeklyPlan, WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import GuidedTour from '@/components/ui/GuidedTour';
@@ -49,6 +49,7 @@ export default function TasksPage() {
   const [showWarning, setShowWarning] = useState(false);
   const [warningActivities, setWarningActivities] = useState<Array<{label: string, value: number, target: number, percentage: number}>>([]);
   const [hasUpcomingPlan, setHasUpcomingPlan] = useState(false);
+  const [editPlanHref, setEditPlanHref] = useState('/create-plan');
 
   const getActivityInputMax = (activity: WeeklyPlanActivity, activityData?: ActivityType) => {
     const configuredMax = activityData?.values.find((v) => v.tier === 1)?.maxVal;
@@ -105,6 +106,13 @@ export default function TasksPage() {
 
         setHasUpcomingPlan(Boolean(upcomingPlan));
         setActlist(activityResponse.data.data);
+
+        // Only upcoming (not-yet-started) plans are editable. Active current-week plans are locked.
+        if (upcomingPlan?._id) {
+          setEditPlanHref(`/create-plan?edit=${upcomingPlan._id}`);
+        } else {
+          setEditPlanHref('/create-plan');
+        }
 
         if (!plan) {
           setWeeklyPlan(null);
@@ -391,24 +399,46 @@ export default function TasksPage() {
         <TourStartButton onClick={handleStartTour} />
       )}
 
-      <div className="tasks-header mb-6 space-y-3">
-      <PageHeader
-        className="mb-0"
-        title="Daily tasks"
-        subtitle={new Date().toLocaleDateString('en-US', {
-          weekday: 'long',
-          month: 'long',
-          day: 'numeric',
-        })}
-      />
-      {weeklyPlan && (
-        <div
-          className="chip chip-active flex w-full items-center justify-center px-4 py-2.5 text-sm font-semibold"
-          title={formatWeekRangeLabel(weeklyPlan.weekStart, weeklyPlan.weekEnd)}
-        >
-          Week · {formatWeekRangeShort(weeklyPlan.weekStart, weeklyPlan.weekEnd)}
+      <div className="tasks-header mb-6 flex flex-col gap-3">
+        <PageHeader
+          className="mb-0"
+          title="Daily tasks"
+          subtitle={new Date().toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+          })}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden shrink-0 gap-1.5 sm:inline-flex"
+              onClick={() => router.push(editPlanHref)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              {hasUpcomingPlan ? 'Edit upcoming plan' : 'Create upcoming plan'}
+            </Button>
+          }
+        />
+        <div className="flex flex-col gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full shrink-0 gap-1.5 sm:hidden"
+            onClick={() => router.push(editPlanHref)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            {hasUpcomingPlan ? 'Edit upcoming plan' : 'Create upcoming plan'}
+          </Button>
+          {weeklyPlan && (
+            <div
+              className="chip chip-active flex w-full items-center justify-center px-4 py-2.5 text-sm font-semibold"
+              title={formatWeekRangeLabel(weeklyPlan.weekStart, weeklyPlan.weekEnd)}
+            >
+              Week · {formatWeekRangeShort(weeklyPlan.weekStart, weeklyPlan.weekEnd)}
+            </div>
+          )}
         </div>
-      )}
       </div>
 
       <div className="space-y-4">
@@ -516,9 +546,9 @@ export default function TasksPage() {
                   </span>
                   <div>
                     <p className="text-sm font-semibold text-foreground">
-                      Submit yesterday&apos;s log ({DateTime.now().minus({ day: 1 }).toFormat('dd MMM')})
+                      Submit missed log
                     </p>
-                    <p className="text-xs text-muted-foreground">Submit missed logs before 12:00 PM</p>
+                    <p className="text-xs text-muted-foreground">Past days in your active plan week</p>
                   </div>
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />

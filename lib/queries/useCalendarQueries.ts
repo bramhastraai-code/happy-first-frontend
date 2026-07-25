@@ -41,7 +41,13 @@ export function useCalendarData(
           leaderboardPage,
           allTimeLeaderboardPage
         )
-      : queryKeys.dailyLog.calendar(profileId ?? '', month, year),
+      : queryKeys.dailyLog.calendar(
+          profileId ?? '',
+          month,
+          year,
+          leaderboardPage,
+          allTimeLeaderboardPage
+        ),
     queryFn: () =>
       isActivity
         ? fetchActivityCalendar(
@@ -52,7 +58,13 @@ export function useCalendarData(
             leaderboardPage,
             allTimeLeaderboardPage
           )
-        : fetchCalendar(profileId!, month, year),
+        : fetchCalendar(
+            profileId!,
+            month,
+            year,
+            leaderboardPage,
+            allTimeLeaderboardPage
+          ),
     staleTime: STALE.calendar,
     enabled: enabled && !!profileId && (filterType === 'overall' || !!activityId),
     placeholderData: keepPreviousData,

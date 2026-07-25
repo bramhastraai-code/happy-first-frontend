@@ -14,11 +14,11 @@ type FilterType = 'overall' | 'activity';
 export default function StreakCalendarPage() {
   const router = useRouter();
   const { accessToken, isHydrated, selectedProfile } = useAuthStore();
-  const [filterType, setFilterType] = useState<FilterType>('activity');
+  const [filterType, setFilterType] = useState<FilterType>('overall');
   const [selectedActivityId, setSelectedActivityId] = useState<string>('');
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1);
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
-  const [showActivityList, setShowActivityList] = useState(true);
+  const [showActivityList, setShowActivityList] = useState(false);
   const [monthlyLeaderboardPage, setMonthlyLeaderboardPage] = useState(1);
   const [allTimeLeaderboardPage, setAllTimeLeaderboardPage] = useState(1);
 

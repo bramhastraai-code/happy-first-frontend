@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { DateTime } from 'luxon';
 import { useAuthStore } from '@/lib/store/authStore';
 import { type Activity } from '@/lib/api/activity';
 import { weeklyPlanAPI, type CreateWeeklyPlanData, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
@@ -128,6 +129,14 @@ function CreatePlanPageContent() {
           if (happyDaysActivity) setMandatoryActivity(happyDaysActivity);
 
           const plan = planRes.data.data;
+          const weekStart = DateTime.fromISO(String(plan.weekStart));
+          // Active (current-week) plans cannot be edited — only upcoming plans.
+          if (weekStart.isValid && weekStart <= DateTime.now()) {
+            setError('Active plans cannot be edited. You can only update an upcoming plan before it starts.');
+            router.replace('/tasks');
+            return;
+          }
+
           const preselected: SelectedActivity[] = (plan.activities || [])
             .filter((a) => !a.isSurpriseActivity)
             .map((a) => {

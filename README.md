@@ -70,7 +70,7 @@ happy-first-frontend/
 | `/community` | Communities |
 | `/referral` | Referral program |
 | `/settings` | User settings (collapsible panels) |
-| `/activity-photos` | Activity photo gallery (WhatsApp deep link) |
+| `/feed` | Social feed (stories, posts, messages) |
 
 Legacy URLs (`/change-password`, `/support`, `/add-family-member`) redirect to `/settings` panels.
 

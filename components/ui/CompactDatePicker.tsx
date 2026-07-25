@@ -10,6 +10,7 @@ import type { CalendarDay } from '@/lib/api/dailyLog';
 interface CompactDatePickerProps {
   value: string;
   onChange: (date: string) => void;
+  minDate?: string;
   maxDate?: string;
   calendarDays?: CalendarDay[];
   disabled?: boolean;
@@ -22,6 +23,7 @@ const PANEL_HEIGHT_ESTIMATE = 300;
 export default function CompactDatePicker({
   value,
   onChange,
+  minDate,
   maxDate,
   calendarDays = [],
   disabled = false,
@@ -38,6 +40,7 @@ export default function CompactDatePicker({
   } | null>(null);
 
   const selected = DateTime.fromISO(value);
+  const min = minDate ? DateTime.fromISO(minDate).startOf('day') : null;
   const max = maxDate ? DateTime.fromISO(maxDate) : DateTime.local();
   const [viewMonth, setViewMonth] = useState(() =>
     selected.isValid ? selected.startOf('month') : DateTime.local().startOf('month')
@@ -114,36 +117,47 @@ export default function CompactDatePicker({
     const start = viewMonth.startOf('month');
     const offset = start.weekday % 7;
     const daysInMonth = start.daysInMonth ?? 30;
-    const cells: Array<{ date: string; day: number; isFuture: boolean; hasLog: boolean } | null> =
-      [];
+    const cells: Array<{
+      date: string;
+      day: number;
+      isDisabled: boolean;
+      hasLog: boolean;
+    } | null> = [];
 
     for (let i = 0; i < offset; i++) cells.push(null);
     for (let d = 1; d <= daysInMonth; d++) {
-      const dt = start.set({ day: d });
+      const dt = start.set({ day: d }).startOf('day');
       const iso = dt.toFormat('yyyy-MM-dd');
+      const afterMax = dt > max.endOf('day');
+      const beforeMin = min ? dt < min : false;
       cells.push({
         date: iso,
         day: d,
-        isFuture: dt > max.endOf('day'),
+        isDisabled: afterMax || beforeMin,
         hasLog: logByDate.get(iso) ?? false,
       });
     }
     return cells;
-  }, [viewMonth, max, logByDate]);
+  }, [viewMonth, max, min, logByDate]);
 
   const label = selected.isValid ? selected.toFormat('d MMM') : 'Pick date';
   const todayIso = DateTime.local().toFormat('yyyy-MM-dd');
   const maxIso = max.toFormat('yyyy-MM-dd');
+  const minIso = min ? min.toFormat('yyyy-MM-dd') : null;
   const quickPickIso = maxIso < todayIso ? maxIso : todayIso;
   const quickPickLabel = maxIso < todayIso ? 'Latest allowed' : 'Today';
+  const quickPickDisabled = Boolean(minIso && quickPickIso < minIso);
 
   const pickDate = (iso: string) => {
+    if (minIso && iso < minIso) return;
+    if (iso > maxIso) return;
     onChange(iso);
     setOpen(false);
   };
 
-  const canPrev =
-    viewMonth.startOf('month') > max.minus({ months: 12 }).startOf('month');
+  const canPrev = min
+    ? viewMonth.startOf('month') > min.startOf('month')
+    : viewMonth.startOf('month') > max.minus({ months: 12 }).startOf('month');
   const canNext = viewMonth.endOf('month') < max.endOf('month');
 
   const panel =
@@ -198,16 +212,16 @@ export default function CompactDatePicker({
               <button
                 key={cell.date}
                 type="button"
-                disabled={cell.isFuture}
+                disabled={cell.isDisabled}
                 onClick={() => pickDate(cell.date)}
                 className={cn(
                   'relative flex h-7 w-full items-center justify-center rounded-md text-[11px] font-medium transition-colors',
-                  cell.isFuture && 'cursor-not-allowed text-muted-foreground/40',
-                  !cell.isFuture && value === cell.date && 'bg-primary text-primary-foreground',
-                  !cell.isFuture &&
+                  cell.isDisabled && 'cursor-not-allowed text-muted-foreground/40',
+                  !cell.isDisabled && value === cell.date && 'bg-primary text-primary-foreground',
+                  !cell.isDisabled &&
                     value !== cell.date &&
                     'text-foreground hover:bg-secondary',
-                  !cell.isFuture && cell.hasLog && value !== cell.date && 'ring-1 ring-primary/40'
+                  !cell.isDisabled && cell.hasLog && value !== cell.date && 'ring-1 ring-primary/40'
                 )}
               >
                 {cell.day}
@@ -220,8 +234,9 @@ export default function CompactDatePicker({
 
         <button
           type="button"
+          disabled={quickPickDisabled}
           onClick={() => pickDate(quickPickIso)}
-          className="mt-2 w-full rounded-lg bg-primary-soft py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-accent"
+          className="mt-2 w-full rounded-lg bg-primary-soft py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
         >
           {quickPickLabel}
         </button>

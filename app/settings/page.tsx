@@ -30,6 +30,7 @@ import SupportFeedbackForm from '@/components/settings/SupportFeedbackForm';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { AppQuickLinks } from '@/components/nav/AppQuickLinks';
 import { Button } from '@/components/ui/button';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import {
   mergeReminderSchedule,
   ReminderSchedule,
@@ -288,9 +289,15 @@ export default function SettingsPage() {
       <div className="space-y-4">
         <div className="section-card p-4">
           <div className="flex items-center gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-xl font-bold text-primary-foreground">
-              {userData?.name?.charAt(0) || selectedProfile?.name?.charAt(0) || 'U'}
-            </span>
+            <ProfileAvatar
+              name={selectedProfile?.name || userData?.name}
+              avatarUrl={selectedProfile?.avatarUrl}
+              avatarSeed={selectedProfile?.avatarSeed}
+              avatarStyle={selectedProfile?.avatarStyle}
+              size="xl"
+              rounded="2xl"
+              className="ring-2 ring-primary/15"
+            />
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-base font-semibold text-foreground">
                 {selectedProfile?.name || 'Profile'}
@@ -557,9 +564,19 @@ export default function SettingsPage() {
         <section aria-label="App navigation">
           <h2 className="section-title mb-3">Explore app</h2>
           <p className="mb-3 text-sm text-muted-foreground">
-            Shortcuts to all main pages. You must be signed in to open these.
+            Shortcuts to other pages. You must be signed in to open these.
           </p>
-          <AppQuickLinks />
+          <AppQuickLinks
+            exclude={[
+              '/home',
+              '/tasks',
+              '/feed',
+              '/community',
+              '/referral',
+              '/tracker',
+              '/settings',
+            ]}
+          />
         </section>
 
         <div className="rounded-2xl border border-dashed border-border px-4 py-4">

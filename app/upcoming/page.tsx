@@ -8,6 +8,9 @@ import {
   CalendarDays,
   Gift,
   ListChecks,
+  Lock,
+  Pencil,
+  Sparkles,
   Target,
   TrendingUp,
 } from 'lucide-react';
@@ -16,7 +19,6 @@ import { weeklyPlanAPI, type WeeklyPlan, type WeeklyPlanActivity } from '@/lib/a
 import { activityAPI, type Activity } from '@/lib/api/activity';
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { resolveActivityIcon } from '@/lib/utils/activityIcon';
@@ -105,7 +107,7 @@ function ActivityPlanCard({
             <span
               className={cn(
                 'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                isDaily ? 'bg-success-soft text-success' : 'bg-primary-soft text-primary'
+                isDaily ? 'bg-primary-soft text-primary' : 'bg-secondary text-muted-foreground'
               )}
             >
               {activity.cadence}
@@ -120,7 +122,7 @@ function ActivityPlanCard({
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="text-lg font-bold tabular-nums text-success sm:text-xl">{maxPoints.toFixed(0)}</p>
+          <p className="text-lg font-bold tabular-nums text-primary sm:text-xl">{maxPoints.toFixed(0)}</p>
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">pts max</p>
         </div>
       </div>
@@ -260,71 +262,126 @@ export default function UpcomingPage() {
               </div>
             </section>
 
-            <section className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                    <ListChecks className="h-5 w-5" />
+            <section className="section-card overflow-hidden">
+              <div className="flex flex-col gap-4 border-b border-border/70 bg-gradient-to-br from-primary-soft/40 via-surface to-surface p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary ring-1 ring-primary/10">
+                    <ListChecks className="h-5 w-5" strokeWidth={2.25} />
                   </span>
-                  <div>
-                    <h2 className="section-title">Planned activities</h2>
-                    <p className="text-xs text-muted-foreground">
-                      {weeklyPlan.activities.length} goal{weeklyPlan.activities.length === 1 ? '' : 's'} locked in
+                  <div className="min-w-0">
+                    <h2 className="text-base font-bold tracking-tight text-foreground sm:text-lg">
+                      Planned activities
+                    </h2>
+                    <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
+                      {weeklyPlan.activities.length} goal
+                      {weeklyPlan.activities.length === 1 ? '' : 's'} locked in
                     </p>
                   </div>
                 </div>
 
-                <ChipTabs
-                  className="sm:pb-0"
-                  tabs={[
-                    { id: 'all', label: `All (${weeklyPlan.activities.length})` },
-                    { id: 'daily', label: `Daily (${dailyActivities.length})` },
-                    { id: 'weekly', label: `Weekly (${weeklyActivities.length})` },
-                  ]}
-                  active={activityFilter}
-                  onChange={(id) => setActivityFilter(id as ActivityFilter)}
-                />
+                <div
+                  role="tablist"
+                  aria-label="Filter activities"
+                  className="flex w-full gap-2 sm:w-auto sm:shrink-0"
+                >
+                  {(
+                    [
+                      { id: 'all', label: 'All', count: weeklyPlan.activities.length },
+                      { id: 'daily', label: 'Daily', count: dailyActivities.length },
+                      { id: 'weekly', label: 'Weekly', count: weeklyActivities.length },
+                    ] as const
+                  ).map((tab) => {
+                    const isActive = activityFilter === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        onClick={() => setActivityFilter(tab.id)}
+                        className={cn(
+                          'min-h-10 flex-1 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors sm:flex-none sm:px-4',
+                          isActive
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'border border-border bg-surface text-muted-foreground hover:border-primary/25 hover:bg-accent/50 hover:text-foreground'
+                        )}
+                      >
+                        {tab.label} ({tab.count})
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {filteredActivities.length > 0 ? (
-                <div className="space-y-2.5">
-                  {filteredActivities.map((activity) => (
+              <div className="space-y-2.5 p-4 sm:p-5">
+                {filteredActivities.length > 0 ? (
+                  filteredActivities.map((activity) => (
                     <ActivityPlanCard
                       key={`${activity.activity}-${activity.cadence}`}
                       activity={activity}
                       activities={activities}
                     />
-                  ))}
-                </div>
-              ) : (
-                <div className="section-card px-6 py-8 text-center">
-                  <p className="text-sm text-muted-foreground">No {activityFilter} activities in this plan.</p>
-                </div>
-              )}
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No {activityFilter} activities in this plan.
+                    </p>
+                  </div>
+                )}
+              </div>
             </section>
 
-            <section className="section-card p-4 sm:p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="font-semibold text-foreground">Ready when the week starts</h3>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    className="shrink-0 gap-2"
-                    onClick={() => router.push(`/create-plan?edit=${weeklyPlan._id}`)}
-                  >
-                    Edit plan
-                  </Button>
-                  <Button className="shrink-0 gap-2" onClick={() => router.push('/tasks')}>
-                    Go to today&apos;s tasks
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
+            <section className="section-card overflow-hidden">
+              <div className="bg-gradient-to-br from-primary-soft/70 via-surface to-surface p-4 sm:p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                      <Sparkles className="h-5 w-5" strokeWidth={2.25} />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-bold tracking-tight text-foreground sm:text-lg">
+                        Ready when the week starts
+                      </h3>
+                      <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                        Your plan activates automatically on{' '}
+                        <span className="font-semibold text-foreground">
+                          {DateTime.fromISO(weeklyPlan.weekStart).toFormat('EEEE, MMM d')}
+                        </span>
+                        . Until then, keep logging this week&apos;s tasks.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-2.5 py-1 text-[11px] font-semibold text-muted-foreground ring-1 ring-border">
+                          <CalendarDays className="h-3 w-3 text-primary" />
+                          Auto-activates
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-2.5 py-1 text-[11px] font-semibold text-muted-foreground ring-1 ring-border">
+                          <Lock className="h-3 w-3 text-primary" />
+                          Editable until start
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[12.5rem] sm:shrink-0">
+                    <Button
+                      className="w-full gap-2"
+                      onClick={() => router.push('/tasks')}
+                    >
+                      Go to today&apos;s tasks
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => router.push(`/create-plan?edit=${weeklyPlan._id}`)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit plan
+                    </Button>
+                  </div>
                 </div>
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Your plan activates automatically on{' '}
-                {DateTime.fromISO(weeklyPlan.weekStart).toFormat('EEEE, MMM d')}. Until then, keep logging
-                this week&apos;s tasks. You can edit activities anytime before the week ends.
-              </p>
             </section>
           </>
         )}
