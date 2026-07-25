@@ -13,6 +13,7 @@ import { FeedEmpty } from '@/components/feed/FeedEmpty';
 import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
 import { FeedCreateSheet } from '@/components/feed/FeedCreateSheet';
 import { StoryViewer } from '@/components/feed/StoryViewer';
+import { FeedSuggestedPeople } from '@/components/feed/FeedSuggestedPeople';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
 import { useAuthStore } from '@/lib/store/authStore';
 import { useFeedRealtime } from '@/lib/hooks/useFeedRealtime';
@@ -107,6 +108,19 @@ export default function FeedPage() {
     [feedQuery.data]
   );
   const stories = storiesQuery.data ?? [];
+  const ownStory = useMemo(
+    () =>
+      stories.find(
+        (story) =>
+          story.profileId === selectedProfile?._id || story.userId === user?._id
+      ) || null,
+    [stories, selectedProfile?._id, user?._id]
+  );
+  const viewerStories = useMemo(() => {
+    if (!ownStory) return stories;
+    const others = stories.filter((story) => story.profileId !== ownStory.profileId);
+    return [ownStory, ...others];
+  }, [stories, ownStory]);
 
   const handleToggleLike = useCallback(
     (photoId: string) => {
@@ -175,18 +189,25 @@ export default function FeedPage() {
           }}
         />
 
-        <div className="mt-3 border-b border-border/60 pb-3 sm:mt-4 sm:rounded-2xl sm:border sm:border-border sm:bg-surface sm:p-3 sm:shadow-[var(--shadow-card)] sm:pb-3">
+        <div className="mt-3 overflow-visible border-b border-border/60 pb-3 sm:mt-4 sm:rounded-2xl sm:border sm:border-border sm:bg-surface sm:p-3 sm:pb-3 sm:pt-4 sm:shadow-[var(--shadow-card)]">
           <FeedStories
             stories={stories}
+            ownStory={ownStory}
             onAddStory={() => openCreate('story')}
+            onOpenOwnStory={() => {
+              setStoryStartIndex(0);
+              setStoryViewerOpen(true);
+            }}
             onSelect={(_story, index) => {
-              setStoryStartIndex(index);
+              // other stories are listed after own in viewerStories
+              setStoryStartIndex(ownStory ? index + 1 : index);
               setStoryViewerOpen(true);
             }}
           />
         </div>
 
-        <div className="mt-1 sm:mt-4 sm:mx-auto sm:max-w-xl">
+        <div className="mt-3 w-full space-y-3 sm:mt-4 sm:space-y-4">
+          <FeedSuggestedPeople />
           {feedQuery.isLoading ? (
             <div className="flex justify-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -208,7 +229,7 @@ export default function FeedPage() {
           ) : posts.length === 0 ? (
             <FeedEmpty onCreate={() => openCreate('post')} />
           ) : (
-            <div>
+            <div className="space-y-3 sm:space-y-4">
               {posts.map((post) => (
                 <FeedPostCard
                   key={post.id}
@@ -218,6 +239,53 @@ export default function FeedPage() {
                   onOpenComments={setActivePost}
                   onMessage={handleMessage}
                   canMessage={Boolean(post.author.userId && post.author.userId !== user?._id)}
+                  isOwner={
+                    post.author.profileId === selectedProfile?._id ||
+                    post.author.userId === user?._id
+                  }
+                  onEdit={async (target, caption) => {
+                    const res = await feedAPI.updatePost(target.id, caption);
+                    const updated = res.data.data.post;
+                    queryClient.setQueryData<{
+                      pages: { posts: FeedPost[]; nextCursor: string | null }[];
+                      pageParams: unknown[];
+                    }>(['feed', selectedProfile?._id], (old) => {
+                      if (!old?.pages) return old;
+                      return {
+                        ...old,
+                        pages: old.pages.map((page) => ({
+                          ...page,
+                          posts: page.posts.map((item) =>
+                            item.id === updated.id
+                              ? { ...item, caption: updated.caption }
+                              : item
+                          ),
+                        })),
+                      };
+                    });
+                    if (activePost?.id === updated.id) {
+                      setActivePost((prev) =>
+                        prev ? { ...prev, caption: updated.caption } : prev
+                      );
+                    }
+                  }}
+                  onDelete={async (target) => {
+                    await feedAPI.deletePost(target.id);
+                    queryClient.setQueryData<{
+                      pages: { posts: FeedPost[]; nextCursor: string | null }[];
+                      pageParams: unknown[];
+                    }>(['feed', selectedProfile?._id], (old) => {
+                      if (!old?.pages) return old;
+                      return {
+                        ...old,
+                        pages: old.pages.map((page) => ({
+                          ...page,
+                          posts: page.posts.filter((item) => item.id !== target.id),
+                        })),
+                      };
+                    });
+                    if (activePost?.id === target.id) setActivePost(null);
+                  }}
                 />
               ))}
               {feedQuery.isFetchingNextPage && (
@@ -270,9 +338,12 @@ export default function FeedPage() {
 
       <StoryViewer
         open={storyViewerOpen}
-        stories={stories}
+        stories={viewerStories}
         startIndex={storyStartIndex}
         onClose={() => setStoryViewerOpen(false)}
+        onDeleted={() => {
+          void storiesQuery.refetch();
+        }}
       />
     </MainLayout>
   );

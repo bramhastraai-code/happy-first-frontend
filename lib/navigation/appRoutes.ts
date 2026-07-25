@@ -47,7 +47,7 @@ export function getAppQuickLinks(): AppQuickLink[] {
     {
       href: '/community',
       label: 'Community',
-      description: 'Discover wellness groups (separate from Feed)',
+      description: 'Create groups, chat, and track points together',
       icon: Users,
     },
     {

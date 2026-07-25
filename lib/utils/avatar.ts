@@ -2,6 +2,34 @@
 
 export const AVATAR_STYLE = 'adventurer' as const;
 
+/** Curated seeds for the WhatsApp-style avatar gallery. */
+export const AVATAR_GALLERY_SEEDS = [
+  'happy',
+  'explorer',
+  'sunny',
+  'brave',
+  'calm',
+  'spark',
+  'ocean',
+  'forest',
+  'nova',
+  'pixel',
+  'luna',
+  'zen',
+  'maple',
+  'comet',
+  'river',
+  'bloom',
+  'echo',
+  'glow',
+  'quest',
+  'ember',
+  'willow',
+  'orbit',
+  'pearl',
+  'flint',
+] as const;
+
 export function buildDiceBearAvatarUrl(
   seed: string,
   style: string = AVATAR_STYLE,
@@ -24,7 +52,9 @@ export function resolveProfileAvatarUrl(profile?: {
   if (profile.avatarSeed) {
     return buildDiceBearAvatarUrl(
       profile.avatarSeed,
-      profile.avatarStyle || AVATAR_STYLE
+      profile.avatarStyle && profile.avatarStyle !== 'uploaded'
+        ? profile.avatarStyle
+        : AVATAR_STYLE
     );
   }
   return null;
@@ -32,4 +62,9 @@ export function resolveProfileAvatarUrl(profile?: {
 
 export function randomAvatarSeed(prefix = 'hf'): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function isUploadedAvatarUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return !url.includes('api.dicebear.com');
 }

@@ -155,7 +155,7 @@ body {
 }
 
 .page-container {
-  @apply mx-auto w-full max-w-lg px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-[calc(1rem+env(safe-area-inset-top,0px))] sm:max-w-2xl sm:px-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom,0px))] lg:max-w-5xl;
+  @apply mx-auto w-full max-w-lg px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-[calc(1rem+env(safe-area-inset-top,0px))] sm:max-w-3xl sm:px-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom,0px))] lg:max-w-4xl;
 }
 
 .bottom-nav {

@@ -1,58 +1,115 @@
 'use client';
 
+import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronRight, Loader2, Plus, ScanLine, Search, Users } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { CommunityTopBar } from '@/components/community/CommunityTopBar';
+import { CommunityJoinScanner } from '@/components/community/CommunityJoinScanner';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
-import { Users, Search, ChevronRight } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { communityAPI, type Community } from '@/lib/api/community';
+import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
 import { cn } from '@/lib/utils';
-
-const trendingCommunities = [
-  { id: 1, name: 'Yoga Masters', description: 'Daily yoga and mindfulness', members: 256, category: 'Mind', emoji: '🧘' },
-  { id: 2, name: 'Stairway to Heaven', description: 'Climb floors, skip the elevator', members: 167, category: 'Body', emoji: '🏢' },
-  { id: 3, name: 'Hydration Heroes', description: 'Track water intake together', members: 523, category: 'Body', emoji: '💧' },
-  { id: 4, name: 'Night Owls Fitness', description: 'Workouts after sunset', members: 142, category: 'Body', emoji: '🦉' },
-  { id: 5, name: 'Morning Readers', description: 'Daily reading habit group', members: 89, category: 'Mind', emoji: '📖' },
-  { id: 6, name: 'Gratitude Circle', description: 'Reflect and log happy days', members: 201, category: 'Soul', emoji: '🌱' },
-];
 
 const CATEGORY_FILTERS = ['All', 'Body', 'Mind', 'Soul'] as const;
 
+function categoryLabel(community: Community) {
+  if (!community.categories?.length) return 'Mixed';
+  return community.categories
+    .map((c) => c.charAt(0).toUpperCase() + c.slice(1))
+    .join(' · ');
+}
+
+function activityPreview(community: Community) {
+  return community.activities.map((a) => a.name).slice(0, 3).join(', ');
+}
+
 export default function CommunityPage() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('discover');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<(typeof CATEGORY_FILTERS)[number]>('All');
+  const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+
+  const discoverQuery = useQuery({
+    queryKey: ['communities', 'discover', query, category],
+    enabled: activeTab === 'discover',
+    queryFn: async () => {
+      const res = await communityAPI.list({
+        q: query.trim() || undefined,
+        category: category === 'All' ? undefined : category,
+      });
+      return res.data.data.communities ?? [];
+    },
+  });
+
+  const mineQuery = useQuery({
+    queryKey: ['communities', 'mine'],
+    enabled: activeTab === 'my-communities',
+    queryFn: async () => {
+      const res = await communityAPI.mine();
+      return res.data.data.communities ?? [];
+    },
+  });
+
+  const joinMutation = useMutation({
+    mutationFn: (id: string) => communityAPI.join(id),
+    onMutate: (id) => setJoiningId(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['communities'] });
+    },
+    onSettled: () => setJoiningId(null),
+  });
+
+  const communities = discoverQuery.data ?? [];
+  const myCommunities = mineQuery.data ?? [];
 
   const filtered = useMemo(() => {
-    return trendingCommunities.filter((community) => {
-      const matchesCategory = category === 'All' || community.category === category;
-      const q = query.trim().toLowerCase();
-      const matchesQuery =
-        !q ||
-        community.name.toLowerCase().includes(q) ||
-        community.description.toLowerCase().includes(q) ||
-        community.category.toLowerCase().includes(q);
-      return matchesCategory && matchesQuery;
-    });
-  }, [query, category]);
+    if (category === 'All') return communities;
+    const cat = category.toLowerCase();
+    return communities.filter((c) =>
+      (c.categories || []).some((item) => item.toLowerCase() === cat)
+    );
+  }, [communities, category]);
 
-  const totalMembers = trendingCommunities.reduce((sum, c) => sum + c.members, 0);
+  const totalMembers = filtered.reduce((sum, c) => sum + (c.memberCount || 0), 0);
 
   return (
     <MainLayout>
       <CommunityTopBar />
 
       <div className="community-header mt-3 space-y-4">
-        <ChipTabs
-          className="community-tabs"
-          tabs={[
-            { id: 'discover', label: 'Discover' },
-            { id: 'my-communities', label: 'My groups' },
-          ]}
-          active={activeTab}
-          onChange={setActiveTab}
-        />
+        <div className="flex items-center justify-between gap-3">
+          <ChipTabs
+            className="community-tabs flex-1"
+            tabs={[
+              { id: 'discover', label: 'Discover' },
+              { id: 'my-communities', label: 'My groups' },
+            ]}
+            active={activeTab}
+            onChange={setActiveTab}
+          />
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => setScannerOpen(true)}
+            >
+              <ScanLine className="h-4 w-4" />
+              Scan
+            </Button>
+            <Button asChild size="sm" className="shrink-0">
+              <Link href="/community/create">
+                <Plus className="h-4 w-4" />
+                Create
+              </Link>
+            </Button>
+          </div>
+        </div>
 
         {activeTab === 'discover' ? (
           <>
@@ -61,7 +118,7 @@ export default function CommunityPage() {
                 <div className="pr-4">
                   <p className="text-xs font-medium text-muted-foreground">Active groups</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                    {trendingCommunities.length}
+                    {filtered.length}
                   </p>
                 </div>
                 <div className="pl-4">
@@ -103,45 +160,69 @@ export default function CommunityPage() {
               </div>
             </div>
 
-            <section aria-label="Trending communities" className="trending-communities">
+            <section aria-label="Communities" className="trending-communities">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="section-title">Trending</h2>
+                <h2 className="section-title">Communities</h2>
                 <span className="text-xs text-muted-foreground">{filtered.length} shown</span>
               </div>
 
-              {filtered.length > 0 ? (
+              {discoverQuery.isLoading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : filtered.length > 0 ? (
                 <ul className="section-card divide-y divide-border">
                   {filtered.map((community) => (
                     <li
                       key={community.id}
                       className="community-card flex items-center gap-3 px-4 py-3.5"
                     >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-lg">
-                        {community.emoji}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-foreground">
-                          {community.name}
-                        </p>
-                        <span className="mt-1 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
-                          {community.category}
-                        </span>
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground sm:truncate">
-                          {community.description}
-                        </p>
-                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                          <Users className="h-3 w-3" />
-                          {community.members} members
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled
-                        className="join-button min-h-10 shrink-0 px-4 text-xs"
+                      <Link
+                        href={`/community/${community.id}`}
+                        className="flex min-w-0 flex-1 items-center gap-3"
                       >
-                        Join
-                      </Button>
+                        <CommunityAvatar
+                          name={community.name}
+                          icon={community.icon}
+                          avatarUrl={community.avatarUrl}
+                          avatarSeed={community.avatarSeed}
+                          avatarStyle={community.avatarStyle}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-foreground">
+                            {community.name}
+                          </p>
+                          <span className="mt-1 inline-block rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
+                            {categoryLabel(community)}
+                          </span>
+                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                            {community.description || activityPreview(community) || 'Wellness group'}
+                          </p>
+                          <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                            <Users className="h-3 w-3" />
+                            {community.memberCount} members
+                          </p>
+                        </div>
+                      </Link>
+                      {community.isMember ? (
+                        <Button asChild size="sm" variant="outline" className="shrink-0">
+                          <Link href={`/community/${community.id}`}>Open</Link>
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="join-button min-h-10 shrink-0 px-4 text-xs"
+                          disabled={joiningId === community.id && joinMutation.isPending}
+                          onClick={() => joinMutation.mutate(community.id)}
+                        >
+                          {joiningId === community.id && joinMutation.isPending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            'Join'
+                          )}
+                        </Button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -149,43 +230,79 @@ export default function CommunityPage() {
                 <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-center">
                   <p className="text-sm font-medium text-foreground">No communities found</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Try a different search or category filter.
+                    Create the first group or try a different search.
                   </p>
+                  <Button asChild variant="outline" className="mt-4">
+                    <Link href="/community/create">
+                      <Plus className="h-4 w-4" />
+                      Create community
+                    </Link>
+                  </Button>
                 </div>
               )}
             </section>
-
-            <div className="rounded-2xl border border-dashed border-border px-4 py-5 text-center">
-              <p className="text-sm font-medium text-foreground">More features coming soon</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Group challenges, chat, and community leaderboards are in development.
-              </p>
-            </div>
           </>
         ) : (
           <section aria-label="My communities" className="my-communities">
-            <div className="section-card p-6 text-center">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary">
-                <Users className="h-6 w-6 text-muted-foreground" />
+            {mineQuery.isLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-              <h2 className="text-base font-semibold text-foreground">No groups yet</h2>
-              <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
-                Join a community from Discover to see your groups and rankings here.
-              </p>
-              <Button variant="outline" className="mt-4" onClick={() => setActiveTab('discover')}>
-                Browse communities
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="community-stats mt-4 rounded-2xl border border-dashed border-border px-4 py-5 text-center">
-              <p className="text-xs text-muted-foreground">
-                Your joined groups and rank will appear here once community features launch.
-              </p>
-            </div>
+            ) : myCommunities.length > 0 ? (
+              <ul className="section-card divide-y divide-border">
+                {myCommunities.map((community) => (
+                  <li key={community.id}>
+                    <Link
+                      href={`/community/${community.id}`}
+                      className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-secondary/50"
+                    >
+                      <CommunityAvatar
+                        name={community.name}
+                        icon={community.icon}
+                        avatarUrl={community.avatarUrl}
+                        avatarSeed={community.avatarSeed}
+                        avatarStyle={community.avatarStyle}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{community.name}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {community.myRole === 'admin' ? 'Admin' : 'Member'} ·{' '}
+                          {community.memberCount} members
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="section-card p-6 text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary">
+                  <Users className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <h2 className="text-base font-semibold text-foreground">No groups yet</h2>
+                <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+                  Join a community from Discover or create your own group.
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <Button variant="outline" onClick={() => setActiveTab('discover')}>
+                    Browse communities
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </Button>
+                  <Button asChild>
+                    <Link href="/community/create">
+                      <Plus className="h-4 w-4" />
+                      Create
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            )}
           </section>
         )}
       </div>
+
+      <CommunityJoinScanner open={scannerOpen} onClose={() => setScannerOpen(false)} />
     </MainLayout>
   );
 }

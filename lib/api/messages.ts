@@ -15,6 +15,9 @@ export interface FeedChatMessage {
   id: string;
   conversationId: string;
   text: string;
+  mediaUrl?: string | null;
+  mediaType?: 'image' | 'video' | null;
+  deletedForEveryone?: boolean;
   createdAt: string;
   sender: {
     userId: string;
@@ -44,5 +47,43 @@ export const messagesAPI = {
     api.post<Envelope<{ message: FeedChatMessage }>>(
       `/messages/conversations/${conversationId}/messages`,
       { text }
+    ),
+
+  sendMediaMessage: (conversationId: string, file: File, text = '') => {
+    const form = new FormData();
+    form.append('media', file);
+    if (text.trim()) form.append('text', text.trim());
+    return api.post<Envelope<{ message: FeedChatMessage }>>(
+      `/messages/conversations/${conversationId}/messages`,
+      form,
+      { timeout: 120_000 }
+    );
+  },
+
+  deleteMessages: (
+    conversationId: string,
+    messageIds: string[],
+    scope: 'me' | 'everyone'
+  ) =>
+    api.post<
+      Envelope<{
+        conversationId: string;
+        messageIds: string[];
+        scope: 'me' | 'everyone';
+        userId?: string;
+      }>
+    >(`/messages/conversations/${conversationId}/messages/delete`, {
+      messageIds,
+      scope,
+    }),
+
+  clearChat: (conversationId: string) =>
+    api.post<Envelope<{ conversationId: string; userId: string; clearedAt: string }>>(
+      `/messages/conversations/${conversationId}/clear`
+    ),
+
+  deleteChat: (conversationId: string) =>
+    api.delete<Envelope<{ conversationId: string; userId: string }>>(
+      `/messages/conversations/${conversationId}`
     ),
 };

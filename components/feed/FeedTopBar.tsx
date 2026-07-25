@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MessageCircle } from 'lucide-react';
+import { Compass, MessageCircle } from 'lucide-react';
 import { BRAND_MARK } from '@/lib/brand';
 import { useAuthStore } from '@/lib/store/authStore';
 import { NotificationBell } from '@/components/feed/NotificationBell';
@@ -14,6 +14,9 @@ interface FeedTopBarProps {
   onOpenPost?: (photoId: string) => void;
   className?: string;
 }
+
+const actionBtnClass =
+  'relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-foreground/80 transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30';
 
 export function FeedTopBar({
   onOpenMessages,
@@ -41,27 +44,44 @@ export function FeedTopBar({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5">
-        <NotificationBell
-          onOpenMessage={onOpenMessageFromNotification}
-          onOpenPost={onOpenPost}
-        />
-        <button
-          type="button"
-          onClick={onOpenMessages}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-secondary"
-          aria-label="Messages"
+      <div className="flex shrink-0 items-center gap-2">
+        <div className="flex items-center gap-0.5 rounded-2xl border border-border/80 bg-secondary/60 p-0.5">
+          <Link
+            href="/feed/explore"
+            className={actionBtnClass}
+            aria-label="Explore people"
+            title="Explore"
+          >
+            <Compass className="h-[1.15rem] w-[1.15rem] stroke-[2.25]" />
+          </Link>
+          <NotificationBell
+            onOpenMessage={onOpenMessageFromNotification}
+            onOpenPost={onOpenPost}
+            triggerClassName={actionBtnClass}
+          />
+          <button
+            type="button"
+            onClick={onOpenMessages}
+            className={actionBtnClass}
+            aria-label="Messages"
+            title="Messages"
+          >
+            <MessageCircle className="h-[1.15rem] w-[1.15rem] stroke-[2.25]" />
+          </button>
+        </div>
+
+        <Link
+          href={selectedProfile?._id ? `/feed/profile/${selectedProfile._id}` : '/settings'}
+          aria-label="Your profile"
+          title={name}
+          className="shrink-0 rounded-full ring-2 ring-primary/20 transition-transform hover:scale-[1.03]"
         >
-          <MessageCircle className="h-5 w-5" />
-        </button>
-        <Link href="/settings" aria-label="Profile settings" title={name}>
           <ProfileAvatar
             name={name}
             avatarUrl={selectedProfile?.avatarUrl}
             avatarSeed={selectedProfile?.avatarSeed}
             avatarStyle={selectedProfile?.avatarStyle}
             size="md"
-            className="ring-2 ring-primary/15"
           />
         </Link>
       </div>

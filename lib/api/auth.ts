@@ -144,6 +144,16 @@ export const authAPI = {
   logout: () => api.post('/userAuth/logout'),
   
   updateProfile: (data: UpdateProfileData) => api.patch('/userAuth/update-profile', data),
+
+  uploadAvatar: (profileId: string, file: Blob, filename = 'avatar.jpg') => {
+    const form = new FormData();
+    form.append('avatar', file, filename);
+    return api.post<{
+      success: boolean;
+      message: string;
+      data: { profile: import('@/lib/store/authStore').Profile };
+    }>(`/profile/${profileId}/avatar`, form);
+  },
   
   changePassword: (data: ChangePasswordData) => api.post('/userAuth/change-password', data),
 

@@ -108,6 +108,36 @@ export function useFeedRealtime(enabled: boolean, profileId?: string) {
         void queryClient.invalidateQueries({ queryKey: ['feedStories'] });
       };
 
+      const onPostUpdated = (payload: { post: FeedPost }) => {
+        queryClient.setQueryData<FeedPages>(['feed', profileId], (old) => {
+          if (!old?.pages) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              posts: page.posts.map((post) =>
+                post.id === payload.post.id
+                  ? { ...post, caption: payload.post.caption }
+                  : post
+              ),
+            })),
+          };
+        });
+      };
+
+      const onPostDeleted = (payload: { photoId: string }) => {
+        queryClient.setQueryData<FeedPages>(['feed', profileId], (old) => {
+          if (!old?.pages) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              posts: page.posts.filter((post) => post.id !== payload.photoId),
+            })),
+          };
+        });
+      };
+
       const onDm = (message: FeedChatMessage) => {
         queryClient.setQueryData<FeedChatMessage[]>(
           ['messages', message.conversationId],
@@ -120,20 +150,68 @@ export function useFeedRealtime(enabled: boolean, profileId?: string) {
         void queryClient.invalidateQueries({ queryKey: ['conversations'] });
       };
 
+      const onDmDeleted = (payload: {
+        conversationId: string;
+        messageIds: string[];
+        scope: 'me' | 'everyone';
+      }) => {
+        queryClient.setQueryData<FeedChatMessage[]>(
+          ['messages', payload.conversationId],
+          (old) => {
+            if (!old) return old;
+            if (payload.scope === 'everyone') {
+              return old.map((msg) =>
+                payload.messageIds.includes(msg.id)
+                  ? {
+                      ...msg,
+                      text: '',
+                      mediaUrl: null,
+                      mediaType: null,
+                      deletedForEveryone: true,
+                    }
+                  : msg
+              );
+            }
+            return old.filter((msg) => !payload.messageIds.includes(msg.id));
+          }
+        );
+        void queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      };
+
+      const onDmCleared = (payload: { conversationId: string }) => {
+        queryClient.setQueryData<FeedChatMessage[]>(['messages', payload.conversationId], []);
+        void queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      };
+
+      const onDmChatDeleted = (payload: { conversationId: string }) => {
+        queryClient.setQueryData<FeedChatMessage[]>(['messages', payload.conversationId], []);
+        void queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      };
+
       socket.on('feed:new_story', onNewStory);
       socket.on('feed:new_post', onNewPost);
       socket.on('feed:like_updated', onLike);
       socket.on('feed:comment_added', onComment);
+      socket.on('feed:post_updated', onPostUpdated);
+      socket.on('feed:post_deleted', onPostDeleted);
       socket.on('notification:new', onNotification);
       socket.on('dm:message', onDm);
+      socket.on('dm:messages_deleted', onDmDeleted);
+      socket.on('dm:chat_cleared', onDmCleared);
+      socket.on('dm:chat_deleted', onDmChatDeleted);
 
       return () => {
         socket.off('feed:new_story', onNewStory);
         socket.off('feed:new_post', onNewPost);
         socket.off('feed:like_updated', onLike);
         socket.off('feed:comment_added', onComment);
+        socket.off('feed:post_updated', onPostUpdated);
+        socket.off('feed:post_deleted', onPostDeleted);
         socket.off('notification:new', onNotification);
         socket.off('dm:message', onDm);
+        socket.off('dm:messages_deleted', onDmDeleted);
+        socket.off('dm:chat_cleared', onDmCleared);
+        socket.off('dm:chat_deleted', onDmChatDeleted);
       };
     };
 

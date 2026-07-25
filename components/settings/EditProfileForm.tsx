@@ -9,6 +9,7 @@ import { AvatarPicker } from '@/components/settings/AvatarPicker';
 import {
   AVATAR_STYLE,
   buildDiceBearAvatarUrl,
+  isUploadedAvatarUrl,
 } from '@/lib/utils/avatar';
 import { cn } from '@/lib/utils';
 
@@ -26,6 +27,8 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
   const [message, setMessage] = useState('');
   const [name, setName] = useState('');
   const [avatarSeed, setAvatarSeed] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarStyle, setAvatarStyle] = useState<string>(AVATAR_STYLE);
   const [profileData, setProfileData] = useState({
     profile: {
       health: '',
@@ -52,6 +55,12 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
         selectedProfile.name ||
         selectedProfile._id ||
         'happy-first'
+    );
+    setAvatarUrl(selectedProfile.avatarUrl || null);
+    setAvatarStyle(
+      selectedProfile.avatarStyle === 'uploaded'
+        ? 'uploaded'
+        : selectedProfile.avatarStyle || AVATAR_STYLE
     );
     setProfileData({
       profile: {
@@ -95,15 +104,18 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
     setError('');
     setMessage('');
 
-    const seed = avatarSeed.trim() || trimmedName;
-    const avatarUrl = buildDiceBearAvatarUrl(seed, AVATAR_STYLE);
+    const uploaded = isUploadedAvatarUrl(avatarUrl) || avatarStyle === 'uploaded';
+    const seed = uploaded ? null : avatarSeed.trim() || trimmedName;
+    const nextAvatarUrl = uploaded
+      ? avatarUrl
+      : buildDiceBearAvatarUrl(seed || trimmedName, AVATAR_STYLE);
 
     try {
       const response = await authAPI.updateProfile({
         name: trimmedName,
         avatarSeed: seed,
-        avatarStyle: AVATAR_STYLE,
-        avatarUrl,
+        avatarStyle: uploaded ? 'uploaded' : AVATAR_STYLE,
+        avatarUrl: nextAvatarUrl,
         profile: profileData.profile,
         preferences: profileData.preferences,
       });
@@ -156,11 +168,29 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
           </div>
           <AvatarPicker
             name={name}
+            profileId={selectedProfile?._id}
             seed={avatarSeed}
-            onSeedChange={(seed) => {
-              setAvatarSeed(seed);
+            avatarUrl={avatarUrl}
+            onChange={(next) => {
+              setAvatarSeed(next.seed || '');
+              setAvatarUrl(next.url);
+              setAvatarStyle(next.style);
               setError('');
               setMessage('');
+              if (selectedProfile && next.url) {
+                const patched = {
+                  ...selectedProfile,
+                  avatarSeed: next.seed,
+                  avatarUrl: next.url,
+                  avatarStyle: next.style,
+                };
+                setSelectedProfile(patched);
+                setProfiles(
+                  (useAuthStore.getState().profiles ?? []).map((p) =>
+                    p._id === selectedProfile._id ? patched : p
+                  )
+                );
+              }
             }}
           />
         </div>

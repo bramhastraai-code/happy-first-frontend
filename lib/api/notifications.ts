@@ -2,7 +2,7 @@ import api from './axios';
 
 export interface AppNotification {
   id: string;
-  type: 'like' | 'comment' | 'message' | 'post';
+  type: 'like' | 'comment' | 'message' | 'post' | 'follow';
   title: string;
   body: string;
   photoId?: string | null;

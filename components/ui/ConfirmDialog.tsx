@@ -13,6 +13,8 @@ export interface ConfirmDialogProps {
   cancelLabel?: string;
   loading?: boolean;
   destructive?: boolean;
+  /** Tailwind z-index class; defaults above story/media overlays */
+  zClassName?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -25,6 +27,7 @@ export function ConfirmDialog({
   cancelLabel = 'No',
   loading = false,
   destructive = false,
+  zClassName = 'z-[260]',
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -53,7 +56,12 @@ export function ConfirmDialog({
   if (!open || !mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex items-end justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:items-center">
+    <div
+      className={cn(
+        'fixed inset-0 flex items-end justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:items-center',
+        zClassName
+      )}
+    >
       <button
         type="button"
         aria-label="Close dialog"

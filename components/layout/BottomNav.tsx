@@ -20,7 +20,7 @@ export default function BottomNav() {
 
   return (
     <nav className="bottom-nav glass-nav fixed bottom-0 left-0 right-0 z-50 border-t border-border">
-      <div className="mx-auto max-w-lg px-1.5 sm:max-w-2xl sm:px-2 lg:max-w-5xl">
+      <div className="mx-auto max-w-lg px-1.5 sm:max-w-3xl sm:px-2 lg:max-w-4xl">
         <div className="flex h-[4.25rem] items-center justify-around">
           {navigation.map((item) => {
             const isActive =

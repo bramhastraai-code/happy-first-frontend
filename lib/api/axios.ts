@@ -100,8 +100,20 @@ api.interceptors.request.use(
 
     // Let the browser set multipart boundary for FormData uploads.
     if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
-      config.headers.delete?.('Content-Type');
-      delete (config.headers as Record<string, unknown>)['Content-Type'];
+      const headers = config.headers as {
+        delete?: (key: string) => void;
+        set?: (key: string, value: unknown) => void;
+        [key: string]: unknown;
+      };
+      if (typeof headers?.delete === 'function') {
+        headers.delete('Content-Type');
+        headers.delete('content-type');
+      }
+      if (typeof headers?.set === 'function') {
+        headers.set('Content-Type', false);
+      }
+      delete headers['Content-Type'];
+      delete headers['content-type'];
     }
 
     return config;
