@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { Suspense } from 'react';
 import RegisterForm from '@/components/auth/RegisterForm';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 

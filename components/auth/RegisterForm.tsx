@@ -4,25 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-  ArrowRight,
-  CalendarDays,
-  Eye,
-  EyeOff,
-  Flame,
-  Gift,
-  Loader2,
-  MapPin,
-  MessageCircle,
-  Phone,
-  Shield,
-  UserRound,
-} from 'lucide-react';
+import { Eye, EyeOff, Gift, Loader2 } from 'lucide-react';
 import { BRAND_NAME } from '@/lib/brand';
 import { authAPI } from '@/lib/api/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useAuthStore } from '@/lib/store/authStore';
 import AuthShell from '@/components/layout/AuthShell';
 import CountryCodeSelect from '@/components/ui/CountryCodeSelect';
 import RegisterStepper from '@/components/ui/RegisterStepper';
@@ -39,58 +25,14 @@ import { cn } from '@/lib/utils';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { TIMEZONE_OPTIONS } from '@/lib/utils/timezones';
 
-const selectClassName =
-  'flex h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
-
 const labelClassName = 'mb-1.5 block text-sm font-medium text-foreground';
-const inputClassName = 'h-11 rounded-xl text-sm';
 
-const BENEFITS = [
-  { icon: Flame, label: 'Daily streaks', hint: 'Stay consistent' },
-  { icon: CalendarDays, label: 'Weekly plans', hint: 'Set your goals' },
-  { icon: MessageCircle, label: 'WhatsApp logs', hint: 'Quick check-ins' },
-] as const;
-
-function FormSection({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description?: string;
-  icon: typeof UserRound;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-border bg-secondary/30 p-4">
-      <div className="mb-3 flex items-start gap-3">
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-          <Icon className="h-4 w-4" />
-        </span>
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-          {description && <p className="text-xs text-muted-foreground">{description}</p>}
-        </div>
-      </div>
-      <div className="space-y-3">{children}</div>
-    </section>
-  );
-}
-
-function ErrorBanner({ message }: { message: string }) {
-  return (
-    <div
-      role="alert"
-      className="rounded-2xl border border-destructive/20 bg-red-50 px-4 py-3 text-sm font-medium text-destructive"
-    >
-      {message}
-    </div>
-  );
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="mt-1 text-xs text-destructive">{message}</p>;
 }
 
 export default function RegisterForm() {
-  const { setProfiles, setSelectedProfile } = useAuthStore();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState<'phone' | 'details'>('phone');
@@ -136,6 +78,12 @@ export default function RegisterForm() {
       delete next[field];
       return next;
     });
+  };
+
+  const goToPhoneStep = () => {
+    setStep('phone');
+    setError('');
+    setFieldErrors({});
   };
 
   const handlePhoneSubmit = (e: React.FormEvent) => {
@@ -189,12 +137,10 @@ export default function RegisterForm() {
 
     try {
       const response = await authAPI.register(formData);
-      setProfiles(response.data.data.profiles);
-      setSelectedProfile(response.data.data.profiles[0] || null);
       markOtpSession(
         formData.phoneNumber,
         formData.countryCode,
-        response.data.data.otpExpiresInSeconds
+        response.data.data?.otpExpiresInSeconds
       );
       router.push(
         `/verify-otp?phone=${formData.phoneNumber}&country=${encodeURIComponent(formData.countryCode)}`
@@ -214,12 +160,11 @@ export default function RegisterForm() {
 
   return (
     <AuthShell
-      size="wide"
-      title={step === 'phone' ? `Join ${BRAND_NAME}` : 'Complete your profile'}
+      title={step === 'phone' ? 'Create your account' : 'Complete your profile'}
       subtitle={
         step === 'phone'
-          ? 'Create your account in under a minute. We’ll send a WhatsApp OTP to verify your number.'
-          : 'Tell us a bit about yourself to personalize your wellness journey.'
+          ? `Join ${BRAND_NAME} with your WhatsApp number. We’ll send a code to verify it.`
+          : 'A few details so we can personalize your wellness journey.'
       }
       headerExtra={<RegisterStepper step={step} />}
       footer={
@@ -238,68 +183,48 @@ export default function RegisterForm() {
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.2 }}
             onSubmit={handlePhoneSubmit}
             className="space-y-4"
           >
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {BENEFITS.map(({ icon: Icon, label, hint }) => (
-                <div
-                  key={label}
-                  className="flex items-center gap-2.5 rounded-2xl border border-border bg-surface px-3 py-2.5"
-                >
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-foreground">{label}</p>
-                    <p className="text-[11px] text-muted-foreground">{hint}</p>
-                  </div>
-                </div>
-              ))}
+            <div>
+              <label htmlFor="countryCode" className={labelClassName}>
+                Country code
+              </label>
+              <CountryCodeSelect
+                id="countryCode"
+                value={formData.countryCode}
+                onChange={(countryCode) => setFormData({ ...formData, countryCode })}
+              />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
-              <div className="sm:col-span-2">
-                <label htmlFor="countryCode" className={labelClassName}>
-                  Country
-                </label>
-                <CountryCodeSelect
-                  id="countryCode"
-                  compact
-                  value={formData.countryCode}
-                  onChange={(countryCode) => setFormData({ ...formData, countryCode })}
-                />
-              </div>
-              <div className="sm:col-span-3">
-                <label htmlFor="phoneNumber" className={labelClassName}>
-                  Phone number
-                </label>
-                <Input
-                  id="phoneNumber"
-                  className={cn(inputClassName, fieldErrorClass('phoneNumber'))}
-                  type="tel"
-                  placeholder="9999999999"
-                  maxLength={10}
-                  inputMode="numeric"
-                  autoComplete="tel"
-                  autoFocus
-                  value={formData.phoneNumber}
-                  onChange={(e) => {
-                    clearFieldError('phoneNumber');
-                    setFormData({
-                      ...formData,
-                      phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10),
-                    });
-                  }}
-                  required
-                />
-                {fieldErrors.phoneNumber ? (
-                  <p className="mt-1 text-xs text-destructive">{fieldErrors.phoneNumber}</p>
-                ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">10-digit mobile number</p>
-                )}
-              </div>
+            <div>
+              <label htmlFor="phoneNumber" className={labelClassName}>
+                Phone number
+              </label>
+              <Input
+                id="phoneNumber"
+                className={fieldErrorClass('phoneNumber')}
+                type="tel"
+                placeholder="9999999999"
+                maxLength={10}
+                inputMode="numeric"
+                autoComplete="tel"
+                autoFocus
+                value={formData.phoneNumber}
+                onChange={(e) => {
+                  clearFieldError('phoneNumber');
+                  setFormData({
+                    ...formData,
+                    phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10),
+                  });
+                }}
+                required
+              />
+              <FieldError message={fieldErrors.phoneNumber} />
+              {!fieldErrors.phoneNumber && (
+                <p className="mt-1 text-xs text-muted-foreground">10-digit mobile number</p>
+              )}
             </div>
 
             <div>
@@ -308,30 +233,39 @@ export default function RegisterForm() {
                 <span className="font-normal text-muted-foreground">(optional)</span>
               </label>
               {isReferralLocked && formData.referredBy ? (
-                <div className="flex items-center gap-2 rounded-2xl border border-success/25 bg-success-soft px-3 py-2.5">
+                <div className="flex items-center gap-2.5 rounded-2xl border border-success/20 bg-success-soft px-3.5 py-3">
                   <Gift className="h-4 w-4 shrink-0 text-success" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-success">Invite applied</p>
-                    <p className="truncate text-sm font-medium text-foreground">{formData.referredBy}</p>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-success">Invite applied</p>
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {formData.referredBy}
+                    </p>
                   </div>
                 </div>
               ) : (
                 <Input
                   id="referral"
-                  className={inputClassName}
                   type="text"
                   placeholder="Enter referral code"
                   value={formData.referredBy}
-                  onChange={(e) => setFormData({ ...formData, referredBy: e.target.value.trim() })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, referredBy: e.target.value.trim() })
+                  }
                 />
               )}
             </div>
 
-            {error && <ErrorBanner message={error} />}
+            {error && (
+              <div
+                role="alert"
+                className="rounded-2xl bg-red-50 px-4 py-3 text-center text-sm font-medium text-destructive"
+              >
+                {error}
+              </div>
+            )}
 
             <Button type="submit" className="w-full" size="lg" disabled={!phoneValid}>
               Continue
-              <ArrowRight className="h-4 w-4" />
             </Button>
           </motion.form>
         ) : (
@@ -340,252 +274,224 @@ export default function RegisterForm() {
             initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -12 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.2 }}
             onSubmit={handleRegister}
             className="space-y-4"
           >
-            <div className="flex items-center justify-between rounded-2xl border border-border bg-secondary/60 px-3 py-2.5">
-              <div className="flex items-center gap-2.5">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                  <Phone className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Verifying next
-                  </p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {formData.countryCode} {formData.phoneNumber}
-                  </p>
-                </div>
+            <div className="flex items-center justify-between gap-3 rounded-2xl bg-secondary/70 px-3.5 py-3">
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Phone number</p>
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {formData.countryCode} {formData.phoneNumber}
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setStep('phone');
-                  setError('');
-                  setFieldErrors({});
-                }}
-                className="text-xs font-semibold text-primary hover:underline"
+                onClick={goToPhoneStep}
+                className="shrink-0 text-sm font-semibold text-primary hover:underline"
                 disabled={loading}
               >
                 Edit
               </button>
             </div>
 
-            <FormSection title="About you" description="How we’ll address you in the app" icon={UserRound}>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="name" className={labelClassName}>
-                    Full name
-                  </label>
-                  <Input
-                    id="name"
-                    className={cn(inputClassName, fieldErrorClass('name'))}
-                    type="text"
-                    placeholder="John Doe"
-                    autoComplete="name"
-                    autoFocus
-                    value={formData.name}
-                    onChange={(e) => {
-                      clearFieldError('name');
-                      setFormData({ ...formData, name: e.target.value });
-                    }}
-                    required
-                    disabled={loading}
-                  />
-                  {fieldErrors.name && (
-                    <p className="mt-1 text-xs text-destructive">{fieldErrors.name}</p>
-                  )}
-                </div>
-                <div>
-                  <label htmlFor="email" className={labelClassName}>
-                    Email
-                  </label>
-                  <Input
-                    id="email"
-                    className={cn(inputClassName, fieldErrorClass('email'))}
-                    type="email"
-                    placeholder="john@example.com"
-                    autoComplete="email"
-                    value={formData.email}
-                    onChange={(e) => {
-                      clearFieldError('email');
-                      setFormData({ ...formData, email: e.target.value });
-                    }}
-                    required
-                    disabled={loading}
-                  />
-                  {fieldErrors.email && (
-                    <p className="mt-1 text-xs text-destructive">{fieldErrors.email}</p>
-                  )}
-                </div>
-                <div className="sm:col-span-2">
-                  <label htmlFor="dateOfBirth" className={labelClassName}>
-                    Date of birth
-                  </label>
-                  <Input
-                    id="dateOfBirth"
-                    className={cn(inputClassName, fieldErrorClass('dateOfBirth'))}
-                    type="date"
-                    value={formData.dateOfBirth}
-                    onChange={(e) => {
-                      clearFieldError('dateOfBirth');
-                      setFormData({ ...formData, dateOfBirth: e.target.value });
-                    }}
-                    required
-                    disabled={loading}
-                  />
-                  {fieldErrors.dateOfBirth && (
-                    <p className="mt-1 text-xs text-destructive">{fieldErrors.dateOfBirth}</p>
-                  )}
-                </div>
-              </div>
-            </FormSection>
-
-            <FormSection title="Location" description="For local leaderboards and reminders" icon={MapPin}>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="city" className={labelClassName}>
-                    City
-                  </label>
-                  <Input
-                    id="city"
-                    className={cn(inputClassName, fieldErrorClass('city'))}
-                    type="text"
-                    placeholder="Mumbai"
-                    autoComplete="address-level2"
-                    value={formData.city}
-                    onChange={(e) => {
-                      clearFieldError('city');
-                      setFormData({ ...formData, city: e.target.value });
-                    }}
-                    required
-                    disabled={loading}
-                  />
-                  {fieldErrors.city && (
-                    <p className="mt-1 text-xs text-destructive">{fieldErrors.city}</p>
-                  )}
-                </div>
-                <div>
-                  <label htmlFor="locationPin" className={labelClassName}>
-                    Pin code
-                  </label>
-                  <Input
-                    id="locationPin"
-                    className={cn(inputClassName, fieldErrorClass('locationPin'))}
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="400001"
-                    maxLength={6}
-                    value={formData.locationPin}
-                    onChange={(e) => {
-                      clearFieldError('locationPin');
-                      setFormData({
-                        ...formData,
-                        locationPin: e.target.value.replace(/\D/g, '').slice(0, 6),
-                      });
-                    }}
-                    required
-                    disabled={loading}
-                  />
-                  {fieldErrors.locationPin && (
-                    <p className="mt-1 text-xs text-destructive">{fieldErrors.locationPin}</p>
-                  )}
-                </div>
-                <div className="sm:col-span-2">
-                  <label htmlFor="timezone" className={labelClassName}>
-                    Timezone
-                  </label>
-                  <AppSelect
-                    id="timezone"
-                    value={formData.timezone}
-                    onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                    className="h-11"
-                    disabled={loading}
-                  >
-                    {TIMEZONE_OPTIONS.map((tz) => (
-                      <option key={tz.value} value={tz.value}>
-                        {tz.label}
-                      </option>
-                    ))}
-                  </AppSelect>
-                </div>
-              </div>
-            </FormSection>
-
-            <FormSection title="Security" description="Choose a password for sign-in" icon={Shield}>
-              <div>
-                <label htmlFor="password" className={labelClassName}>
-                  Password
-                </label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    className={cn(inputClassName, 'pr-11', fieldErrorClass('password'))}
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="At least 6 characters"
-                    autoComplete="new-password"
-                    value={formData.password}
-                    onChange={(e) => {
-                      clearFieldError('password');
-                      setFormData({ ...formData, password: e.target.value });
-                    }}
-                    required
-                    minLength={6}
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {fieldErrors.password ? (
-                  <p className="mt-1 text-xs text-destructive">{fieldErrors.password}</p>
-                ) : (
-                  <PasswordStrengthMeter strength={passwordStrength} />
-                )}
-              </div>
-            </FormSection>
-
-            {error && <ErrorBanner message={error} />}
-
-            <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
-              By creating an account, you agree to receive WhatsApp messages for OTP and activity
-              reminders from {BRAND_NAME}.
-            </p>
-
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setStep('phone');
-                  setError('');
-                  setFieldErrors({});
+            <div>
+              <label htmlFor="name" className={labelClassName}>
+                Full name
+              </label>
+              <Input
+                id="name"
+                className={fieldErrorClass('name')}
+                type="text"
+                placeholder="John Doe"
+                autoComplete="name"
+                autoFocus
+                value={formData.name}
+                onChange={(e) => {
+                  clearFieldError('name');
+                  setFormData({ ...formData, name: e.target.value });
                 }}
-                className="w-full sm:w-auto sm:min-w-[120px]"
+                required
+                disabled={loading}
+              />
+              <FieldError message={fieldErrors.name} />
+            </div>
+
+            <div>
+              <label htmlFor="email" className={labelClassName}>
+                Email
+              </label>
+              <Input
+                id="email"
+                className={fieldErrorClass('email')}
+                type="email"
+                placeholder="john@example.com"
+                autoComplete="email"
+                value={formData.email}
+                onChange={(e) => {
+                  clearFieldError('email');
+                  setFormData({ ...formData, email: e.target.value });
+                }}
+                required
+                disabled={loading}
+              />
+              <FieldError message={fieldErrors.email} />
+            </div>
+
+            <div>
+              <label htmlFor="dateOfBirth" className={labelClassName}>
+                Date of birth
+              </label>
+              <Input
+                id="dateOfBirth"
+                className={fieldErrorClass('dateOfBirth')}
+                type="date"
+                value={formData.dateOfBirth}
+                onChange={(e) => {
+                  clearFieldError('dateOfBirth');
+                  setFormData({ ...formData, dateOfBirth: e.target.value });
+                }}
+                required
+                disabled={loading}
+              />
+              <FieldError message={fieldErrors.dateOfBirth} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="city" className={labelClassName}>
+                  City
+                </label>
+                <Input
+                  id="city"
+                  className={fieldErrorClass('city')}
+                  type="text"
+                  placeholder="Mumbai"
+                  autoComplete="address-level2"
+                  value={formData.city}
+                  onChange={(e) => {
+                    clearFieldError('city');
+                    setFormData({ ...formData, city: e.target.value });
+                  }}
+                  required
+                  disabled={loading}
+                />
+                <FieldError message={fieldErrors.city} />
+              </div>
+              <div>
+                <label htmlFor="locationPin" className={labelClassName}>
+                  Pin code
+                </label>
+                <Input
+                  id="locationPin"
+                  className={fieldErrorClass('locationPin')}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="400001"
+                  maxLength={6}
+                  value={formData.locationPin}
+                  onChange={(e) => {
+                    clearFieldError('locationPin');
+                    setFormData({
+                      ...formData,
+                      locationPin: e.target.value.replace(/\D/g, '').slice(0, 6),
+                    });
+                  }}
+                  required
+                  disabled={loading}
+                />
+                <FieldError message={fieldErrors.locationPin} />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="timezone" className={labelClassName}>
+                Timezone
+              </label>
+              <AppSelect
+                id="timezone"
+                value={formData.timezone}
+                onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                className="h-12 rounded-2xl text-base md:text-sm"
                 disabled={loading}
               >
-                Back
-              </Button>
-              <Button type="submit" disabled={loading} className="w-full sm:min-w-[180px]" size="lg">
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Creating account…
-                  </>
-                ) : (
-                  <>
-                    Create account
-                    <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
-              </Button>
+                {TIMEZONE_OPTIONS.map((tz) => (
+                  <option key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </option>
+                ))}
+              </AppSelect>
             </div>
+
+            <div>
+              <label htmlFor="password" className={labelClassName}>
+                Password
+              </label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  className={cn('pr-11', fieldErrorClass('password'))}
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="At least 6 characters"
+                  autoComplete="new-password"
+                  value={formData.password}
+                  onChange={(e) => {
+                    clearFieldError('password');
+                    setFormData({ ...formData, password: e.target.value });
+                  }}
+                  required
+                  minLength={6}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {fieldErrors.password ? (
+                <FieldError message={fieldErrors.password} />
+              ) : (
+                <PasswordStrengthMeter strength={passwordStrength} />
+              )}
+            </div>
+
+            {error && (
+              <div
+                role="alert"
+                className="rounded-2xl bg-red-50 px-4 py-3 text-center text-sm font-medium text-destructive"
+              >
+                {error}
+              </div>
+            )}
+
+            <p className="text-center text-xs leading-relaxed text-muted-foreground">
+              By continuing, you agree to receive WhatsApp messages for OTP and reminders from{' '}
+              {BRAND_NAME}.
+            </p>
+
+            <Button type="submit" disabled={loading} className="w-full" size="lg">
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating account…
+                </>
+              ) : (
+                'Create account'
+              )}
+            </Button>
+
+            <button
+              type="button"
+              onClick={goToPhoneStep}
+              className="w-full text-sm font-medium text-primary hover:underline"
+              disabled={loading}
+            >
+              Back to phone number
+            </button>
           </motion.form>
         )}
       </AnimatePresence>

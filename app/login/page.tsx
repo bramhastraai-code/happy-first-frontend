@@ -63,7 +63,29 @@ export default function LoginPage() {
       setAccessToken(accessToken);
       router.push('/select-profile');
     } catch (err) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Login failed');
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Login failed';
+      if (/verify your (WhatsApp )?OTP/i.test(message)) {
+        try {
+          const resend = await authAPI.resendRegistrationOTP({
+            phoneNumber: formData.phoneNumber,
+            countryCode: formData.countryCode,
+          });
+          markOtpSession(
+            formData.phoneNumber,
+            formData.countryCode,
+            resend.data.data?.otpExpiresInSeconds
+          );
+        } catch {
+          // Still send them to verify; they can request a new code there.
+        }
+        router.push(
+          `/verify-otp?phone=${formData.phoneNumber}&country=${encodeURIComponent(formData.countryCode)}`
+        );
+        return;
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -85,7 +107,29 @@ export default function LoginPage() {
       setOtpSent(true);
       setSuccessMessage(`OTP sent to your WhatsApp. It is valid for ${DEFAULT_OTP_EXPIRY_MINUTES} minutes.`);
     } catch (err) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to send OTP');
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Failed to send OTP';
+      if (/verify your (WhatsApp )?OTP/i.test(message)) {
+        try {
+          const resend = await authAPI.resendRegistrationOTP({
+            phoneNumber: formData.phoneNumber,
+            countryCode: formData.countryCode,
+          });
+          markOtpSession(
+            formData.phoneNumber,
+            formData.countryCode,
+            resend.data.data?.otpExpiresInSeconds
+          );
+        } catch {
+          // Continue to verify page.
+        }
+        router.push(
+          `/verify-otp?phone=${formData.phoneNumber}&country=${encodeURIComponent(formData.countryCode)}`
+        );
+        return;
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }

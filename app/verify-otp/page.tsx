@@ -132,7 +132,7 @@ function VerifyOTPContent() {
       headerExtra={<RegisterStepper step="verify" />}
     >
       <form onSubmit={handleVerify} className="space-y-6">
-        <div className="flex justify-center gap-2">
+        <div className="flex justify-center gap-2 sm:gap-2.5">
           {otp.map((digit, index) => (
             <Input
               key={index}
@@ -143,7 +143,7 @@ function VerifyOTPContent() {
               value={digit}
               onChange={(e) => handleOtpChange(index, e.target.value)}
               onKeyDown={(e) => handleKeyDown(index, e)}
-              className="h-12 w-11 text-center text-xl font-semibold"
+              className="h-12 w-12 shrink-0 rounded-full px-0 text-center text-xl font-semibold shadow-sm focus-visible:border-2 focus-visible:border-primary focus-visible:ring-0"
               autoFocus={index === 0}
             />
           ))}

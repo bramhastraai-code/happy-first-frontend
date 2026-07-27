@@ -20,17 +20,28 @@ export default function RegisterStepper({ step }: RegisterStepperProps) {
 
   return (
     <div className="mb-5">
-      <div className="flex items-start justify-center">
+      <div className="flex w-full items-start">
         {STEPS.map((item, index) => {
           const isComplete = index < currentIndex;
           const isActive = index === currentIndex;
+          const isLast = index === STEPS.length - 1;
 
           return (
-            <div key={item.id} className="flex items-center">
-              <div className="flex w-[5.5rem] flex-col items-center text-center sm:w-[6.5rem]">
+            <div key={item.id} className="relative flex min-w-0 flex-1 flex-col items-center text-center">
+              <div className="relative flex h-9 w-full items-center justify-center sm:h-10">
+                {!isLast && (
+                  <div
+                    className={cn(
+                      'absolute left-[calc(50%+1.125rem)] top-1/2 h-0.5 w-[calc(100%-2.25rem)] -translate-y-1/2 rounded-full sm:left-[calc(50%+1.25rem)] sm:w-[calc(100%-2.5rem)]',
+                      currentIndex > index ? 'bg-primary' : 'bg-border'
+                    )}
+                    aria-hidden
+                  />
+                )}
+
                 <div
                   className={cn(
-                    'flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-colors sm:h-10 sm:w-10 sm:text-sm',
+                    'relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors sm:h-10 sm:w-10 sm:text-sm',
                     isComplete && 'bg-primary text-primary-foreground',
                     isActive && 'bg-primary text-primary-foreground ring-4 ring-primary/15',
                     !isComplete && !isActive && 'bg-secondary text-muted-foreground'
@@ -38,32 +49,19 @@ export default function RegisterStepper({ step }: RegisterStepperProps) {
                 >
                   {isComplete ? <Check className="h-4 w-4" strokeWidth={3} /> : index + 1}
                 </div>
-                <p
-                  className={cn(
-                    'mt-1.5 text-xs font-semibold sm:text-sm',
-                    isActive || isComplete ? 'text-foreground' : 'text-muted-foreground'
-                  )}
-                >
-                  {item.label}
-                </p>
-                <p className="mt-0.5 hidden text-[10px] text-muted-foreground sm:block">
-                  {item.description}
-                </p>
               </div>
 
-              {index < STEPS.length - 1 && (
-                <div
-                  className="mx-1 mt-[1.125rem] h-0.5 w-8 shrink-0 overflow-hidden rounded-full bg-border sm:mx-2 sm:w-14"
-                  aria-hidden
-                >
-                  <div
-                    className={cn(
-                      'h-full rounded-full bg-primary transition-all duration-300',
-                      currentIndex > index ? 'w-full' : 'w-0'
-                    )}
-                  />
-                </div>
-              )}
+              <p
+                className={cn(
+                  'mt-1.5 text-xs font-semibold sm:text-sm',
+                  isActive || isComplete ? 'text-foreground' : 'text-muted-foreground'
+                )}
+              >
+                {item.label}
+              </p>
+              <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground sm:text-[11px]">
+                {item.description}
+              </p>
             </div>
           );
         })}
