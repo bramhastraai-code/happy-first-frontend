@@ -79,7 +79,7 @@ function CreatePlanPageContent() {
   const [mandatoryActivity, setMandatoryActivity] = useState<Activity | null>(null);
   const [showCongratulation, setShowCongratulation] = useState(false);
   const [surpriseActivity, setSurpriseActivity] = useState<{name: string, icon: string, targetValue: number, unit: string} | null>(null);
-  const [surpriseActivityStatus, setSurpriseActivityStatus] = useState<'assigned' | 'none-left' | 'not-configured' | 'none'>('none');
+  const [surpriseActivityStatus, setSurpriseActivityStatus] = useState<'assigned' | 'none-left' | 'not-configured' | 'not-eligible' | 'none'>('none');
   const planInitRef = useRef(false);
 
   function apiErrorMessage(err: unknown, fallback: string) {
@@ -492,7 +492,9 @@ function CreatePlanPageContent() {
               <p className="mt-4 text-sm text-muted-foreground">
                 {surpriseActivityStatus === 'none-left'
                   ? 'No bonus activity left for this week.'
-                  : 'Your selected activities are locked in for the week.'}
+                  : surpriseActivityStatus === 'not-eligible'
+                    ? 'Bonus activities unlock after an 80%+ week.'
+                    : 'Your selected activities are locked in for the week.'}
               </p>
             )}
 

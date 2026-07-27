@@ -30,19 +30,11 @@ const getActivityInputMax = (activity: WeeklyPlanActivity, activityData?: Activi
   return isWeeklyNumericTarget ? Math.max(baseMax, baseMax * 7) : baseMax;
 };
 
-function toIsoDate(value?: string | null) {
-  if (!value) return '';
-  const dt = DateTime.fromISO(String(value).slice(0, 10), { zone: 'utc' });
-  return dt.isValid ? dt.toISODate() || '' : '';
-}
-
-function isDateInActivePlan(dateIso: string, plan: WeeklyPlan | null, zone: string) {
-  if (!plan || !dateIso) return false;
+function isPastDate(dateIso: string, zone: string) {
+  if (!dateIso) return false;
   const today = DateTime.now().setZone(zone).toISODate() || '';
-  const weekStart = toIsoDate(plan.weekStart);
-  const weekEnd = toIsoDate(plan.weekEnd);
-  if (!weekStart || !weekEnd || !today) return false;
-  return dateIso >= weekStart && dateIso <= weekEnd && dateIso < today;
+  if (!today) return false;
+  return dateIso < today;
 }
 
 export default function PreviousLogPage() {
@@ -72,7 +64,6 @@ function PreviousLogPageContent() {
   );
 
   const [selectedDate, setSelectedDate] = useState('');
-  const [activePlan, setActivePlan] = useState<WeeklyPlan | null>(null);
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
   const [daySummary, setDaySummary] = useState<DailySummary | null>(null);
   const [activities, setActivities] = useState<Record<string, number>>({});
@@ -92,15 +83,7 @@ function PreviousLogPageContent() {
   const [showCongrats, setShowCongrats] = useState(false);
   const [actlist, setActlist] = useState<ActivityType[]>([]);
 
-  const planMinDate = toIsoDate(activePlan?.weekStart);
-  const planMaxDate = useMemo(() => {
-    if (!activePlan) return yesterday;
-    const weekEnd = toIsoDate(activePlan.weekEnd);
-    if (!weekEnd) return yesterday;
-    return weekEnd < yesterday ? weekEnd : yesterday;
-  }, [activePlan, yesterday]);
-
-  const dateInActivePlan = isDateInActivePlan(selectedDate, activePlan, zone);
+  const dateIsPast = isPastDate(selectedDate, zone);
 
   const extractErrorMessage = (err: unknown, fallback: string) => {
     if (
@@ -117,19 +100,18 @@ function PreviousLogPageContent() {
   };
 
   const mode: PageMode = useMemo(() => {
-    if (!selectedDate || checkingLog || (loading && !activePlan && !daySummary)) return 'loading';
+    if (!selectedDate || checkingLog || (loading && !weeklyPlan && !daySummary)) return 'loading';
     if (logAlreadyExists && daySummary) return 'view';
-    if (dateInActivePlan && weeklyPlan && !logAlreadyExists) return 'submit';
+    if (dateIsPast && weeklyPlan && !logAlreadyExists) return 'submit';
     return 'closed';
   }, [
     selectedDate,
     checkingLog,
     loading,
-    activePlan,
+    weeklyPlan,
     daySummary,
     logAlreadyExists,
-    dateInActivePlan,
-    weeklyPlan,
+    dateIsPast,
   ]);
 
   useEffect(() => {
@@ -157,52 +139,29 @@ function PreviousLogPageContent() {
     }
   }, [showCongrats, router]);
 
-  // Load current active plan, then resolve selected date within its range.
+  // Resolve selected date — any past date is allowed.
   useEffect(() => {
     if (!selectedProfile || !isHydrated) return;
 
-    const loadActivePlan = async () => {
-      try {
-        const plan = await weeklyPlanAPI.getCurrentPlan();
-        setActivePlan(plan);
+    const requested = searchParams.get('date');
+    let nextDate = yesterday;
 
-        const weekStart = toIsoDate(plan?.weekStart);
-        const weekEnd = toIsoDate(plan?.weekEnd);
-        const maxAllowed =
-          weekEnd && weekEnd < yesterday ? weekEnd : yesterday;
-
-        const requested = searchParams.get('date');
-        let nextDate = yesterday;
-
-        if (requested) {
-          const parsed = DateTime.fromISO(requested, { zone });
-          if (parsed.isValid) {
-            const iso = parsed.toISODate() || '';
-            if (weekStart && iso >= weekStart && iso <= maxAllowed) {
-              nextDate = iso;
-            } else if (iso < (weekStart || '') || (weekEnd && iso > weekEnd)) {
-              // Outside active plan — still open for view if logged
-              nextDate = iso;
-            }
-          }
-        } else if (weekStart && yesterday < weekStart) {
-          nextDate = '';
+    if (requested) {
+      const parsed = DateTime.fromISO(requested, { zone });
+      if (parsed.isValid) {
+        const iso = parsed.toISODate() || '';
+        if (iso && isPastDate(iso, zone)) {
+          nextDate = iso;
         }
-
-        setSelectedDate(nextDate || maxAllowed || yesterday);
-      } catch (err) {
-        console.error('Failed to load active plan:', err);
-        setActivePlan(null);
-        setSelectedDate(yesterday);
       }
-    };
+    }
 
-    void loadActivePlan();
+    setSelectedDate(nextDate || yesterday);
   }, [selectedProfile, isHydrated, searchParams, yesterday, zone]);
 
   useEffect(() => {
     if (!selectedDate) {
-      setDeadlineMessage('Select a past date inside your active plan week.');
+      setDeadlineMessage('Select any past date to submit a missed log.');
       return;
     }
 
@@ -211,20 +170,13 @@ function PreviousLogPageContent() {
       return;
     }
 
-    if (!activePlan) {
-      setDeadlineMessage('No active plan found. Create a plan to submit missed logs.');
+    if (dateIsPast) {
+      setDeadlineMessage('You can submit a missed log for this day.');
       return;
     }
 
-    if (dateInActivePlan) {
-      setDeadlineMessage('You can submit a missed log for this day in your active plan.');
-      return;
-    }
-
-    setDeadlineMessage(
-      'Only past dates inside your current active plan week can be submitted. Older weeks are blocked.'
-    );
-  }, [selectedDate, logAlreadyExists, activePlan, dateInActivePlan]);
+    setDeadlineMessage('Only past dates can be submitted. Today and future dates are blocked.');
+  }, [selectedDate, logAlreadyExists, dateIsPast]);
 
   useEffect(() => {
     const checkLogAndFetchPlan = async () => {
@@ -259,7 +211,7 @@ function PreviousLogPageContent() {
 
         setCheckingLog(false);
 
-        if (!isDateInActivePlan(selectedDate, activePlan, zone)) {
+        if (!isPastDate(selectedDate, zone)) {
           setWeeklyPlan(null);
           return;
         }
@@ -300,7 +252,7 @@ function PreviousLogPageContent() {
     };
 
     void checkLogAndFetchPlan();
-  }, [selectedDate, selectedProfile, activePlan, zone]);
+  }, [selectedDate, selectedProfile, zone]);
 
   const handleActivityChange = (activityId: string, value: string) => {
     setActivities((prev) => ({ ...prev, [activityId]: parseFloat(value) || 0 }));
@@ -315,8 +267,8 @@ function PreviousLogPageContent() {
   };
 
   const handleSubmit = async () => {
-    if (!dateInActivePlan) {
-      setError('You can only submit missed logs for past days in your active plan week.');
+    if (!dateIsPast) {
+      setError('You can only submit missed logs for past dates.');
       return;
     }
     if (!selectedProfile) {
@@ -400,7 +352,7 @@ function PreviousLogPageContent() {
   const canSubmit = mode === 'submit';
   const showForm = mode === 'submit';
   const showView = mode === 'view' && daySummary;
-  const pickerEnabled = Boolean(planMinDate && planMaxDate && planMinDate <= planMaxDate);
+  const pickerEnabled = Boolean(yesterday);
 
   return (
     <MainLayout>
@@ -413,7 +365,7 @@ function PreviousLogPageContent() {
 
       <PageHeader
         title="Missed day log"
-        subtitle="Enter past days from your active plan — or view if already saved"
+        subtitle="Enter any past day — or view if already saved"
         action={
           selectedDate ? (
             <span className="chip chip-active text-xs">
@@ -432,22 +384,17 @@ function PreviousLogPageContent() {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground">
-                {formattedSelectedDate || 'Pick a date in your active plan'}
+                {formattedSelectedDate || 'Pick any past date'}
               </p>
-              {activePlan && (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Active plan · {DateTime.fromISO(toIsoDate(activePlan.weekStart)).toFormat('d MMM')}
-                  {' – '}
-                  {DateTime.fromISO(toIsoDate(activePlan.weekEnd)).toFormat('d MMM')}
-                </p>
-              )}
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Any past day · up to {DateTime.fromISO(yesterday).toFormat('d MMM yyyy')}
+              </p>
             </div>
             {pickerEnabled && selectedDate && (
               <CompactDatePicker
                 value={selectedDate}
                 onChange={setSelectedDate}
-                minDate={planMinDate}
-                maxDate={planMaxDate}
+                maxDate={yesterday}
               />
             )}
           </div>
@@ -488,7 +435,7 @@ function PreviousLogPageContent() {
                 {deadlineMessage}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Submit: past days in the active plan only. Already logged days are view-only.
+                Submit: any past day. Already logged days are view-only.
               </p>
             </div>
           </div>
@@ -632,19 +579,19 @@ function PreviousLogPageContent() {
               <div className="text-sm text-muted-foreground">
                 <p className="font-semibold text-foreground">How missed logs work</p>
                 <ul className="mt-2 list-inside list-disc space-y-1">
-                  <li>Pick a past day inside your current active plan week</li>
+                  <li>Pick any past day</li>
                   <li>Enter activity values and submit</li>
                   <li>If already submitted, you can view the log here</li>
-                  <li>Dates outside the active plan cannot be backfilled</li>
+                  <li>A weekly plan must exist for that date</li>
                 </ul>
-                {pickerEnabled && selectedDate !== planMaxDate && (
+                {pickerEnabled && selectedDate !== yesterday && (
                   <Button
                     type="button"
                     className="mt-4"
                     variant="outline"
-                    onClick={() => setSelectedDate(planMaxDate)}
+                    onClick={() => setSelectedDate(yesterday)}
                   >
-                    Open latest allowed day
+                    Open yesterday
                   </Button>
                 )}
               </div>

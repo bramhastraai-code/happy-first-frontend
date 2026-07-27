@@ -548,7 +548,7 @@ export default function TasksPage() {
                     <p className="text-sm font-semibold text-foreground">
                       Submit missed log
                     </p>
-                    <p className="text-xs text-muted-foreground">Past days in your active plan week</p>
+                    <p className="text-xs text-muted-foreground">Any past day</p>
                   </div>
                 </div>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />

@@ -943,7 +943,7 @@ function HomePageContent() {
             />
           </div>
 
-          {!selectedDateHasLog && (
+          {!selectedDateHasLog && !noPlanError && (
             <Button
               type="button"
               className="w-full"
@@ -953,6 +953,15 @@ function HomePageContent() {
               }}
             >
               {selectedDateIsToday ? 'Log today' : 'Log selected date'}
+            </Button>
+          )}
+          {!selectedDateHasLog && noPlanError && selectedDateIsToday && (
+            <Button
+              type="button"
+              className="w-full"
+              onClick={() => router.push('/create-plan')}
+            >
+              Create a plan to start logging
             </Button>
           )}
               {isDailyLogFetching && !selectedDayLog ? (
