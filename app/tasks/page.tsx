@@ -11,8 +11,8 @@ import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import TaskCategorySection from '@/components/tasks/TaskCategorySection';
-import { Calendar, ChevronRight, Timer, TrendingUp, CheckCircle2, AlertCircle, Pencil } from 'lucide-react';
-import type { WeeklyPlan, WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
+import { Calendar, ChevronRight, Timer, TrendingUp, CheckCircle2, AlertCircle, Pencil, RefreshCw, PlusCircle } from 'lucide-react';
+import type { WeeklyPlan, WeeklyPlanActivity, PlanChoiceState } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import GuidedTour from '@/components/ui/GuidedTour';
 import TourStartButton from '@/components/ui/TourStartButton';
@@ -50,6 +50,8 @@ export default function TasksPage() {
   const [warningActivities, setWarningActivities] = useState<Array<{label: string, value: number, target: number, percentage: number}>>([]);
   const [hasUpcomingPlan, setHasUpcomingPlan] = useState(false);
   const [editPlanHref, setEditPlanHref] = useState('/create-plan');
+  const [planChoice, setPlanChoice] = useState<PlanChoiceState | null>(null);
+  const [repeatLoading, setRepeatLoading] = useState(false);
 
   const getActivityInputMax = (activity: WeeklyPlanActivity, activityData?: ActivityType) => {
     const configuredMax = activityData?.values.find((v) => v.tier === 1)?.maxVal;
@@ -98,17 +100,20 @@ export default function TasksPage() {
 
     const fetchData = async () => {
       try {
-        const [plan, upcomingPlan, activityResponse] = await Promise.all([
-          weeklyPlanAPI.getCurrentPlan(),
+        const [{ plan, planChoice: choice }, upcomingPlan, activityResponse] = await Promise.all([
+          weeklyPlanAPI.getCurrentPlanState(),
           weeklyPlanAPI.getUpcomingPlan(),
           activityAPI.getList(),
         ]);
 
+        setPlanChoice(choice);
         setHasUpcomingPlan(Boolean(upcomingPlan));
         setActlist(activityResponse.data.data);
 
-        // Only upcoming (not-yet-started) plans are editable. Active current-week plans are locked.
-        if (upcomingPlan?._id) {
+        // Prefer editing unconfirmed current-week plan on Monday; else upcoming; else create.
+        if (choice?.canEditCurrent && choice.currentPlanId) {
+          setEditPlanHref(`/create-plan?edit=${choice.currentPlanId}`);
+        } else if (upcomingPlan?._id) {
           setEditPlanHref(`/create-plan?edit=${upcomingPlan._id}`);
         } else {
           setEditPlanHref('/create-plan');
@@ -116,7 +121,11 @@ export default function TasksPage() {
 
         if (!plan) {
           setWeeklyPlan(null);
-          setNoPlanError('No active weekly plan found. Please create a weekly plan first to start logging your daily activities.');
+          if (choice?.needsPlanChoice) {
+            setNoPlanError('');
+          } else {
+            setNoPlanError('No active weekly plan found. Please create a weekly plan first to start logging your daily activities.');
+          }
           return;
         }
 
@@ -150,6 +159,27 @@ export default function TasksPage() {
     };
     fetchData();
   }, [accessToken, user, router, isHydrated]);
+
+  const handleRepeatPlan = async () => {
+    setRepeatLoading(true);
+    setError('');
+    try {
+      await weeklyPlanAPI.repeatLastWeek();
+      const { plan, planChoice: choice } = await weeklyPlanAPI.getCurrentPlanState();
+      setWeeklyPlan(plan);
+      setPlanChoice(choice);
+      setNoPlanError('');
+      setSuccess('Plan repeated for this week. You can start logging.');
+      router.replace('/tasks');
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Could not repeat last week\'s plan.';
+      setError(message);
+    } finally {
+      setRepeatLoading(false);
+    }
+  };
 
 
   // Timer countdown effect
@@ -416,7 +446,13 @@ export default function TasksPage() {
               onClick={() => router.push(editPlanHref)}
             >
               <Pencil className="h-3.5 w-3.5" />
-              {hasUpcomingPlan ? 'Edit upcoming plan' : 'Create upcoming plan'}
+              {planChoice?.needsPlanChoice
+                ? planChoice.canEditCurrent
+                  ? 'Edit this week\'s plan'
+                  : 'Create this week\'s plan'
+                : hasUpcomingPlan
+                  ? 'Edit upcoming plan'
+                  : 'Create upcoming plan'}
             </Button>
           }
         />
@@ -428,7 +464,13 @@ export default function TasksPage() {
             onClick={() => router.push(editPlanHref)}
           >
             <Pencil className="h-3.5 w-3.5" />
-            {hasUpcomingPlan ? 'Edit upcoming plan' : 'Create upcoming plan'}
+            {planChoice?.needsPlanChoice
+              ? planChoice.canEditCurrent
+                ? 'Edit this week\'s plan'
+                : 'Create this week\'s plan'
+              : hasUpcomingPlan
+                ? 'Edit upcoming plan'
+                : 'Create upcoming plan'}
           </Button>
           {weeklyPlan && (
             <div
@@ -442,7 +484,77 @@ export default function TasksPage() {
       </div>
 
       <div className="space-y-4">
-        {/* Today's Progress */}
+        {planChoice?.needsPlanChoice && (
+          <div className="section-card space-y-4 p-4 sm:p-5">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Confirm this week&apos;s plan</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Select the activities you want to log for this week.
+              </p>
+            </div>
+            {success && (
+              <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                <CheckCircle2 className="h-5 w-5 shrink-0" />
+                <span>{success}</span>
+              </div>
+            )}
+            {error && (
+              <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <AlertCircle className="h-5 w-5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {planChoice.canRepeat && (
+                <button
+                  type="button"
+                  onClick={handleRepeatPlan}
+                  disabled={repeatLoading}
+                  className="rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:bg-accent/40 disabled:opacity-60"
+                >
+                  <span className="inline-flex rounded-xl bg-secondary p-2.5 text-foreground">
+                    <RefreshCw className={`h-5 w-5 ${repeatLoading ? 'animate-spin' : ''}`} />
+                  </span>
+                  <h3 className="mt-3 text-sm font-semibold text-foreground">Repeat last plan</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Same activities as last week (80%+ unlock).
+                  </p>
+                </button>
+              )}
+              {planChoice.canEditCurrent && (
+                <button
+                  type="button"
+                  onClick={() => router.push(editPlanHref)}
+                  className="rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:bg-accent/40"
+                >
+                  <span className="inline-flex rounded-xl bg-primary-soft p-2.5 text-primary">
+                    <Pencil className="h-5 w-5" />
+                  </span>
+                  <h3 className="mt-3 text-sm font-semibold text-foreground">Edit plan</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Edit this week&apos;s activities.
+                  </p>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => router.push('/create-plan?fresh=1')}
+                className="rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:bg-accent/40"
+              >
+                <span className="inline-flex rounded-xl bg-primary-soft p-2.5 text-primary">
+                  <PlusCircle className="h-5 w-5" />
+                </span>
+                <h3 className="mt-3 text-sm font-semibold text-foreground">Create fresh plan</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Pick new activities from what&apos;s unlocked for you.
+                </p>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Today's Progress — only after the week plan is confirmed */}
+        {!planChoice?.needsPlanChoice && (
         <div className="tasks-progress overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary-soft/60 via-surface to-surface p-4 shadow-[var(--shadow-card)] sm:p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
@@ -512,8 +624,9 @@ export default function TasksPage() {
             </div>
           )}
         </div>
+        )}
 
-        {(hasUpcomingPlan || !noPlanError) && (
+        {!planChoice?.needsPlanChoice && (hasUpcomingPlan || !noPlanError) && (
           <div className="tasks-quick-links section-card divide-y divide-border">
             {hasUpcomingPlan && (
               <button
@@ -558,6 +671,7 @@ export default function TasksPage() {
         )}
 
         {/* Today's Tasks Form */}
+        {!planChoice?.needsPlanChoice && (
         <div className="weekly-activities space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="section-title">Submit daily logs</h3>
@@ -714,6 +828,7 @@ export default function TasksPage() {
           )}
 
         </div>
+        )}
       </div>
     </MainLayout>
   );

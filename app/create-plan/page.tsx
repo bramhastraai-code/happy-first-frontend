@@ -59,6 +59,7 @@ function CreatePlanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isOnboarding = searchParams.get('mode') === 'first-setup';
+  const forceFresh = searchParams.get('fresh') === '1';
   const editPlanId = searchParams.get('edit');
   const isEditMode = Boolean(editPlanId);
   const { user, accessToken, isHydrated,selectedProfile } = useAuthStore();
@@ -132,8 +133,10 @@ function CreatePlanPageContent() {
 
           const plan = planRes.data.data;
           const weekStart = DateTime.fromISO(String(plan.weekStart));
-          // Active (current-week) plans cannot be edited — only upcoming plans.
-          if (weekStart.isValid && weekStart <= DateTime.now()) {
+          // Active (current-week) plans cannot be edited — except unconfirmed
+          // Monday carried-forward plans that still need member confirmation.
+          const isUnconfirmedCarryForward = plan.status === 'carried-forward';
+          if (weekStart.isValid && weekStart <= DateTime.now() && !isUnconfirmedCarryForward) {
             setError('Active plans cannot be edited. You can only update an upcoming plan before it starts.');
             router.replace('/tasks');
             return;
@@ -193,7 +196,7 @@ function CreatePlanPageContent() {
         );
         if (happyDaysActivity) setMandatoryActivity(happyDaysActivity);
 
-        if (!options.canRepeat) {
+        if (forceFresh || !options.canRepeat) {
           setStep('select');
         }
       } catch (err) {
@@ -204,7 +207,7 @@ function CreatePlanPageContent() {
     };
 
     void bootstrap();
-  }, [accessToken, user, router, isHydrated, isOnboarding, isEditMode, editPlanId]);
+  }, [accessToken, user, router, isHydrated, isOnboarding, isEditMode, editPlanId, forceFresh]);
 
   const fetchActivities = async () => {
     try {

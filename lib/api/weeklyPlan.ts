@@ -27,6 +27,17 @@ export interface WeeklyPlanActivity {
   ]
 }
  
+export interface PlanChoiceState {
+  needsPlanChoice: boolean;
+  isMonday?: boolean;
+  isMondayNoLogs?: boolean;
+  canRepeat: boolean;
+  previousScore?: number;
+  currentPlanId?: string | null;
+  currentPlanStatus?: string | null;
+  canEditCurrent: boolean;
+}
+
 export interface WeeklyPlan {
   _id: string;
   user: string;
@@ -37,6 +48,9 @@ export interface WeeklyPlan {
   status: 'active' | 'completed' | 'carried-forward';
   unloockedSets : number[];
   surpriseActivityStatus?: 'assigned' | 'none-left' | 'not-configured' | 'not-eligible' | 'none';
+  needsPlanChoice?: boolean;
+  canRepeat?: boolean;
+  canEditCurrent?: boolean;
 }
 
 export interface CreateWeeklyPlanData {
@@ -118,11 +132,35 @@ export const weeklyPlanAPI = {
   },
 
   getCurrentPlan: async (): Promise<WeeklyPlan | null> => {
-    const response = await api.get<{ success: boolean; message: string; data: WeeklyPlan | null }>(
+    const response = await api.get<{
+      success: boolean;
+      message: string;
+      data: WeeklyPlan | null;
+      planChoice?: PlanChoiceState;
+    }>(
       '/weeklyPlan/current',
       { params: { date: DateTime.local().toFormat('yyyy-MM-dd') } }
     );
     return response.data.data ?? null;
+  },
+
+  getCurrentPlanState: async (): Promise<{
+    plan: WeeklyPlan | null;
+    planChoice: PlanChoiceState | null;
+  }> => {
+    const response = await api.get<{
+      success: boolean;
+      message: string;
+      data: WeeklyPlan | null;
+      planChoice?: PlanChoiceState;
+    }>(
+      '/weeklyPlan/current',
+      { params: { date: DateTime.local().toFormat('yyyy-MM-dd') } }
+    );
+    return {
+      plan: response.data.data ?? null,
+      planChoice: response.data.planChoice ?? null,
+    };
   },
 
   firstSetup: (activities:CreateWeeklyPlanData) => api.post('/weeklyPlan/firstTimeSetup', activities),
