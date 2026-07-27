@@ -133,10 +133,16 @@ function CreatePlanPageContent() {
 
           const plan = planRes.data.data;
           const weekStart = DateTime.fromISO(String(plan.weekStart));
-          // Active (current-week) plans cannot be edited — except unconfirmed
-          // Monday carried-forward plans that still need member confirmation.
-          const isUnconfirmedCarryForward = plan.status === 'carried-forward';
-          if (weekStart.isValid && weekStart <= DateTime.now() && !isUnconfirmedCarryForward) {
+          const planChoice = optionsRes.data.data.planChoice;
+          // Current-week plans are editable only in the Monday no-log grace window
+          // (carried-forward confirmation, or accidental repeat/create before first log).
+          const canEditCurrentWeek =
+            plan.status === 'carried-forward' ||
+            Boolean(
+              planChoice?.canEditCurrent &&
+                String(planChoice.currentPlanId) === String(plan._id)
+            );
+          if (weekStart.isValid && weekStart <= DateTime.now() && !canEditCurrentWeek) {
             setError('Active plans cannot be edited. You can only update an upcoming plan before it starts.');
             router.replace('/tasks');
             return;

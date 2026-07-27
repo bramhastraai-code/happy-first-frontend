@@ -169,7 +169,10 @@ export default function TasksPage() {
       setWeeklyPlan(plan);
       setPlanChoice(choice);
       setNoPlanError('');
-      setSuccess('Plan repeated for this week. You can start logging.');
+      if (choice?.canEditCurrent && choice.currentPlanId) {
+        setEditPlanHref(`/create-plan?edit=${choice.currentPlanId}`);
+      }
+      setSuccess('Plan repeated for this week. You can edit it until you enter your first log.');
       router.replace('/tasks');
     } catch (err: unknown) {
       const message =
@@ -446,13 +449,13 @@ export default function TasksPage() {
               onClick={() => router.push(editPlanHref)}
             >
               <Pencil className="h-3.5 w-3.5" />
-              {planChoice?.needsPlanChoice
-                ? planChoice.canEditCurrent
-                  ? 'Edit this week\'s plan'
-                  : 'Create this week\'s plan'
-                : hasUpcomingPlan
-                  ? 'Edit upcoming plan'
-                  : 'Create upcoming plan'}
+              {planChoice?.canEditCurrent
+                ? "Edit this week's plan"
+                : planChoice?.needsPlanChoice
+                  ? "Create this week's plan"
+                  : hasUpcomingPlan
+                    ? 'Edit upcoming plan'
+                    : 'Create upcoming plan'}
             </Button>
           }
         />
@@ -464,13 +467,13 @@ export default function TasksPage() {
             onClick={() => router.push(editPlanHref)}
           >
             <Pencil className="h-3.5 w-3.5" />
-            {planChoice?.needsPlanChoice
-              ? planChoice.canEditCurrent
-                ? 'Edit this week\'s plan'
-                : 'Create this week\'s plan'
-              : hasUpcomingPlan
-                ? 'Edit upcoming plan'
-                : 'Create upcoming plan'}
+            {planChoice?.canEditCurrent
+              ? "Edit this week's plan"
+              : planChoice?.needsPlanChoice
+                ? "Create this week's plan"
+                : hasUpcomingPlan
+                  ? 'Edit upcoming plan'
+                  : 'Create upcoming plan'}
           </Button>
           {weeklyPlan && (
             <div
@@ -550,6 +553,27 @@ export default function TasksPage() {
                 </p>
               </button>
             </div>
+          </div>
+        )}
+
+        {/* After accidental repeat/create on Monday: still allow edit before first log */}
+        {!planChoice?.needsPlanChoice && planChoice?.canEditCurrent && (
+          <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">Change this week&apos;s plan?</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                You can still edit activities until you enter your first log today.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5"
+              onClick={() => router.push(editPlanHref)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit plan
+            </Button>
           </div>
         )}
 
