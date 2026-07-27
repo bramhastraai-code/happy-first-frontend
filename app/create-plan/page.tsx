@@ -280,9 +280,10 @@ function CreatePlanPageContent() {
     setTargetOverlayActivity(null);
   };
 
-  const filteredActivities = activities.filter(
-    (activity) => activity.category.toLowerCase() === selectedCategory.toLowerCase()
-  );
+  const filteredActivities = activities.filter((activity) => {
+    const category = (activity.category || 'body').toLowerCase();
+    return category === selectedCategory.toLowerCase();
+  });
 
   const handleCategoryChange = (category: 'body' | 'mind' | 'soul') => {
     setSelectedCategory(category);
@@ -574,7 +575,9 @@ function CreatePlanPageContent() {
           ? `Update your ${selectedCategory} activities — keep at least 4.`
           : previousScore !== null && previousScore < 80
             ? `Last week was below 80% — pick a new plan from available activities.`
-            : `Browse ${selectedCategory} activities and pick at least 4.`
+            : previousScore !== null && previousScore >= 80
+              ? `Last week was ${Math.round(previousScore)}% — all desired activities are unlocked.`
+              : `Browse ${selectedCategory} activities and pick at least 4.`
         : isOnboarding
           ? 'Confirm targets and enter your weight.'
           : isEditMode
