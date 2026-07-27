@@ -70,6 +70,8 @@ function CreatePlanPageContent() {
   );
   const [error, setError] = useState('');
   const [tiers, setTiers] = useState<number>(1);
+  const [canRepeat, setCanRepeat] = useState(false);
+  const [previousScore, setPreviousScore] = useState<number | null>(null);
   const [repeatLoading, setRepeatLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<'body' | 'mind' | 'soul'>('body');
   const [visitedCategories, setVisitedCategories] = useState<Set<'body' | 'mind' | 'soul'>>(new Set(['body']));
@@ -175,6 +177,30 @@ function CreatePlanPageContent() {
       } catch (err) {
         console.log('No upcoming plan found, user can create one', err);
       }
+
+      // Repeat is only offered after an 80%+ week; otherwise go straight to create new.
+      try {
+        const optionsRes = await weeklyPlanAPI.getOptions();
+        const options = optionsRes.data.data;
+        const fetchedActivities = options.activities as Activity[];
+        setActivities(fetchedActivities);
+        setTiers(options.tier);
+        setPreviousScore(typeof options.previousScore === 'number' ? options.previousScore : null);
+        setCanRepeat(Boolean(options.canRepeat));
+
+        const happyDaysActivity = fetchedActivities.find(
+          (activity: Activity) => activity.name.toLowerCase() === 'happy days'
+        );
+        if (happyDaysActivity) setMandatoryActivity(happyDaysActivity);
+
+        if (!options.canRepeat) {
+          setStep('select');
+        }
+      } catch (err) {
+        console.error('Failed to load plan options:', err);
+        setError(apiErrorMessage(err, 'Failed to load activities. Please try again.'));
+        setStep('select');
+      }
     };
 
     void bootstrap();
@@ -186,6 +212,12 @@ function CreatePlanPageContent() {
       const fetchedActivities = response.data.data.activities;
       setActivities(fetchedActivities);
       setTiers(response.data.data.tier);
+      setPreviousScore(
+        typeof response.data.data.previousScore === 'number'
+          ? response.data.data.previousScore
+          : null
+      );
+      setCanRepeat(Boolean(response.data.data.canRepeat));
       
       // Find and auto-select the mandatory "happy days" activity
       const happyDaysActivity = fetchedActivities.find(
@@ -194,8 +226,6 @@ function CreatePlanPageContent() {
       
       if (happyDaysActivity) {
         setMandatoryActivity(happyDaysActivity);
-        // Open overlay for mandatory activity configuration
-        // setTargetOverlayActivity(happyDaysActivity);
       }
     } catch (error) {
       console.error('Failed to fetch activities:', error);
@@ -529,11 +559,13 @@ function CreatePlanPageContent() {
 
   const stepSubtitle =
     step === 'choice'
-      ? 'Create a new plan or repeat last week.'
+      ? 'Create a new plan or repeat last week (80%+ only).'
       : step === 'select'
         ? isEditMode
           ? `Update your ${selectedCategory} activities — keep at least 4.`
-          : `Browse ${selectedCategory} activities and pick at least 4.`
+          : previousScore !== null && previousScore < 80
+            ? `Last week was below 80% — pick a new plan from available activities.`
+            : `Browse ${selectedCategory} activities and pick at least 4.`
         : isOnboarding
           ? 'Confirm targets and enter your weight.'
           : isEditMode
@@ -564,7 +596,7 @@ function CreatePlanPageContent() {
         {/* Step 0: Choose Plan Type */}
         {step === 'choice' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className={cn('grid grid-cols-1 gap-3', canRepeat && 'md:grid-cols-2')}>
               <button
                 type="button"
                 onClick={handleChoiceCreateNew}
@@ -582,23 +614,25 @@ function CreatePlanPageContent() {
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleChoiceRepeatLast}
-                disabled={repeatLoading}
-                className="section-card p-5 text-left transition-colors hover:bg-accent/40 disabled:opacity-60"
-              >
-                <span className="inline-flex rounded-xl bg-secondary p-2.5 text-foreground">
-                  <RefreshCw className={cn('h-5 w-5', repeatLoading && 'animate-spin')} />
-                </span>
-                <h3 className="mt-3 text-base font-semibold text-foreground">Repeat last plan</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Reuse the same activities and targets from last week.
-                </p>
-                <span className="mt-3 inline-flex items-center text-sm font-semibold text-foreground">
-                  {repeatLoading ? 'Loading…' : 'Repeat plan'}
-                </span>
-              </button>
+              {canRepeat && (
+                <button
+                  type="button"
+                  onClick={handleChoiceRepeatLast}
+                  disabled={repeatLoading}
+                  className="section-card p-5 text-left transition-colors hover:bg-accent/40 disabled:opacity-60"
+                >
+                  <span className="inline-flex rounded-xl bg-secondary p-2.5 text-foreground">
+                    <RefreshCw className={cn('h-5 w-5', repeatLoading && 'animate-spin')} />
+                  </span>
+                  <h3 className="mt-3 text-base font-semibold text-foreground">Repeat last plan</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Reuse the same activities and targets from last week.
+                  </p>
+                  <span className="mt-3 inline-flex items-center text-sm font-semibold text-foreground">
+                    {repeatLoading ? 'Loading…' : 'Repeat plan'}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         )}
