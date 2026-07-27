@@ -186,7 +186,8 @@ export default function UpcomingPage() {
 
   const daysLeft = weeklyPlan ? daysUntilStart(weeklyPlan.weekStart) : 0;
   const maxPoints = weeklyPlan ? getTotalPotentialPoints(weeklyPlan) : 0;
-  const unlockedSets = weeklyPlan?.unloockedSets?.length ?? 0;
+  const unlockedSets =
+    weeklyPlan?.unlockedSets?.length ?? weeklyPlan?.unloockedSets?.length ?? 0;
 
   if (!isHydrated || loading) {
     return (

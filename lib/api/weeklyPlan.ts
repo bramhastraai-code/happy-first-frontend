@@ -46,7 +46,9 @@ export interface WeeklyPlan {
   weekStart: string;
   weekEnd: string;
   status: 'active' | 'completed' | 'carried-forward';
-  unloockedSets : number[];
+  unlockedSets?: number[];
+  /** @deprecated typo kept for older payloads */
+  unloockedSets?: number[];
   surpriseActivityStatus?: 'assigned' | 'none-left' | 'not-configured' | 'not-eligible' | 'none';
   needsPlanChoice?: boolean;
   canRepeat?: boolean;
@@ -95,7 +97,8 @@ export interface WeeklyPlanAnalytics {
 
 export const weeklyPlanAPI = {
  
-  getOptions: () => api.get('/weeklyPlan/options'),
+  getOptions: (planId?: string) =>
+    api.get('/weeklyPlan/options', planId ? { params: { planId } } : undefined),
   
   getAnalytics: (weeklyPlanId: string, updateRanks = false) => 
     api.get<{ success: boolean; message: string; data: WeeklyPlanAnalytics }>(

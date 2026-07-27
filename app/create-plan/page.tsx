@@ -119,12 +119,17 @@ function CreatePlanPageContent() {
       if (isEditMode && editPlanId) {
         try {
           const [optionsRes, planRes] = await Promise.all([
-            weeklyPlanAPI.getOptions(),
+            weeklyPlanAPI.getOptions(editPlanId),
             weeklyPlanAPI.getById(editPlanId),
           ]);
           const fetchedActivities = optionsRes.data.data.activities as Activity[];
           setActivities(fetchedActivities);
           setTiers(optionsRes.data.data.tier);
+          setPreviousScore(
+            typeof optionsRes.data.data.previousScore === 'number'
+              ? optionsRes.data.data.previousScore
+              : null
+          );
 
           const happyDaysActivity = fetchedActivities.find(
             (activity: Activity) => activity.name.toLowerCase() === 'happy days'
