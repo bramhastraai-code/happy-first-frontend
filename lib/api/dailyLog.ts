@@ -4,6 +4,9 @@ export interface DailyLogActivity {
   activityId: string;
   value: number;
   pointsEarned?: number;
+  communityOnly?: boolean;
+  isCommunityOnly?: boolean;
+  source?: string;
 }
 
 export interface SubmitDailyLogData {

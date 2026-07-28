@@ -7,10 +7,12 @@ import { useAuthStore } from '@/lib/store/authStore';
 import { dailyLogAPI, type SubmitDailyLogData } from '@/lib/api/dailyLog';
 import { invalidateDashboardQueries } from '@/lib/queries/invalidateDashboard';
 import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
+import { communityAPI, type MyCommunityActivity } from '@/lib/api/community';
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import TaskCategorySection from '@/components/tasks/TaskCategorySection';
+import CommunityActivitiesSection from '@/components/tasks/CommunityActivitiesSection';
 import { Calendar, ChevronRight, Timer, TrendingUp, CheckCircle2, AlertCircle, Pencil, RefreshCw, PlusCircle } from 'lucide-react';
 import type { WeeklyPlan, WeeklyPlanActivity, PlanChoiceState } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
@@ -29,6 +31,7 @@ export default function TasksPage() {
   const queryClient = useQueryClient();
   const { accessToken, user, isHydrated, selectedProfile } = useAuthStore();
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
+  const [communityActivities, setCommunityActivities] = useState<MyCommunityActivity[]>([]);
   const [activities, setActivities] = useState<Record<string, number>>({});
   const [checkboxActivities, setCheckboxActivities] = useState<Record<string, boolean>>({});
   const [pendingSliders, setPendingSliders] = useState<Record<string, boolean>>({});
@@ -100,15 +103,20 @@ export default function TasksPage() {
 
     const fetchData = async () => {
       try {
-        const [{ plan, planChoice: choice }, upcomingPlan, activityResponse] = await Promise.all([
-          weeklyPlanAPI.getCurrentPlanState(),
-          weeklyPlanAPI.getUpcomingPlan(),
-          activityAPI.getList(),
-        ]);
+        const [{ plan, planChoice: choice }, upcomingPlan, activityResponse, communityRes] =
+          await Promise.all([
+            weeklyPlanAPI.getCurrentPlanState(),
+            weeklyPlanAPI.getUpcomingPlan(),
+            activityAPI.getList(),
+            communityAPI.myActivities().catch(() => null),
+          ]);
 
         setPlanChoice(choice);
         setHasUpcomingPlan(Boolean(upcomingPlan));
         setActlist(activityResponse.data.data);
+
+        const communityRows = communityRes?.data?.data?.activities ?? [];
+        setCommunityActivities(communityRows);
 
         // Prefer editing unconfirmed current-week plan on Monday; else upcoming; else create.
         if (choice?.canEditCurrent && choice.currentPlanId) {
@@ -126,6 +134,21 @@ export default function TasksPage() {
           } else {
             setNoPlanError('No active weekly plan found. Please create a weekly plan first to start logging your daily activities.');
           }
+          // Still initialize community activity inputs when no plan
+          const communityValues: Record<string, number> = {};
+          const communityCheckbox: Record<string, boolean> = {};
+          const communityPending: Record<string, boolean> = {};
+          communityRows.forEach((row) => {
+            if (row.cadence === 'weekly' && String(row.unit || '').toLowerCase() === 'days') {
+              communityCheckbox[row.activityId] = false;
+              communityPending[row.activityId] = true;
+            } else {
+              communityValues[row.activityId] = 0;
+            }
+          });
+          setActivities(communityValues);
+          setCheckboxActivities(communityCheckbox);
+          setPendingSliders(communityPending);
           return;
         }
 
@@ -145,6 +168,14 @@ export default function TasksPage() {
             initialPendingSliders[activityId] = true;
           } else {
             initialValues[activityId] = 0;
+          }
+        });
+        communityRows.forEach((row) => {
+          if (row.cadence === 'weekly' && String(row.unit || '').toLowerCase() === 'days') {
+            initialCheckboxValues[row.activityId] = false;
+            initialPendingSliders[row.activityId] = true;
+          } else {
+            initialValues[row.activityId] = 0;
           }
         });
         setActivities(initialValues);
@@ -263,14 +294,45 @@ export default function TasksPage() {
       return;
     }
 
-    if (!weeklyPlan) {
+    if (!weeklyPlan && communityActivities.length === 0) {
       setError('No weekly plan found.');
       return;
     }
 
-    const validation = validateLogSubmit(weeklyPlan, activities, checkboxActivities, pendingSliders);
-    if (!validation.ok) {
-      setError(validation.error);
+    const personalValidation = weeklyPlan
+      ? validateLogSubmit(weeklyPlan, activities, checkboxActivities, pendingSliders)
+      : { ok: true as const, payload: [] as Array<{ activityId: string; value: number }> };
+
+    const communityPayload = communityActivities
+      .filter((row) => !row.TodayLogged)
+      .map((row) => {
+        const isWeeklyDays =
+          row.cadence === 'weekly' && String(row.unit || '').toLowerCase() === 'days';
+        if (isWeeklyDays) {
+          const isPending = pendingSliders[row.activityId] ?? true;
+          if (isPending) return null;
+          const value = checkboxActivities[row.activityId] ? 1 : 0;
+          return value > 0
+            ? { activityId: row.activityId, value, communityOnly: true as const }
+            : null;
+        }
+        const value = activities[row.activityId] ?? 0;
+        return value > 0
+          ? { activityId: row.activityId, value, communityOnly: true as const }
+          : null;
+      })
+      .filter((entry): entry is { activityId: string; value: number; communityOnly: true } =>
+        Boolean(entry)
+      );
+
+    const personalPayload = personalValidation.ok ? personalValidation.payload : [];
+
+    if (personalPayload.length === 0 && communityPayload.length === 0) {
+      if (!personalValidation.ok) {
+        setError(personalValidation.error);
+        return;
+      }
+      setError('Please log at least one new activity before submitting.');
       return;
     }
 
@@ -279,7 +341,7 @@ export default function TasksPage() {
 
     try {
       const submitData: SubmitDailyLogData = {
-        activities: validation.payload,
+        activities: [...personalPayload, ...communityPayload],
       };
 
       const response = await dailyLogAPI.submit(submitData);
@@ -290,11 +352,11 @@ export default function TasksPage() {
       
       if(response.status===201){
         const submittedById = new Map(
-          validation.payload.map((entry) => [entry.activityId, entry.value])
+          submitData.activities.map((entry) => [entry.activityId, entry.value])
         );
 
         // Refetch plan so TodayLogged reflects server state for accurate partial vs complete UX
-        let planForCompletion = await weeklyPlanAPI.getCurrentPlan();
+        let planForCompletion = weeklyPlan ? await weeklyPlanAPI.getCurrentPlan() : null;
         if (!planForCompletion && weeklyPlan) {
           planForCompletion = {
             ...weeklyPlan,
@@ -313,6 +375,12 @@ export default function TasksPage() {
           setWeeklyPlan(planForCompletion);
         }
 
+        setCommunityActivities((prev) =>
+          prev.map((row) =>
+            submittedById.has(row.activityId) ? { ...row, TodayLogged: true } : row
+          )
+        );
+
         setShowCongrats(true);
 
         // Reset only submitted fields; keep pending/skipped activities editable
@@ -330,6 +398,15 @@ export default function TasksPage() {
             resetPendingSliders[activityId] = true;
           } else {
             resetValues[activityId] = 0;
+          }
+        });
+        communityActivities.forEach((row) => {
+          if (!submittedIds.has(row.activityId)) return;
+          if (row.cadence === 'weekly' && String(row.unit || '').toLowerCase() === 'days') {
+            resetCheckboxValues[row.activityId] = false;
+            resetPendingSliders[row.activityId] = true;
+          } else {
+            resetValues[row.activityId] = 0;
           }
         });
         setActivities(resetValues);
@@ -719,26 +796,41 @@ export default function TasksPage() {
             </div>
           )}
 
-          {!noPlanError && !isProfilePaused && (
+          {!isProfilePaused && (weeklyPlan || communityActivities.length > 0) && (
             <form onSubmit={handleSubmit} className="space-y-4">
-              {(['mind', 'body', 'soul'] as const).map((category) => (
-                <TaskCategorySection
-                  key={category}
-                  category={category}
-                  activities={weeklyPlan?.activities ?? []}
-                  actlist={actlist}
-                  isAfter6PM={isAfter6PM}
-                  timeUntilMidnight={timeUntilMidnight}
-                  activityValues={activities}
-                  checkboxActivities={checkboxActivities}
-                  pendingSliders={pendingSliders}
-                  onActivityChange={handleActivityChange}
-                  onCheckboxChange={handleCheckboxChange}
-                  onPendingChange={handlePendingChange}
-                  getActivityInputMax={getActivityInputMax}
-                />
-              ))}
+              {weeklyPlan
+                ? (['mind', 'body', 'soul'] as const).map((category) => (
+                    <TaskCategorySection
+                      key={category}
+                      category={category}
+                      activities={weeklyPlan.activities ?? []}
+                      actlist={actlist}
+                      isAfter6PM={isAfter6PM}
+                      timeUntilMidnight={timeUntilMidnight}
+                      activityValues={activities}
+                      checkboxActivities={checkboxActivities}
+                      pendingSliders={pendingSliders}
+                      onActivityChange={handleActivityChange}
+                      onCheckboxChange={handleCheckboxChange}
+                      onPendingChange={handlePendingChange}
+                      getActivityInputMax={getActivityInputMax}
+                    />
+                  ))
+                : null}
 
+              <CommunityActivitiesSection
+                activities={communityActivities}
+                actlist={actlist}
+                isAfter6PM={isAfter6PM}
+                timeUntilMidnight={timeUntilMidnight}
+                activityValues={activities}
+                checkboxActivities={checkboxActivities}
+                pendingSliders={pendingSliders}
+                onActivityChange={handleActivityChange}
+                onCheckboxChange={handleCheckboxChange}
+                onPendingChange={handlePendingChange}
+                getActivityInputMax={getActivityInputMax}
+              />
 
             {/* Warning Banner for Unusual Values */}
             {showWarning && warningActivities.length > 0 && (
@@ -836,8 +928,20 @@ export default function TasksPage() {
               disabled={
                 !isAfter6PM ||
                 loading ||
-                !weeklyPlan ||
-                !canSubmitPartialLog(weeklyPlan, activities, checkboxActivities, pendingSliders)
+                (!(
+                  weeklyPlan &&
+                  canSubmitPartialLog(weeklyPlan, activities, checkboxActivities, pendingSliders)
+                ) &&
+                  !communityActivities.some((row) => {
+                    if (row.TodayLogged) return false;
+                    const isWeeklyDays =
+                      row.cadence === 'weekly' &&
+                      String(row.unit || '').toLowerCase() === 'days';
+                    if (isWeeklyDays) {
+                      return !(pendingSliders[row.activityId] ?? true);
+                    }
+                    return (activities[row.activityId] ?? 0) > 0;
+                  }))
               }
               className="submit-log-button w-full py-5 text-base font-semibold"
             >

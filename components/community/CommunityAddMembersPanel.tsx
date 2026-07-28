@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Loader2, Search, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
@@ -14,6 +14,7 @@ import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 10;
+const SEARCH_DEBOUNCE_MS = 350;
 
 interface CommunityAddMembersPanelProps {
   communityId: string;
@@ -36,7 +37,7 @@ export function CommunityAddMembersPanel({
     const timer = window.setTimeout(() => {
       setDebounced(query.trim());
       setPage(1);
-    }, 280);
+    }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [query]);
 
@@ -51,6 +52,9 @@ export function CommunityAddMembersPanel({
   const peopleQuery = useQuery({
     queryKey: ['community-add-people', communityId, debounced, page],
     enabled: open,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const res = await communityAPI.searchMembers(communityId, debounced, {
         page,
@@ -80,6 +84,7 @@ export function CommunityAddMembersPanel({
   const total = peopleQuery.data?.total ?? 0;
   const totalPages = peopleQuery.data?.totalPages ?? 1;
   const currentPage = peopleQuery.data?.page ?? page;
+  const showInitialLoader = peopleQuery.isLoading && !peopleQuery.data;
 
   return (
     <CollapsibleSection
@@ -101,7 +106,7 @@ export function CommunityAddMembersPanel({
         />
       </label>
 
-      {peopleQuery.isLoading ? (
+      {showInitialLoader ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
@@ -115,7 +120,8 @@ export function CommunityAddMembersPanel({
         <>
           <ul
             className={cn(
-              'max-h-[22rem] divide-y divide-border overflow-y-auto overscroll-contain rounded-xl border border-border',
+              'relative max-h-[22rem] divide-y divide-border overflow-y-auto overscroll-contain rounded-xl border border-border',
+              peopleQuery.isFetching && 'opacity-80',
               '[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden'
             )}
           >
@@ -158,6 +164,7 @@ export function CommunityAddMembersPanel({
           <div className="flex items-center justify-between gap-2 pt-1">
             <p className="text-[11px] text-muted-foreground">
               Page {currentPage} of {totalPages} · {total} people
+              {peopleQuery.isFetching ? ' · updating…' : ''}
             </p>
             <div className="flex items-center gap-1.5">
               <Button

@@ -208,6 +208,10 @@ export default function CommunityPage() {
                         <Button asChild size="sm" variant="outline" className="shrink-0">
                           <Link href={`/community/${community.id}`}>Open</Link>
                         </Button>
+                      ) : community.myMembershipStatus === 'pending' ? (
+                        <Button asChild size="sm" variant="outline" className="shrink-0">
+                          <Link href={`/community/${community.id}`}>Pending</Link>
+                        </Button>
                       ) : (
                         <Button
                           size="sm"
@@ -219,7 +223,7 @@ export default function CommunityPage() {
                           {joiningId === community.id && joinMutation.isPending ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            'Join'
+                            'Request'
                           )}
                         </Button>
                       )}
@@ -266,11 +270,25 @@ export default function CommunityPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold">{community.name}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {community.myRole === 'admin' ? 'Admin' : 'Member'} ·{' '}
-                          {community.memberCount} members
+                          {community.status === 'deleted'
+                            ? 'Deleted · history available'
+                            : community.myRole === 'admin'
+                              ? 'Admin'
+                              : community.myRole === 'moderator'
+                                ? 'Moderator'
+                                : 'Member'}{' '}
+                          {community.status !== 'deleted'
+                            ? `· ${community.memberCount} members`
+                            : null}
                         </p>
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      {community.status === 'deleted' ? (
+                        <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                          Deleted
+                        </span>
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
                     </Link>
                   </li>
                 ))}

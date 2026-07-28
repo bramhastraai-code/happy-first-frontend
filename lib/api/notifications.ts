@@ -2,11 +2,26 @@ import api from './axios';
 
 export interface AppNotification {
   id: string;
-  type: 'like' | 'comment' | 'message' | 'post' | 'follow';
+  type:
+    | 'like'
+    | 'comment'
+    | 'message'
+    | 'post'
+    | 'follow'
+    | 'community_announcement'
+    | 'community_week_summary'
+    | 'community_nudge'
+    | 'community_event'
+    | 'community_event_reminder'
+    | 'community_appreciation';
   title: string;
   body: string;
   photoId?: string | null;
   conversationId?: string | null;
+  communityId?: string | null;
+  announcementId?: string | null;
+  eventId?: string | null;
+  appreciationId?: string | null;
   readAt?: string | null;
   createdAt: string;
   actor: {

@@ -8,6 +8,7 @@ import {
   CheckCheck,
   Compass,
   Heart,
+  Megaphone,
   MessageCircle,
   MessageSquare,
   UserPlus,
@@ -28,6 +29,11 @@ function iconFor(type: AppNotification['type']) {
   if (type === 'like') return Heart;
   if (type === 'comment') return MessageCircle;
   if (type === 'follow') return UserPlus;
+  if (type === 'community_announcement') return Megaphone;
+  if (type === 'community_week_summary') return Megaphone;
+  if (type === 'community_nudge') return Megaphone;
+  if (type === 'community_event' || type === 'community_event_reminder') return Megaphone;
+  if (type === 'community_appreciation') return Heart;
   return MessageSquare;
 }
 
@@ -179,6 +185,19 @@ export function NotificationBell({
                           className="min-w-0 flex-1 text-left"
                           onClick={() => {
                             if (!item.readAt) markOne.mutate(item.id);
+                            if (
+                              (item.type === 'community_announcement' ||
+                                item.type === 'community_week_summary' ||
+                                item.type === 'community_nudge' ||
+                                item.type === 'community_event' ||
+                                item.type === 'community_event_reminder' ||
+                                item.type === 'community_appreciation') &&
+                              item.communityId
+                            ) {
+                              router.push(`/community/${item.communityId}`);
+                              setOpen(false);
+                              return;
+                            }
                             if (item.type === 'message' && item.conversationId) {
                               onOpenMessage?.(item.conversationId);
                               setOpen(false);

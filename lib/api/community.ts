@@ -1,5 +1,15 @@
 import api from './axios';
 
+export type CommunityType = 'public' | 'private' | 'invite_only';
+export type CommunityMemberRole = 'admin' | 'moderator' | 'member';
+export type CommunityMemberStatus =
+  | 'active'
+  | 'pending'
+  | 'blacklisted'
+  | 'removed'
+  | 'left';
+export type CommunityActivityLevel = 'beginner' | 'active' | 'champion';
+
 export interface CommunityActivity {
   id: string;
   name: string;
@@ -8,14 +18,30 @@ export interface CommunityActivity {
   baseUnit: string | null;
 }
 
+export interface CommunityActivityConfigItem {
+  activity: CommunityActivity;
+  activityId: string;
+  level: CommunityActivityLevel;
+  weeklyTarget: number;
+  unit: string;
+}
+
 export interface Community {
   id: string;
   name: string;
   description: string;
   activities: CommunityActivity[];
+  activityConfig?: CommunityActivityConfigItem[];
+  pendingActivityConfig?: CommunityActivityConfigItem[];
   categories: string[];
   memberCount: number;
+  type: CommunityType;
   isPublic: boolean;
+  status?: 'active' | 'deleted';
+  deletedAt?: string | null;
+  currentWeekStart?: string | null;
+  activityConfigLocked?: boolean;
+  hasPendingActivityConfig?: boolean;
   leaderboardMode: 'weekly' | 'monthly';
   overallResetAt: string;
   createdAt: string;
@@ -28,17 +54,176 @@ export interface Community {
     profileId: string;
     name: string;
   };
-  myRole: 'admin' | 'member' | null;
+  myRole: CommunityMemberRole | null;
   isMember: boolean;
+  myMembershipStatus: CommunityMemberStatus | null;
+  hiddenDeleted?: boolean;
 }
+
+export interface CommunityWeekSummary {
+  id: string;
+  communityId: string;
+  weekStart: string;
+  weekEnd: string;
+  weekNumber: number;
+  weekYear: number;
+  label: string;
+  memberCount?: number;
+  membersLogged?: number;
+  totalValue?: number;
+  totalPoints?: number;
+  isCurrent?: boolean;
+}
+
+export interface MyCommunityActivity {
+  activityId: string;
+  name: string;
+  label: string;
+  category: string | null;
+  icon: string | null;
+  unit: string;
+  baseUnit: string;
+  level: CommunityActivityLevel;
+  weeklyTarget: number;
+  targetValue: number;
+  cadence: 'daily' | 'weekly';
+  communityIds: string[];
+  communityNames: string[];
+  isCommunityOnly: true;
+  TodayLogged?: boolean;
+}
+
+export const COMMUNITY_ACTIVITY_LEVEL_OPTIONS: Array<{
+  value: CommunityActivityLevel;
+  label: string;
+}> = [
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'active', label: 'Active' },
+  { value: 'champion', label: 'Champion' },
+];
 
 export interface CommunityMember {
   id: string;
-  role: 'admin' | 'member';
+  role: CommunityMemberRole;
+  status: CommunityMemberStatus;
   joinedAt: string;
+  requestedAt?: string | null;
+  statusChangedAt?: string | null;
+  groupId?: string | null;
+  group?: {
+    id: string;
+    name: string;
+    description?: string;
+  } | null;
   userId: string;
   profile: {
     id: string;
+    name: string;
+    avatarUrl?: string | null;
+    avatarSeed?: string | null;
+    avatarStyle?: string | null;
+  };
+}
+
+export interface CommunityGroup {
+  id: string;
+  communityId: string;
+  name: string;
+  description: string;
+  sortOrder: number;
+  memberCount: number;
+  createdAt?: string;
+}
+
+export interface CommunityAnnouncement {
+  id: string;
+  communityId: string;
+  title: string;
+  body: string;
+  status: 'draft' | 'published';
+  pinned: boolean;
+  publishedAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  author: {
+    profileId: string;
+    name: string;
+  };
+}
+
+export interface CommunityBadge {
+  id?: string;
+  code: string;
+  label: string;
+  description: string;
+  unlockedAt?: string;
+  unlocked?: boolean;
+}
+
+export type CommunityEventType =
+  | 'yoga'
+  | 'walkathon'
+  | 'meeting'
+  | 'challenge'
+  | 'health_camp'
+  | 'gathering'
+  | 'other';
+
+export type CommunityRsvpStatus = 'going' | 'interested' | 'not_going';
+
+export interface CommunityEvent {
+  id: string;
+  communityId: string;
+  title: string;
+  description: string;
+  eventType: CommunityEventType | string;
+  startsAt: string;
+  endsAt?: string | null;
+  location?: string;
+  meetingLink?: string;
+  bannerUrl?: string | null;
+  groupId?: string | null;
+  group?: { id: string; name: string } | null;
+  status: string;
+  rsvpCounts: { going: number; interested: number; not_going: number };
+  myRsvp?: CommunityRsvpStatus | null;
+  createdAt?: string;
+  creator?: { profileId: string; name: string };
+  isChallengeVirtual?: boolean;
+}
+
+export type CommunityAppreciationTypeCode =
+  | 'kudos'
+  | 'congratulations'
+  | 'keep_going'
+  | 'superstar'
+  | 'amazing'
+  | 'champion'
+  | 'well_done';
+
+export interface CommunityAppreciationType {
+  code: CommunityAppreciationTypeCode | string;
+  emoji: string;
+  label: string;
+}
+
+export interface CommunityAppreciation {
+  id: string;
+  communityId: string;
+  type: string;
+  emoji: string;
+  label: string;
+  message: string;
+  createdAt: string;
+  from: {
+    profileId: string;
+    name: string;
+    avatarUrl?: string | null;
+    avatarSeed?: string | null;
+    avatarStyle?: string | null;
+  };
+  to: {
+    profileId: string;
     name: string;
     avatarUrl?: string | null;
     avatarSeed?: string | null;
@@ -67,12 +252,56 @@ export interface CommunityMessage {
 export interface CommunityLeaderboardRow {
   profileId: string;
   name: string;
-  role: 'admin' | 'member';
+  role: CommunityMemberRole;
   avatarUrl?: string | null;
   avatarSeed?: string | null;
   avatarStyle?: string | null;
   points: number;
+  totalValue?: number;
+  contributionPercent?: number;
   rank: number;
+}
+
+export interface CommunityActivityProgress {
+  activityId: string;
+  name: string;
+  unit: string;
+  level: CommunityActivityLevel;
+  currentValue: number;
+  weeklyTarget: number;
+  communityTarget: number;
+  progressPercent: number;
+}
+
+export interface CommunityAnalytics {
+  overallCommunityScore: number;
+  participation: {
+    membersLogged: number;
+    memberCount: number;
+    rate: number;
+    label: string;
+  };
+  activities: CommunityActivityProgress[];
+  totalValue: number;
+  totalCommunityTarget?: number;
+  totalCompleted?: number;
+  remainingTarget?: number;
+  averageProgressPerMember?: number;
+}
+
+export interface CommunityAiSummary {
+  text: string;
+  highlights: string[];
+  recommendations: string[];
+  generatedAt?: string | null;
+  source?: string | null;
+}
+
+export interface CommunityActivityAiNote {
+  activityId: string;
+  activityName: string;
+  note: string;
+  tone?: string;
 }
 
 export interface CommunityDashboard {
@@ -90,9 +319,17 @@ export interface CommunityDashboard {
   byActivity: Array<{
     activity: CommunityActivity;
     ranking: CommunityLeaderboardRow[];
+    weeklyTarget?: number;
+    communityTarget?: number;
+    level?: CommunityActivityLevel;
+    unit?: string;
+    totalValue?: number;
+    totalPoints?: number;
+    progressPercent?: number;
   }>;
   myOverall: CommunityLeaderboardRow | null;
   memberCount: number;
+  analytics?: CommunityAnalytics;
 }
 
 export interface ProfileSearchResult {
@@ -119,11 +356,59 @@ export interface ProfileSearchPage {
 
 type Envelope<T> = { data: T };
 
+export const COMMUNITY_TYPE_OPTIONS: Array<{
+  value: CommunityType;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: 'public',
+    label: 'Public',
+    description: 'Listed on Discover. People request to join; admin/moderator approve.',
+  },
+  {
+    value: 'private',
+    label: 'Private',
+    description: 'Hidden from Discover. Only admins can add members.',
+  },
+  {
+    value: 'invite_only',
+    label: 'Invite only',
+    description: 'Hidden from Discover. Members can invite others via link or add.',
+  },
+];
+
+export function communityTypeLabel(type?: CommunityType | string | null) {
+  if (type === 'private') return 'Private';
+  if (type === 'invite_only') return 'Invite only';
+  return 'Public';
+}
+
 export const communityAPI = {
   list: (params?: { q?: string; category?: string }) =>
     api.get<Envelope<{ communities: Community[] }>>('/community', { params }),
 
   mine: () => api.get<Envelope<{ communities: Community[] }>>('/community/mine'),
+
+  myActivities: () =>
+    api.get<Envelope<{ activities: MyCommunityActivity[] }>>('/community/my-activities'),
+
+  targetDefaults: () =>
+    api.get<
+      Envelope<{
+        defaults: Record<
+          string,
+          {
+            activityId: string;
+            name: string;
+            unit: string;
+            beginner: number;
+            active: number;
+            champion: number;
+          }
+        >;
+      }>
+    >('/community/target-defaults'),
 
   get: (id: string) =>
     api.get<Envelope<{ community: Community }>>(`/community/${id}`),
@@ -131,7 +416,9 @@ export const communityAPI = {
   create: (payload: {
     name: string;
     description?: string;
-    activityIds: string[];
+    activityIds?: string[];
+    activityConfig?: Array<{ activityId: string; level: CommunityActivityLevel }>;
+    type?: CommunityType;
     avatarUrl?: string | null;
     avatarSeed?: string | null;
     avatarStyle?: string | null;
@@ -144,6 +431,9 @@ export const communityAPI = {
       name?: string;
       description?: string;
       activityIds?: string[];
+      activityConfig?: Array<{ activityId: string; level: CommunityActivityLevel }>;
+      clearPendingActivityConfig?: boolean;
+      type?: CommunityType;
       leaderboardMode?: 'weekly' | 'monthly';
       avatarUrl?: string | null;
       avatarSeed?: string | null;
@@ -151,6 +441,48 @@ export const communityAPI = {
       icon?: string | null;
     }
   ) => api.patch<Envelope<{ community: Community }>>(`/community/${id}`, payload),
+
+  dismissDeleted: (id: string) =>
+    api.post<Envelope<{ dismissed: boolean }>>(`/community/${id}/dismiss`),
+
+  weekHistory: (id: string) =>
+    api.get<Envelope<{ weeks: CommunityWeekSummary[]; currentWeekStart: string }>>(
+      `/community/${id}/weeks`
+    ),
+
+  weekView: (
+    id: string,
+    params?: { weekStart?: string; weekOffset?: number }
+  ) =>
+    api.get<
+      Envelope<{
+        isCurrent: boolean;
+        week: {
+          weekStart: string;
+          weekEnd: string;
+          weekNumber: number;
+          weekYear: number;
+          label: string;
+        };
+        activityConfig: CommunityActivityConfigItem[];
+        analytics?: CommunityAnalytics;
+        aiSummary?: CommunityAiSummary | null;
+        activityAiNotes?: {
+          notes: CommunityActivityAiNote[];
+          generatedAt?: string;
+          source?: string;
+          cached?: boolean;
+        } | null;
+        snapshot: {
+          id: string | null;
+          memberCount: number;
+          membersLogged: number;
+          totalValue: number;
+          totalPoints: number;
+        } | null;
+        dashboard: CommunityDashboard;
+      }>
+    >(`/community/${id}/weeks/view`, { params }),
 
   uploadAvatar: (id: string, file: Blob, filename = 'avatar.jpg') => {
     const form = new FormData();
@@ -163,14 +495,138 @@ export const communityAPI = {
   remove: (id: string) =>
     api.delete<Envelope<{ deleted: boolean }>>(`/community/${id}`),
 
-  join: (id: string) =>
-    api.post<Envelope<{ community: Community }>>(`/community/${id}/join`),
+  join: (id: string, payload?: { groupId?: string }) =>
+    api.post<Envelope<{ community: Community }>>(`/community/${id}/join`, payload || {}),
 
   leave: (id: string) =>
     api.post<Envelope<{ left: boolean; deleted: boolean }>>(`/community/${id}/leave`),
 
-  members: (id: string) =>
-    api.get<Envelope<{ members: CommunityMember[] }>>(`/community/${id}/members`),
+  members: (id: string, params?: { status?: CommunityMemberStatus }) =>
+    api.get<Envelope<{ members: CommunityMember[] }>>(`/community/${id}/members`, {
+      params,
+    }),
+
+  joinRequests: (id: string) =>
+    api.get<Envelope<{ requests: CommunityMember[] }>>(`/community/${id}/join-requests`),
+
+  approveJoinRequest: (id: string, profileId: string, payload?: { groupId?: string }) =>
+    api.post<Envelope<{ member: CommunityMember }>>(
+      `/community/${id}/join-requests/${profileId}/approve`,
+      payload || {}
+    ),
+
+  rejectJoinRequest: (id: string, profileId: string) =>
+    api.post<Envelope<{ rejected: boolean }>>(
+      `/community/${id}/join-requests/${profileId}/reject`
+    ),
+
+  blacklist: (id: string) =>
+    api.get<Envelope<{ members: CommunityMember[] }>>(`/community/${id}/blacklist`),
+
+  blacklistMember: (id: string, profileId: string) =>
+    api.post<Envelope<{ member: CommunityMember }>>(
+      `/community/${id}/members/${profileId}/blacklist`
+    ),
+
+  unblacklistMember: (id: string, profileId: string) =>
+    api.post<Envelope<{ member: CommunityMember }>>(
+      `/community/${id}/members/${profileId}/unblacklist`
+    ),
+
+  updateMemberRole: (id: string, profileId: string, role: CommunityMemberRole) =>
+    api.patch<Envelope<{ member: CommunityMember }>>(
+      `/community/${id}/members/${profileId}/role`,
+      { role }
+    ),
+
+  assignMemberGroup: (id: string, profileId: string, groupId: string | null) =>
+    api.patch<Envelope<{ member: CommunityMember }>>(
+      `/community/${id}/members/${profileId}/group`,
+      { groupId }
+    ),
+
+  groups: (id: string) =>
+    api.get<Envelope<{ groups: CommunityGroup[] }>>(`/community/${id}/groups`),
+
+  createGroup: (id: string, payload: { name: string; description?: string; sortOrder?: number }) =>
+    api.post<Envelope<{ group: CommunityGroup }>>(`/community/${id}/groups`, payload),
+
+  updateGroup: (
+    id: string,
+    groupId: string,
+    payload: { name?: string; description?: string; sortOrder?: number }
+  ) =>
+    api.patch<Envelope<{ group: CommunityGroup }>>(`/community/${id}/groups/${groupId}`, payload),
+
+  deleteGroup: (id: string, groupId: string) =>
+    api.delete<Envelope<{ deleted: boolean }>>(`/community/${id}/groups/${groupId}`),
+
+  groupMembers: (id: string, groupId: string) =>
+    api.get<Envelope<{ group: CommunityGroup; members: CommunityMember[] }>>(
+      `/community/${id}/groups/${groupId}/members`
+    ),
+
+  groupWeekView: (id: string, groupId: string, params?: { weekOffset?: number }) =>
+    api.get<
+      Envelope<{
+        group: CommunityGroup;
+        isCurrent: boolean;
+        week: { label: string; weekStart: string; weekEnd: string };
+        analytics?: CommunityAnalytics;
+        dashboard: CommunityDashboard;
+      }>
+    >(`/community/${id}/groups/${groupId}/weeks/view`, { params }),
+
+  announcements: (id: string, params?: { includeDrafts?: boolean }) =>
+    api.get<Envelope<{ announcements: CommunityAnnouncement[] }>>(
+      `/community/${id}/announcements`,
+      { params }
+    ),
+
+  createAnnouncement: (
+    id: string,
+    payload: { title: string; body: string; pinned?: boolean; status?: 'draft' | 'published' }
+  ) =>
+    api.post<Envelope<{ announcement: CommunityAnnouncement }>>(
+      `/community/${id}/announcements`,
+      payload
+    ),
+
+  updateAnnouncement: (
+    id: string,
+    announcementId: string,
+    payload: {
+      title?: string;
+      body?: string;
+      pinned?: boolean;
+      status?: 'draft' | 'published';
+    }
+  ) =>
+    api.patch<Envelope<{ announcement: CommunityAnnouncement }>>(
+      `/community/${id}/announcements/${announcementId}`,
+      payload
+    ),
+
+  deleteAnnouncement: (id: string, announcementId: string) =>
+    api.delete<Envelope<{ deleted: boolean }>>(
+      `/community/${id}/announcements/${announcementId}`
+    ),
+
+  badges: (id: string, params?: { profileId?: string }) =>
+    api.get<Envelope<{ badges: CommunityBadge[]; catalog: CommunityBadge[] }>>(
+      `/community/${id}/badges`,
+      { params }
+    ),
+
+  badgeBoard: (id: string) =>
+    api.get<
+      Envelope<{
+        unlocks: Array<CommunityBadge & { profile: { id: string; name: string } }>;
+      }>
+    >(`/community/${id}/badges/board`),
+
+  evaluateBadges: (id: string) =>
+    api.post<Envelope<{ unlocked: CommunityBadge[] }>>(`/community/${id}/badges/evaluate`),
 
   searchMembers: (
     id: string,
@@ -228,5 +684,108 @@ export const communityAPI = {
   clearChat: (id: string) =>
     api.post<Envelope<{ communityId: string; profileId: string; clearedAt: string }>>(
       `/community/${id}/messages/clear`
+    ),
+
+  events: (
+    id: string,
+    params?: {
+      filter?: 'upcoming' | 'completed' | 'mine' | 'all';
+      from?: string;
+      to?: string;
+      groupId?: string;
+    }
+  ) =>
+    api.get<Envelope<{ events: CommunityEvent[] }>>(`/community/${id}/events`, { params }),
+
+  upcomingEvents: (id: string, limit = 5) =>
+    api.get<Envelope<{ events: CommunityEvent[] }>>(`/community/${id}/events/upcoming`, {
+      params: { limit },
+    }),
+
+  getEvent: (id: string, eventId: string) =>
+    api.get<Envelope<{ event: CommunityEvent }>>(`/community/${id}/events/${eventId}`),
+
+  createEvent: (
+    id: string,
+    payload: {
+      title: string;
+      description?: string;
+      eventType?: string;
+      startsAt: string;
+      endsAt?: string | null;
+      location?: string;
+      meetingLink?: string;
+      groupId?: string | null;
+      status?: string;
+    }
+  ) => api.post<Envelope<{ event: CommunityEvent }>>(`/community/${id}/events`, payload),
+
+  updateEvent: (
+    id: string,
+    eventId: string,
+    payload: Partial<{
+      title: string;
+      description: string;
+      eventType: string;
+      startsAt: string;
+      endsAt: string | null;
+      location: string;
+      meetingLink: string;
+      groupId: string | null;
+      status: string;
+    }>
+  ) =>
+    api.patch<Envelope<{ event: CommunityEvent }>>(`/community/${id}/events/${eventId}`, payload),
+
+  deleteEvent: (id: string, eventId: string) =>
+    api.delete<Envelope<{ deleted: boolean }>>(`/community/${id}/events/${eventId}`),
+
+  rsvpEvent: (id: string, eventId: string, status: CommunityRsvpStatus) =>
+    api.post<Envelope<{ event: CommunityEvent }>>(`/community/${id}/events/${eventId}/rsvp`, {
+      status,
+    }),
+
+  appreciationTypes: (id: string) =>
+    api.get<Envelope<{ types: CommunityAppreciationType[] }>>(
+      `/community/${id}/appreciations/types`
+    ),
+
+  appreciations: (
+    id: string,
+    params?: { direction?: 'received' | 'given'; profileId?: string; limit?: number }
+  ) =>
+    api.get<Envelope<{ appreciations: CommunityAppreciation[] }>>(
+      `/community/${id}/appreciations`,
+      { params }
+    ),
+
+  appreciationStats: (id: string, params?: { profileId?: string }) =>
+    api.get<Envelope<{ received: number; given: number }>>(
+      `/community/${id}/appreciations/stats`,
+      { params }
+    ),
+
+  appreciationLeaderboard: (id: string, params?: { period?: 'weekly' | 'overall' }) =>
+    api.get<
+      Envelope<{
+        period: string;
+        received: Array<{ rank: number; count: number; profileId: string; name: string }>;
+        given: Array<{ rank: number; count: number; profileId: string; name: string }>;
+      }>
+    >(`/community/${id}/appreciations/leaderboard`, { params }),
+
+  sendAppreciation: (
+    id: string,
+    payload: {
+      toProfileId: string;
+      type: string;
+      message?: string;
+      contextType?: string;
+      contextId?: string;
+    }
+  ) =>
+    api.post<Envelope<{ appreciation: CommunityAppreciation }>>(
+      `/community/${id}/appreciations`,
+      payload
     ),
 };
