@@ -10,8 +10,14 @@ import {
   syncAccessTokenFromCookie,
 } from '@/lib/auth/tokenManager';
 import { performLogout } from '@/lib/auth/session';
+import { useNotificationRealtime } from '@/lib/hooks/useNotificationRealtime';
 
 const TOKEN_CHECK_INTERVAL_MS = 60_000;
+
+function NotificationRealtimeBridge() {
+  useNotificationRealtime();
+  return null;
+}
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const { isHydrated, accessToken, user } = useAuthStore();
@@ -62,5 +68,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     };
   }, [isHydrated, accessToken, user]);
 
-  return <>{children}</>;
+  return (
+    <>
+      <NotificationRealtimeBridge />
+      {children}
+    </>
+  );
 }

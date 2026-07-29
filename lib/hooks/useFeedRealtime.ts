@@ -12,21 +12,44 @@ type FeedPages = {
   pageParams: unknown[];
 };
 
-export function useFeedRealtime(enabled: boolean, profileId?: string) {
+function feedQueryKey(profileId?: string, communityId?: string | null) {
+  return communityId ? (['feed', profileId, communityId] as const) : (['feed', profileId] as const);
+}
+
+/**
+ * Realtime updates for global Feed and optional Community Feed.
+ * - Global: only posts without communityId
+ * - Community: only posts for that communityId (+ joins community socket room)
+ */
+export function useFeedRealtime(
+  enabled: boolean,
+  profileId?: string,
+  communityId?: string | null
+) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!enabled) return;
     let active = true;
+    const queryKey = feedQueryKey(profileId, communityId);
 
     const run = async () => {
       const socket = await getAppSocket();
       if (!active) return;
 
       socket.emit('feed:join');
+      if (communityId) {
+        socket.emit('community:join', { communityId });
+      }
+
+      const matchesScope = (postCommunityId?: string | null) => {
+        if (communityId) return postCommunityId === communityId;
+        return !postCommunityId;
+      };
 
       const onNewPost = (payload: { post: FeedPost }) => {
-        queryClient.setQueryData<FeedPages>(['feed', profileId], (old) => {
+        if (!matchesScope(payload.post.communityId)) return;
+        queryClient.setQueryData<FeedPages>(queryKey, (old) => {
           if (!old?.pages?.length) return old;
           const exists = old.pages.some((p) => p.posts.some((post) => post.id === payload.post.id));
           if (exists) return old;
@@ -36,7 +59,9 @@ export function useFeedRealtime(enabled: boolean, profileId?: string) {
             pages: [{ ...first, posts: [payload.post, ...first.posts] }, ...rest],
           };
         });
-        void queryClient.invalidateQueries({ queryKey: ['feedStories'] });
+        if (!communityId) {
+          void queryClient.invalidateQueries({ queryKey: ['feedStories'] });
+        }
       };
 
       const onLike = (payload: {
@@ -44,8 +69,11 @@ export function useFeedRealtime(enabled: boolean, profileId?: string) {
         likeCount: number;
         likedByMe?: boolean;
         actorProfileId?: string;
+        communityId?: string | null;
       }) => {
-        queryClient.setQueryData<FeedPages>(['feed', profileId], (old) => {
+        if (communityId && payload.communityId && payload.communityId !== communityId) return;
+        if (!communityId && payload.communityId) return;
+        queryClient.setQueryData<FeedPages>(queryKey, (old) => {
           if (!old?.pages) return old;
           return {
             ...old,
@@ -71,8 +99,11 @@ export function useFeedRealtime(enabled: boolean, profileId?: string) {
         photoId: string;
         commentCount: number;
         comment: unknown;
+        communityId?: string | null;
       }) => {
-        queryClient.setQueryData<FeedPages>(['feed', profileId], (old) => {
+        if (communityId && payload.communityId && payload.communityId !== communityId) return;
+        if (!communityId && payload.communityId) return;
+        queryClient.setQueryData<FeedPages>(queryKey, (old) => {
           if (!old?.pages) return old;
           return {
             ...old,
@@ -105,11 +136,13 @@ export function useFeedRealtime(enabled: boolean, profileId?: string) {
       };
 
       const onNewStory = () => {
+        if (communityId) return;
         void queryClient.invalidateQueries({ queryKey: ['feedStories'] });
       };
 
       const onPostUpdated = (payload: { post: FeedPost }) => {
-        queryClient.setQueryData<FeedPages>(['feed', profileId], (old) => {
+        if (!matchesScope(payload.post.communityId)) return;
+        queryClient.setQueryData<FeedPages>(queryKey, (old) => {
           if (!old?.pages) return old;
           return {
             ...old,
@@ -125,8 +158,10 @@ export function useFeedRealtime(enabled: boolean, profileId?: string) {
         });
       };
 
-      const onPostDeleted = (payload: { photoId: string }) => {
-        queryClient.setQueryData<FeedPages>(['feed', profileId], (old) => {
+      const onPostDeleted = (payload: { photoId: string; communityId?: string | null }) => {
+        if (communityId && payload.communityId && payload.communityId !== communityId) return;
+        if (!communityId && payload.communityId) return;
+        queryClient.setQueryData<FeedPages>(queryKey, (old) => {
           if (!old?.pages) return old;
           return {
             ...old,
@@ -224,5 +259,5 @@ export function useFeedRealtime(enabled: boolean, profileId?: string) {
       active = false;
       cleanup?.();
     };
-  }, [enabled, profileId, queryClient]);
+  }, [enabled, profileId, communityId, queryClient]);
 }

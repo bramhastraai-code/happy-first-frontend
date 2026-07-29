@@ -23,6 +23,8 @@ interface FeedCreateSheetProps {
   open: boolean;
   onClose: () => void;
   defaultKind?: CreateKind;
+  /** When set, posts are scoped to this community feed (posts only). */
+  communityId?: string;
   onCreated?: () => void;
 }
 
@@ -32,6 +34,7 @@ export function FeedCreateSheet({
   open,
   onClose,
   defaultKind = 'post',
+  communityId,
   onCreated,
 }: FeedCreateSheetProps) {
   const queryClient = useQueryClient();
@@ -40,15 +43,15 @@ export function FeedCreateSheet({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const dropInputRef = useRef<HTMLInputElement>(null);
 
-  const [kind, setKind] = useState<CreateKind>(defaultKind);
+  const [kind, setKind] = useState<CreateKind>(communityId ? 'post' : defaultKind);
   const [items, setItems] = useState<PendingMedia[]>([]);
   const [caption, setCaption] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
-    if (open) setKind(defaultKind);
-  }, [open, defaultKind]);
+    if (open) setKind(communityId ? 'post' : defaultKind);
+  }, [open, defaultKind, communityId]);
 
   const clearItems = () => {
     setItems((prev) => {
@@ -71,7 +74,7 @@ export function FeedCreateSheet({
       if (!items.length) throw new Error('Choose a photo or video first');
       const response = await feedAPI.createPost(
         items.map((item) => item.blob),
-        { caption, kind }
+        { caption, kind: communityId ? 'post' : kind, communityId }
       );
       return response.data.data.post;
     },
@@ -213,7 +216,9 @@ export function FeedCreateSheet({
       <div className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-[var(--shadow-float)] sm:mx-4 sm:rounded-3xl">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
-            <p className="text-sm font-semibold text-foreground">Create</p>
+            <p className="text-sm font-semibold text-foreground">
+              {communityId ? 'Share with community' : 'Create'}
+            </p>
             <p className="text-xs text-muted-foreground">
               {kind === 'post' ? 'Up to 10 photos, or 1 video' : 'One photo or video · 24h'}
             </p>
@@ -229,36 +234,38 @@ export function FeedCreateSheet({
         </div>
 
         <div className="space-y-4 overflow-y-auto px-4 py-4">
-          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-secondary p-1">
-            {(
-              [
-                { id: 'post', label: 'Post' },
-                { id: 'story', label: 'Story (24h)' },
-              ] as const
-            ).map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setKind(item.id);
-                  if (item.id === 'story' && items.length > 1) {
-                    setItems((prev) => {
-                      prev.slice(1).forEach((media) => URL.revokeObjectURL(media.previewUrl));
-                      return prev.slice(0, 1);
-                    });
-                  }
-                }}
-                className={cn(
-                  'rounded-xl py-2.5 text-sm font-semibold transition-colors',
-                  kind === item.id
-                    ? 'bg-surface text-primary shadow-sm'
-                    : 'text-muted-foreground hover:bg-surface/60 hover:text-foreground'
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+          {!communityId ? (
+            <div className="grid grid-cols-2 gap-1 rounded-2xl bg-secondary p-1">
+              {(
+                [
+                  { id: 'post', label: 'Post' },
+                  { id: 'story', label: 'Story (24h)' },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setKind(item.id);
+                    if (item.id === 'story' && items.length > 1) {
+                      setItems((prev) => {
+                        prev.slice(1).forEach((media) => URL.revokeObjectURL(media.previewUrl));
+                        return prev.slice(0, 1);
+                      });
+                    }
+                  }}
+                  className={cn(
+                    'rounded-xl py-2.5 text-sm font-semibold transition-colors',
+                    kind === item.id
+                      ? 'bg-surface text-primary shadow-sm'
+                      : 'text-muted-foreground hover:bg-surface/60 hover:text-foreground'
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           {items.length === 0 ? (
             <>

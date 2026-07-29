@@ -13,7 +13,9 @@ export interface AppNotification {
     | 'community_nudge'
     | 'community_event'
     | 'community_event_reminder'
-    | 'community_appreciation';
+    | 'community_appreciation'
+    | 'community_mention'
+    | 'community_reply';
   title: string;
   body: string;
   photoId?: string | null;
@@ -22,6 +24,7 @@ export interface AppNotification {
   announcementId?: string | null;
   eventId?: string | null;
   appreciationId?: string | null;
+  messageId?: string | null;
   readAt?: string | null;
   createdAt: string;
   actor: {

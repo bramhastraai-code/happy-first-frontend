@@ -23,6 +23,7 @@ export interface FeedPost {
   isStory?: boolean;
   caption: string;
   createdAt: string;
+  communityId?: string | null;
   author: FeedAuthor;
   likeCount: number;
   commentCount: number;
@@ -81,7 +82,7 @@ export interface FeedPage {
 type ApiEnvelope<T> = { data: T; message?: string; success?: boolean };
 
 export const feedAPI = {
-  getFeed: (params?: { limit?: number; cursor?: string }) =>
+  getFeed: (params?: { limit?: number; cursor?: string; communityId?: string }) =>
     api.get<ApiEnvelope<FeedPage>>('/feed', { params }),
 
   getStories: () =>
@@ -99,7 +100,7 @@ export const feedAPI = {
 
   createPost: (
     file: File | Blob | Array<File | Blob>,
-    options?: { caption?: string; kind?: 'post' | 'story' }
+    options?: { caption?: string; kind?: 'post' | 'story'; communityId?: string }
   ) => {
     const form = new FormData();
     const files = Array.isArray(file) ? file : [file];
@@ -112,6 +113,7 @@ export const feedAPI = {
     });
     if (options?.caption?.trim()) form.append('caption', options.caption.trim());
     form.append('kind', options?.kind || 'post');
+    if (options?.communityId) form.append('communityId', options.communityId);
     return api.post<ApiEnvelope<{ post: FeedPost }>>('/feed/posts', form, {
       timeout: 180_000,
     });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,8 +8,10 @@ import { ArrowLeft, Loader2, Pencil, Share2, Trash2, Users } from 'lucide-react'
 import MainLayout from '@/components/layout/MainLayout';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
+import { NotificationBell } from '@/components/feed/NotificationBell';
 import { CommunityDashboardTab } from '@/components/community/CommunityDashboardTab';
 import { CommunityChatTab } from '@/components/community/CommunityChatTab';
+import { CommunityFeedTab } from '@/components/community/CommunityFeedTab';
 import { CommunityMembersTab } from '@/components/community/CommunityMembersTab';
 import { CommunityAnnouncementsTab } from '@/components/community/CommunityAnnouncementsTab';
 import { CommunityGroupsBadgesTab } from '@/components/community/CommunityGroupsBadgesTab';
@@ -35,6 +37,12 @@ export default function CommunityDetailPage() {
   const [tab, setTab] = useState('dashboard');
   const [shareOpen, setShareOpen] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tab === 'chat') {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }, [tab]);
 
   const communityQuery = useQuery({
     queryKey: ['community', communityId],
@@ -150,6 +158,11 @@ export default function CommunityDetailPage() {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {isMember ? (
+              <NotificationBell
+                triggerClassName="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-secondary"
+              />
+            ) : null}
             {!isDeleted &&
             (isMember || community?.type === 'invite_only' || community?.type === 'public') ? (
               <Button
@@ -219,6 +232,7 @@ export default function CommunityDetailPage() {
             <ChipTabs
               tabs={[
                 { id: 'dashboard', label: 'Dashboard' },
+                { id: 'feed', label: 'Feed' },
                 { id: 'calendar', label: 'Calendar' },
                 { id: 'announcements', label: 'News' },
                 { id: 'groups', label: 'Groups' },
@@ -237,6 +251,7 @@ export default function CommunityDetailPage() {
                 isAdmin={Boolean(isAdmin)}
               />
             ) : null}
+            {tab === 'feed' ? <CommunityFeedTab communityId={communityId} /> : null}
             {tab === 'calendar' ? (
               <CommunityCalendarTab
                 communityId={communityId}
@@ -258,7 +273,12 @@ export default function CommunityDetailPage() {
             {tab === 'kudos' ? (
               <CommunityAppreciationTab communityId={communityId} />
             ) : null}
-            {tab === 'chat' ? <CommunityChatTab communityId={communityId} /> : null}
+            {tab === 'chat' ? (
+              <CommunityChatTab
+                communityId={communityId}
+                canModerate={Boolean(isAdmin || isModerator)}
+              />
+            ) : null}
             {tab === 'members' ? (
               <CommunityMembersTab
                 communityId={communityId}

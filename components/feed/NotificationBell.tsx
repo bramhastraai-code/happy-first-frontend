@@ -34,6 +34,7 @@ function iconFor(type: AppNotification['type']) {
   if (type === 'community_nudge') return Megaphone;
   if (type === 'community_event' || type === 'community_event_reminder') return Megaphone;
   if (type === 'community_appreciation') return Heart;
+  if (type === 'community_mention' || type === 'community_reply') return MessageCircle;
   return MessageSquare;
 }
 
@@ -78,6 +79,11 @@ export function NotificationBell({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  }, [open, queryClient]);
 
   useEffect(() => {
     if (!open) return;
@@ -191,7 +197,9 @@ export function NotificationBell({
                                 item.type === 'community_nudge' ||
                                 item.type === 'community_event' ||
                                 item.type === 'community_event_reminder' ||
-                                item.type === 'community_appreciation') &&
+                                item.type === 'community_appreciation' ||
+                                item.type === 'community_mention' ||
+                                item.type === 'community_reply') &&
                               item.communityId
                             ) {
                               router.push(`/community/${item.communityId}`);

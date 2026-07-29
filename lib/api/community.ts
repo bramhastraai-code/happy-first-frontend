@@ -231,14 +231,92 @@ export interface CommunityAppreciation {
   };
 }
 
+export interface CommunityMessageReaction {
+  emoji: string;
+  count: number;
+  reactedByMe: boolean;
+}
+
+export interface CommunityMessageMention {
+  type: 'profile' | 'role';
+  profileId?: string | null;
+  role?: 'admin' | 'moderator' | null;
+}
+
+export type CommunityMessageType = 'text' | 'poll' | 'share_card';
+export type CommunityMediaType = 'image' | 'video' | 'document' | 'audio';
+export type CommunityShareCardKind =
+  | 'activity_complete'
+  | 'badge'
+  | 'leaderboard_rank'
+  | 'milestone'
+  | 'weekly_goal'
+  | 'challenge';
+
+export interface CommunityPollOption {
+  id: string;
+  text: string;
+  voteCount: number;
+  votedByMe: boolean;
+  voters?: Array<{
+    profileId: string;
+    userId?: string | null;
+    name?: string;
+    avatarUrl?: string | null;
+    avatarSeed?: string | null;
+    avatarStyle?: string | null;
+  }>;
+}
+
+export interface CommunityPoll {
+  question: string;
+  options: CommunityPollOption[];
+  allowMultiple: boolean;
+  anonymous: boolean;
+  closesAt?: string | null;
+  closedAt?: string | null;
+  closedBy?: string | null;
+  closed: boolean;
+  totalVotes: number;
+}
+
+export interface CommunityShareCard {
+  kind: CommunityShareCardKind;
+  title: string;
+  subtitle?: string;
+  meta?: Record<string, unknown>;
+  href?: string | null;
+}
+
+export interface CommunityReplyPreview {
+  id: string;
+  text: string;
+  senderName: string;
+  messageType?: CommunityMessageType;
+  mediaType?: CommunityMediaType | null;
+}
+
 export interface CommunityMessage {
   id: string;
   communityId: string;
   text: string;
+  messageType?: CommunityMessageType;
   mediaUrl?: string | null;
-  mediaType?: 'image' | 'video' | null;
+  mediaType?: CommunityMediaType | null;
+  fileName?: string | null;
+  mimeType?: string | null;
   deletedForEveryone?: boolean;
   createdAt: string;
+  pinned?: boolean;
+  pinnedAt?: string | null;
+  pinnedBy?: string | null;
+  reactions?: CommunityMessageReaction[];
+  myReaction?: string | null;
+  mentions?: CommunityMessageMention[];
+  replyTo?: CommunityReplyPreview | null;
+  replyCount?: number;
+  poll?: CommunityPoll | null;
+  shareCard?: CommunityShareCard | null;
   sender: {
     userId: string;
     profileId: string;
@@ -248,6 +326,40 @@ export interface CommunityMessage {
     avatarStyle?: string | null;
   };
 }
+
+export interface CommunitySharedMediaItem {
+  id: string;
+  messageId: string;
+  type: 'image' | 'video' | 'document' | 'audio' | 'link';
+  url: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  mediaType?: CommunityMediaType | null;
+  text?: string;
+  createdAt: string;
+  sender: CommunityMessage['sender'];
+}
+
+export type CommunityMessageSendExtras = {
+  mentionProfileIds?: string[];
+  mentionRoles?: Array<'admin' | 'moderator'>;
+  replyTo?: string | null;
+  messageType?: CommunityMessageType;
+  poll?: {
+    question: string;
+    options: string[];
+    allowMultiple?: boolean;
+    anonymous?: boolean;
+    closesAt?: string | null;
+  };
+  shareCard?: {
+    kind: CommunityShareCardKind;
+    title: string;
+    subtitle?: string;
+    meta?: Record<string, unknown>;
+    href?: string | null;
+  };
+};
 
 export interface CommunityLeaderboardRow {
   profileId: string;
@@ -657,19 +769,132 @@ export const communityAPI = {
   messages: (id: string) =>
     api.get<Envelope<{ messages: CommunityMessage[] }>>(`/community/${id}/messages`),
 
-  sendMessage: (id: string, text: string) =>
-    api.post<Envelope<{ message: CommunityMessage }>>(`/community/${id}/messages`, { text }),
+  searchMessages: (
+    id: string,
+    q: string,
+    params?: { page?: number; limit?: number }
+  ) =>
+    api.get<
+      Envelope<{
+        results: CommunityMessage[];
+        page: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+        hasMore: boolean;
+        query: string;
+      }>
+    >(`/community/${id}/messages/search`, {
+      params: { q, page: params?.page, limit: params?.limit },
+    }),
 
-  sendMediaMessage: (id: string, file: File, text = '') => {
+  pinnedMessages: (id: string) =>
+    api.get<Envelope<{ messages: CommunityMessage[] }>>(`/community/${id}/messages/pinned`),
+
+  pinMessage: (id: string, messageId: string) =>
+    api.post<Envelope<{ message: CommunityMessage }>>(`/community/${id}/messages/${messageId}/pin`),
+
+  unpinMessage: (id: string, messageId: string) =>
+    api.delete<Envelope<{ communityId: string; messageId: string }>>(
+      `/community/${id}/messages/${messageId}/pin`
+    ),
+
+  reactToMessage: (id: string, messageId: string, emoji: string) =>
+    api.post<Envelope<{ message: CommunityMessage }>>(
+      `/community/${id}/messages/${messageId}/reactions`,
+      { emoji }
+    ),
+
+  votePoll: (id: string, messageId: string, optionIds: string[]) =>
+    api.post<Envelope<{ message: CommunityMessage }>>(
+      `/community/${id}/messages/${messageId}/poll/vote`,
+      { optionIds }
+    ),
+
+  closePoll: (id: string, messageId: string) =>
+    api.post<Envelope<{ message: CommunityMessage }>>(
+      `/community/${id}/messages/${messageId}/poll/close`
+    ),
+
+  threadReplies: (id: string, messageId: string, params?: { limit?: number }) =>
+    api.get<Envelope<{ parent: CommunityMessage; replies: CommunityMessage[] }>>(
+      `/community/${id}/messages/${messageId}/replies`,
+      { params }
+    ),
+
+  sharedMedia: (
+    id: string,
+    params?: { type?: string; page?: number; limit?: number }
+  ) =>
+    api.get<
+      Envelope<{
+        items: CommunitySharedMediaItem[];
+        page: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+        hasMore: boolean;
+        type: string;
+      }>
+    >(`/community/${id}/messages/media`, { params }),
+
+  sendMessage: (id: string, text: string, extras?: CommunityMessageSendExtras) =>
+    api.post<Envelope<{ message: CommunityMessage }>>(`/community/${id}/messages`, {
+      text,
+      mentionProfileIds: extras?.mentionProfileIds || [],
+      mentionRoles: extras?.mentionRoles || [],
+      replyTo: extras?.replyTo || undefined,
+      messageType: extras?.messageType || 'text',
+      poll: extras?.poll,
+      shareCard: extras?.shareCard,
+    }),
+
+  sendMediaMessage: (
+    id: string,
+    file: File,
+    text = '',
+    extras?: CommunityMessageSendExtras
+  ) => {
     const form = new FormData();
     form.append('media', file);
     if (text.trim()) form.append('text', text.trim());
+    if (extras?.mentionProfileIds?.length) {
+      form.append('mentionProfileIds', JSON.stringify(extras.mentionProfileIds));
+    }
+    if (extras?.mentionRoles?.length) {
+      form.append('mentionRoles', JSON.stringify(extras.mentionRoles));
+    }
+    if (extras?.replyTo) form.append('replyTo', extras.replyTo);
     return api.post<Envelope<{ message: CommunityMessage }>>(
       `/community/${id}/messages`,
       form,
       { timeout: 120_000 }
     );
   },
+
+  createPoll: (
+    id: string,
+    poll: NonNullable<CommunityMessageSendExtras['poll']>,
+    extras?: { replyTo?: string | null }
+  ) =>
+    api.post<Envelope<{ message: CommunityMessage }>>(`/community/${id}/messages`, {
+      messageType: 'poll',
+      poll,
+      replyTo: extras?.replyTo || undefined,
+      text: poll.question,
+    }),
+
+  shareActivityCard: (
+    id: string,
+    card: NonNullable<CommunityMessageSendExtras['shareCard']>,
+    extras?: { replyTo?: string | null }
+  ) =>
+    api.post<Envelope<{ message: CommunityMessage }>>(`/community/${id}/messages`, {
+      messageType: 'share_card',
+      shareCard: card,
+      replyTo: extras?.replyTo || undefined,
+      text: card.title,
+    }),
 
   deleteMessages: (id: string, messageIds: string[], scope: 'me' | 'everyone') =>
     api.post<

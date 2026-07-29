@@ -1,0 +1,245 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Loader2, Plus } from 'lucide-react';
+import { FeedPostCard } from '@/components/feed/FeedPostCard';
+import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
+import { FeedEmpty } from '@/components/feed/FeedEmpty';
+import { FeedCreateSheet } from '@/components/feed/FeedCreateSheet';
+import { feedAPI, type FeedPost } from '@/lib/api/feed';
+import { useAuthStore } from '@/lib/store/authStore';
+import { useFeedRealtime } from '@/lib/hooks/useFeedRealtime';
+import { Button } from '@/components/ui/button';
+
+interface CommunityFeedTabProps {
+  communityId: string;
+}
+
+type FeedPages = {
+  pages: { posts: FeedPost[]; nextCursor: string | null }[];
+  pageParams: unknown[];
+};
+
+export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
+  const { selectedProfile, user, accessToken, isHydrated } = useAuthStore();
+  const queryClient = useQueryClient();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [activePost, setActivePost] = useState<FeedPost | null>(null);
+  const [likingId, setLikingId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const enabled = isHydrated && !!accessToken && !!selectedProfile?._id && !!communityId;
+  const feedKey = ['feed', selectedProfile?._id, communityId] as const;
+
+  useFeedRealtime(enabled, selectedProfile?._id, communityId);
+
+  const feedQuery = useInfiniteQuery({
+    queryKey: feedKey,
+    enabled,
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const response = await feedAPI.getFeed({
+        limit: 12,
+        cursor: pageParam,
+        communityId,
+      });
+      return response.data.data;
+    },
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+
+  const likeMutation = useMutation({
+    mutationFn: (photoId: string) => feedAPI.toggleLike(photoId),
+    onMutate: async (photoId) => {
+      setLikingId(photoId);
+      await queryClient.cancelQueries({ queryKey: feedKey });
+      const previous = queryClient.getQueryData(feedKey);
+
+      queryClient.setQueryData<FeedPages>(feedKey, (old) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            posts: page.posts.map((post) => {
+              if (post.id !== photoId) return post;
+              const likedByMe = !post.likedByMe;
+              return {
+                ...post,
+                likedByMe,
+                likeCount: Math.max(0, post.likeCount + (likedByMe ? 1 : -1)),
+              };
+            }),
+          })),
+        };
+      });
+
+      return { previous };
+    },
+    onError: (_error, _photoId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(feedKey, context.previous);
+      }
+    },
+    onSettled: () => {
+      setLikingId(null);
+    },
+  });
+
+  const posts = useMemo(
+    () => feedQuery.data?.pages.flatMap((page) => page.posts) ?? [],
+    [feedQuery.data]
+  );
+
+  const handleToggleLike = useCallback(
+    (photoId: string) => {
+      if (likeMutation.isPending) return;
+      likeMutation.mutate(photoId);
+    },
+    [likeMutation]
+  );
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !feedQuery.hasNextPage || feedQuery.isFetchingNextPage) return;
+
+    const onScroll = () => {
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 320) {
+        void feedQuery.fetchNextPage();
+      }
+    };
+
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [feedQuery]);
+
+  if (!isHydrated) {
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Community feed</p>
+          <p className="text-xs text-muted-foreground">
+            Posts shared by members of this community
+          </p>
+        </div>
+        <Button
+          size="sm"
+          className="shrink-0 gap-1.5"
+          onClick={() => setCreateOpen(true)}
+        >
+          <Plus className="h-4 w-4" />
+          Post
+        </Button>
+      </div>
+
+      <div
+        ref={scrollRef}
+        className="max-h-[min(72vh,720px)] space-y-3 overflow-y-auto pr-0.5 sm:space-y-4"
+      >
+        {feedQuery.isLoading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="h-7 w-7 animate-spin text-primary" />
+          </div>
+        ) : feedQuery.isError ? (
+          <div className="rounded-xl border border-border bg-surface px-4 py-10 text-center">
+            <p className="text-sm font-semibold text-foreground">Couldn&apos;t load community feed</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {(feedQuery.error as { response?: { data?: { message?: string } } })?.response?.data
+                ?.message ||
+                (feedQuery.error instanceof Error
+                  ? feedQuery.error.message
+                  : 'Something went wrong')}
+            </p>
+            <Button className="mt-4" onClick={() => void feedQuery.refetch()}>
+              Try again
+            </Button>
+          </div>
+        ) : posts.length === 0 ? (
+          <FeedEmpty onCreate={() => setCreateOpen(true)} />
+        ) : (
+          posts.map((post) => (
+            <FeedPostCard
+              key={post.id}
+              post={post}
+              liking={likingId === post.id}
+              onToggleLike={handleToggleLike}
+              onOpenComments={setActivePost}
+              isOwner={
+                post.author.profileId === selectedProfile?._id ||
+                post.author.userId === user?._id
+              }
+              onEdit={async (target, caption) => {
+                const res = await feedAPI.updatePost(target.id, caption);
+                const updated = res.data.data.post;
+                queryClient.setQueryData<FeedPages>(feedKey, (old) => {
+                  if (!old?.pages) return old;
+                  return {
+                    ...old,
+                    pages: old.pages.map((page) => ({
+                      ...page,
+                      posts: page.posts.map((item) =>
+                        item.id === updated.id
+                          ? { ...item, caption: updated.caption }
+                          : item
+                      ),
+                    })),
+                  };
+                });
+                if (activePost?.id === updated.id) {
+                  setActivePost((prev) =>
+                    prev ? { ...prev, caption: updated.caption } : prev
+                  );
+                }
+              }}
+              onDelete={async (target) => {
+                await feedAPI.deletePost(target.id);
+                queryClient.setQueryData<FeedPages>(feedKey, (old) => {
+                  if (!old?.pages) return old;
+                  return {
+                    ...old,
+                    pages: old.pages.map((page) => ({
+                      ...page,
+                      posts: page.posts.filter((item) => item.id !== target.id),
+                    })),
+                  };
+                });
+                if (activePost?.id === target.id) setActivePost(null);
+              }}
+            />
+          ))
+        )}
+
+        {feedQuery.isFetchingNextPage ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : null}
+      </div>
+
+      {activePost ? (
+        <FeedCommentsSheet
+          post={activePost}
+          open
+          onClose={() => setActivePost(null)}
+        />
+      ) : null}
+
+      <FeedCreateSheet
+        open={createOpen}
+        communityId={communityId}
+        defaultKind="post"
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => void feedQuery.refetch()}
+      />
+    </div>
+  );
+}
