@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { Ban, Check, Loader2, Shield, UserMinus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CommunityAddMembersPanel } from '@/components/community/CommunityAddMembersPanel';
@@ -191,15 +192,22 @@ export function CommunityMembersTab({
                   (rejectMutation.isPending && rejectMutation.variables === request.profile.id);
                 return (
                   <li key={request.id} className="flex items-center gap-3 px-4 py-3">
-                    <ProfileAvatar
-                      name={request.profile.name}
-                      avatarUrl={request.profile.avatarUrl}
-                      avatarSeed={request.profile.avatarSeed}
-                      avatarStyle={request.profile.avatarStyle}
-                      size="sm"
-                    />
+                    <Link href={`/feed/profile/${request.profile.id}`} className="shrink-0">
+                      <ProfileAvatar
+                        name={request.profile.name}
+                        avatarUrl={request.profile.avatarUrl}
+                        avatarSeed={request.profile.avatarSeed}
+                        avatarStyle={request.profile.avatarStyle}
+                        size="sm"
+                      />
+                    </Link>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{request.profile.name}</p>
+                      <Link
+                        href={`/feed/profile/${request.profile.id}`}
+                        className="truncate text-sm font-semibold hover:underline"
+                      >
+                        {request.profile.name}
+                      </Link>
                       <p className="text-[11px] text-muted-foreground">Pending approval</p>
                     </div>
                     <div className="flex shrink-0 gap-1.5">
@@ -263,18 +271,23 @@ export function CommunityMembersTab({
               return (
                 <li key={member.id} className="space-y-2 px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <ProfileAvatar
-                      name={member.profile.name}
-                      avatarUrl={member.profile.avatarUrl}
-                      avatarSeed={member.profile.avatarSeed}
-                      avatarStyle={member.profile.avatarStyle}
-                      size="sm"
-                    />
+                    <Link href={`/feed/profile/${member.profile.id}`} className="shrink-0">
+                      <ProfileAvatar
+                        name={member.profile.name}
+                        avatarUrl={member.profile.avatarUrl}
+                        avatarSeed={member.profile.avatarSeed}
+                        avatarStyle={member.profile.avatarStyle}
+                        size="sm"
+                      />
+                    </Link>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">
+                      <Link
+                        href={`/feed/profile/${member.profile.id}`}
+                        className="truncate text-sm font-semibold hover:underline"
+                      >
                         {member.profile.name}
                         {isMe ? ' (you)' : ''}
-                      </p>
+                      </Link>
                       <p className="text-[11px] text-muted-foreground">
                         {roleLabel(member.role)}
                         {member.group?.name ? ` · ${member.group.name}` : ''}
@@ -412,15 +425,22 @@ export function CommunityMembersTab({
                   unblacklistMutation.variables === member.profile.id;
                 return (
                   <li key={member.id} className="flex items-center gap-3 px-4 py-3">
-                    <ProfileAvatar
-                      name={member.profile.name}
-                      avatarUrl={member.profile.avatarUrl}
-                      avatarSeed={member.profile.avatarSeed}
-                      avatarStyle={member.profile.avatarStyle}
-                      size="sm"
-                    />
+                    <Link href={`/feed/profile/${member.profile.id}`} className="shrink-0">
+                      <ProfileAvatar
+                        name={member.profile.name}
+                        avatarUrl={member.profile.avatarUrl}
+                        avatarSeed={member.profile.avatarSeed}
+                        avatarStyle={member.profile.avatarStyle}
+                        size="sm"
+                      />
+                    </Link>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{member.profile.name}</p>
+                      <Link
+                        href={`/feed/profile/${member.profile.id}`}
+                        className="truncate text-sm font-semibold hover:underline"
+                      >
+                        {member.profile.name}
+                      </Link>
                       <p className="text-[11px] text-muted-foreground">Blacklisted</p>
                     </div>
                     <Button

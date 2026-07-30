@@ -33,6 +33,9 @@ export default function FeedPage() {
     userId: string;
     profileId?: string;
     name?: string;
+    avatarUrl?: string | null;
+    avatarSeed?: string | null;
+    avatarStyle?: string | null;
   } | null>(null);
   const [openConversationId, setOpenConversationId] = useState<string | null>(null);
 
@@ -108,14 +111,21 @@ export default function FeedPage() {
     [feedQuery.data]
   );
   const stories = storiesQuery.data ?? [];
-  const ownStory = useMemo(
-    () =>
+  const ownStory = useMemo(() => {
+    const found =
       stories.find(
         (story) =>
           story.profileId === selectedProfile?._id || story.userId === user?._id
-      ) || null,
-    [stories, selectedProfile?._id, user?._id]
-  );
+      ) || null;
+    if (!found || !selectedProfile) return found;
+    return {
+      ...found,
+      name: found.name || selectedProfile.name,
+      avatarUrl: found.avatarUrl ?? selectedProfile.avatarUrl,
+      avatarSeed: found.avatarSeed ?? selectedProfile.avatarSeed,
+      avatarStyle: found.avatarStyle ?? selectedProfile.avatarStyle,
+    };
+  }, [stories, selectedProfile, user?._id]);
   const viewerStories = useMemo(() => {
     if (!ownStory) return stories;
     const others = stories.filter((story) => story.profileId !== ownStory.profileId);
@@ -136,6 +146,9 @@ export default function FeedPage() {
       userId: post.author.userId,
       profileId: post.author.profileId,
       name: post.author.name,
+      avatarUrl: post.author.avatarUrl,
+      avatarSeed: post.author.avatarSeed,
+      avatarStyle: post.author.avatarStyle,
     });
     setOpenConversationId(null);
     setMessagesOpen(true);

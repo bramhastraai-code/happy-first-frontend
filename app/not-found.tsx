@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { BrandLogo } from '@/components/ui/BrandLogo';
-import { ArrowLeft, Home } from 'lucide-react';
+import { ChevronLeft, Home } from 'lucide-react';
 import { privateRouteMetadata } from '@/lib/site-metadata';
 
 export const metadata: Metadata = {
@@ -34,7 +34,7 @@ export default function NotFound() {
         </Button>
         <Button asChild variant="outline" size="lg">
           <Link href="/login">
-            <ArrowLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" />
             Sign in
           </Link>
         </Button>

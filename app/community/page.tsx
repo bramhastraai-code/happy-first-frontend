@@ -3,11 +3,10 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Loader2, Plus, ScanLine, Search, Users } from 'lucide-react';
+import { ChevronRight, Loader2, Plus, Search, Users } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { CommunityTopBar } from '@/components/community/CommunityTopBar';
 import { CommunityJoinScanner } from '@/components/community/CommunityJoinScanner';
-import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
 import { communityAPI, type Community } from '@/lib/api/community';
 import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
@@ -79,40 +78,43 @@ export default function CommunityPage() {
 
   return (
     <MainLayout>
-      <CommunityTopBar />
+      <CommunityTopBar onOpenScanner={() => setScannerOpen(true)} />
 
       <div className="community-header mt-3 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <ChipTabs
-            className="community-tabs flex-1"
-            tabs={[
+        <div
+          className="community-tabs grid grid-cols-2 gap-1 rounded-2xl border border-border bg-secondary/80 p-1"
+          role="tablist"
+          aria-label="Community sections"
+        >
+          {(
+            [
               { id: 'discover', label: 'Discover' },
               { id: 'my-communities', label: 'My groups' },
-            ]}
-            active={activeTab}
-            onChange={setActiveTab}
-          />
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0"
-              onClick={() => setScannerOpen(true)}
-            >
-              <ScanLine className="h-4 w-4" />
-              Scan
-            </Button>
-            <Button asChild size="sm" className="shrink-0">
-              <Link href="/community/create">
-                <Plus className="h-4 w-4" />
-                Create
-              </Link>
-            </Button>
-          </div>
+            ] as const
+          ).map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'min-h-10 rounded-xl px-3 text-sm font-semibold transition-colors',
+                  isActive
+                    ? 'bg-surface text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {activeTab === 'discover' ? (
-          <>
+          <div key="discover" className="space-y-4" role="tabpanel" aria-label="Discover">
             <div className="app-card p-4">
               <div className="grid grid-cols-2 divide-x divide-border">
                 <div className="pr-4">
@@ -245,9 +247,14 @@ export default function CommunityPage() {
                 </div>
               )}
             </section>
-          </>
+          </div>
         ) : (
-          <section aria-label="My communities" className="my-communities">
+          <section
+            key="my-communities"
+            aria-label="My communities"
+            className="my-communities"
+            role="tabpanel"
+          >
             {mineQuery.isLoading ? (
               <div className="flex justify-center py-10">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

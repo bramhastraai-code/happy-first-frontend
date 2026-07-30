@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
 import {
-  ArrowLeft,
   CalendarDays,
   ChartColumnIncreasing,
   ChevronLeft,
@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Search,
   Settings2,
+  Target,
   Trophy,
   Users,
 } from 'lucide-react';
@@ -48,59 +49,122 @@ function formatValue(value: number, unit?: string | null) {
   return unit ? `${rounded} ${unit}` : rounded;
 }
 
-function ProgressBar({ percent }: { percent: number }) {
+function ProgressBar({
+  percent,
+  size = 'sm',
+}: {
+  percent: number;
+  size?: 'sm' | 'lg';
+}) {
   const width = Math.min(Math.max(percent, 0), 100);
   const over = percent > 100;
   return (
-    <div className="h-2 overflow-hidden rounded-full bg-secondary">
+    <div
+      className={cn(
+        'relative overflow-hidden rounded-full bg-black/[0.06]',
+        size === 'lg' ? 'h-3' : 'h-2'
+      )}
+    >
       <div
-        className={cn('h-full rounded-full transition-[width]', over ? 'bg-emerald-600' : 'bg-primary')}
+        className={cn(
+          'relative h-full rounded-full transition-[width] duration-700 ease-out',
+          over
+            ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+            : 'bg-gradient-to-r from-primary via-primary to-orange-400'
+        )}
         style={{ width: `${width}%` }}
-      />
+      >
+        <span className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white/35 to-transparent" />
+      </div>
     </div>
   );
 }
 
-function ScoreRing({ percent }: { percent: number }) {
+function ScoreRing({
+  percent,
+  size = 'md',
+}: {
+  percent: number;
+  size?: 'md' | 'lg';
+}) {
   const value = Math.max(0, Number(percent) || 0);
   const capped = Math.min(value, 100);
-  const radius = 38;
+  const radius = size === 'lg' ? 46 : 38;
+  const view = size === 'lg' ? 112 : 96;
+  const stroke = size === 'lg' ? 9 : 8;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (capped / 100) * circumference;
   const over = value > 100;
+  const center = view / 2;
 
   return (
-    <div className="relative h-[5.5rem] w-[5.5rem] shrink-0">
-      <svg viewBox="0 0 96 96" className="h-full w-full -rotate-90" aria-hidden>
+    <div
+      className={cn(
+        'relative shrink-0',
+        size === 'lg' ? 'h-[7rem] w-[7rem]' : 'h-[5.5rem] w-[5.5rem]'
+      )}
+    >
+      <svg viewBox={`0 0 ${view} ${view}`} className="h-full w-full -rotate-90" aria-hidden>
         <circle
-          cx="48"
-          cy="48"
+          cx={center}
+          cy={center}
           r={radius}
           fill="none"
           stroke="currentColor"
-          strokeWidth="8"
-          className="text-secondary"
+          strokeWidth={stroke}
+          className="text-black/[0.06]"
         />
         <circle
-          cx="48"
-          cy="48"
+          cx={center}
+          cy={center}
           r={radius}
           fill="none"
           stroke="currentColor"
-          strokeWidth="8"
+          strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          className={over ? 'text-emerald-600' : 'text-primary'}
+          className={cn(
+            'transition-[stroke-dashoffset] duration-700 ease-out',
+            over ? 'text-emerald-500' : 'text-primary'
+          )}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <p className="text-xl font-bold tabular-nums leading-none text-foreground">
+        <p
+          className={cn(
+            'font-bold tabular-nums leading-none tracking-tight text-foreground',
+            size === 'lg' ? 'text-2xl' : 'text-xl'
+          )}
+        >
           {Math.round(value)}%
         </p>
+        {size === 'lg' ? (
+          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Score
+          </p>
+        ) : null}
       </div>
     </div>
   );
+}
+
+function scoreMood(percent: number) {
+  if (percent >= 100) return { label: 'Target crushed', tone: 'text-emerald-700 bg-emerald-500/15' };
+  if (percent >= 70) return { label: 'Strong week', tone: 'text-primary bg-primary/15' };
+  if (percent >= 40) return { label: 'Building momentum', tone: 'text-amber-700 bg-amber-500/15' };
+  if (percent > 0) return { label: 'Getting started', tone: 'text-sky-700 bg-sky-500/15' };
+  return { label: 'Ready to begin', tone: 'text-muted-foreground bg-black/[0.04]' };
+}
+
+function formatCompactStat(value: number, unit?: string | null) {
+  const n = Number(value) || 0;
+  const abs = Math.abs(n);
+  let core: string;
+  if (abs >= 1_000_000) core = `${(n / 1_000_000).toFixed(1)}M`;
+  else if (abs >= 10_000) core = `${(n / 1_000).toFixed(1)}k`;
+  else core = Math.round(n).toLocaleString();
+  return unit ? `${core} ${unit}` : core;
 }
 
 function RankingRow({
@@ -132,19 +196,24 @@ function RankingRow({
       <span className="w-6 shrink-0 text-center text-xs font-bold tabular-nums text-muted-foreground">
         {row.rank}
       </span>
-      <ProfileAvatar
-        name={row.name}
-        avatarUrl={row.avatarUrl}
-        avatarSeed={row.avatarSeed}
-        avatarStyle={row.avatarStyle}
-        size="sm"
-      />
+      <Link href={`/feed/profile/${row.profileId}`} className="shrink-0">
+        <ProfileAvatar
+          name={row.name}
+          avatarUrl={row.avatarUrl}
+          avatarSeed={row.avatarSeed}
+          avatarStyle={row.avatarStyle}
+          size="sm"
+        />
+      </Link>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2 overflow-visible">
-          <p className="truncate text-sm font-semibold text-foreground">
+          <Link
+            href={`/feed/profile/${row.profileId}`}
+            className="truncate text-sm font-semibold text-foreground hover:underline"
+          >
             {row.name}
             {isMe ? ' (you)' : ''}
-          </p>
+          </Link>
           {showTopMedals ? <ContributionMedal rank={row.rank} /> : null}
         </div>
         <p className="text-[11px] capitalize text-muted-foreground">
@@ -373,7 +442,7 @@ export function CommunityDashboardTab({
   const [detailActivityId, setDetailActivityId] = useState<string | null>(null);
   const [contributionActivityId, setContributionActivityId] = useState<string>('overall');
   const [activityProgressOpen, setActivityProgressOpen] = useState(false);
-  const [memberContributionOpen, setMemberContributionOpen] = useState(false);
+  const [memberContributionOpen, setMemberContributionOpen] = useState(true);
   const [adminOpen, setAdminOpen] = useState(false);
 
   const weeksQuery = useQuery({
@@ -531,7 +600,7 @@ export function CommunityDashboardTab({
             aria-label="Back to dashboard"
             onClick={() => setDetailActivityId(null)}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-base font-bold text-foreground">
@@ -582,7 +651,12 @@ export function CommunityDashboardTab({
 
   return (
     <div className="space-y-4">
-      <div className="section-card flex items-center gap-2 px-3 py-2.5">
+      <div
+        className={cn(
+          'flex items-center gap-2 rounded-[1.35rem] border border-white/70',
+          'bg-white/70 px-2.5 py-2 shadow-sm backdrop-blur-xl'
+        )}
+      >
         <Button
           size="icon"
           variant="ghost"
@@ -592,6 +666,7 @@ export function CommunityDashboardTab({
             setWeekOffset((v) => v - 1);
           }}
           aria-label="Previous week"
+          className="rounded-full"
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
@@ -614,6 +689,7 @@ export function CommunityDashboardTab({
             setWeekOffset((v) => Math.min(0, v + 1));
           }}
           aria-label="Next week"
+          className="rounded-full"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -648,82 +724,191 @@ export function CommunityDashboardTab({
         </div>
       ) : (
         <>
-          <div className="section-card overflow-hidden bg-gradient-to-br from-primary-soft/80 via-surface to-secondary/40 p-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <div className="flex items-center gap-4">
-                <ScoreRing percent={analytics?.overallCommunityScore ?? 0} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Overall community score
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">
-                    {weekLabel || 'This week'}
-                  </p>
-                  <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                    Average activity completion vs community weekly targets
-                  </p>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-border/70 bg-surface/90 px-3 py-2.5 text-left shadow-sm sm:ml-auto sm:text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Participation
-                </p>
-                <p className="mt-0.5 text-lg font-bold tabular-nums text-foreground">
-                  {Math.round(analytics?.participation.rate ?? 0)}%
-                </p>
-                <p className="text-[11px] tabular-nums text-muted-foreground">
-                  {analytics?.participation.membersLogged ?? snapshot?.membersLogged ?? 0}/
-                  {analytics?.participation.memberCount ??
-                    snapshot?.memberCount ??
-                    dashboard?.memberCount ??
-                    0}
-                </p>
-              </div>
-            </div>
+          {(() => {
+            const overallScore = analytics?.overallCommunityScore ?? 0;
+            const mood = scoreMood(overallScore);
+            const membersLogged =
+              analytics?.participation.membersLogged ?? snapshot?.membersLogged ?? 0;
+            const memberCount =
+              analytics?.participation.memberCount ??
+              snapshot?.memberCount ??
+              dashboard?.memberCount ??
+              0;
+            const participationRate = Math.round(analytics?.participation.rate ?? 0);
+            const stats = [
+              {
+                label: 'Total target',
+                value: formatCompactStat(analytics?.totalCommunityTarget ?? 0),
+                icon: Target,
+              },
+              {
+                label: 'Completed',
+                value: formatCompactStat(
+                  analytics?.totalCompleted ?? analytics?.totalValue ?? 0
+                ),
+                icon: Trophy,
+              },
+              {
+                label: 'Remaining',
+                value: formatCompactStat(analytics?.remainingTarget ?? 0),
+                icon: ChartColumnIncreasing,
+              },
+              {
+                label: 'Avg / member',
+                value: `${Math.round(analytics?.averageProgressPerMember ?? 0)}%`,
+                icon: Users,
+              },
+            ] as const;
 
-            <div className="mt-4">
-              <ProgressBar percent={analytics?.overallCommunityScore ?? 0} />
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {[
-                {
-                  label: 'Total target',
-                  value: formatValue(analytics?.totalCommunityTarget ?? 0),
-                },
-                {
-                  label: 'Completed',
-                  value: formatValue(analytics?.totalCompleted ?? analytics?.totalValue ?? 0),
-                },
-                {
-                  label: 'Remaining',
-                  value: formatValue(analytics?.remainingTarget ?? 0),
-                },
-                {
-                  label: 'Avg / member',
-                  value: `${Math.round(analytics?.averageProgressPerMember ?? 0)}%`,
-                },
-              ].map((stat) => (
+            return (
+              <div
+                className={cn(
+                  'relative overflow-hidden rounded-[1.75rem] border border-white/70',
+                  'bg-gradient-to-br from-white/90 via-primary-soft/50 to-sky-100/40',
+                  'p-5 shadow-[0_18px_50px_rgba(15,23,42,0.1)] backdrop-blur-xl'
+                )}
+              >
                 <div
-                  key={stat.label}
-                  className="rounded-xl border border-border/60 bg-surface/80 px-3 py-2.5"
-                >
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {stat.label}
-                  </p>
-                  <p className="mt-1 text-sm font-bold tabular-nums text-foreground">{stat.value}</p>
-                </div>
-              ))}
-            </div>
+                  aria-hidden
+                  className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-primary/20 blur-3xl"
+                />
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -bottom-16 -left-8 h-44 w-44 rounded-full bg-sky-400/15 blur-3xl"
+                />
 
-            <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-              <Users className="h-3.5 w-3.5 shrink-0" />
-              <span>
-                {analytics?.participation.label ||
-                  `${snapshot?.membersLogged ?? 0}/${snapshot?.memberCount ?? 0} members logged this week`}
-              </span>
+                <div className="relative flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      Community details
+                    </p>
+                    <h2 className="mt-1 text-lg font-bold tracking-tight text-foreground">
+                      Overall community score
+                    </h2>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {weekLabel || 'This week'}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold',
+                      mood.tone
+                    )}
+                  >
+                    {mood.label}
+                  </span>
+                </div>
+
+                <div className="relative mt-5 flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
+                  <div
+                    className={cn(
+                      'relative rounded-[1.5rem] border border-white/80 bg-white/70 p-3',
+                      'shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md'
+                    )}
+                  >
+                    <ScoreRing percent={overallScore} size="lg" />
+                  </div>
+
+                  <div className="min-w-0 flex-1 space-y-4">
+                    <p className="text-center text-[12px] leading-relaxed text-muted-foreground sm:text-left">
+                      Average activity completion vs community weekly targets
+                    </p>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-medium">
+                        <span className="text-muted-foreground">Weekly progress</span>
+                        <span className="tabular-nums text-foreground">
+                          {Math.round(overallScore)}%
+                        </span>
+                      </div>
+                      <ProgressBar percent={overallScore} size="lg" />
+                    </div>
+
+                    <div
+                      className={cn(
+                        'flex items-center gap-3 rounded-2xl border border-white/80 bg-white/65 px-3.5 py-3',
+                        'shadow-sm backdrop-blur-md'
+                      )}
+                    >
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
+                        <Users className="h-[18px] w-[18px]" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Participation
+                        </p>
+                        <p className="text-sm font-semibold text-foreground">
+                          {membersLogged}/{memberCount} members logged
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-xl font-bold tabular-nums text-primary">
+                        {participationRate}%
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                  {stats.map((stat) => {
+                    const Icon = stat.icon;
+                    return (
+                      <div
+                        key={stat.label}
+                        className={cn(
+                          'rounded-2xl border border-white/80 bg-white/65 px-3 py-3',
+                          'shadow-sm backdrop-blur-md transition hover:bg-white/85'
+                        )}
+                      >
+                        <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {stat.label}
+                        </p>
+                        <p className="mt-1 text-base font-bold tabular-nums tracking-tight text-foreground">
+                          {stat.value}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <p className="relative mt-4 text-center text-[11px] text-muted-foreground sm:text-left">
+                  {analytics?.participation.label ||
+                    `${membersLogged}/${memberCount} members logged this week`}
+                </p>
+              </div>
+            );
+          })()}
+
+          <CollapsibleSection
+            title="Member contribution"
+            subtitle={contributionSubtitle}
+            icon={Trophy}
+            expanded={memberContributionOpen}
+            onToggle={() => setMemberContributionOpen((value) => !value)}
+            overflowVisible
+            contentClassName="!space-y-0 !px-0 !pb-0 !pt-0"
+          >
+            <div className="space-y-3 border-b border-border px-4 py-3 sm:px-5">
+              <CustomDropdown
+                value={contributionActivityId}
+                options={contributionFilterOptions}
+                disabled={weekViewQuery.isFetching || contributionFilterOptions.length <= 1}
+                onChange={(value) => setContributionActivityId(value)}
+              />
             </div>
-          </div>
+            <MemberContributionList
+              ranking={contributionRanking}
+              selectedProfileId={selectedProfile?._id}
+              resetKey={`${weekOffset}:${contributionActivityId}`}
+              emptyLabel={
+                contributionActivityId === 'overall'
+                  ? 'No community activity logged this week.'
+                  : 'No logs for this activity yet.'
+              }
+            />
+          </CollapsibleSection>
 
           {aiSummary?.text ? (
             <div className="section-card space-y-3 p-4">
@@ -817,35 +1002,6 @@ export function CommunityDashboardTab({
                 No community activities configured.
               </p>
             )}
-          </CollapsibleSection>
-
-          <CollapsibleSection
-            title="Member contribution"
-            subtitle={contributionSubtitle}
-            icon={Trophy}
-            expanded={memberContributionOpen}
-            onToggle={() => setMemberContributionOpen((value) => !value)}
-            overflowVisible
-            contentClassName="!space-y-0 !px-0 !pb-0 !pt-0"
-          >
-            <div className="space-y-3 border-b border-border px-4 py-3 sm:px-5">
-              <CustomDropdown
-                value={contributionActivityId}
-                options={contributionFilterOptions}
-                disabled={weekViewQuery.isFetching || contributionFilterOptions.length <= 1}
-                onChange={(value) => setContributionActivityId(value)}
-              />
-            </div>
-            <MemberContributionList
-              ranking={contributionRanking}
-              selectedProfileId={selectedProfile?._id}
-              resetKey={`${weekOffset}:${contributionActivityId}`}
-              emptyLabel={
-                contributionActivityId === 'overall'
-                  ? 'No community activity logged this week.'
-                  : 'No logs for this activity yet.'
-              }
-            />
           </CollapsibleSection>
         </>
       )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Heart, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -185,19 +186,41 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
               const other = direction === 'received' ? row.from : row.to;
               return (
                 <li key={row.id} className="flex items-center gap-3 px-4 py-3">
-                  <ProfileAvatar
-                    name={other.name}
-                    avatarUrl={other.avatarUrl}
-                    avatarSeed={other.avatarSeed}
-                    avatarStyle={other.avatarStyle}
-                    size="sm"
-                  />
+                  <Link href={`/feed/profile/${other.profileId}`} className="shrink-0">
+                    <ProfileAvatar
+                      name={other.name}
+                      avatarUrl={other.avatarUrl}
+                      avatarSeed={other.avatarSeed}
+                      avatarStyle={other.avatarStyle}
+                      size="sm"
+                    />
+                  </Link>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold">
                       {row.emoji} {row.label}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {direction === 'received' ? `From ${other.name}` : `To ${other.name}`}
+                      {direction === 'received' ? (
+                        <>
+                          From{' '}
+                          <Link
+                            href={`/feed/profile/${other.profileId}`}
+                            className="font-medium text-foreground hover:underline"
+                          >
+                            {other.name}
+                          </Link>
+                        </>
+                      ) : (
+                        <>
+                          To{' '}
+                          <Link
+                            href={`/feed/profile/${other.profileId}`}
+                            className="font-medium text-foreground hover:underline"
+                          >
+                            {other.name}
+                          </Link>
+                        </>
+                      )}
                       {row.message ? ` · ${row.message}` : ''}
                     </p>
                   </div>

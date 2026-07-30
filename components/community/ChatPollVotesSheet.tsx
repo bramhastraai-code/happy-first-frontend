@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
@@ -80,15 +81,22 @@ export function ChatPollVotesSheet({
                           key={`${option.id}-${voter.profileId}`}
                           className="flex items-center gap-2"
                         >
-                          <ProfileAvatar
-                            name={voter.name}
-                            avatarUrl={voter.avatarUrl}
-                            avatarSeed={voter.avatarSeed}
-                            avatarStyle={voter.avatarStyle}
-                            size="sm"
-                            className="h-8 w-8"
-                          />
-                          <p className="text-sm text-[#111b21]">{voter.name || 'Member'}</p>
+                          <Link
+                            href={`/feed/profile/${voter.profileId}`}
+                            className="flex min-w-0 items-center gap-2"
+                          >
+                            <ProfileAvatar
+                              name={voter.name}
+                              avatarUrl={voter.avatarUrl}
+                              avatarSeed={voter.avatarSeed}
+                              avatarStyle={voter.avatarStyle}
+                              size="sm"
+                              className="h-8 w-8"
+                            />
+                            <p className="truncate text-sm text-[#111b21] hover:underline">
+                              {voter.name || 'Member'}
+                            </p>
+                          </Link>
                         </div>
                       ))}
                     </div>

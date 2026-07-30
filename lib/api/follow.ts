@@ -8,6 +8,8 @@ export interface FollowPerson {
   avatarUrl?: string | null;
   avatarSeed?: string | null;
   avatarStyle?: string | null;
+  bio?: string | null;
+  website?: string | null;
   level?: string | null;
   city?: string | null;
   sameLevel?: boolean;

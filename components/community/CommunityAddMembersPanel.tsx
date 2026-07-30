@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Loader2, Search, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -130,15 +131,22 @@ export function CommunityAddMembersPanel({
                 addMember.isPending && addMember.variables === person.profileId;
               return (
                 <li key={person.profileId} className="flex items-center gap-3 px-3 py-2.5">
-                  <ProfileAvatar
-                    name={person.name}
-                    avatarUrl={person.avatarUrl}
-                    avatarSeed={person.avatarSeed}
-                    avatarStyle={person.avatarStyle}
-                    size="sm"
-                  />
+                  <Link href={`/feed/profile/${person.profileId}`} className="shrink-0">
+                    <ProfileAvatar
+                      name={person.name}
+                      avatarUrl={person.avatarUrl}
+                      avatarSeed={person.avatarSeed}
+                      avatarStyle={person.avatarStyle}
+                      size="sm"
+                    />
+                  </Link>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-foreground">{person.name}</p>
+                    <Link
+                      href={`/feed/profile/${person.profileId}`}
+                      className="truncate text-sm font-semibold text-foreground hover:underline"
+                    >
+                      {person.name}
+                    </Link>
                     <p className="truncate text-[11px] text-muted-foreground">
                       {person.matchLabel || 'Tap add to invite'}
                     </p>

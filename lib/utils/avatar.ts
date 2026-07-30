@@ -1,5 +1,7 @@
 /** DiceBear Adventurer avatar helpers (no npm package — uses public API). */
 
+import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
+
 export const AVATAR_STYLE = 'adventurer' as const;
 
 /** Curated seeds for the WhatsApp-style avatar gallery. */
@@ -48,7 +50,7 @@ export function resolveProfileAvatarUrl(profile?: {
   _id?: string;
 } | null): string | null {
   if (!profile) return null;
-  if (profile.avatarUrl) return profile.avatarUrl;
+  if (profile.avatarUrl) return resolveMediaUrl(profile.avatarUrl);
   if (profile.avatarSeed) {
     return buildDiceBearAvatarUrl(
       profile.avatarSeed,

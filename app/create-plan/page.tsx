@@ -18,7 +18,7 @@ import {
 } from '@/components/create-plan/CreatePlanUI';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw, PlusCircle } from 'lucide-react';
+import { CheckCircle2, ArrowRight, ChevronLeft, RefreshCw, PlusCircle } from 'lucide-react';
 import CadenceSlider, { type CadenceValue } from '@/components/ui/CadenceSlider';
 import { cn } from '@/lib/utils';
 
@@ -700,7 +700,7 @@ function CreatePlanPageContent() {
 
             <div className="flex gap-3 pt-2">
               <Button onClick={handleBack} variant="outline" className="flex-1">
-                <ArrowLeft className="mr-2 h-4 w-4" />
+                <ChevronLeft className="mr-2 h-4 w-4" />
                 {selectedCategory === 'body'
                   ? isOnboarding
                     ? 'Back'
@@ -764,7 +764,7 @@ function CreatePlanPageContent() {
 
             <div className="flex gap-3 pt-2">
               <Button onClick={handleBack} variant="outline" className="flex-1">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back
+                <ChevronLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button
                 onClick={handleSubmit}

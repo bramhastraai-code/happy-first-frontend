@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getAppSocket } from '@/lib/realtime/socketClient';
-import type { FeedPost } from '@/lib/api/feed';
+import type { FeedComment, FeedPost } from '@/lib/api/feed';
 import type { AppNotification } from '@/lib/api/notifications';
 import type { FeedChatMessage } from '@/lib/api/messages';
 
@@ -120,6 +120,43 @@ export function useFeedRealtime(
         void queryClient.invalidateQueries({ queryKey: ['feedComments', payload.photoId] });
       };
 
+      const onCommentDeleted = (payload: {
+        photoId: string;
+        commentCount: number;
+        deletedIds: string[];
+        communityId?: string | null;
+      }) => {
+        if (communityId && payload.communityId && payload.communityId !== communityId) return;
+        if (!communityId && payload.communityId) return;
+        queryClient.setQueryData<FeedPages>(queryKey, (old) => {
+          if (!old?.pages) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              posts: page.posts.map((post) =>
+                post.id === payload.photoId
+                  ? { ...post, commentCount: payload.commentCount }
+                  : post
+              ),
+            })),
+          };
+        });
+        queryClient.setQueryData<FeedComment[]>(
+          ['feedComments', payload.photoId],
+          (prev) => {
+            if (!prev) return prev;
+            const remove = new Set(payload.deletedIds);
+            return prev
+              .filter((comment) => !remove.has(comment.id))
+              .map((comment) => ({
+                ...comment,
+                replies: (comment.replies || []).filter((reply) => !remove.has(reply.id)),
+              }));
+          }
+        );
+      };
+
       const onNotification = (notification: AppNotification) => {
         queryClient.setQueryData<{ notifications: AppNotification[]; unread: number }>(
           ['notifications'],
@@ -227,6 +264,7 @@ export function useFeedRealtime(
       socket.on('feed:new_post', onNewPost);
       socket.on('feed:like_updated', onLike);
       socket.on('feed:comment_added', onComment);
+      socket.on('feed:comment_deleted', onCommentDeleted);
       socket.on('feed:post_updated', onPostUpdated);
       socket.on('feed:post_deleted', onPostDeleted);
       socket.on('notification:new', onNotification);
@@ -240,6 +278,7 @@ export function useFeedRealtime(
         socket.off('feed:new_post', onNewPost);
         socket.off('feed:like_updated', onLike);
         socket.off('feed:comment_added', onComment);
+        socket.off('feed:comment_deleted', onCommentDeleted);
         socket.off('feed:post_updated', onPostUpdated);
         socket.off('feed:post_deleted', onPostDeleted);
         socket.off('notification:new', onNotification);

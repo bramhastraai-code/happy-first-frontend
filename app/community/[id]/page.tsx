@@ -4,10 +4,15 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, Pencil, Share2, Trash2, Users } from 'lucide-react';
+import { ChevronLeft, Loader2, Pencil, Share2, Trash2, Users } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
+import {
+  AppPageHeader,
+  headerActionBtnClass,
+  headerActionBtnDangerClass,
+} from '@/components/ui/AppPageHeader';
 import { NotificationBell } from '@/components/feed/NotificationBell';
 import { CommunityDashboardTab } from '@/components/community/CommunityDashboardTab';
 import { CommunityChatTab } from '@/components/community/CommunityChatTab';
@@ -21,6 +26,7 @@ import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
 import { CommunityShareDialog } from '@/components/community/CommunityShareDialog';
 import { useCommunityConfirm } from '@/components/community/useCommunityConfirm';
 import { communityAPI, communityTypeLabel } from '@/lib/api/community';
+import { cn } from '@/lib/utils';
 
 function apiErrorMessage(err: unknown, fallback: string) {
   return (
@@ -106,22 +112,14 @@ export default function CommunityDetailPage() {
   return (
     <MainLayout>
       <div className="space-y-4">
-        <div className="flex items-start gap-3">
-          <Link
-            href="/community"
-            className="mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-secondary"
-            aria-label="Back"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div className="min-w-0 flex-1">
-            {communityQuery.isLoading ? (
-              <div className="flex items-center gap-2 py-2">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Loading…</span>
-              </div>
-            ) : community ? (
-              <div className="flex items-start gap-3">
+        <AppPageHeader
+          showAvatar={false}
+          leading={
+            <div className="flex shrink-0 items-center gap-2">
+              <Link href="/community" className={headerActionBtnClass} aria-label="Back">
+                <ChevronLeft className="h-5 w-5" />
+              </Link>
+              {community ? (
                 <CommunityAvatar
                   name={community.name}
                   icon={community.icon}
@@ -129,83 +127,101 @@ export default function CommunityDetailPage() {
                   avatarSeed={community.avatarSeed}
                   avatarStyle={community.avatarStyle}
                   size="md"
+                  className="!rounded-2xl"
                 />
-                <div className="min-w-0 flex-1">
-                  <h1 className="truncate text-lg font-bold text-foreground">{community.name}</h1>
-                  <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                    {community.description ||
-                      community.activities.map((a) => a.name).join(', ') ||
-                      'Community'}
-                  </p>
-                  <p className="mt-1 inline-flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-                    <Users className="h-3 w-3" />
-                    {community.memberCount} members
-                    <span>· {communityTypeLabel(community.type)}</span>
-                    {isAdmin
-                      ? ' · Admin'
-                      : isModerator
-                        ? ' · Moderator'
-                        : isMember
-                          ? ' · Member'
-                          : isPending
-                            ? ' · Request pending'
-                            : ''}
-                  </p>
-                </div>
-              </div>
+              ) : null}
+            </div>
+          }
+          title={
+            communityQuery.isLoading ? (
+              <span className="inline-flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading…
+              </span>
+            ) : community ? (
+              community.name
             ) : (
-              <p className="text-sm text-destructive">Community not found</p>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {isMember ? (
-              <NotificationBell
-                triggerClassName="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-secondary"
-              />
-            ) : null}
-            {!isDeleted &&
-            (isMember || community?.type === 'invite_only' || community?.type === 'public') ? (
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label="Share community"
-                onClick={() => setShareOpen(true)}
-              >
-                <Share2 className="h-4 w-4" />
-              </Button>
-            ) : null}
-            {isAdmin && !isDeleted ? (
+              <span className="text-destructive">Community not found</span>
+            )
+          }
+          subtitle={community ? communityTypeLabel(community.type) : 'Happy First Club'}
+          meta={
+            community ? (
               <>
-                <Button asChild size="icon" variant="ghost" aria-label="Edit community">
-                  <Link href={`/community/${communityId}/edit`}>
-                    <Pencil className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => {
-                    requestConfirm({
-                      title: 'Delete this community?',
-                      description:
-                        'Historical weeks stay available for members until they dismiss it. Delete is blocked if anyone has logged this week. This action cannot be undone.',
-                      confirmLabel: 'Delete',
-                      onConfirm: () => deleteMutation.mutateAsync(),
-                    });
-                  }}
-                  aria-label="Delete community"
-                >
-                  {deleteMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-destructive" />
-                  ) : (
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  )}
-                </Button>
+                <p className="line-clamp-2 w-full text-[11px] font-normal normal-case tracking-normal text-muted-foreground sm:text-xs">
+                  {community.description ||
+                    community.activities.map((a) => a.name).join(', ') ||
+                    'Community'}
+                </p>
+                <span className="inline-flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                  <Users className="h-3 w-3" />
+                  {community.memberCount} members
+                  {isAdmin
+                    ? ' · Admin'
+                    : isModerator
+                      ? ' · Moderator'
+                      : isMember
+                        ? ' · Member'
+                        : isPending
+                          ? ' · Request pending'
+                          : ''}
+                </span>
               </>
-            ) : null}
-          </div>
-        </div>
+            ) : null
+          }
+          actions={
+            <>
+              {isMember ? (
+                <NotificationBell triggerClassName={cn('relative', headerActionBtnClass)} />
+              ) : null}
+              {!isDeleted &&
+              (isMember ||
+                community?.type === 'invite_only' ||
+                community?.type === 'public') ? (
+                <button
+                  type="button"
+                  className={headerActionBtnClass}
+                  aria-label="Share community"
+                  onClick={() => setShareOpen(true)}
+                >
+                  <Share2 className="h-[18px] w-[18px]" />
+                </button>
+              ) : null}
+              {isAdmin && !isDeleted ? (
+                <>
+                  <Link
+                    href={`/community/${communityId}/edit`}
+                    className={headerActionBtnClass}
+                    aria-label="Edit community"
+                  >
+                    <Pencil className="h-[18px] w-[18px]" />
+                  </Link>
+                  <button
+                    type="button"
+                    className={headerActionBtnDangerClass}
+                    disabled={deleteMutation.isPending}
+                    onClick={() => {
+                      requestConfirm({
+                        title: 'Delete this community?',
+                        description:
+                          'Historical weeks stay available for members until they dismiss it. Delete is blocked if anyone has logged this week. This action cannot be undone.',
+                        confirmLabel: 'Delete',
+                        onConfirm: () => deleteMutation.mutateAsync(),
+                      });
+                    }}
+                    aria-label="Delete community"
+                  >
+                    {deleteMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-[18px] w-[18px]" />
+                    )}
+                  </button>
+                </>
+              ) : null}
+            </>
+          }
+        />
 
         {community && isDeleted ? (
           <div className="rounded-xl border border-border bg-secondary/60 px-4 py-3">

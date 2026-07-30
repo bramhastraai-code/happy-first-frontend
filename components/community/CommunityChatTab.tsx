@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
 import {
+  ChevronLeft,
   Check,
   CheckCheck,
   CheckSquare,
@@ -44,6 +45,7 @@ import { getAppSocket } from '@/lib/realtime/socketClient';
 import { useAuthStore } from '@/lib/store/authStore';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { cn } from '@/lib/utils';
+import { chatWallpaperStyle } from '@/components/chat/MessageBubbleTail';
 
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
   ssr: false,
@@ -57,6 +59,15 @@ const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
 interface CommunityChatTabProps {
   communityId: string;
   canModerate?: boolean;
+  /** Fill parent height (e.g. Feed messages panel) instead of capped page height */
+  embedded?: boolean;
+  /** Shown in the chat header when provided */
+  communityName?: string;
+  /** Back control for inbox / sheet embedding */
+  onBack?: () => void;
+  /** Optional close control (e.g. dismiss Feed messages sheet) */
+  onClose?: () => void;
+  className?: string;
 }
 
 const NAME_COLORS = [
@@ -160,31 +171,17 @@ function renderMessageText(
   );
 }
 
-/** WhatsApp-style corner tail on the first bubble in a consecutive group. */
-function MessageBubbleTail({ mine }: { mine: boolean }) {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 8 13"
-      width={8}
-      height={13}
-      className={cn(
-        'pointer-events-none absolute top-0',
-        mine ? '-right-[7px] text-primary' : '-left-[7px] text-white'
-      )}
-    >
-      {mine ? (
-        <path fill="currentColor" d="M0 0h8v2.5C6.2 3.4 3.6 7.2 1.2 13 3.8 7.8 5.5 3.2 0 0z" />
-      ) : (
-        <path fill="currentColor" d="M8 0H0v2.5C1.8 3.4 4.4 7.2 6.8 13 4.2 7.8 2.5 3.2 8 0z" />
-      )}
-    </svg>
-  );
-}
-
 type ConfirmAction = { type: 'clear' } | { type: 'delete-me' } | { type: 'delete-everyone' } | null;
 
-export function CommunityChatTab({ communityId, canModerate = false }: CommunityChatTabProps) {
+export function CommunityChatTab({
+  communityId,
+  canModerate = false,
+  embedded = false,
+  communityName,
+  onBack,
+  onClose,
+  className,
+}: CommunityChatTabProps) {
   const { user, selectedProfile } = useAuthStore();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState('');
@@ -918,7 +915,6 @@ export function CommunityChatTab({ communityId, canModerate = false }: Community
         mine,
         showName: !mine && !sameAsPrev,
         showAvatar: !mine && !sameAsNext,
-        showTail: !sameAsPrev,
         tightTop: sameAsPrev,
         showDay,
         selected: selectedIds.has(message.id),
@@ -1054,8 +1050,21 @@ export function CommunityChatTab({ communityId, canModerate = false }: Community
           };
 
   return (
-    <div className="relative flex h-[min(75vh,640px)] flex-col overflow-hidden rounded-2xl border border-black/5 bg-[#efeae2] shadow-sm">
-      <div className="relative z-20 flex items-center gap-2 border-b border-black/5 bg-[#f0f2f5] px-2 py-2">
+    <div
+      className={cn(
+        'relative flex flex-col overflow-hidden bg-[#efeae2]',
+        embedded
+          ? 'h-full min-h-0 border-0 rounded-none shadow-none'
+          : 'h-[min(75vh,640px)] rounded-2xl border border-black/5 shadow-sm',
+        className
+      )}
+    >
+      <div
+        className={cn(
+          'relative z-20 flex items-center gap-2 border-b border-black/5 bg-[#f0f2f5] px-2 py-2',
+          embedded ? 'rounded-t-3xl sm:rounded-t-3xl' : 'rounded-t-2xl'
+        )}
+      >
         {selectMode ? (
           <>
             <button
@@ -1112,7 +1121,22 @@ export function CommunityChatTab({ communityId, canModerate = false }: Community
           </>
         ) : (
           <>
-            <p className="min-w-0 flex-1 px-2 text-sm font-semibold text-[#111b21]">Group chat</p>
+            {onBack ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] hover:bg-black/5"
+                aria-label="Back to chats"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            ) : null}
+            <div className="min-w-0 flex-1 px-1">
+              <p className="truncate text-sm font-semibold text-[#111b21]">
+                {communityName || 'Group chat'}
+              </p>
+              <p className="truncate text-[11px] text-[#667781]">Community · all chat features</p>
+            </div>
             <div className="relative">
               <button
                 type="button"
@@ -1201,6 +1225,16 @@ export function CommunityChatTab({ communityId, canModerate = false }: Community
                 </>
               )}
             </div>
+            {onClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] hover:bg-black/5"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            ) : null}
           </>
         )}
       </div>
@@ -1349,16 +1383,7 @@ export function CommunityChatTab({ communityId, canModerate = false }: Community
       <div
         ref={scrollContainerRef}
         className="relative flex-1 overflow-y-auto px-2 py-3 sm:px-4"
-        style={{
-          backgroundColor: '#efeae2',
-          backgroundImage: `
-            radial-gradient(circle at 12% 18%, rgba(0,0,0,0.035) 0 1.1px, transparent 1.2px),
-            radial-gradient(circle at 72% 28%, rgba(0,0,0,0.03) 0 1px, transparent 1.1px),
-            radial-gradient(circle at 38% 62%, rgba(0,0,0,0.028) 0 1.2px, transparent 1.3px),
-            radial-gradient(circle at 88% 78%, rgba(0,0,0,0.032) 0 1px, transparent 1.1px)
-          `,
-          backgroundSize: '42px 42px, 36px 36px, 48px 48px, 40px 40px',
-        }}
+        style={chatWallpaperStyle}
         onClick={() => {
           setShowEmoji(false);
           setMenuOpen(false);
@@ -1374,7 +1399,7 @@ export function CommunityChatTab({ communityId, canModerate = false }: Community
             No messages yet. Say hello to the group.
           </div>
         ) : (
-          rows.map(({ message, mine, showName, showAvatar, showTail, tightTop, showDay, selected }) => (
+          rows.map(({ message, mine, showName, showAvatar, tightTop, showDay, selected }) => (
             <div
               key={message.id}
               ref={(el) => {
@@ -1497,17 +1522,10 @@ export function CommunityChatTab({ communityId, canModerate = false }: Community
                   <div
                     data-message-bubble
                     className={cn(
-                      'relative px-[9px] pb-[6px] pt-[6px] text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]',
-                      mine ? 'bg-primary text-primary-foreground' : 'bg-white',
-                      showTail
-                        ? mine
-                          ? 'rounded-[7.5px] rounded-tr-none'
-                          : 'rounded-[7.5px] rounded-tl-none'
-                        : 'rounded-[7.5px]'
+                      'relative rounded-[7.5px] px-[9px] pb-[6px] pt-[6px] text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]',
+                      mine ? 'bg-primary text-primary-foreground' : 'bg-white'
                     )}
                   >
-                    {showTail ? <MessageBubbleTail mine={mine} /> : null}
-
                     {!selectMode && !message.deletedForEveryone && (
                       <button
                         type="button"

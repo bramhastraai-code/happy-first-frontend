@@ -1,32 +1,33 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
+import { AppPageHeader } from '@/components/ui/AppPageHeader';
 
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
   className?: string;
 }
 
 export function PageHeader({ title, subtitle, action, className }: PageHeaderProps) {
   return (
-    <motion.header
+    <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
-      className={cn('mb-6 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4', className)}
     >
-      <div className="min-w-0">
-        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl lg:text-3xl">{title}</h1>
-        {subtitle && (
-          <p className="mt-1 text-sm text-muted-foreground sm:text-base">{subtitle}</p>
-        )}
-      </div>
-      {action}
-    </motion.header>
+      <AppPageHeader
+        title={title}
+        subtitle={subtitle}
+        subtitleTone="plain"
+        actions={action}
+        className={cn('mb-5', className)}
+      />
+    </motion.div>
   );
 }
 

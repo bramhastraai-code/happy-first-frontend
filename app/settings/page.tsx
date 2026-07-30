@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
-import { PageHeader } from '@/components/ui/PageHeader';
+import {
+  AppPageHeader,
+  headerActionBtnDangerClass,
+} from '@/components/ui/AppPageHeader';
 import {
   Lock,
   User,
@@ -30,7 +33,6 @@ import SupportFeedbackForm from '@/components/settings/SupportFeedbackForm';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { AppQuickLinks } from '@/components/nav/AppQuickLinks';
 import { Button } from '@/components/ui/button';
-import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import {
   mergeReminderSchedule,
   ReminderSchedule,
@@ -38,6 +40,7 @@ import {
   hasValidReminderSchedule,
   getReminderScheduleIssues,
 } from '@/lib/utils/reminderSchedule';
+import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 
@@ -281,37 +284,51 @@ export default function SettingsPage() {
 
   return (
     <MainLayout>
-      <PageHeader
-        title="Settings"
-        subtitle="Manage your account, family, and reminders"
+      <AppPageHeader
+        title={
+          <>
+            {getTimeGreeting()},{' '}
+            <span className="text-primary">
+              {firstNameFrom(selectedProfile?.name || userData?.name || user?.name)}
+            </span>
+          </>
+        }
+        subtitle={new Date().toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'short',
+          day: 'numeric',
+        })}
+        subtitleTone="label"
+        meta={
+          <>
+            <span className="inline-flex rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary sm:text-xs">
+              Settings
+            </span>
+            {userData?.phoneNumber ? (
+              <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
+                {userData.phoneNumber}
+              </span>
+            ) : null}
+            {userData?.email ? (
+              <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
+                {userData.email}
+              </span>
+            ) : null}
+          </>
+        }
+        actions={
+          <button
+            type="button"
+            onClick={requestLogout}
+            className={headerActionBtnDangerClass}
+            aria-label="Log out"
+          >
+            <LogOut className="h-[18px] w-[18px]" />
+          </button>
+        }
       />
 
       <div className="space-y-4">
-        <div className="section-card p-4">
-          <div className="flex items-center gap-4">
-            <ProfileAvatar
-              name={selectedProfile?.name || userData?.name}
-              avatarUrl={selectedProfile?.avatarUrl}
-              avatarSeed={selectedProfile?.avatarSeed}
-              avatarStyle={selectedProfile?.avatarStyle}
-              size="xl"
-              rounded="2xl"
-              className="ring-2 ring-primary/15"
-            />
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-base font-semibold text-foreground">
-                {selectedProfile?.name || 'Profile'}
-              </h2>
-              {userData?.phoneNumber && (
-                <p className="truncate text-sm text-muted-foreground">{userData.phoneNumber}</p>
-              )}
-              {userData?.email && (
-                <p className="truncate text-xs text-muted-foreground">{userData.email}</p>
-              )}
-            </div>
-          </div>
-        </div>
-
         {selectedProfile && completionPercentage < 100 && (
           <div className="rounded-2xl border border-primary/20 bg-primary-soft p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

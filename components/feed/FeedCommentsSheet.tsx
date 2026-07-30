@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { DateTime } from 'luxon';
 import { Heart, Loader2, Send, X } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { feedAPI, type FeedComment, type FeedPost } from '@/lib/api/feed';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 
@@ -47,13 +50,33 @@ function insertComment(comments: FeedComment[], comment: FeedComment): FeedComme
   });
 }
 
+function removeCommentsFromTree(comments: FeedComment[], deletedIds: string[]): FeedComment[] {
+  const remove = new Set(deletedIds);
+  return comments
+    .filter((comment) => !remove.has(comment.id))
+    .map((comment) => ({
+      ...comment,
+      replies: (comment.replies || []).filter((reply) => !remove.has(reply.id)),
+    }));
+}
+
 export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProps) {
-  const { selectedProfile } = useAuthStore();
+  const { selectedProfile, user } = useAuthStore();
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState<FeedComment | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FeedComment | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const feedKey = ['feed', selectedProfile?._id] as const;
+
+  const canModeratePost =
+    post.author.profileId === selectedProfile?._id ||
+    post.author.userId === user?._id;
+
+  const canDeleteComment = (comment: FeedComment) =>
+    comment.author.profileId === selectedProfile?._id ||
+    comment.author.userId === user?._id ||
+    canModeratePost;
 
   const { data, isLoading } = useQuery({
     queryKey: ['feedComments', post.id],
@@ -130,6 +153,47 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (commentId: string) => feedAPI.deleteComment(commentId),
+    onSuccess: (response) => {
+      const payload = response.data.data;
+      queryClient.setQueryData<FeedComment[]>(['feedComments', post.id], (prev) =>
+        removeCommentsFromTree(prev ?? [], payload.deletedIds)
+      );
+
+      const patchCommentCount = (old?: {
+        pages: { posts: FeedPost[]; nextCursor: string | null }[];
+        pageParams: unknown[];
+      }) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            posts: page.posts.map((item) =>
+              item.id === post.id
+                ? { ...item, commentCount: payload.commentCount }
+                : item
+            ),
+          })),
+        };
+      };
+
+      queryClient.setQueryData(feedKey, patchCommentCount);
+      if (post.communityId) {
+        queryClient.setQueryData(
+          ['feed', selectedProfile?._id, post.communityId],
+          patchCommentCount
+        );
+      }
+
+      setDeleteTarget(null);
+      if (replyTo && payload.deletedIds.includes(replyTo.id)) {
+        setReplyTo(null);
+      }
+    },
+  });
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -159,17 +223,29 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
 
   const renderComment = (comment: FeedComment, isReply = false) => (
     <div key={comment.id} className={cn('flex gap-2.5', isReply && 'ml-10')}>
-      <span
-        className={cn(
-          'inline-flex shrink-0 items-center justify-center rounded-full bg-primary-soft font-bold text-primary',
-          isReply ? 'h-7 w-7 text-[10px]' : 'h-8 w-8 text-xs'
-        )}
+      <Link
+        href={`/feed/profile/${comment.author.profileId}`}
+        className="shrink-0"
+        onClick={onClose}
       >
-        {comment.author.name.slice(0, 1).toUpperCase()}
-      </span>
+        <ProfileAvatar
+          name={comment.author.name}
+          avatarUrl={comment.author.avatarUrl}
+          avatarSeed={comment.author.avatarSeed}
+          avatarStyle={comment.author.avatarStyle}
+          size="sm"
+          className={cn(isReply ? 'h-7 w-7' : 'h-8 w-8')}
+        />
+      </Link>
       <div className="min-w-0 flex-1">
         <p className="text-[13px] leading-snug text-foreground">
-          <span className="font-semibold">{comment.author.name}</span>{' '}
+          <Link
+            href={`/feed/profile/${comment.author.profileId}`}
+            className="font-semibold hover:underline"
+            onClick={onClose}
+          >
+            {comment.author.name}
+          </Link>{' '}
           <span className="text-foreground/90">{comment.text}</span>
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
@@ -186,6 +262,15 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
           >
             Reply
           </button>
+          {canDeleteComment(comment) ? (
+            <button
+              type="button"
+              className="font-semibold text-destructive hover:text-destructive/80"
+              onClick={() => setDeleteTarget(comment)}
+            >
+              Delete
+            </button>
+          ) : null}
         </div>
 
         {!isReply && (comment.replies?.length || 0) > 0 ? (
@@ -210,7 +295,7 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
   );
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center">
+    <div className="fixed inset-0 z-[260] flex items-end justify-center sm:items-center">
       <button
         type="button"
         aria-label="Close comments"
@@ -270,9 +355,27 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
             mutation.mutate(value);
           }}
         >
-          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-            {(selectedProfile?.name || 'Y').slice(0, 1).toUpperCase()}
-          </span>
+          {selectedProfile?._id ? (
+            <Link href={`/feed/profile/${selectedProfile._id}`} className="shrink-0" onClick={onClose}>
+              <ProfileAvatar
+                name={selectedProfile?.name || 'You'}
+                avatarUrl={selectedProfile?.avatarUrl}
+                avatarSeed={selectedProfile?.avatarSeed}
+                avatarStyle={selectedProfile?.avatarStyle}
+                size="sm"
+                className="h-9 w-9"
+              />
+            </Link>
+          ) : (
+            <ProfileAvatar
+              name={selectedProfile?.name || 'You'}
+              avatarUrl={selectedProfile?.avatarUrl}
+              avatarSeed={selectedProfile?.avatarSeed}
+              avatarStyle={selectedProfile?.avatarStyle}
+              size="sm"
+              className="h-9 w-9"
+            />
+          )}
           <input
             ref={inputRef}
             value={text}
@@ -301,6 +404,26 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
           </button>
         </form>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete comment?"
+        description={
+          deleteTarget && !deleteTarget.parentCommentId && (deleteTarget.replies?.length || 0) > 0
+            ? 'This will also remove replies to this comment.'
+            : 'This comment will be removed for everyone.'
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        destructive
+        loading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+        }}
+        onCancel={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }

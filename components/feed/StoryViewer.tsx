@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { DateTime } from 'luxon';
 import { ChevronLeft, ChevronRight, Eye, Loader2, MoreVertical, Trash2, X } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -204,15 +205,29 @@ export function StoryViewer({
 
       <div className="absolute inset-x-0 top-[calc(1.5rem+env(safe-area-inset-top,0px))] z-20 flex items-center gap-2 px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-            {group.name.slice(0, 1).toUpperCase()}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">{group.name}</p>
-            {isOwner ? (
-              <p className="text-[11px] text-white/70">Your story</p>
-            ) : null}
-          </div>
+          <Link
+            href={`/feed/profile/${group.profileId}`}
+            className="flex min-w-0 flex-1 items-center gap-2"
+            onClick={(event) => {
+              event.stopPropagation();
+              onClose();
+            }}
+          >
+            <ProfileAvatar
+              name={group.name}
+              avatarUrl={group.avatarUrl}
+              avatarSeed={group.avatarSeed}
+              avatarStyle={group.avatarStyle}
+              size="sm"
+              className="h-9 w-9 ring-2 ring-white/30"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-white">{group.name}</p>
+              {isOwner ? (
+                <p className="text-[11px] text-white/70">Your story</p>
+              ) : null}
+            </div>
+          </Link>
         </div>
 
         {isOwner ? (
@@ -361,21 +376,27 @@ export function StoryViewer({
               <ul className="space-y-3">
                 {viewersQuery.data!.viewers.map((viewer) => (
                   <li key={viewer.profileId} className="flex items-center gap-3">
-                    <ProfileAvatar
-                      name={viewer.name}
-                      avatarUrl={viewer.avatarUrl}
-                      avatarSeed={viewer.avatarSeed}
-                      avatarStyle={viewer.avatarStyle}
-                      size="sm"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-foreground">
-                        {viewer.name}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {DateTime.fromISO(viewer.viewedAt).toRelative() || 'just now'}
-                      </p>
-                    </div>
+                    <Link
+                      href={`/feed/profile/${viewer.profileId}`}
+                      className="flex min-w-0 flex-1 items-center gap-3"
+                      onClick={onClose}
+                    >
+                      <ProfileAvatar
+                        name={viewer.name}
+                        avatarUrl={viewer.avatarUrl}
+                        avatarSeed={viewer.avatarSeed}
+                        avatarStyle={viewer.avatarStyle}
+                        size="sm"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {viewer.name}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {DateTime.fromISO(viewer.viewedAt).toRelative() || 'just now'}
+                        </p>
+                      </div>
+                    </Link>
                   </li>
                 ))}
               </ul>

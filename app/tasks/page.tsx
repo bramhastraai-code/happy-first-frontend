@@ -9,7 +9,10 @@ import { invalidateDashboardQueries } from '@/lib/queries/invalidateDashboard';
 import { weeklyPlanAPI } from '@/lib/api/weeklyPlan';
 import { communityAPI, type MyCommunityActivity } from '@/lib/api/community';
 import MainLayout from '@/components/layout/MainLayout';
-import { PageHeader } from '@/components/ui/PageHeader';
+import {
+  AppPageHeader,
+  headerActionBtnClass,
+} from '@/components/ui/AppPageHeader';
 import { Button } from '@/components/ui/button';
 import TaskCategorySection from '@/components/tasks/TaskCategorySection';
 import CommunityActivitiesSection from '@/components/tasks/CommunityActivitiesSection';
@@ -25,6 +28,8 @@ import { formatWeekRangeLabel, formatWeekRangeShort } from '@/lib/utils/weekDate
 import { resolveActivityId } from '@/lib/utils/activityId';
 import { canSubmitPartialLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
+import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
+import { cn } from '@/lib/utils';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -510,30 +515,62 @@ export default function TasksPage() {
       )}
 
       <div className="tasks-header mb-6 flex flex-col gap-3">
-        <PageHeader
+        <AppPageHeader
           className="mb-0"
-          title="Daily tasks"
+          title={
+            <>
+              {getTimeGreeting()},{' '}
+              <span className="text-primary">
+                {firstNameFrom(selectedProfile?.name || user?.name)}
+              </span>
+            </>
+          }
           subtitle={new Date().toLocaleDateString('en-US', {
             weekday: 'long',
-            month: 'long',
+            month: 'short',
             day: 'numeric',
           })}
-          action={
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden shrink-0 gap-1.5 sm:inline-flex"
+          subtitleTone="label"
+          meta={
+            <span className="inline-flex rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary sm:text-xs">
+              Daily tasks
+            </span>
+          }
+          actions={
+            <button
+              type="button"
               onClick={() => router.push(editPlanHref)}
+              className={cn(headerActionBtnClass, 'hidden sm:inline-flex sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2')}
+              aria-label={
+                planChoice?.canEditCurrent
+                  ? "Edit this week's plan"
+                  : planChoice?.needsPlanChoice
+                    ? "Create this week's plan"
+                    : hasUpcomingPlan
+                      ? 'Edit upcoming plan'
+                      : 'Create upcoming plan'
+              }
+              title={
+                planChoice?.canEditCurrent
+                  ? "Edit this week's plan"
+                  : planChoice?.needsPlanChoice
+                    ? "Create this week's plan"
+                    : hasUpcomingPlan
+                      ? 'Edit upcoming plan'
+                      : 'Create upcoming plan'
+              }
             >
-              <Pencil className="h-3.5 w-3.5" />
-              {planChoice?.canEditCurrent
-                ? "Edit this week's plan"
-                : planChoice?.needsPlanChoice
-                  ? "Create this week's plan"
-                  : hasUpcomingPlan
-                    ? 'Edit upcoming plan'
-                    : 'Create upcoming plan'}
-            </Button>
+              <Pencil className="h-4 w-4" />
+              <span className="hidden text-xs font-medium lg:inline">
+                {planChoice?.canEditCurrent
+                  ? 'Edit plan'
+                  : planChoice?.needsPlanChoice
+                    ? 'Create plan'
+                    : hasUpcomingPlan
+                      ? 'Edit upcoming'
+                      : 'Create plan'}
+              </span>
+            </button>
           }
         />
         <div className="flex flex-col gap-3">

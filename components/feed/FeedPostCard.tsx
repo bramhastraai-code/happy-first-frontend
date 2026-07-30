@@ -22,6 +22,7 @@ import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { FollowButton } from '@/components/feed/FollowButton';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { cn } from '@/lib/utils';
 
 interface FeedPostCardProps {
@@ -173,9 +174,16 @@ export function FeedPostCard({
       <header className="mb-2.5 flex items-center gap-2.5">
         <Link
           href={`/feed/profile/${post.author.profileId}`}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-orange-500 text-sm font-bold text-primary-foreground"
+          className="shrink-0"
         >
-          {post.author.name.slice(0, 1).toUpperCase()}
+          <ProfileAvatar
+            name={post.author.name}
+            avatarUrl={post.author.avatarUrl}
+            avatarSeed={post.author.avatarSeed}
+            avatarStyle={post.author.avatarStyle}
+            size="md"
+            className="h-10 w-10"
+          />
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">

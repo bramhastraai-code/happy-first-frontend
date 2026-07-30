@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Compass, Loader2, Search, UserPlus } from 'lucide-react';
+import { ChevronLeft, Loader2, Search, UserPlus } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { FollowButton } from '@/components/feed/FollowButton';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { headerActionBtnClass } from '@/components/ui/AppPageHeader';
 import { followAPI, type FollowPerson } from '@/lib/api/follow';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
@@ -97,37 +98,28 @@ export default function FeedExplorePage() {
   return (
     <MainLayout>
       <div className="space-y-4 pb-6">
-        <header className="sticky top-0 z-20 -mx-4 flex items-center gap-3 border-b border-border/70 bg-background/90 px-4 py-3 backdrop-blur-md sm:mx-0 sm:rounded-2xl sm:border sm:bg-surface sm:px-4 sm:shadow-[var(--shadow-card)]">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => router.back()}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
+            className={headerActionBtnClass}
             aria-label="Back"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ChevronLeft className="h-6 w-6" strokeWidth={2} />
           </button>
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1.5 text-base font-bold text-foreground">
-              <Compass className="h-4 w-4 text-primary" />
-              Explore
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              People by level, activities, and location
-            </p>
-          </div>
-        </header>
-
-        <label className="relative block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by name or phone number…"
-            className="h-11 w-full rounded-xl border border-input bg-secondary pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-            autoFocus
-            inputMode="search"
-          />
-        </label>
+          <label className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search by name or phone number…"
+              className="h-11 w-full rounded-xl border border-input bg-secondary pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              autoFocus
+              inputMode="search"
+              aria-label="Search people"
+            />
+          </label>
+        </div>
 
         {!isSearching ? (
           <section className="rounded-2xl border border-border bg-surface p-3 sm:p-4 sm:shadow-[var(--shadow-card)]">

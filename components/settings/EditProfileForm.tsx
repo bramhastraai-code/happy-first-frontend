@@ -26,6 +26,8 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [name, setName] = useState('');
+  const [bio, setBio] = useState('');
+  const [website, setWebsite] = useState('');
   const [avatarSeed, setAvatarSeed] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarStyle, setAvatarStyle] = useState<string>(AVATAR_STYLE);
@@ -50,6 +52,8 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
   useEffect(() => {
     if (!selectedProfile) return;
     setName(selectedProfile.name ?? '');
+    setBio(selectedProfile.bio ?? '');
+    setWebsite(selectedProfile.website ?? '');
     setAvatarSeed(
       selectedProfile.avatarSeed ||
         selectedProfile.name ||
@@ -113,6 +117,40 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
     try {
       const response = await authAPI.updateProfile({
         name: trimmedName,
+        bio: bio.trim().slice(0, 150),
+        website: (() => {
+          const trimmed = website
+            .trim()
+            .replace(/^['"“”‘’]+|['"“”‘’]+$/g, '')
+            .trim();
+          if (!trimmed) return '';
+          let value = trimmed;
+          if (/^@[A-Za-z0-9._]+$/.test(value)) {
+            value = `https://www.instagram.com/${value.slice(1)}`;
+          } else if (!/^https?:\/\//i.test(value)) {
+            value = `https://${value}`;
+          }
+          value = value.replace(/\s+/g, '');
+          try {
+            const parsed = new URL(value);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+            const host = parsed.hostname.replace(/\.$/, '').toLowerCase();
+            if (
+              !host ||
+              (host !== 'localhost' &&
+                (!host.includes('.') || host.startsWith('.') || host.endsWith('.')))
+            ) {
+              return '';
+            }
+            let out = parsed.href;
+            if (parsed.pathname === '/' && !parsed.search && !parsed.hash) {
+              out = out.replace(/\/$/, '');
+            }
+            return out.slice(0, 200);
+          } catch {
+            return '';
+          }
+        })(),
         avatarSeed: seed,
         avatarStyle: uploaded ? 'uploaded' : AVATAR_STYLE,
         avatarUrl: nextAvatarUrl,
@@ -164,6 +202,40 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
               placeholder="Your name"
               maxLength={80}
               required
+            />
+          </div>
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs font-medium text-foreground">Bio</label>
+              <span className="text-[11px] text-muted-foreground">{bio.length}/150</span>
+            </div>
+            <textarea
+              value={bio}
+              onChange={(e) => {
+                setBio(e.target.value.slice(0, 150));
+                setError('');
+                setMessage('');
+              }}
+              rows={3}
+              maxLength={150}
+              placeholder="Write a short bio…"
+              className={FIELD_CLASS}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">
+              Website / link
+            </label>
+            <Input
+              value={website}
+              onChange={(e) => {
+                setWebsite(e.target.value.slice(0, 200));
+                setError('');
+                setMessage('');
+              }}
+              placeholder="https://example.com"
+              maxLength={200}
+              inputMode="url"
             />
           </div>
           <AvatarPicker

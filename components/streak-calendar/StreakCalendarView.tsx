@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft,
   Award,
   CalendarDays,
   CheckCircle2,
@@ -392,7 +391,7 @@ export function StreakCalendarView({
                 onClick={onBackToActivityList}
                 className="mb-4 -ml-2 gap-2 text-primary hover:text-primary-hover"
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4" />
                 Back to activities
               </Button>
             )}

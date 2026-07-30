@@ -33,6 +33,8 @@ export interface Profile {
   avatarSeed?: string | null;
   avatarStyle?: string | null;
   avatarUrl?: string | null;
+  bio?: string;
+  website?: string;
   level: 'newbie' | 'bronze' | 'silver' | 'gold' | 'diamond' | 'legend';
   profile:lifestyle;
   timezone: string;

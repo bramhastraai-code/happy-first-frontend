@@ -85,6 +85,8 @@ export interface UpdateProfileData {
   avatarSeed?: string | null;
   avatarStyle?: string | null;
   avatarUrl?: string | null;
+  bio?: string;
+  website?: string;
   profile?: {
     health?: string;
     family?: string;

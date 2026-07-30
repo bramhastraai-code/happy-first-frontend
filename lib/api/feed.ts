@@ -6,6 +6,9 @@ export interface FeedAuthor {
   name: string;
   userName?: string | null;
   isFollowing?: boolean;
+  avatarUrl?: string | null;
+  avatarSeed?: string | null;
+  avatarStyle?: string | null;
 }
 
 export type FeedMediaType = 'image' | 'video';
@@ -47,6 +50,9 @@ export interface FeedStory {
   latestPhotoId: string;
   items?: FeedStoryItem[];
   createdAt: string;
+  avatarUrl?: string | null;
+  avatarSeed?: string | null;
+  avatarStyle?: string | null;
 }
 
 export interface StoryViewerPerson {
@@ -71,6 +77,9 @@ export interface FeedComment {
     profileId: string;
     userId?: string | null;
     name: string;
+    avatarUrl?: string | null;
+    avatarSeed?: string | null;
+    avatarStyle?: string | null;
   };
 }
 
@@ -144,6 +153,17 @@ export const feedAPI = {
         likeCount: number;
       }>
     >(`/feed/comments/${commentId}/like`),
+
+  deleteComment: (commentId: string) =>
+    api.delete<
+      ApiEnvelope<{
+        commentId: string;
+        deletedIds: string[];
+        photoId: string;
+        commentCount: number;
+        communityId?: string | null;
+      }>
+    >(`/feed/comments/${commentId}`),
 
   updatePost: (photoId: string, caption: string) =>
     api.patch<ApiEnvelope<{ post: FeedPost }>>(`/feed/${photoId}`, { caption }),

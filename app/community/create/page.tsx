@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -131,7 +131,7 @@ export default function CreateCommunityPage() {
             className="inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-secondary"
             aria-label="Back"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ChevronLeft className="h-5 w-5" />
           </Link>
           <div>
             <h1 className="text-lg font-bold text-foreground">Create community</h1>
