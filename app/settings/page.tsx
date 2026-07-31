@@ -30,6 +30,7 @@ import AddFamilyMemberForm from '@/components/settings/AddFamilyMemberForm';
 import EditProfileForm from '@/components/settings/EditProfileForm';
 import ChangePasswordForm from '@/components/settings/ChangePasswordForm';
 import SupportFeedbackForm from '@/components/settings/SupportFeedbackForm';
+import PushNotificationToggle from '@/components/settings/PushNotificationToggle';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { AppQuickLinks } from '@/components/nav/AppQuickLinks';
 import { Button } from '@/components/ui/button';
@@ -449,6 +450,8 @@ export default function SettingsPage() {
             </CollapsibleSection>
           </div>
         </section>
+
+        <PushNotificationToggle />
 
         <section aria-label="Pause service" className="section-card px-4 py-3.5 sm:px-5">
           <div className="flex items-center gap-2.5">

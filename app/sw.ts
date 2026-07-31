@@ -31,3 +31,59 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+interface PushPayload {
+  title?: string;
+  body?: string;
+  url?: string;
+  notificationId?: string;
+  type?: string;
+}
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  let payload: PushPayload = {};
+  try {
+    payload = event.data.json() as PushPayload;
+  } catch {
+    payload = { body: event.data.text() };
+  }
+
+  const title = payload.title || 'Happy First';
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: payload.body || '',
+      icon: '/icons/icon-192',
+      badge: '/icons/icon-192',
+      tag: payload.notificationId || undefined,
+      data: {
+        url: payload.url || '/feed',
+      },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const targetPath: string = event.notification.data?.url || '/feed';
+  const targetUrl = new URL(targetPath, self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // Reuse an open tab/PWA window if there is one.
+      for (const client of clients) {
+        if (client.url.startsWith(self.location.origin)) {
+          void client.focus();
+          if ('navigate' in client) {
+            return client.navigate(targetUrl);
+          }
+          return undefined;
+        }
+      }
+      return self.clients.openWindow(targetUrl);
+    })
+  );
+});

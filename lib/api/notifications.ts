@@ -46,4 +46,15 @@ export const notificationsAPI = {
     api.post<Envelope<{ notification: AppNotification | null }>>(`/notifications/${id}/read`),
 
   markAllRead: () => api.post<Envelope<{ unread: number }>>('/notifications/read-all'),
+
+  pushPublicKey: () =>
+    api.get<Envelope<{ publicKey: string | null; enabled: boolean }>>(
+      '/notifications/push/public-key'
+    ),
+
+  pushSubscribe: (subscription: PushSubscriptionJSON) =>
+    api.post<Envelope<{ id: string }>>('/notifications/push/subscribe', { subscription }),
+
+  pushUnsubscribe: (endpoint: string) =>
+    api.post<Envelope<{ removed: number }>>('/notifications/push/unsubscribe', { endpoint }),
 };
