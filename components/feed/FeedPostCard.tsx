@@ -11,16 +11,20 @@ import {
   MessageSquare,
   MoreHorizontal,
   Pencil,
+  Repeat2,
   Share2,
   Trash2,
   X,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { FeedPost } from '@/lib/api/feed';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { feedAPI, type FeedPost } from '@/lib/api/feed';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
+import { useAuthStore } from '@/lib/store/authStore';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
+import { FeedLikesSheet } from '@/components/feed/FeedLikesSheet';
 import { FollowButton } from '@/components/feed/FollowButton';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { cn } from '@/lib/utils';
@@ -57,7 +61,10 @@ export function FeedPostCard({
   canMessage = false,
   isOwner = false,
 }: FeedPostCardProps) {
+  const queryClient = useQueryClient();
+  const { selectedProfile } = useAuthStore();
   const [heartBurst, setHeartBurst] = useState(false);
+  const [likesOpen, setLikesOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -149,6 +156,38 @@ export function FeedPostCard({
   const goPrev = () => setMediaIndex((value) => Math.max(0, value - 1));
   const goNext = () => setMediaIndex((value) => Math.min(mediaItems.length - 1, value + 1));
 
+  const repostMutation = useMutation({
+    mutationFn: async () => {
+      const res = await feedAPI.toggleRepost(post.id);
+      return res.data.data;
+    },
+    onSuccess: (result) => {
+      queryClient.setQueriesData<{
+        pages: { posts: FeedPost[]; nextCursor: string | null }[];
+        pageParams: unknown[];
+      }>({ queryKey: ['feed'] }, (old) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            posts: page.posts.map((item) => {
+              const canonicalId = item.repostOf?.id || item.id;
+              if (canonicalId !== result.photoId) return item;
+              return {
+                ...item,
+                repostCount: result.repostCount,
+                repostedByMe: result.reposted,
+              };
+            }),
+          })),
+        };
+      });
+      // Refetch so the new repost row appears (or a removed one disappears).
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+    },
+  });
+
   const handleShare = async () => {
     const shareUrl =
       typeof window !== 'undefined' ? `${window.location.origin}/feed?post=${post.id}` : '';
@@ -169,8 +208,28 @@ export function FeedPostCard({
 
   const timeLabel = DateTime.fromISO(post.createdAt).toRelative({ style: 'short' }) || 'now';
 
+  const canRepost =
+    !isOwner &&
+    !post.communityId &&
+    !post.isStory &&
+    post.repostOf?.author.profileId !== selectedProfile?._id;
+
   return (
     <article className="feed-post w-full border-b border-border bg-background px-0 py-4 sm:rounded-2xl sm:border sm:bg-surface sm:px-5 sm:py-5 sm:shadow-[var(--shadow-card)]">
+      {post.repostOf ? (
+        <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Repeat2 className="h-3.5 w-3.5" />
+          <span className="truncate">
+            {post.author.name} reposted from{' '}
+            <Link
+              href={`/feed/profile/${post.repostOf.author.profileId}`}
+              className="font-semibold text-foreground hover:underline"
+            >
+              {post.repostOf.author.name}
+            </Link>
+          </span>
+        </div>
+      ) : null}
       <header className="mb-2.5 flex items-center gap-2.5">
         <Link
           href={`/feed/profile/${post.author.profileId}`}
@@ -385,13 +444,12 @@ export function FeedPostCard({
           disabled={liking}
           onClick={() => onToggleLike(post.id)}
           className={cn(
-            'inline-flex items-center gap-1.5 text-sm font-medium transition-colors',
+            'inline-flex items-center text-sm font-medium transition-colors',
             post.likedByMe ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
           )}
           aria-label={post.likedByMe ? 'Unlike' : 'Like'}
         >
           <Heart className={cn('h-5 w-5', post.likedByMe && 'fill-primary')} />
-          {post.likeCount > 0 ? formatCount(post.likeCount) : null}
         </button>
         <button
           type="button"
@@ -402,6 +460,31 @@ export function FeedPostCard({
           <MessageCircle className="h-5 w-5" />
           {post.commentCount > 0 ? formatCount(post.commentCount) : null}
         </button>
+        {canRepost ? (
+          <button
+            type="button"
+            disabled={repostMutation.isPending}
+            onClick={() => repostMutation.mutate()}
+            className={cn(
+              'inline-flex items-center gap-1.5 text-sm font-medium transition-colors',
+              post.repostedByMe
+                ? 'text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+            aria-label={post.repostedByMe ? 'Remove repost' : 'Repost'}
+          >
+            <Repeat2 className="h-5 w-5" />
+            {(post.repostCount ?? 0) > 0 ? formatCount(post.repostCount!) : null}
+          </button>
+        ) : (post.repostCount ?? 0) > 0 ? (
+          <span
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground"
+            aria-label="Reposts"
+          >
+            <Repeat2 className="h-5 w-5" />
+            {formatCount(post.repostCount!)}
+          </span>
+        ) : null}
         <button
           type="button"
           onClick={handleShare}
@@ -411,6 +494,17 @@ export function FeedPostCard({
           <Share2 className="h-5 w-5" />
         </button>
       </div>
+
+      {post.likeCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => setLikesOpen(true)}
+          className="mt-1.5 block text-sm font-semibold text-foreground hover:underline"
+          aria-label="See who liked this post"
+        >
+          {post.likeCount === 1 ? '1 like' : `${formatCount(post.likeCount)} likes`}
+        </button>
+      ) : null}
 
       {editOpen ? (
         <div className="fixed inset-0 z-[210] flex items-end justify-center p-4 sm:items-center">
@@ -555,6 +649,12 @@ export function FeedPostCard({
             document.body
           )
         : null}
+
+      <FeedLikesSheet
+        open={likesOpen}
+        onClose={() => setLikesOpen(false)}
+        photoId={post.id}
+      />
     </article>
   );
 }

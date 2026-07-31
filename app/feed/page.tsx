@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
@@ -220,7 +220,6 @@ export default function FeedPage() {
         </div>
 
         <div className="mt-3 w-full space-y-3 sm:mt-4 sm:space-y-4">
-          <FeedSuggestedPeople />
           {feedQuery.isLoading ? (
             <div className="flex justify-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -240,12 +239,15 @@ export default function FeedPage() {
               </Button>
             </div>
           ) : posts.length === 0 ? (
-            <FeedEmpty onCreate={() => openCreate('post')} />
+            <>
+              <FeedSuggestedPeople />
+              <FeedEmpty onCreate={() => openCreate('post')} />
+            </>
           ) : (
             <div className="space-y-3 sm:space-y-4">
-              {posts.map((post) => (
+              {posts.map((post, index) => (
+                <Fragment key={post.id}>
                 <FeedPostCard
-                  key={post.id}
                   post={post}
                   liking={likingId === post.id}
                   onToggleLike={handleToggleLike}
@@ -300,6 +302,11 @@ export default function FeedPage() {
                     if (activePost?.id === target.id) setActivePost(null);
                   }}
                 />
+                {((index + 1) % 3 === 0 ||
+                  (index === posts.length - 1 && posts.length < 3)) && (
+                  <FeedSuggestedPeople chunkIndex={Math.floor(index / 3)} />
+                )}
+                </Fragment>
               ))}
               {feedQuery.isFetchingNextPage && (
                 <div className="flex justify-center py-6">

@@ -18,6 +18,12 @@ export interface FeedMediaItem {
   mediaType?: FeedMediaType;
 }
 
+export interface FeedRepostRef {
+  id: string;
+  author: FeedAuthor;
+  createdAt?: string;
+}
+
 export interface FeedPost {
   id: string;
   imageUrl: string;
@@ -28,6 +34,9 @@ export interface FeedPost {
   createdAt: string;
   communityId?: string | null;
   author: FeedAuthor;
+  repostOf?: FeedRepostRef | null;
+  repostCount?: number;
+  repostedByMe?: boolean;
   likeCount: number;
   commentCount: number;
   likedByMe: boolean;
@@ -88,6 +97,19 @@ export interface FeedPage {
   nextCursor: string | null;
 }
 
+export interface FeedLikePerson {
+  profileId: string;
+  userId?: string | null;
+  name: string;
+  avatarUrl?: string | null;
+  avatarSeed?: string | null;
+  avatarStyle?: string | null;
+  isFollowing: boolean;
+  followsYou: boolean;
+  isMe: boolean;
+  likedAt?: string;
+}
+
 type ApiEnvelope<T> = { data: T; message?: string; success?: boolean };
 
 export const feedAPI = {
@@ -105,6 +127,16 @@ export const feedAPI = {
   getStoryViews: (storyId: string) =>
     api.get<ApiEnvelope<{ viewCount: number; viewers: StoryViewerPerson[] }>>(
       `/feed/stories/${storyId}/views`
+    ),
+
+  getLikes: (photoId: string, limit = 100) =>
+    api.get<ApiEnvelope<{ people: FeedLikePerson[] }>>(`/feed/${photoId}/likes`, {
+      params: { limit },
+    }),
+
+  toggleRepost: (photoId: string) =>
+    api.post<ApiEnvelope<{ reposted: boolean; repostCount: number; photoId: string }>>(
+      `/feed/${photoId}/repost`
     ),
 
   createPost: (

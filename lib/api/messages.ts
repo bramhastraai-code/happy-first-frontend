@@ -21,6 +21,20 @@ export interface FeedConversation {
 
 export type FeedChatMessageType = 'text' | 'poll' | 'share_card';
 
+export interface FeedChatMessageReaction {
+  emoji: string;
+  count: number;
+  reactedByMe?: boolean;
+}
+
+export interface FeedChatReplyPreview {
+  id: string;
+  text: string;
+  senderName: string;
+  messageType?: FeedChatMessageType;
+  mediaType?: 'image' | 'video' | null;
+}
+
 export interface FeedChatMessage {
   id: string;
   conversationId: string;
@@ -30,6 +44,9 @@ export interface FeedChatMessage {
   mediaType?: 'image' | 'video' | null;
   deletedForEveryone?: boolean;
   createdAt: string;
+  reactions?: FeedChatMessageReaction[];
+  myReaction?: string | null;
+  replyTo?: FeedChatReplyPreview | null;
   poll?: CommunityPoll | null;
   shareCard?: CommunityShareCard | null;
   sender: {
@@ -83,16 +100,28 @@ export const messagesAPI = {
       Envelope<{ items: FeedSharedMediaItem[]; page: number; hasMore: boolean }>
     >(`/messages/conversations/${conversationId}/messages/media`, { params }),
 
-  sendMessage: (conversationId: string, text: string) =>
+  sendMessage: (conversationId: string, text: string, extras?: { replyTo?: string | null }) =>
     api.post<Envelope<{ message: FeedChatMessage }>>(
       `/messages/conversations/${conversationId}/messages`,
-      { text }
+      { text, ...(extras?.replyTo ? { replyTo: extras.replyTo } : {}) }
     ),
 
-  sendMediaMessage: (conversationId: string, file: File, text = '') => {
+  reactToMessage: (conversationId: string, messageId: string, emoji: string) =>
+    api.post<Envelope<{ message: FeedChatMessage }>>(
+      `/messages/conversations/${conversationId}/messages/${messageId}/reactions`,
+      { emoji }
+    ),
+
+  sendMediaMessage: (
+    conversationId: string,
+    file: File,
+    text = '',
+    extras?: { replyTo?: string | null }
+  ) => {
     const form = new FormData();
     form.append('media', file);
     if (text.trim()) form.append('text', text.trim());
+    if (extras?.replyTo) form.append('replyTo', extras.replyTo);
     return api.post<Envelope<{ message: FeedChatMessage }>>(
       `/messages/conversations/${conversationId}/messages`,
       form,

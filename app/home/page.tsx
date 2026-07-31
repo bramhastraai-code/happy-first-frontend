@@ -22,6 +22,7 @@ import ActivityChart from '@/components/charts/ActivityChart';
 import { WeekTips, buildWeekTips } from '@/components/ui/WeekTips';
 import CompactDatePicker from '@/components/ui/CompactDatePicker';
 import { useHomePageData } from '@/lib/queries/useHomePageData';
+import { GlobalSearch } from '@/components/home/GlobalSearch';
 import { resolveActivityIcon } from '@/lib/utils/activityIcon';
 import Link from 'next/link';
 
@@ -266,6 +267,8 @@ function HomePageContent() {
           isPaused={isProfilePaused}
           onLogout={requestLogout}
         />
+
+        <GlobalSearch />
 
         <Card className="section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft/80 to-surface">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">

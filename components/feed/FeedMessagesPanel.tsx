@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
@@ -9,6 +10,7 @@ import {
   Check,
   CheckCheck,
   CheckSquare,
+  Copy,
   Eraser,
   ImageIcon,
   Loader2,
@@ -63,6 +65,17 @@ function toCommunityMessage(message: FeedChatMessage): CommunityMessage {
       avatarStyle: message.sender.avatarStyle,
     },
   };
+}
+
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '👏', '🔥'] as const;
+
+function dmPreviewText(message: FeedChatMessage): string {
+  if (message.messageType === 'poll') return message.poll?.question || 'Poll';
+  if (message.messageType === 'share_card') return message.shareCard?.title || 'Shared update';
+  if (message.text) return message.text;
+  if (message.mediaType === 'image') return 'Photo';
+  if (message.mediaType === 'video') return 'Video';
+  return 'Message';
 }
 
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
@@ -126,11 +139,21 @@ export function FeedMessagesPanel({
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [sharedMediaOpen, setSharedMediaOpen] = useState(false);
   const [votingMessageId, setVotingMessageId] = useState<string | null>(null);
+  const [replyTarget, setReplyTarget] = useState<FeedChatMessage | null>(null);
+  const [msgMenuId, setMsgMenuId] = useState<string | null>(null);
+  const [msgMenuReactOpen, setMsgMenuReactOpen] = useState(false);
+  const [msgMenuCoords, setMsgMenuCoords] = useState<{ top: number; left: number } | null>(
+    null
+  );
+  const [copyToast, setCopyToast] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messageElRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const msgMenuRef = useRef<HTMLDivElement | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
 
   const conversationsQuery = useQuery({
     queryKey: ['conversations'],
@@ -206,6 +229,23 @@ export function FeedMessagesPanel({
     },
   });
 
+  const reactMutation = useMutation({
+    mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
+      if (!activeId) throw new Error('No conversation');
+      const res = await messagesAPI.reactToMessage(activeId, messageId, emoji);
+      return res.data.data.message;
+    },
+    onSuccess: (message) => {
+      queryClient.setQueryData<FeedChatMessage[]>(['messages', activeId], (old) => {
+        if (!old) return old;
+        return old.map((m) => (m.id === message.id ? message : m));
+      });
+      setMsgMenuId(null);
+      setMsgMenuReactOpen(false);
+      setMsgMenuCoords(null);
+    },
+  });
+
   const openConversation = useMutation({
     mutationFn: async (target: { userId: string; profileId?: string }) => {
       const res = await messagesAPI.openConversation(target.userId, target.profileId);
@@ -224,11 +264,14 @@ export function FeedMessagesPanel({
         const res = await messagesAPI.sendMediaMessage(
           activeId,
           payload.file,
-          payload.text || ''
+          payload.text || '',
+          { replyTo: replyTarget?.id ?? null }
         );
         return res.data.data.message;
       }
-      const res = await messagesAPI.sendMessage(activeId, payload.text || '');
+      const res = await messagesAPI.sendMessage(activeId, payload.text || '', {
+        replyTo: replyTarget?.id ?? null,
+      });
       return res.data.data.message;
     },
     onSuccess: (message) => {
@@ -240,6 +283,7 @@ export function FeedMessagesPanel({
       void queryClient.invalidateQueries({ queryKey: ['conversations'] });
       setDraft('');
       setShowEmoji(false);
+      setReplyTarget(null);
       if (mediaPreview) {
         URL.revokeObjectURL(mediaPreview.url);
         setMediaPreview(null);
@@ -360,17 +404,43 @@ export function FeedMessagesPanel({
       });
     };
 
+    const onReaction = (payload: {
+      conversationId: string;
+      messageId: string;
+      reactions: { emoji: string; count: number }[];
+    }) => {
+      if (payload.conversationId !== activeId) return;
+      queryClient.setQueryData<FeedChatMessage[]>(['messages', activeId], (old) => {
+        if (!old) return old;
+        return old.map((m) => {
+          if (m.id !== payload.messageId) return m;
+          // Socket payload has no viewer context — keep the local myReaction.
+          const myReaction = m.myReaction || null;
+          return {
+            ...m,
+            myReaction,
+            reactions: payload.reactions.map((row) => ({
+              ...row,
+              reactedByMe: row.emoji === myReaction,
+            })),
+          };
+        });
+      });
+    };
+
     void getAppSocket().then((socket) => {
       if (!active) return;
       socket.emit('dm:join', { conversationId: activeId });
       socket.on('dm:message', onMessage);
       socket.on('dm:message_updated', onUpdated);
+      socket.on('dm:message_reaction', onReaction);
       socketRef = socket;
     });
     return () => {
       active = false;
       socketRef?.off('dm:message', onMessage as (...args: unknown[]) => void);
       socketRef?.off('dm:message_updated', onUpdated as (...args: unknown[]) => void);
+      socketRef?.off('dm:message_reaction', onReaction as (...args: unknown[]) => void);
     };
   }, [open, activeId, activeCommunityId, queryClient]);
 
@@ -398,6 +468,10 @@ export function FeedMessagesPanel({
     setPollDialogOpen(false);
     setShareDialogOpen(false);
     setSharedMediaOpen(false);
+    setReplyTarget(null);
+    setMsgMenuId(null);
+    setMsgMenuReactOpen(false);
+    setMsgMenuCoords(null);
     if (mediaPreview) {
       URL.revokeObjectURL(mediaPreview.url);
       setMediaPreview(null);
@@ -417,6 +491,103 @@ export function FeedMessagesPanel({
     setSelectMode(false);
     setSelectedIds(new Set());
   };
+
+  const closeMessageMenu = useCallback(() => {
+    setMsgMenuId(null);
+    setMsgMenuReactOpen(false);
+    setMsgMenuCoords(null);
+  }, []);
+
+  const openMessageMenu = useCallback((messageId: string, reactOpen = false) => {
+    setMsgMenuId(messageId);
+    setMsgMenuReactOpen(reactOpen);
+    setShowEmoji(false);
+    setMenuOpen(false);
+  }, []);
+
+  const updateMsgMenuPosition = useCallback(() => {
+    if (!msgMenuId) {
+      setMsgMenuCoords(null);
+      return;
+    }
+    const row = messageElRefs.current.get(msgMenuId);
+    if (!row) return;
+    const trigger =
+      (row.querySelector('[data-message-bubble]') as HTMLElement | null) || row;
+    const rect = trigger.getBoundingClientRect();
+    const menuWidth = Math.min(240, window.innerWidth - 16);
+    const estimatedHeight = msgMenuRef.current?.offsetHeight || (msgMenuReactOpen ? 380 : 300);
+    const gap = 6;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const openDown =
+      spaceBelow >= estimatedHeight + gap ||
+      spaceAbove < estimatedHeight + gap ||
+      spaceBelow >= spaceAbove;
+
+    let top = openDown ? rect.bottom + gap : rect.top - estimatedHeight - gap;
+    top = Math.max(8, Math.min(top, window.innerHeight - estimatedHeight - 8));
+
+    let left = rect.right - menuWidth;
+    left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+
+    setMsgMenuCoords({ top, left });
+  }, [msgMenuId, msgMenuReactOpen]);
+
+  useLayoutEffect(() => {
+    if (!msgMenuId) {
+      setMsgMenuCoords(null);
+      return;
+    }
+    updateMsgMenuPosition();
+    const raf = window.requestAnimationFrame(() => updateMsgMenuPosition());
+    const onReposition = () => updateMsgMenuPosition();
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    };
+  }, [msgMenuId, msgMenuReactOpen, updateMsgMenuPosition]);
+
+  useEffect(() => {
+    if (!msgMenuId) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeMessageMenu();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [msgMenuId, closeMessageMenu]);
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const startLongPress = useCallback(
+    (messageId: string) => {
+      clearLongPress();
+      longPressFiredRef.current = false;
+      longPressTimerRef.current = window.setTimeout(() => {
+        longPressFiredRef.current = true;
+        openMessageMenu(messageId);
+      }, 480);
+    },
+    [clearLongPress, openMessageMenu]
+  );
+
+  const copyMessageText = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyToast(true);
+      window.setTimeout(() => setCopyToast(false), 1600);
+    } catch {
+      /* ignore clipboard failures */
+    }
+  }, []);
 
   const scrollToMessage = (messageId: string) => {
     const el = messageElRefs.current.get(messageId);
@@ -495,6 +666,15 @@ export function FeedMessagesPanel({
       .filter((m) => selectedIds.has(m.id))
       .every((m) => m.sender.userId === user?._id && !m.deletedForEveryone);
   }, [messages, selectedIds, user?._id]);
+
+  const menuMessage = useMemo(
+    () => (msgMenuId ? messages.find((m) => m.id === msgMenuId) || null : null),
+    [messages, msgMenuId]
+  );
+  const menuMine =
+    !!menuMessage &&
+    (menuMessage.sender.userId === user?._id ||
+      menuMessage.sender.profileId === selectedProfile?._id);
 
   const canSend =
     Boolean(selectedProfile) &&
@@ -1114,15 +1294,26 @@ export function FeedMessagesPanel({
                           tightTop ? 'mt-[2px]' : 'mt-1.5'
                         )}
                         onClick={() => {
+                          if (longPressFiredRef.current) {
+                            longPressFiredRef.current = false;
+                            return;
+                          }
                           if (selectMode) toggleSelect(message.id);
                         }}
                         onContextMenu={(event) => {
                           event.preventDefault();
-                          if (!selectMode) {
-                            setSelectMode(true);
-                            setSelectedIds(new Set([message.id]));
+                          if (!selectMode && !message.deletedForEveryone) {
+                            openMessageMenu(message.id);
                           }
                         }}
+                        onTouchStart={() => {
+                          if (!selectMode && !message.deletedForEveryone) {
+                            startLongPress(message.id);
+                          }
+                        }}
+                        onTouchEnd={clearLongPress}
+                        onTouchMove={clearLongPress}
+                        onTouchCancel={clearLongPress}
                       >
                         {selectMode ? (
                           <span
@@ -1174,9 +1365,44 @@ export function FeedMessagesPanel({
                             data-message-bubble
                             className={cn(
                               'relative rounded-[7.5px] px-[9px] pb-[6px] pt-[6px] text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]',
-                              mine ? 'bg-primary text-primary-foreground' : 'bg-white'
+                              mine ? 'bg-primary text-primary-foreground' : 'bg-white',
+                              (message.reactions?.length ?? 0) > 0 &&
+                                !message.deletedForEveryone &&
+                                'mb-3'
                             )}
                           >
+                            {!message.deletedForEveryone && message.replyTo ? (
+                              <button
+                                type="button"
+                                className={cn(
+                                  'mb-1 w-full rounded-md border-l-4 px-2 py-1 text-left',
+                                  mine
+                                    ? 'border-white/70 bg-black/10'
+                                    : 'border-primary bg-black/[0.04]'
+                                )}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  scrollToMessage(message.replyTo!.id);
+                                }}
+                              >
+                                <p
+                                  className={cn(
+                                    'truncate text-[11px] font-semibold',
+                                    mine ? 'text-primary-foreground/90' : 'text-primary'
+                                  )}
+                                >
+                                  {message.replyTo.senderName}
+                                </p>
+                                <p
+                                  className={cn(
+                                    'truncate text-[12px]',
+                                    mine ? 'text-primary-foreground/75' : 'text-[#54656f]'
+                                  )}
+                                >
+                                  {message.replyTo.text || 'Media'}
+                                </p>
+                              </button>
+                            ) : null}
                             {message.deletedForEveryone ? (
                               <p
                                 className={cn(
@@ -1270,8 +1496,69 @@ export function FeedMessagesPanel({
                                 <CheckCheck className="h-[15px] w-[15px] text-sky-200" />
                               ) : null}
                             </div>
+
+                            {(message.reactions?.length ?? 0) > 0 &&
+                            !message.deletedForEveryone ? (
+                              <div
+                                className={cn(
+                                  'absolute z-[2] flex max-w-[min(100%,16rem)]',
+                                  mine ? 'right-1' : 'left-1',
+                                  '-bottom-3'
+                                )}
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <div className="inline-flex items-center gap-[2px] rounded-full bg-white px-1.5 py-[3px] shadow-[0_1px_3px_rgba(11,20,26,0.2)] ring-1 ring-black/10">
+                                  {message.reactions!.map((reaction) => (
+                                    <button
+                                      key={reaction.emoji}
+                                      type="button"
+                                      disabled={reactMutation.isPending}
+                                      title={`${reaction.count}`}
+                                      onClick={() =>
+                                        reactMutation.mutate({
+                                          messageId: message.id,
+                                          emoji: reaction.emoji,
+                                        })
+                                      }
+                                      className={cn(
+                                        'inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 text-[13px] leading-none transition hover:bg-black/[0.04]',
+                                        reaction.reactedByMe && 'bg-primary/10'
+                                      )}
+                                    >
+                                      <span className="text-[15px] leading-none">
+                                        {reaction.emoji}
+                                      </span>
+                                      {reaction.count > 1 ? (
+                                        <span className="text-[11px] font-medium text-[#54656f]">
+                                          {reaction.count}
+                                        </span>
+                                      ) : null}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
                           </div>
                         </div>
+
+                        {!selectMode && !message.deletedForEveryone ? (
+                          <button
+                            type="button"
+                            aria-label="Quick react"
+                            className={cn(
+                              'mb-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#667781] shadow-[0_1px_3px_rgba(0,0,0,0.18)] ring-1 ring-black/5 transition-opacity',
+                              'opacity-0 group-hover/msg:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-70',
+                              msgMenuId === message.id && msgMenuReactOpen && 'opacity-100',
+                              mine && '-order-1'
+                            )}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openMessageMenu(message.id, true);
+                            }}
+                          >
+                            <Smile className="h-4 w-4" />
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   )
@@ -1283,6 +1570,27 @@ export function FeedMessagesPanel({
             {/* Composer */}
             {!selectMode && (
               <div className="relative z-20 border-t border-black/5 bg-[#f0f2f5] px-2 py-2">
+                {replyTarget && (
+                  <div className="mb-2 flex items-start gap-2 rounded-xl border-l-4 border-primary bg-white px-3 py-2 shadow-sm">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold text-primary">
+                        Replying to {replyTarget.sender.name}
+                      </p>
+                      <p className="truncate text-xs text-[#54656f]">
+                        {dmPreviewText(replyTarget)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Cancel reply"
+                      onClick={() => setReplyTarget(null)}
+                      className="rounded-full p-1 text-[#667781] hover:bg-black/5"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+
                 {mediaPreview && (
                   <div className="mb-2 flex items-start gap-2 rounded-xl bg-white p-2 shadow-sm">
                     {mediaPreview.file.type.startsWith('video/') ? (
@@ -1461,6 +1769,144 @@ export function FeedMessagesPanel({
           />
         </>
       ) : null}
+
+      {menuMessage &&
+        !selectMode &&
+        !menuMessage.deletedForEveryone &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              aria-label="Close message menu"
+              className="fixed inset-0 z-[232]"
+              onClick={closeMessageMenu}
+            />
+            <div
+              ref={msgMenuRef}
+              className={cn(
+                'fixed z-[233] w-[min(240px,calc(100vw-16px))] overflow-hidden rounded-xl bg-[#233138] py-1 text-white shadow-xl ring-1 ring-black/20',
+                !msgMenuCoords && 'invisible'
+              )}
+              style={
+                msgMenuCoords
+                  ? { top: msgMenuCoords.top, left: msgMenuCoords.left }
+                  : { top: 0, left: 0 }
+              }
+              onClick={(event) => event.stopPropagation()}
+            >
+              {msgMenuReactOpen && (
+                <div className="flex items-center justify-around gap-0.5 border-b border-white/10 px-2 py-2.5">
+                  {QUICK_REACTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      disabled={reactMutation.isPending}
+                      onClick={() =>
+                        reactMutation.mutate({ messageId: menuMessage.id, emoji })
+                      }
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-full text-[22px] transition hover:bg-white/10',
+                        menuMessage.myReaction === emoji && 'bg-white/15 ring-1 ring-white/30'
+                      )}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <button
+                type="button"
+                className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left text-[14px] hover:bg-white/10"
+                onClick={() => setMsgMenuReactOpen((prev) => !prev)}
+              >
+                <Smile className="h-4 w-4 shrink-0 opacity-90" />
+                React
+              </button>
+
+              <button
+                type="button"
+                className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left text-[14px] hover:bg-white/10"
+                onClick={() => {
+                  setReplyTarget(menuMessage);
+                  closeMessageMenu();
+                  composerRef.current?.focus();
+                }}
+              >
+                <MessageSquare className="h-4 w-4 shrink-0 opacity-90" />
+                Reply
+              </button>
+
+              {Boolean(menuMessage.text?.trim()) && (
+                <button
+                  type="button"
+                  className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left text-[14px] hover:bg-white/10"
+                  onClick={() => {
+                    void copyMessageText(menuMessage.text.trim());
+                    closeMessageMenu();
+                  }}
+                >
+                  <Copy className="h-4 w-4 shrink-0 opacity-90" />
+                  Copy
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left text-[14px] hover:bg-white/10"
+                onClick={() => {
+                  setSelectMode(true);
+                  setSelectedIds(new Set([menuMessage.id]));
+                  closeMessageMenu();
+                }}
+              >
+                <CheckSquare className="h-4 w-4 shrink-0 opacity-90" />
+                Select
+              </button>
+
+              <div className="my-1 border-t border-white/10" />
+
+              <button
+                type="button"
+                className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left text-[14px] hover:bg-white/10"
+                onClick={() => {
+                  setSelectedIds(new Set([menuMessage.id]));
+                  setConfirm({ type: 'delete-me' });
+                  closeMessageMenu();
+                }}
+              >
+                <Trash2 className="h-4 w-4 shrink-0 opacity-90" />
+                Delete for me
+              </button>
+
+              {menuMine && (
+                <button
+                  type="button"
+                  className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left text-[14px] text-[#ff8a80] hover:bg-white/10"
+                  onClick={() => {
+                    setSelectedIds(new Set([menuMessage.id]));
+                    setConfirm({ type: 'delete-everyone' });
+                    closeMessageMenu();
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 shrink-0" />
+                  Delete for everyone
+                </button>
+              )}
+            </div>
+          </>,
+          document.body
+        )}
+
+      {copyToast &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed bottom-24 left-1/2 z-[236] -translate-x-1/2 rounded-full bg-black/80 px-3.5 py-1.5 text-xs font-medium text-white shadow-lg">
+            Copied
+          </div>,
+          document.body
+        )}
 
       <ConfirmDialog
         open={Boolean(confirm)}
