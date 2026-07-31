@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { ReminderScheduleInput } from "@/lib/utils/reminderSchedule";
-import { getTokenExpiryMs } from "@/lib/auth/jwt";
 interface lifestyle {
   health: string;
   family: string;
@@ -104,14 +103,14 @@ export const setCookie = (name: string, value: string, days: number = 7) => {
   document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax${window.location.protocol === 'https:' ? ';Secure' : ''}`;
 };
 
+// Keep the cookie alive as long as the refresh token (7 days) so the app
+// isn't kicked to /login by the middleware after the short-lived JWT expires.
+// The JWT's own `exp` claim is still checked before every request and the
+// token is refreshed when needed.
+const ACCESS_TOKEN_COOKIE_DAYS = 7;
+
 function setAccessTokenCookie(token: string) {
-  const expiryMs = getTokenExpiryMs(token);
-  if (expiryMs) {
-    const maxAgeSeconds = Math.max(Math.floor((expiryMs - Date.now()) / 1000), 60);
-    document.cookie = `accessToken=${token};max-age=${maxAgeSeconds};path=/;SameSite=Lax${window.location.protocol === 'https:' ? ';Secure' : ''}`;
-    return;
-  }
-  setCookie('accessToken', token, 1);
+  setCookie('accessToken', token, ACCESS_TOKEN_COOKIE_DAYS);
 }
 
 // Helper function to delete cookie

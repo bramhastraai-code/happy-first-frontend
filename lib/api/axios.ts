@@ -153,15 +153,19 @@ api.interceptors.response.use(
     if (status === 401 && !originalRequest._retry && !isAuthEndpoint(originalRequest.url)) {
       originalRequest._retry = true;
 
-      const newToken = await refreshAccessToken();
-      if (newToken) {
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      const refreshResult = await refreshAccessToken();
+      if (refreshResult.token) {
+        originalRequest.headers.Authorization = `Bearer ${refreshResult.token}`;
         return api(originalRequest);
       }
 
-      await performLogout();
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
+      // Log out only when the server explicitly rejected the refresh token.
+      // Transient failures (network, timeout, 5xx) keep the session alive.
+      if (refreshResult.sessionExpired) {
+        await performLogout();
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
 

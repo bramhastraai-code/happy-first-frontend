@@ -33,12 +33,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       checkingRef.current = true;
 
       try {
-        const token = getAccessToken();
-        if (!token || !user) return;
+        if (!user) return;
 
-        if (isTokenExpiringSoon(token)) {
-          const refreshed = await refreshAccessToken();
-          if (!refreshed) {
+        const token = getAccessToken();
+        // Refresh when the token is missing (e.g. app reopened after it
+        // expired) or about to expire; the refresh cookie decides whether
+        // the session is still alive.
+        if (!token || isTokenExpiringSoon(token)) {
+          const { token: refreshed, sessionExpired } = await refreshAccessToken();
+          if (!refreshed && sessionExpired) {
             await performLogout();
             if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
               window.location.href = '/login';

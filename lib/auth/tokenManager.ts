@@ -5,7 +5,16 @@ import { getApiBaseUrl } from '@/lib/api/apiBaseUrl';
 
 const apiBaseUrl = getApiBaseUrl();
 
-let refreshPromise: Promise<string | null> | null = null;
+export interface RefreshResult {
+  token: string | null;
+  /**
+   * True only when the server explicitly rejected the refresh token (401/403).
+   * Network errors, timeouts, and 5xx responses keep the session alive.
+   */
+  sessionExpired: boolean;
+}
+
+let refreshPromise: Promise<RefreshResult> | null = null;
 
 export { isTokenExpiringSoon } from '@/lib/auth/jwt';
 
@@ -27,10 +36,10 @@ export function syncAccessTokenFromCookie(): string | null {
   return token;
 }
 
-export async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<RefreshResult> {
   if (refreshPromise) return refreshPromise;
 
-  refreshPromise = (async () => {
+  refreshPromise = (async (): Promise<RefreshResult> => {
     try {
       const response = await axios.post(
         `${apiBaseUrl}/userAuth/refresh`,
@@ -44,13 +53,15 @@ export async function refreshAccessToken(): Promise<string | null> {
 
       const accessToken = response.data?.data?.accessToken as string | undefined;
       if (!accessToken) {
-        throw new Error('Refresh response missing access token');
+        // Treat a malformed success response as transient, not as a dead session.
+        return { token: null, sessionExpired: false };
       }
 
       useAuthStore.getState().setAccessToken(accessToken);
-      return accessToken;
-    } catch {
-      return null;
+      return { token: accessToken, sessionExpired: false };
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+      return { token: null, sessionExpired: status === 401 || status === 403 };
     } finally {
       refreshPromise = null;
     }
@@ -62,10 +73,12 @@ export async function refreshAccessToken(): Promise<string | null> {
 export async function ensureValidAccessToken(): Promise<string | null> {
   syncAccessTokenFromCookie();
   const token = getAccessToken();
-  if (!token) return null;
-  if (!isTokenExpiringSoon(token)) return token;
+  // The token may be missing entirely (e.g. app reopened after the access
+  // token expired) while the httpOnly refresh cookie is still valid, so
+  // always try to refresh rather than bailing out early.
+  if (token && !isTokenExpiringSoon(token)) return token;
 
-  const refreshed = await refreshAccessToken();
+  const { token: refreshed } = await refreshAccessToken();
   return refreshed ?? token;
 }
 
