@@ -43,8 +43,6 @@ import {
 } from '@/lib/utils/reminderSchedule';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
-import type { LucideIcon } from 'lucide-react';
-
 const PAUSE_ALLOWED_DAY_INDEXES = [5, 6, 0, 1];
 const MAX_FAMILY_MEMBERS = 5;
 
@@ -55,20 +53,6 @@ type SettingsPanel =
   | 'password'
   | 'support'
   | null;
-
-type SettingsItem = {
-  icon: LucideIcon;
-  label: string;
-  description: string;
-  onClick: () => void;
-  destructive?: boolean;
-};
-
-type SettingsSection = {
-  title: string;
-  items: SettingsItem[];
-  mobileOnly?: boolean;
-};
 
 const getPauseStatus = (profile: Profile | null): boolean => {
   if (!profile) return false;
@@ -233,34 +217,6 @@ export default function SettingsPage() {
       setPauseLoading(false);
     }
   };
-
-  const mobileOnlyItems: SettingsItem[] = [
-    ...(hasFamilyMembers
-      ? [
-          {
-            icon: Users,
-            label: 'Switch profile',
-            description: 'Change to a different family member',
-            onClick: () => router.push('/select-profile'),
-          },
-        ]
-      : []),
-    {
-      icon: LogOut,
-      label: 'Log out',
-      description: 'Sign out of your account',
-      onClick: requestLogout,
-      destructive: true,
-    },
-  ];
-
-  const settingsSections: SettingsSection[] = [
-    {
-      title: 'Quick actions',
-      items: mobileOnlyItems,
-      mobileOnly: true,
-    },
-  ];
 
   const profileFields = selectedProfile
     ? [
@@ -541,51 +497,8 @@ export default function SettingsPage() {
           </CollapsibleSection>
         </section>
 
-        {settingsSections.map((section) => {
-          const sectionClass = section.mobileOnly ? 'max-[519px]:block hidden' : '';
-
-          return (
-            <section key={section.title} aria-label={section.title} className={sectionClass}>
-              <h2 className="section-title mb-3">{section.title}</h2>
-              <ul className="section-card divide-y divide-border">
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <li key={item.label}>
-                      <button
-                        type="button"
-                        onClick={item.onClick}
-                        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-accent/50"
-                      >
-                        <span
-                          className={cn(
-                            'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-                            item.destructive
-                              ? 'bg-destructive/10 text-destructive'
-                              : 'bg-secondary text-primary'
-                          )}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground">{item.label}</p>
-                          <p className="text-xs text-muted-foreground">{item.description}</p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          );
-        })}
-
         <section aria-label="App navigation">
           <h2 className="section-title mb-3">Explore app</h2>
-          <p className="mb-3 text-sm text-muted-foreground">
-            Shortcuts to other pages. You must be signed in to open these.
-          </p>
           <AppQuickLinks
             exclude={[
               '/home',

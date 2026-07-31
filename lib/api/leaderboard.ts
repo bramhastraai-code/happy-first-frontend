@@ -18,4 +18,21 @@ export const leaderboardAPI = {
       data: LeaderboardData;
     }>("/leaderboard/get", { params });
   },
+
+  getRange: (activity: string, startDate: string, endDate: string, page = 1, limit = 15) => {
+    const params: {
+      activity?: string;
+      startDate: string;
+      endDate: string;
+      page: number;
+      limit: number;
+    } = { startDate, endDate, page, limit };
+    if (activity) params.activity = activity;
+
+    return api.get<{
+      success: boolean;
+      message: string;
+      data: LeaderboardData;
+    }>("/leaderboard/get", { params });
+  },
 };

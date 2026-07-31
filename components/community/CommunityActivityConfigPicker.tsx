@@ -1,11 +1,33 @@
 'use client';
 
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import {
   COMMUNITY_ACTIVITY_LEVEL_OPTIONS,
   type CommunityActivityLevel,
 } from '@/lib/api/community';
 import { cn } from '@/lib/utils';
+
+const LEVEL_DESCRIPTIONS: Record<CommunityActivityLevel, string> = {
+  beginner: 'Easy start',
+  active: 'Steady routine',
+  champion: 'Go all in',
+};
+
+/** Scrolls itself into view when it first appears, so the level options are never hidden below the fold. */
+function RevealOnMount({ children, className }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, []);
+
+  return (
+    <div ref={ref} className={className}>
+      {children}
+    </div>
+  );
+}
 
 export type ActivityOption = {
   _id: string;
@@ -46,7 +68,9 @@ export function CommunityActivityConfigPicker({
       <div className="mb-3">
         <h2 className="text-sm font-semibold text-foreground">Activities & levels</h2>
         <p className="text-xs text-muted-foreground">
-          {selectedCount} selected · weekly targets auto-assign from Beginner / Active / Champion
+          {selectedCount === 0
+            ? 'Tap an activity to add it, then pick a weekly goal level for the group'
+            : `${selectedCount} selected · tap an activity to remove it`}
         </p>
       </div>
 
@@ -113,33 +137,59 @@ export function CommunityActivityConfigPicker({
                 </button>
 
                 {active ? (
-                  <div className="rounded-xl border border-border bg-secondary/40 px-3 py-2.5">
-                    <div className="flex flex-wrap gap-1.5">
-                      {COMMUNITY_ACTIVITY_LEVEL_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => onLevelChange(activity._id, option.value)}
-                          className={cn(
-                            'rounded-full px-2.5 py-1 text-[11px] font-semibold',
-                            level === option.value
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-surface text-muted-foreground'
-                          )}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
+                  <RevealOnMount className="rounded-xl border border-primary/20 bg-secondary/40 px-3 py-2.5">
+                    <p className="text-[11px] font-semibold text-muted-foreground">
+                      Choose a weekly goal for the group
+                    </p>
+                    <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                      {COMMUNITY_ACTIVITY_LEVEL_OPTIONS.map((option) => {
+                        const optionTarget = defaults ? defaults[option.value] : null;
+                        const selected = level === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => onLevelChange(activity._id, option.value)}
+                            aria-pressed={selected}
+                            className={cn(
+                              'rounded-xl border px-2 py-2 text-center transition-colors',
+                              selected
+                                ? 'border-primary bg-primary-soft'
+                                : 'border-border bg-surface hover:bg-secondary/60'
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'block text-xs font-semibold',
+                                selected ? 'text-primary' : 'text-foreground'
+                              )}
+                            >
+                              {option.label}
+                            </span>
+                            <span className="mt-0.5 block text-[11px] font-medium text-foreground">
+                              {optionTarget != null
+                                ? `${optionTarget} ${defaults?.unit || activity.baseUnit || ''}`
+                                : LEVEL_DESCRIPTIONS[option.value]}
+                            </span>
+                            {optionTarget != null ? (
+                              <span className="block text-[10px] text-muted-foreground">
+                                per week
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <p className="mt-1.5 text-[11px] text-muted-foreground">
-                      Weekly target:{' '}
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      {LEVEL_DESCRIPTIONS[level]} — every member aims for{' '}
                       <span className="font-semibold text-foreground">
                         {previewTarget != null
                           ? `${previewTarget} ${defaults?.unit || activity.baseUnit || ''}`
-                          : 'auto'}
-                      </span>
+                          : 'an auto-set target'}
+                      </span>{' '}
+                      each week.
                     </p>
-                  </div>
+                  </RevealOnMount>
                 ) : null}
               </li>
             );

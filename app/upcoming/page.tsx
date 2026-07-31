@@ -202,7 +202,7 @@ export default function UpcomingPage() {
       <div className="page-container space-y-5 sm:space-y-6">
         <PageHeader
           title="Upcoming plan"
-          subtitle="Your goals for next week — review before they go live."
+          subtitle="Your goals for next week"
         />
 
         {error && (

@@ -1,21 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { DateTime } from 'luxon';
 import { leaderboardAPI } from '@/lib/api/leaderboard';
 import type { LeaderboardData } from '@/lib/api/leaderboard';
 import { activityAPI, Activity } from '@/lib/api/activity';
 import { useAuthStore } from '@/lib/store/authStore';
-import { ChipTabs } from '@/components/ui/ChipTabs';
 import ActivitySelect from '@/components/ui/ActivitySelect';
+import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Loader2, Trophy, Medal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-type WeekViewType = 'current' | 'previous';
+function currentWeekRange(): DateRange {
+  const today = DateTime.now();
+  return {
+    start: today.startOf('week').toISODate() ?? '',
+    end: today.toISODate() ?? '',
+  };
+}
 
 export default function Leaderboard() {
   const { selectedProfile } = useAuthStore();
-  const [weekView, setWeekView] = useState<WeekViewType>('current');
+  const [range, setRange] = useState<DateRange>(currentWeekRange);
   const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -32,17 +39,19 @@ export default function Leaderboard() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedActivity, weekView]);
+  }, [selectedActivity, range]);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
       setLoading(true);
       setError(null);
       try {
-        const date = new Date();
-        if (weekView === 'previous') date.setDate(date.getDate() - 7);
-        const dateToUse = date.toISOString().split('T')[0];
-        const response = await leaderboardAPI.getWeekly(selectedActivity, dateToUse, page);
+        const response = await leaderboardAPI.getRange(
+          selectedActivity,
+          range.start,
+          range.end,
+          page
+        );
 
         if (response.data?.data) {
           setLeaderboard(response.data.data);
@@ -56,7 +65,7 @@ export default function Leaderboard() {
     };
 
     void fetchLeaderboard();
-  }, [selectedActivity, weekView, page, selectedProfile?._id]);
+  }, [selectedActivity, range, page, selectedProfile?._id]);
 
   const unit = activities.find((a) => a._id === selectedActivity)?.baseUnit || 'points';
   const ranks = leaderboard?.ranks ?? [];
@@ -70,19 +79,10 @@ export default function Leaderboard() {
 
   return (
     <div className="space-y-3 overflow-visible">
-      <div className="flex w-full flex-col items-stretch gap-3">
-        <ChipTabs
-          className="w-full"
-          tabs={[
-            { id: 'current', label: 'This week' },
-            { id: 'previous', label: 'Last week' },
-          ]}
-          active={weekView}
-          onChange={(id) => setWeekView(id as WeekViewType)}
-          layout="balanced"
-        />
+      <div className="flex w-full items-center gap-2">
+        <DateRangePicker className="min-w-0 flex-1 basis-1/2" value={range} onChange={setRange} />
         <ActivitySelect
-          className="w-full"
+          className="min-w-0 flex-1 basis-1/2"
           value={selectedActivity}
           onChange={setSelectedActivity}
           activities={activities}
