@@ -2,10 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Camera, ImageIcon, Loader2, Plus, Upload, Video, X } from 'lucide-react';
+import { ArrowLeft, Camera, ImageIcon, Loader2, Plus, Type, Upload, Video, X } from 'lucide-react';
 import { feedAPI } from '@/lib/api/feed';
 import { compressImageForUpload } from '@/lib/utils/compressImage';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
+import {
+  renderTextCardImage,
+  textCardGradient,
+  TEXT_CARD_BACKGROUNDS,
+  TEXT_CARD_FONTS,
+  TEXT_CARD_MAX_LENGTH,
+} from '@/lib/utils/textCardImage';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -48,6 +55,10 @@ export function FeedCreateSheet({
   const [caption, setCaption] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [textMode, setTextMode] = useState(false);
+  const [text, setText] = useState('');
+  const [bgIndex, setBgIndex] = useState(0);
+  const [fontIndex, setFontIndex] = useState(0);
 
   useEffect(() => {
     if (open) setKind(communityId ? 'post' : defaultKind);
@@ -65,16 +76,36 @@ export function FeedCreateSheet({
     setCaption('');
     setLocalError(null);
     setDragOver(false);
+    setTextMode(false);
+    setText('');
+    setBgIndex(0);
+    setFontIndex(0);
     uploadMutation.reset();
     onClose();
   };
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
+      const effectiveKind = communityId ? 'post' : kind;
+      if (textMode) {
+        const trimmed = text.trim();
+        if (!trimmed) throw new Error('Type something first');
+        const blob = await renderTextCardImage({
+          text: trimmed,
+          background: TEXT_CARD_BACKGROUNDS[bgIndex],
+          font: TEXT_CARD_FONTS[fontIndex],
+          kind: effectiveKind,
+        });
+        const response = await feedAPI.createPost([blob], {
+          kind: effectiveKind,
+          communityId,
+        });
+        return response.data.data.post;
+      }
       if (!items.length) throw new Error('Choose a photo or video first');
       const response = await feedAPI.createPost(
         items.map((item) => item.blob),
-        { caption, kind: communityId ? 'post' : kind, communityId }
+        { caption, kind: effectiveKind, communityId }
       );
       return response.data.data.post;
     },
@@ -220,7 +251,13 @@ export function FeedCreateSheet({
               {communityId ? 'Share with community' : 'Create'}
             </p>
             <p className="text-xs text-muted-foreground">
-              {kind === 'post' ? 'Up to 10 photos, or 1 video' : 'One photo or video · 24h'}
+              {textMode
+                ? kind === 'story'
+                  ? 'Text status · 24h'
+                  : 'Text post'
+                : kind === 'post'
+                  ? 'Up to 10 photos, 1 video, or text'
+                  : 'Photo, video or text · 24h'}
             </p>
           </div>
           <button
@@ -267,7 +304,107 @@ export function FeedCreateSheet({
             </div>
           ) : null}
 
-          {items.length === 0 ? (
+          {textMode ? (
+            <>
+              <div
+                className={cn(
+                  'relative mx-auto flex w-full items-center justify-center overflow-hidden rounded-2xl p-5',
+                  kind === 'story' && !communityId
+                    ? 'aspect-[9/16] max-w-[260px]'
+                    : 'aspect-[4/5] max-w-[320px]'
+                )}
+                style={{ background: textCardGradient(TEXT_CARD_BACKGROUNDS[bgIndex]) }}
+              >
+                <textarea
+                  value={text}
+                  autoFocus
+                  maxLength={TEXT_CARD_MAX_LENGTH}
+                  onChange={(event) => setText(event.target.value)}
+                  placeholder="Type your status…"
+                  rows={Math.min(
+                    12,
+                    Math.max(2, text.split('\n').length + Math.floor(text.length / 26))
+                  )}
+                  className={cn(
+                    'max-h-full w-full resize-none bg-transparent text-center text-white outline-none placeholder:text-white/70',
+                    text.length > 160 ? 'text-lg leading-snug' : 'text-2xl leading-snug',
+                    TEXT_CARD_FONTS[fontIndex].className
+                  )}
+                />
+                <span className="absolute bottom-2 right-3 text-[10px] font-medium text-white/70">
+                  {text.length}/{TEXT_CARD_MAX_LENGTH}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-center gap-2">
+                {TEXT_CARD_BACKGROUNDS.map((background, index) => (
+                  <button
+                    key={background.id}
+                    type="button"
+                    aria-label={background.label}
+                    onClick={() => setBgIndex(index)}
+                    className={cn(
+                      'h-7 w-7 rounded-full transition-transform',
+                      index === bgIndex
+                        ? 'scale-110 ring-2 ring-primary ring-offset-2 ring-offset-surface'
+                        : 'hover:scale-105'
+                    )}
+                    style={{ background: textCardGradient(background) }}
+                  />
+                ))}
+              </div>
+
+              <div className="flex items-center justify-center gap-2">
+                {TEXT_CARD_FONTS.map((cardFont, index) => (
+                  <button
+                    key={cardFont.id}
+                    type="button"
+                    onClick={() => setFontIndex(index)}
+                    className={cn(
+                      'rounded-xl border px-3 py-1.5 text-sm transition-colors',
+                      cardFont.className,
+                      index === fontIndex
+                        ? 'border-primary bg-primary-soft text-primary'
+                        : 'border-border bg-secondary/60 text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    Aa
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={uploadMutation.isPending}
+                  onClick={() => setTextMode(false)}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1"
+                  disabled={uploadMutation.isPending || !text.trim()}
+                  onClick={() => uploadMutation.mutate()}
+                >
+                  {uploadMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Sharing…
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" />
+                      {kind === 'story' && !communityId ? 'Share story' : 'Share post'}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </>
+          ) : items.length === 0 ? (
             <>
               <button
                 type="button"
@@ -307,7 +444,7 @@ export function FeedCreateSheet({
                 </span>
               </button>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-2.5">
                 <button
                   type="button"
                   onClick={() => cameraInputRef.current?.click()}
@@ -339,6 +476,22 @@ export function FeedCreateSheet({
                     <Video className="h-5 w-5" />
                   </span>
                   <span className="text-xs font-semibold text-foreground">Video</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocalError(null);
+                    setTextMode(true);
+                  }}
+                  className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-secondary/80 px-2 py-5 text-center transition-colors hover:bg-secondary"
+                >
+                  <span
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-sm"
+                    style={{ background: textCardGradient(TEXT_CARD_BACKGROUNDS[0]) }}
+                  >
+                    <Type className="h-5 w-5" />
+                  </span>
+                  <span className="text-xs font-semibold text-foreground">Text</span>
                 </button>
               </div>
             </>
