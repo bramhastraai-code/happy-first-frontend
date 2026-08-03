@@ -120,7 +120,15 @@ export default function TasksPage() {
         setHasUpcomingPlan(Boolean(upcomingPlan));
         setActlist(activityResponse.data.data);
 
-        const communityRows = communityRes?.data?.data?.activities ?? [];
+        // Never show an activity in both personal plan sections and Community Activities.
+        const planActivityIdSet = new Set(
+          (plan?.activities ?? [])
+            .map((a: WeeklyPlanActivity) => resolveActivityId(a))
+            .filter(Boolean)
+        );
+        const communityRows = (communityRes?.data?.data?.activities ?? []).filter(
+          (row) => !planActivityIdSet.has(String(row.activityId))
+        );
         setCommunityActivities(communityRows);
 
         // Prefer editing unconfirmed current-week plan on Monday; else upcoming; else create.
@@ -205,6 +213,12 @@ export default function TasksPage() {
       setWeeklyPlan(plan);
       setPlanChoice(choice);
       setNoPlanError('');
+      const planIds = new Set(
+        (plan?.activities ?? []).map((a) => resolveActivityId(a)).filter(Boolean)
+      );
+      setCommunityActivities((prev) =>
+        prev.filter((row) => !planIds.has(String(row.activityId)))
+      );
       if (choice?.canEditCurrent && choice.currentPlanId) {
         setEditPlanHref(`/create-plan?edit=${choice.currentPlanId}`);
       }

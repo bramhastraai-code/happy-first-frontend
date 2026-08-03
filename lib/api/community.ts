@@ -122,6 +122,9 @@ export interface CommunityMember {
     avatarUrl?: string | null;
     avatarSeed?: string | null;
     avatarStyle?: string | null;
+    totalXp?: number;
+    xpLevel?: number;
+    xpLevelTitle?: string;
   };
 }
 

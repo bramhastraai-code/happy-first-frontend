@@ -46,9 +46,14 @@ export default function TaskCategorySection({
   const meta = CATEGORY_META[category.toLowerCase()];
   if (!meta) return null;
 
+  const seenIds = new Set<string>();
   const categoryActivities = activities.filter((activity) => {
-    const activityData = actlist.find((act) => act._id === resolveActivityId(activity));
-    return activityData?.category.toLowerCase() === category.toLowerCase();
+    const activityId = resolveActivityId(activity);
+    if (!activityId || seenIds.has(activityId)) return false;
+    const activityData = actlist.find((act) => act._id === activityId);
+    if (activityData?.category.toLowerCase() !== category.toLowerCase()) return false;
+    seenIds.add(activityId);
+    return true;
   });
 
   if (categoryActivities.length === 0) return null;

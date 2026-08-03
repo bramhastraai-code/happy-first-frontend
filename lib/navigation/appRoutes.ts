@@ -2,6 +2,7 @@ import {
   BarChart3,
   Calendar,
   ClipboardList,
+  Coins,
   History,
   LayoutGrid,
   PlusCircle,
@@ -51,6 +52,18 @@ export function getAppQuickLinks(): AppQuickLink[] {
       icon: Users,
     },
     {
+      href: '/xp',
+      label: 'XP',
+      description: 'Lifetime intensity standing and levels',
+      icon: Sparkles,
+    },
+    {
+      href: '/coins',
+      label: 'Coins',
+      description: 'Balance, history, and redeem rewards',
+      icon: Coins,
+    },
+    {
       href: '/streak-calendar',
       label: 'Streak calendar',
       description: 'Monthly log heatmap',
@@ -83,7 +96,7 @@ export function getAppQuickLinks(): AppQuickLink[] {
     {
       href: '/referral',
       label: 'Refer friends',
-      description: 'Share and earn points',
+      description: 'Share and earn coins',
       icon: Share2,
     },
     {

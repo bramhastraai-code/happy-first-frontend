@@ -291,6 +291,12 @@ export function CommunityMembersTab({
                       <p className="text-[11px] text-muted-foreground">
                         {roleLabel(member.role)}
                         {member.group?.name ? ` · ${member.group.name}` : ''}
+                        {member.profile.totalXp != null
+                          ? ` · ${Number(member.profile.totalXp).toLocaleString()} XP`
+                          : ''}
+                        {member.profile.xpLevelTitle
+                          ? ` · ${member.profile.xpLevelTitle}`
+                          : ''}
                       </p>
                     </div>
                     {!isMe ? (

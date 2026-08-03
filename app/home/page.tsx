@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Flame, Activity, ChevronDown, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, MapPin } from 'lucide-react';
+import { Trophy, Flame, Activity, ChevronDown, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, MapPin, Coins, Sparkles } from 'lucide-react';
+import { economyAPI, type EconomySummary } from '@/lib/api/economy';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,7 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const { user, accessToken, isHydrated, selectedProfile, setUser } = useAuthStore();
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+  const [economy, setEconomy] = useState<EconomySummary | null>(null);
   const [expandedSections, setExpandedSections] = useState({
     weeklyPerformance: true,
     activityGoals: false,
@@ -104,6 +106,22 @@ function HomePageContent() {
       }, 500);
     }
   }, [searchParams, isHydrated]);
+
+  useEffect(() => {
+    if (!dataEnabled) return;
+    let cancelled = false;
+    void economyAPI
+      .summary()
+      .then((res) => {
+        if (!cancelled) setEconomy(res.data.data);
+      })
+      .catch(() => {
+        if (!cancelled) setEconomy(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dataEnabled, selectedProfile?._id]);
 
   const { requestLogout, LogoutConfirmDialog } = useLogoutConfirm();
 
@@ -269,6 +287,54 @@ function HomePageContent() {
         />
 
         <GlobalSearch />
+
+        {economy ? (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => router.push('/xp')}
+              className="section-card flex items-center gap-3 p-4 text-left transition hover:border-primary/30"
+            >
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+                <Sparkles className="h-5 w-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  XP
+                </span>
+                <span className="block truncate text-lg font-bold tabular-nums text-foreground">
+                  {economy.xp.totalXp.toLocaleString()}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  L{economy.xp.level} {economy.xp.levelTitle} · {economy.xp.todayXp}/{economy.xp.dailyGoal} today
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/coins')}
+              className="section-card flex items-center gap-3 p-4 text-left transition hover:border-primary/30"
+            >
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <Coins className="h-5 w-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Coins
+                </span>
+                <span className="block truncate text-lg font-bold tabular-nums text-foreground">
+                  {economy.coins.balance.toLocaleString()}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  Earned {economy.coins.earned.toLocaleString()}
+                  {economy.coins.platformSharePercent > 0
+                    ? ` · ${economy.coins.platformSharePercent}% of platform`
+                    : ''}
+                </span>
+              </span>
+            </button>
+          </div>
+        ) : null}
 
         <Card className="section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft/80 to-surface">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
