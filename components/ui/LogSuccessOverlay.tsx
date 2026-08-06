@@ -58,7 +58,7 @@ export default function LogSuccessOverlay({
         <div className="overflow-hidden rounded-2xl border border-white/20 bg-white/95 p-5 shadow-[var(--shadow-float)] backdrop-blur-sm">
           <div className="mb-1 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden />
-            Points earned
+            Percentage earned (%)
           </div>
           <p
             className={`text-4xl font-bold tabular-nums tracking-tight sm:text-5xl ${

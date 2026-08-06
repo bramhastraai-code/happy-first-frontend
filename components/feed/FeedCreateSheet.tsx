@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Camera, ImageIcon, Loader2, Plus, Type, Upload, Video, X } from 'lucide-react';
-import { feedAPI } from '@/lib/api/feed';
+import { feedAPI, type PublishTarget } from '@/lib/api/feed';
+import { followAPI } from '@/lib/api/follow';
+import { communityAPI } from '@/lib/api/community';
 import { compressImageForUpload } from '@/lib/utils/compressImage';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import {
@@ -14,9 +16,10 @@ import {
   TEXT_CARD_MAX_LENGTH,
 } from '@/lib/utils/textCardImage';
 import { Button } from '@/components/ui/button';
+import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 
-type CreateKind = 'post' | 'story';
+type CreateKind = PublishTarget;
 type PickMode = 'image' | 'video' | 'camera' | 'drop';
 
 type PendingMedia = {
@@ -26,16 +29,22 @@ type PendingMedia = {
   mediaType: 'image' | 'video';
 };
 
+type TagPerson = {
+  profileId: string;
+  name: string;
+};
+
 interface FeedCreateSheetProps {
   open: boolean;
   onClose: () => void;
-  defaultKind?: CreateKind;
+  defaultKind?: Exclude<CreateKind, 'both'>;
   /** When set, posts are scoped to this community feed (posts only). */
   communityId?: string;
   onCreated?: () => void;
 }
 
 const MAX_POST_IMAGES = 10;
+const MAX_COLLABORATORS = 10;
 
 export function FeedCreateSheet({
   open,
@@ -45,24 +54,83 @@ export function FeedCreateSheet({
   onCreated,
 }: FeedCreateSheetProps) {
   const queryClient = useQueryClient();
+  const { selectedProfile } = useAuthStore();
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const dropInputRef = useRef<HTMLInputElement>(null);
+  const captionRef = useRef<HTMLTextAreaElement>(null);
 
   const [kind, setKind] = useState<CreateKind>(communityId ? 'post' : defaultKind);
   const [items, setItems] = useState<PendingMedia[]>([]);
   const [caption, setCaption] = useState('');
+  const [collaborators, setCollaborators] = useState<TagPerson[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [textMode, setTextMode] = useState(false);
   const [text, setText] = useState('');
   const [bgIndex, setBgIndex] = useState(0);
   const [fontIndex, setFontIndex] = useState(0);
+  const [alsoPublishToGlobal, setAlsoPublishToGlobal] = useState(false);
 
   useEffect(() => {
     if (open) setKind(communityId ? 'post' : defaultKind);
   }, [open, defaultKind, communityId]);
+
+  const allowsCollaborators = kind !== 'story';
+  const isStoryOnly = kind === 'story';
+
+  const membersQuery = useQuery({
+    queryKey: ['communityMembers', communityId, 'feedCreate'],
+    enabled: open && !!communityId && allowsCollaborators,
+    queryFn: async () => {
+      const res = await communityAPI.members(communityId!);
+      return res.data.data.members;
+    },
+  });
+
+  const peopleSearchQuery = useQuery({
+    queryKey: ['followSearch', 'tag', mentionQuery],
+    enabled:
+      open &&
+      !communityId &&
+      allowsCollaborators &&
+      mentionQuery !== null &&
+      mentionQuery.length >= 1,
+    queryFn: async () => {
+      const res = await followAPI.searchUsers(mentionQuery || '', 8);
+      return res.data.data.people;
+    },
+  });
+
+  const mentionSuggestions = useMemo(() => {
+    if (mentionQuery === null || !allowsCollaborators) return [];
+    const q = mentionQuery.toLowerCase();
+    const selected = new Set(collaborators.map((c) => c.profileId));
+    const me = selectedProfile?._id;
+
+    if (communityId) {
+      return (membersQuery.data || [])
+        .filter((m) => m.profile?.id && m.profile.id !== me && !selected.has(m.profile.id))
+        .filter((m) => !q || m.profile.name.toLowerCase().includes(q))
+        .slice(0, 8)
+        .map((m) => ({ profileId: m.profile.id, name: m.profile.name }));
+    }
+
+    return (peopleSearchQuery.data || [])
+      .filter((p) => p.profileId !== me && !selected.has(p.profileId))
+      .slice(0, 8)
+      .map((p) => ({ profileId: p.profileId, name: p.name }));
+  }, [
+    mentionQuery,
+    allowsCollaborators,
+    communityId,
+    membersQuery.data,
+    peopleSearchQuery.data,
+    collaborators,
+    selectedProfile?._id,
+  ]);
 
   const clearItems = () => {
     setItems((prev) => {
@@ -74,19 +142,76 @@ export function FeedCreateSheet({
   const resetAndClose = () => {
     clearItems();
     setCaption('');
+    setCollaborators([]);
+    setMentionQuery(null);
     setLocalError(null);
     setDragOver(false);
     setTextMode(false);
     setText('');
     setBgIndex(0);
     setFontIndex(0);
+    setAlsoPublishToGlobal(false);
     uploadMutation.reset();
     onClose();
   };
 
+  const detectMention = (value: string, cursor: number) => {
+    const before = value.slice(0, cursor);
+    const match = before.match(/@([^\s@]*)$/);
+    setMentionQuery(match ? match[1] : null);
+  };
+
+  const addCollaborator = (person: TagPerson) => {
+    setCollaborators((prev) => {
+      if (prev.some((c) => c.profileId === person.profileId)) return prev;
+      if (prev.length >= MAX_COLLABORATORS) return prev;
+      return [...prev, person];
+    });
+    setCaption((prev) => {
+      const el = captionRef.current;
+      const cursor = el?.selectionStart ?? prev.length;
+      const before = prev.slice(0, cursor);
+      const after = prev.slice(cursor);
+      const replaced = before.replace(/@([^\s@]*)$/, `@${person.name} `);
+      return `${replaced}${after}`.slice(0, 300);
+    });
+    setMentionQuery(null);
+  };
+
   const uploadMutation = useMutation({
     mutationFn: async () => {
-      const effectiveKind = communityId ? 'post' : kind;
+      const publishTo: PublishTarget = communityId ? 'post' : kind;
+      let collabIds =
+        publishTo === 'story' ? [] : collaborators.map((c) => c.profileId);
+
+      // Also resolve @Name mentions typed in the caption (even if chip wasn't tapped)
+      if (publishTo !== 'story' && caption.trim()) {
+        const mentionNames = [
+          ...caption.matchAll(/@([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)*)/g),
+        ].map((m) => m[1].trim());
+        for (const name of mentionNames) {
+          try {
+            if (communityId) {
+              const members = membersQuery.data || [];
+              const hit = members.find(
+                (m) => m.profile?.name?.toLowerCase() === name.toLowerCase()
+              );
+              if (hit?.profile?.id) collabIds.push(hit.profile.id);
+            } else {
+              const res = await followAPI.searchUsers(name, 8);
+              const people = res.data.data.people || [];
+              const exact = people.find(
+                (p) => p.name.toLowerCase() === name.toLowerCase()
+              );
+              if (exact?.profileId) collabIds.push(exact.profileId);
+            }
+          } catch {
+            // best-effort mention resolve
+          }
+        }
+        collabIds = [...new Set(collabIds)];
+      }
+
       if (textMode) {
         const trimmed = text.trim();
         if (!trimmed) throw new Error('Type something first');
@@ -94,26 +219,46 @@ export function FeedCreateSheet({
           text: trimmed,
           background: TEXT_CARD_BACKGROUNDS[bgIndex],
           font: TEXT_CARD_FONTS[fontIndex],
-          kind: effectiveKind,
+          kind: publishTo === 'story' ? 'story' : 'post',
         });
         const response = await feedAPI.createPost([blob], {
-          kind: effectiveKind,
+          kind: publishTo,
+          publishTo,
           communityId,
+          collaboratorProfileIds: collabIds,
+          caption: caption.trim() || undefined,
+          alsoPublishToGlobal: communityId ? alsoPublishToGlobal : undefined,
         });
-        return response.data.data.post;
+        return response.data.data;
       }
       if (!items.length) throw new Error('Choose a photo or video first');
       const response = await feedAPI.createPost(
         items.map((item) => item.blob),
-        { caption, kind: effectiveKind, communityId }
+        {
+          caption,
+          kind: publishTo,
+          publishTo,
+          communityId,
+          collaboratorProfileIds: collabIds,
+          alsoPublishToGlobal: communityId ? alsoPublishToGlobal : undefined,
+        }
       );
-      return response.data.data.post;
+      return response.data.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['feed'] }),
         queryClient.invalidateQueries({ queryKey: ['feedStories'] }),
+        queryClient.invalidateQueries({ queryKey: ['profilePosts'] }),
+        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
       ]);
+      if (kind === 'both' && !communityId && data && !data.story) {
+        setLocalError(
+          'Post shared, but story was not created. Close, refresh, and try Both again.'
+        );
+        onCreated?.();
+        return;
+      }
       onCreated?.();
       resetAndClose();
     },
@@ -146,7 +291,7 @@ export function FeedCreateSheet({
         (file) => file.type.startsWith('image/') || mode === 'image' || mode === 'camera'
       );
 
-      if (kind === 'story' && incoming.length > 1) {
+      if (isStoryOnly && incoming.length > 1) {
         throw new Error('Stories support only one photo or video');
       }
       if (hasVideo && hasImage && incoming.length > 1) {
@@ -177,7 +322,7 @@ export function FeedCreateSheet({
       setItems((prev) => {
         const replacingVideo = nextItems.some((item) => item.mediaType === 'video');
         const existingHasVideo = prev.some((item) => item.mediaType === 'video');
-        if (kind === 'story' || replacingVideo || existingHasVideo) {
+        if (isStoryOnly || replacingVideo || existingHasVideo) {
           prev.forEach((item) => URL.revokeObjectURL(item.previewUrl));
           return nextItems.slice(0, 1);
         }
@@ -195,7 +340,7 @@ export function FeedCreateSheet({
         return merged;
       });
 
-      if (kind === 'post' && !hasVideo) {
+      if (kind !== 'story' && !hasVideo) {
         // soft notice if user tried to exceed max
         const currentCount = items.filter((item) => item.mediaType === 'image').length;
         if (currentCount + nextItems.length > MAX_POST_IMAGES) {
@@ -229,7 +374,7 @@ export function FeedCreateSheet({
     (uploadMutation.error instanceof Error ? uploadMutation.error.message : null);
 
   const canAddMoreImages =
-    kind === 'post' &&
+    kind !== 'story' &&
     items.length > 0 &&
     items.every((item) => item.mediaType === 'image') &&
     items.length < MAX_POST_IMAGES;
@@ -254,10 +399,14 @@ export function FeedCreateSheet({
               {textMode
                 ? kind === 'story'
                   ? 'Text status · 24h'
-                  : 'Text post'
-                : kind === 'post'
-                  ? 'Up to 10 photos, 1 video, or text'
-                  : 'Photo, video or text · 24h'}
+                  : kind === 'both'
+                    ? 'Text · feed + story'
+                    : 'Text post'
+                : kind === 'story'
+                  ? 'Photo, video or text · 24h'
+                  : kind === 'both'
+                    ? 'Feed + story · up to 10 photos'
+                    : 'Up to 10 photos, 1 video, or text'}
             </p>
           </div>
           <button
@@ -272,11 +421,12 @@ export function FeedCreateSheet({
 
         <div className="space-y-4 overflow-y-auto px-4 py-4">
           {!communityId ? (
-            <div className="grid grid-cols-2 gap-1 rounded-2xl bg-secondary p-1">
+            <div className="grid grid-cols-3 gap-1 rounded-2xl bg-secondary p-1">
               {(
                 [
-                  { id: 'post', label: 'Post' },
-                  { id: 'story', label: 'Story (24h)' },
+                  { id: 'post', label: 'Feed' },
+                  { id: 'story', label: 'Story' },
+                  { id: 'both', label: 'Both' },
                 ] as const
               ).map((item) => (
                 <button
@@ -290,6 +440,10 @@ export function FeedCreateSheet({
                         return prev.slice(0, 1);
                       });
                     }
+                    if (item.id === 'story') {
+                      setCollaborators([]);
+                      setMentionQuery(null);
+                    }
                   }}
                   className={cn(
                     'rounded-xl py-2.5 text-sm font-semibold transition-colors',
@@ -302,6 +456,20 @@ export function FeedCreateSheet({
                 </button>
               ))}
             </div>
+          ) : null}
+
+          {communityId ? (
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-secondary/50 px-3 py-2.5">
+              <input
+                type="checkbox"
+                checked={alsoPublishToGlobal}
+                onChange={(e) => setAlsoPublishToGlobal(e.target.checked)}
+                className="h-4 w-4 rounded border-input accent-primary"
+              />
+              <span className="text-sm font-medium text-foreground">
+                Also share to Global Feed
+              </span>
+            </label>
           ) : null}
 
           {textMode ? (
@@ -373,6 +541,58 @@ export function FeedCreateSheet({
                 ))}
               </div>
 
+              {allowsCollaborators ? (
+                <div className="relative">
+                  <input
+                    value={mentionQuery ?? ''}
+                    onChange={(event) => setMentionQuery(event.target.value)}
+                    placeholder="Tag collaborators (@name)"
+                    className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  {mentionSuggestions.length > 0 ? (
+                    <ul className="absolute left-0 right-0 z-20 mt-1 max-h-40 overflow-y-auto rounded-xl border border-border bg-surface shadow-[var(--shadow-float)]">
+                      {mentionSuggestions.map((person) => (
+                        <li key={person.profileId}>
+                          <button
+                            type="button"
+                            className="flex w-full px-3 py-2 text-left text-sm hover:bg-secondary"
+                            onClick={() => {
+                              setCollaborators((prev) =>
+                                prev.some((c) => c.profileId === person.profileId)
+                                  ? prev
+                                  : [...prev, person].slice(0, MAX_COLLABORATORS)
+                              );
+                              setMentionQuery('');
+                            }}
+                          >
+                            @{person.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {collaborators.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {collaborators.map((person) => (
+                        <button
+                          key={person.profileId}
+                          type="button"
+                          onClick={() =>
+                            setCollaborators((prev) =>
+                              prev.filter((c) => c.profileId !== person.profileId)
+                            )
+                          }
+                          className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                        >
+                          @{person.name}
+                          <X className="h-3 w-3" />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -398,7 +618,11 @@ export function FeedCreateSheet({
                   ) : (
                     <>
                       <Plus className="h-4 w-4" />
-                      {kind === 'story' && !communityId ? 'Share story' : 'Share post'}
+                      {kind === 'story' && !communityId
+                        ? 'Share story'
+                        : kind === 'both'
+                          ? 'Share both'
+                          : 'Share post'}
                     </>
                   )}
                 </Button>
@@ -464,7 +688,7 @@ export function FeedCreateSheet({
                     <ImageIcon className="h-5 w-5" />
                   </span>
                   <span className="text-xs font-semibold text-foreground">
-                    {kind === 'post' ? 'Photos' : 'Photo'}
+                    {kind !== 'story' ? 'Photos' : 'Photo'}
                   </span>
                 </button>
                 <button
@@ -549,18 +773,69 @@ export function FeedCreateSheet({
                 ) : null}
               </div>
 
-              <label className="block">
+              <div className="relative block">
                 <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Caption (optional)
+                  Caption (optional){allowsCollaborators ? ' · @tag collaborators' : ''}
                 </span>
-                <input
+                <textarea
+                  ref={captionRef}
                   value={caption}
-                  onChange={(event) => setCaption(event.target.value)}
+                  onChange={(event) => {
+                    const value = event.target.value.slice(0, 300);
+                    setCaption(value);
+                    if (allowsCollaborators) {
+                      detectMention(value, event.target.selectionStart);
+                    }
+                  }}
+                  onKeyUp={(event) => {
+                    if (!allowsCollaborators) return;
+                    const target = event.currentTarget;
+                    detectMention(target.value, target.selectionStart);
+                  }}
                   maxLength={300}
-                  placeholder={kind === 'story' ? 'Add to your story…' : 'Write a caption…'}
-                  className="h-11 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  rows={2}
+                  placeholder={
+                    kind === 'story'
+                      ? 'Add to your story…'
+                      : 'Write a caption… use @ to tag people'
+                  }
+                  className="w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
-              </label>
+                {mentionSuggestions.length > 0 ? (
+                  <ul className="absolute left-0 right-0 z-20 mt-1 max-h-44 overflow-y-auto rounded-xl border border-border bg-surface shadow-[var(--shadow-float)]">
+                    {mentionSuggestions.map((person) => (
+                      <li key={person.profileId}>
+                        <button
+                          type="button"
+                          className="flex w-full px-3 py-2 text-left text-sm hover:bg-secondary"
+                          onClick={() => addCollaborator(person)}
+                        >
+                          @{person.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {collaborators.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {collaborators.map((person) => (
+                      <button
+                        key={person.profileId}
+                        type="button"
+                        onClick={() =>
+                          setCollaborators((prev) =>
+                            prev.filter((c) => c.profileId !== person.profileId)
+                          )
+                        }
+                        className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                      >
+                        @{person.name}
+                        <X className="h-3 w-3" />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -585,7 +860,11 @@ export function FeedCreateSheet({
                   ) : (
                     <>
                       <Plus className="h-4 w-4" />
-                      {kind === 'story' ? 'Share story' : 'Share post'}
+                      {kind === 'story'
+                        ? 'Share story'
+                        : kind === 'both'
+                          ? 'Share both'
+                          : 'Share post'}
                     </>
                   )}
                 </Button>
@@ -602,7 +881,7 @@ export function FeedCreateSheet({
           ref={dropInputRef}
           type="file"
           accept="image/*,video/mp4,video/quicktime,video/webm,video/*"
-          multiple={kind === 'post'}
+          multiple={kind !== 'story'}
           className="hidden"
           onChange={(event) => {
             handleFileList(event.target.files, 'drop');
@@ -624,7 +903,7 @@ export function FeedCreateSheet({
           ref={imageInputRef}
           type="file"
           accept="image/*"
-          multiple={kind === 'post'}
+          multiple={kind !== 'story'}
           className="hidden"
           onChange={(event) => {
             handleFileList(event.target.files, 'image');

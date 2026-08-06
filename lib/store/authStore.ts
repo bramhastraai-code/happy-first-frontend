@@ -34,6 +34,7 @@ export interface Profile {
   avatarUrl?: string | null;
   bio?: string;
   website?: string;
+  publicHighlight?: string;
   level: 'newbie' | 'bronze' | 'silver' | 'gold' | 'diamond' | 'legend';
   profile:lifestyle;
   timezone: string;

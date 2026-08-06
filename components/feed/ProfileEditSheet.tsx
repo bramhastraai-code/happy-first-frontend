@@ -51,6 +51,7 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [website, setWebsite] = useState('');
+  const [publicHighlight, setPublicHighlight] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -59,6 +60,7 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
     setName(selectedProfile.name || '');
     setBio(selectedProfile.bio || '');
     setWebsite(selectedProfile.website || '');
+    setPublicHighlight(selectedProfile.publicHighlight || '');
     setError('');
   }, [open, selectedProfile]);
 
@@ -97,6 +99,7 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
       const response = await authAPI.updateProfile({
         name: trimmedName,
         bio: bio.trim().slice(0, 150),
+        publicHighlight: publicHighlight.trim().slice(0, 200),
         website: websiteNormalized,
       });
       const updatedProfiles = response.data.data.profiles as Profile[];
@@ -188,6 +191,25 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
               maxLength={150}
               className="w-full resize-none rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
               placeholder="Write a short bio…"
+            />
+          </div>
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs font-medium text-muted-foreground">
+                Public highlight
+              </label>
+              <span className="text-[11px] text-muted-foreground">{publicHighlight.length}/200</span>
+            </div>
+            <textarea
+              value={publicHighlight}
+              onChange={(e) => {
+                setPublicHighlight(e.target.value.slice(0, 200));
+                setError('');
+              }}
+              rows={2}
+              maxLength={200}
+              className="w-full resize-none rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+              placeholder="One thing you want people to know…"
             />
           </div>
           <div>

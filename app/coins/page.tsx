@@ -23,6 +23,8 @@ const REASON_LABELS: Record<string, string> = {
   referral: 'Referral bonus',
   engagement_received: 'Post likes / comments',
   gift_reaction: 'Gift reaction',
+  profile_completion: 'Profile 100% complete',
+  profile_quarterly_update: 'Quarterly profile update',
   redeem: 'Redeemed',
 };
 

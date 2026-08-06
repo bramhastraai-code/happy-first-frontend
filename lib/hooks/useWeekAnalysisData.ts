@@ -4,13 +4,19 @@ import { useQuery } from '@tanstack/react-query';
 import { dailyLogAPI, type PointLossesData } from '@/lib/api/dailyLog';
 import { weeklyPlanAPI, type WeeklyPlan, type WeeklyPlanAnalytics } from '@/lib/api/weeklyPlan';
 import { useAuthStore } from '@/lib/store/authStore';
-import { resolveWeekStartISO } from '@/lib/utils/weekDate';
+import {
+  latestCompletedWeekStartISO,
+  resolveWeekStartISO,
+  shiftWeekStartISO,
+} from '@/lib/utils/weekDate';
+import type { FourWeekTrendEntry } from '@/lib/api/dailyLog';
 
 export interface WeekAnalysisData {
   weekStart: string;
   plan: WeeklyPlan | null;
   analytics: WeeklyPlanAnalytics | null;
   pointLosses: PointLossesData;
+  fourWeekTrend: FourWeekTrendEntry[];
 }
 
 function normalizePointLosses(
@@ -66,7 +72,27 @@ export function useWeekAnalysisData(weekStartInput?: string | null) {
         analytics = analyticsResponse.data.data ?? null;
       }
 
-      return { weekStart, plan, analytics, pointLosses };
+      const latestCompleted = latestCompletedWeekStartISO();
+      const trendWeekStarts = [3, 2, 1, 0].map((offset) =>
+        shiftWeekStartISO(latestCompleted, -offset)
+      );
+      const trendResponses = await Promise.all(
+        trendWeekStarts.map((ws) => dailyLogAPI.getPointLosses(ws))
+      );
+      const fourWeekTrend: FourWeekTrendEntry[] = trendResponses.map((res, index) => {
+        const raw = normalizePointLosses(res.data.data ?? {}, trendWeekStarts[index]);
+        const percentPointsEarned =
+          raw.totalPotentialPoints > 0
+            ? (raw.totalPointsEarned / raw.totalPotentialPoints) * 100
+            : 0;
+        return {
+          weekStart: raw.weekStart,
+          weekEnd: raw.weekEnd,
+          percentPointsEarned,
+        };
+      });
+
+      return { weekStart, plan, analytics, pointLosses, fourWeekTrend };
     },
     meta: {
       extractErrorMessage,

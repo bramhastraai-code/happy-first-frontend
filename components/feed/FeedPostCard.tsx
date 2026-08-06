@@ -14,13 +14,15 @@ import {
   Repeat2,
   Share2,
   Trash2,
+  UserMinus,
   X,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { feedAPI, type FeedPost } from '@/lib/api/feed';
+import { feedAPI, formatCollaborationLabel, type FeedPost } from '@/lib/api/feed';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
+import { renderCaptionWithMentions } from '@/lib/utils/renderCaptionWithMentions';
 import { useAuthStore } from '@/lib/store/authStore';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
@@ -68,6 +70,12 @@ export function FeedPostCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [manageCollabOpen, setManageCollabOpen] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<{
+    profileId: string;
+    name: string;
+  } | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [editCaption, setEditCaption] = useState(post.caption || '');
@@ -214,6 +222,52 @@ export function FeedPostCard({
     !post.isStory &&
     post.repostOf?.author.profileId !== selectedProfile?._id;
 
+  const accepted = post.acceptedCollaborators || [];
+  const allCollabs = post.collaborators || [];
+  const removableCollabs = allCollabs.filter(
+    (c) => c.status === 'accepted' || c.status === 'pending'
+  );
+  const myCollab = allCollabs.find(
+    (c) => c.profileId === selectedProfile?._id && c.status === 'accepted'
+  );
+  const titleLabel = formatCollaborationLabel(post.author.name, accepted);
+
+  const patchFeedPost = (updated: FeedPost) => {
+    queryClient.setQueriesData<{
+      pages: { posts: FeedPost[]; nextCursor: string | null }[];
+      pageParams: unknown[];
+    }>({ queryKey: ['feed'] }, (old) => {
+      if (!old?.pages) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page) => ({
+          ...page,
+          posts: page.posts.map((item) =>
+            item.id === updated.id
+              ? {
+                  ...item,
+                  ...updated,
+                  author: { ...item.author, ...updated.author },
+                }
+              : item
+          ),
+        })),
+      };
+    });
+    void queryClient.invalidateQueries({ queryKey: ['profilePosts'] });
+  };
+
+  const removeCollabMutation = useMutation({
+    mutationFn: (profileId: string) => feedAPI.removeCollaborator(post.id, profileId),
+    onSuccess: (res) => {
+      const updated = res.data.data.post;
+      patchFeedPost(updated);
+      setRemoveTarget(null);
+      setLeaveOpen(false);
+      setManageCollabOpen(false);
+    },
+  });
+
   return (
     <article className="feed-post w-full border-b border-border bg-background px-0 py-4 sm:rounded-2xl sm:border sm:bg-surface sm:px-5 sm:py-5 sm:shadow-[var(--shadow-card)]">
       {post.repostOf ? (
@@ -246,12 +300,40 @@ export function FeedPostCard({
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <Link
-              href={`/feed/profile/${post.author.profileId}`}
-              className="truncate text-[15px] font-semibold leading-tight text-foreground hover:underline"
-            >
-              {post.author.name}
-            </Link>
+            <p className="min-w-0 truncate text-[15px] font-semibold leading-tight text-foreground">
+              <Link
+                href={`/feed/profile/${post.author.profileId}`}
+                className="hover:underline"
+              >
+                {post.author.name}
+              </Link>
+              {accepted.length > 0 ? (
+                <span className="font-medium text-muted-foreground">
+                  {' '}
+                  with{' '}
+                  <Link
+                    href={`/feed/profile/${accepted[0].profileId}`}
+                    className="font-semibold text-foreground hover:underline"
+                  >
+                    {accepted[0].name}
+                  </Link>
+                  {accepted.length > 1
+                    ? ` and ${accepted.length - 1} others`
+                    : null}
+                </span>
+              ) : post.communityId && post.communityName ? (
+                <span className="font-medium text-muted-foreground">
+                  {' '}
+                  · Community:{' '}
+                  <Link
+                    href={`/community/${post.communityId}`}
+                    className="font-semibold text-primary hover:underline"
+                  >
+                    {post.communityName}
+                  </Link>
+                </span>
+              ) : null}
+            </p>
             {!isOwner && !post.author.isFollowing ? (
               <FollowButton
                 profileId={post.author.profileId}
@@ -261,7 +343,19 @@ export function FeedPostCard({
               />
             ) : null}
           </div>
+          {accepted.length > 0 && post.communityId && post.communityName ? (
+            <p className="truncate text-xs text-muted-foreground">
+              Community:{' '}
+              <Link
+                href={`/community/${post.communityId}`}
+                className="font-medium text-primary hover:underline"
+              >
+                {post.communityName}
+              </Link>
+            </p>
+          ) : null}
           <p className="text-xs text-muted-foreground">{timeLabel}</p>
+          <span className="sr-only">{titleLabel}</span>
         </div>
 
         <div className="relative" ref={menuRef}>
@@ -297,6 +391,19 @@ export function FeedPostCard({
                       <Pencil className="h-3.5 w-3.5 shrink-0" />
                       Edit
                     </button>
+                    {removableCollabs.length > 0 ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setManageCollabOpen(true);
+                        }}
+                      >
+                        <UserMinus className="h-3.5 w-3.5 shrink-0" />
+                        Remove collaborator
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
@@ -309,20 +416,38 @@ export function FeedPostCard({
                       Delete
                     </button>
                   </>
-                ) : canMessage ? (
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-secondary"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onMessage?.(post);
-                    }}
-                  >
-                    <MessageSquare className="h-3.5 w-3.5 shrink-0" />
-                    Message
-                  </button>
                 ) : (
-                  <p className="px-3 py-2 text-[11px] text-muted-foreground">No actions</p>
+                  <>
+                    {myCollab ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-destructive transition-colors hover:bg-destructive/10"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setLeaveOpen(true);
+                        }}
+                      >
+                        <UserMinus className="h-3.5 w-3.5 shrink-0" />
+                        Leave collaboration
+                      </button>
+                    ) : null}
+                    {canMessage ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          onMessage?.(post);
+                        }}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                        Message
+                      </button>
+                    ) : null}
+                    {!myCollab && !canMessage ? (
+                      <p className="px-3 py-2 text-[11px] text-muted-foreground">No actions</p>
+                    ) : null}
+                  </>
                 )}
               </motion.div>
             ) : null}
@@ -331,9 +456,14 @@ export function FeedPostCard({
       </header>
 
       {post.caption ? (
-        <p className="mb-3 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-foreground">
-          {post.caption}
-        </p>
+        <div className="mb-3">
+          {renderCaptionWithMentions(post.caption, {
+            collaborators: [
+              ...(post.acceptedCollaborators || []),
+              ...(post.collaborators || []),
+            ],
+          })}
+        </div>
       ) : null}
 
       <div
@@ -582,6 +712,116 @@ export function FeedPostCard({
         }}
       />
 
+      <ConfirmDialog
+        open={leaveOpen}
+        title="Leave collaboration?"
+        description="This post will no longer appear as shared with you."
+        confirmLabel="Leave"
+        cancelLabel="Cancel"
+        destructive
+        loading={removeCollabMutation.isPending}
+        onCancel={() => setLeaveOpen(false)}
+        onConfirm={() => {
+          if (!selectedProfile?._id) return;
+          removeCollabMutation.mutate(selectedProfile._id);
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        title="Remove collaborator?"
+        description={
+          removeTarget
+            ? `${removeTarget.name} will be removed from this post.`
+            : undefined
+        }
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        destructive
+        loading={removeCollabMutation.isPending}
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={() => {
+          if (!removeTarget) return;
+          removeCollabMutation.mutate(removeTarget.profileId);
+        }}
+      />
+
+      {manageCollabOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[250] flex items-end justify-center sm:items-center">
+              <button
+                type="button"
+                aria-label="Close"
+                className="absolute inset-0 bg-black/45"
+                onClick={() => setManageCollabOpen(false)}
+              />
+              <div className="relative z-10 w-full max-w-md rounded-t-3xl border border-border bg-surface p-4 shadow-[var(--shadow-float)] sm:rounded-3xl">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Collaborators</p>
+                    <p className="text-xs text-muted-foreground">
+                      Remove people tagged on this post
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setManageCollabOpen(false)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-muted-foreground"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <ul className="divide-y divide-border">
+                  {removableCollabs.map((person) => (
+                    <li
+                      key={person.profileId}
+                      className="flex items-center gap-3 py-2.5"
+                    >
+                      <ProfileAvatar
+                        name={person.name}
+                        avatarUrl={person.avatarUrl}
+                        avatarSeed={person.avatarSeed}
+                        avatarStyle={person.avatarStyle}
+                        size="sm"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {person.name}
+                        </p>
+                        <p className="text-[11px] capitalize text-muted-foreground">
+                          {person.status}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0 text-destructive"
+                        disabled={removeCollabMutation.isPending}
+                        onClick={() =>
+                          setRemoveTarget({
+                            profileId: person.profileId,
+                            name: person.name,
+                          })
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+                {removableCollabs.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    No collaborators on this post
+                  </p>
+                ) : null}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+
       {previewOpen && isDesktopViewport()
         ? createPortal(
             <div className="fixed inset-0 z-[240] flex items-center justify-center bg-black/90 p-3 sm:p-6">
@@ -642,7 +882,16 @@ export function FeedPostCard({
                   </p>
                 ) : null}
                 {post.caption ? (
-                  <p className="mt-3 max-w-lg px-2 text-center text-sm text-white/90">{post.caption}</p>
+                  <div className="mt-3 max-w-lg px-2 text-center">
+                    {renderCaptionWithMentions(post.caption, {
+                      collaborators: [
+                        ...(post.acceptedCollaborators || []),
+                        ...(post.collaborators || []),
+                      ],
+                      className: 'text-sm text-white/90',
+                      mentionClassName: 'font-semibold text-primary hover:underline',
+                    })}
+                  </div>
                 ) : null}
               </div>
             </div>,

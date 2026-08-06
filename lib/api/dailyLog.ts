@@ -188,6 +188,19 @@ export interface LeaderboardData {
   pagination: LeaderboardPagination;
 }
 
+export interface ActivityTotalEntry {
+  activityId: string;
+  name: string;
+  unit: string;
+  total: number;
+}
+
+export interface FourWeekTrendEntry {
+  weekStart: string;
+  weekEnd: string;
+  percentPointsEarned: number;
+}
+
 export interface CalendarData {
   month: number;
   year: number;
@@ -201,6 +214,18 @@ export interface CalendarData {
     daysNotLogged: number;
     completionPercentage: string;
   };
+  weeklyAverages?: {
+    monthLabel: string;
+    monthWeeklyAveragePercent: number;
+    overallWeeklyAveragePercent: number;
+    completedWeeksInMonth: number;
+    completedWeeksOverall: number;
+  };
+  activityTotals?: {
+    month: ActivityTotalEntry[];
+    lifetime: ActivityTotalEntry[];
+  };
+  fourWeekTrend?: FourWeekTrendEntry[];
   pagination: {
     currentMonth: number;
     currentYear: number;

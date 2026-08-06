@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import type { ActivityCalendarData, CalendarData } from '@/lib/api/dailyLog';
+import { weeklyPlanAPI, type WeightMoodHistoryPoint } from '@/lib/api/weeklyPlan';
 import MainLayout from '@/components/layout/MainLayout';
 import { StreakCalendarView } from '@/components/streak-calendar/StreakCalendarView';
 import { useStreakData, useCalendarData } from '@/lib/queries/useCalendarQueries';
@@ -14,13 +15,14 @@ type FilterType = 'overall' | 'activity';
 export default function StreakCalendarPage() {
   const router = useRouter();
   const { accessToken, isHydrated, selectedProfile } = useAuthStore();
-  const [filterType, setFilterType] = useState<FilterType>('overall');
+  const [filterType, setFilterType] = useState<FilterType>('activity');
   const [selectedActivityId, setSelectedActivityId] = useState<string>('');
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1);
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
-  const [showActivityList, setShowActivityList] = useState(false);
+  const [showActivityList, setShowActivityList] = useState(true);
   const [monthlyLeaderboardPage, setMonthlyLeaderboardPage] = useState(1);
   const [allTimeLeaderboardPage, setAllTimeLeaderboardPage] = useState(1);
+  const [weightMoodHistory, setWeightMoodHistory] = useState<WeightMoodHistoryPoint[]>([]);
 
   const enabled = isHydrated && !!accessToken && !!selectedProfile?._id;
 
@@ -41,6 +43,18 @@ export default function StreakCalendarPage() {
     filterType === 'overall' ? ((calendarQuery.data as CalendarData | undefined) ?? null) : null;
   const activityCalendarData =
     filterType === 'activity' ? ((calendarQuery.data as ActivityCalendarData | undefined) ?? null) : null;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    weeklyPlanAPI
+      .getWeightMoodHistory(12)
+      .then((res) => setWeightMoodHistory(res.data.data?.points ?? []))
+      .catch((err) => {
+        console.error('Failed to load weight/mood history:', err);
+        setWeightMoodHistory([]);
+      });
+  }, [enabled]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -121,6 +135,7 @@ export default function StreakCalendarPage() {
         activityCalendarData={activityCalendarData}
         isCalendarFetching={calendarQuery.isFetching}
         selectedProfileId={selectedProfile?._id}
+        weightMoodHistory={weightMoodHistory}
         onFilterChange={handleFilterChange}
         onActivitySelect={handleActivitySelect}
         onBackToActivityList={handleBackToActivityList}

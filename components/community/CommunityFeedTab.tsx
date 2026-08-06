@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, Search, X } from 'lucide-react';
 import { FeedPostCard } from '@/components/feed/FeedPostCard';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { FeedEmpty } from '@/components/feed/FeedEmpty';
@@ -28,15 +28,24 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
   const [activePost, setActivePost] = useState<FeedPost | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQ, setSearchQ] = useState('');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQ(searchInput.trim()), 280);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   const enabled = isHydrated && !!accessToken && !!selectedProfile?._id && !!communityId;
+  const isSearching = searchQ.length >= 1;
   const feedKey = ['feed', selectedProfile?._id, communityId] as const;
+  const searchKey = ['feedSearch', communityId, searchQ, selectedProfile?._id] as const;
 
   useFeedRealtime(enabled, selectedProfile?._id, communityId);
 
   const feedQuery = useInfiniteQuery({
     queryKey: feedKey,
-    enabled,
+    enabled: enabled && !isSearching,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const response = await feedAPI.getFeed({
@@ -49,14 +58,33 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 
+  const searchQuery = useInfiniteQuery({
+    queryKey: searchKey,
+    enabled: enabled && isSearching,
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const response = await feedAPI.searchFeed({
+        q: searchQ,
+        limit: 12,
+        cursor: pageParam,
+        communityId,
+      });
+      return response.data.data;
+    },
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+
+  const activeQuery = isSearching ? searchQuery : feedQuery;
+
   const likeMutation = useMutation({
     mutationFn: (photoId: string) => feedAPI.toggleLike(photoId),
     onMutate: async (photoId) => {
       setLikingId(photoId);
-      await queryClient.cancelQueries({ queryKey: feedKey });
-      const previous = queryClient.getQueryData(feedKey);
+      const key = isSearching ? searchKey : feedKey;
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData(key);
 
-      queryClient.setQueryData<FeedPages>(feedKey, (old) => {
+      queryClient.setQueryData<FeedPages>(key, (old) => {
         if (!old?.pages) return old;
         return {
           ...old,
@@ -75,11 +103,11 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
         };
       });
 
-      return { previous };
+      return { previous, key };
     },
     onError: (_error, _photoId, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(feedKey, context.previous);
+      if (context?.previous && context.key) {
+        queryClient.setQueryData(context.key, context.previous);
       }
     },
     onSettled: () => {
@@ -88,8 +116,8 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
   });
 
   const posts = useMemo(
-    () => feedQuery.data?.pages.flatMap((page) => page.posts) ?? [],
-    [feedQuery.data]
+    () => activeQuery.data?.pages.flatMap((page) => page.posts) ?? [],
+    [activeQuery.data]
   );
 
   const handleToggleLike = useCallback(
@@ -102,17 +130,17 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || !feedQuery.hasNextPage || feedQuery.isFetchingNextPage) return;
+    if (!el || !activeQuery.hasNextPage || activeQuery.isFetchingNextPage) return;
 
     const onScroll = () => {
       if (el.scrollHeight - el.scrollTop - el.clientHeight < 320) {
-        void feedQuery.fetchNextPage();
+        void activeQuery.fetchNextPage();
       }
     };
 
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
-  }, [feedQuery]);
+  }, [activeQuery]);
 
   if (!isHydrated) {
     return (
@@ -141,30 +169,58 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
         </Button>
       </div>
 
+      <label className="relative block">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+          placeholder="Search this community feed…"
+          className="h-10 w-full rounded-xl border border-input bg-secondary pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-ring"
+          inputMode="search"
+          aria-label="Search community feed"
+        />
+        {searchInput ? (
+          <button
+            type="button"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-surface"
+            onClick={() => setSearchInput('')}
+            aria-label="Clear search"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
+      </label>
+
       <div
         ref={scrollRef}
         className="max-h-[min(72vh,720px)] space-y-3 overflow-y-auto pr-0.5 sm:space-y-4"
       >
-        {feedQuery.isLoading ? (
+        {activeQuery.isLoading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="h-7 w-7 animate-spin text-primary" />
           </div>
-        ) : feedQuery.isError ? (
+        ) : activeQuery.isError ? (
           <div className="rounded-xl border border-border bg-surface px-4 py-10 text-center">
             <p className="text-sm font-semibold text-foreground">Couldn&apos;t load community feed</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {(feedQuery.error as { response?: { data?: { message?: string } } })?.response?.data
+              {(activeQuery.error as { response?: { data?: { message?: string } } })?.response?.data
                 ?.message ||
-                (feedQuery.error instanceof Error
-                  ? feedQuery.error.message
+                (activeQuery.error instanceof Error
+                  ? activeQuery.error.message
                   : 'Something went wrong')}
             </p>
-            <Button className="mt-4" onClick={() => void feedQuery.refetch()}>
+            <Button className="mt-4" onClick={() => void activeQuery.refetch()}>
               Try again
             </Button>
           </div>
         ) : posts.length === 0 ? (
-          <FeedEmpty onCreate={() => setCreateOpen(true)} />
+          isSearching ? (
+            <p className="py-16 text-center text-sm text-muted-foreground">
+              No posts found for “{searchQ}”
+            </p>
+          ) : (
+            <FeedEmpty onCreate={() => setCreateOpen(true)} />
+          )
         ) : (
           posts.map((post) => (
             <FeedPostCard
@@ -180,7 +236,8 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
               onEdit={async (target, caption) => {
                 const res = await feedAPI.updatePost(target.id, caption);
                 const updated = res.data.data.post;
-                queryClient.setQueryData<FeedPages>(feedKey, (old) => {
+                const key = isSearching ? searchKey : feedKey;
+                queryClient.setQueryData<FeedPages>(key, (old) => {
                   if (!old?.pages) return old;
                   return {
                     ...old,
@@ -202,7 +259,8 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
               }}
               onDelete={async (target) => {
                 await feedAPI.deletePost(target.id);
-                queryClient.setQueryData<FeedPages>(feedKey, (old) => {
+                const key = isSearching ? searchKey : feedKey;
+                queryClient.setQueryData<FeedPages>(key, (old) => {
                   if (!old?.pages) return old;
                   return {
                     ...old,
@@ -218,7 +276,7 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
           ))
         )}
 
-        {feedQuery.isFetchingNextPage ? (
+        {activeQuery.isFetchingNextPage ? (
           <div className="flex justify-center py-4">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>

@@ -526,11 +526,16 @@ export function CommunityDashboardTab({
 
   const contributionRanking = useMemo(() => {
     if (!dashboard) return [];
-    if (contributionActivityId === 'overall') return dashboard.overall ?? [];
-    const activityRow = dashboard.byActivity.find(
-      (row) => row.activity.id === contributionActivityId
-    );
-    return activityRow?.ranking ?? [];
+    const raw =
+      contributionActivityId === 'overall'
+        ? dashboard.overall ?? []
+        : dashboard.byActivity.find((row) => row.activity.id === contributionActivityId)
+            ?.ranking ?? [];
+    const visible = raw.filter((row) => {
+      const name = String(row.name || '').trim().toLowerCase();
+      return name !== 'deleted profile' && name !== 'deleted user';
+    });
+    return visible.map((row, index) => ({ ...row, rank: index + 1 }));
   }, [dashboard, contributionActivityId]);
 
   const contributionSubtitle = useMemo(() => {

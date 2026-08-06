@@ -16,7 +16,7 @@ import { DEFAULT_OTP_EXPIRY_MINUTES } from '@/lib/auth/otpSession';
 function VerifyOTPContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setUser, setAccessToken, setProfiles } = useAuthStore();
+  const { setUser, setAccessToken, setProfiles, setSelectedProfile } = useAuthStore();
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -86,6 +86,16 @@ function VerifyOTPContent() {
       setUser(user);
       setProfiles(profiles);
       setAccessToken(accessToken);
+
+      // Axios attaches ?profile= from selectedProfile — must set before create-plan APIs run.
+      const list = Array.isArray(profiles) ? profiles : [];
+      const primary =
+        list.find(
+          (p) => p?.type === 'primary' || p?.relationship === 'self'
+        ) || list[0];
+      if (primary) {
+        setSelectedProfile(primary);
+      }
 
       router.push('/create-plan?mode=first-setup');
     } catch (err) {

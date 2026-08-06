@@ -100,6 +100,9 @@ export function CommunityGroupsBadgesTab({
 
         {isAdmin ? (
           <div className="space-y-2 border-b border-border px-4 py-3">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-foreground">Create a group</p>
+            </div>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -114,7 +117,7 @@ export function CommunityGroupsBadgesTab({
             />
             {error ? <p className="text-xs text-destructive">{error}</p> : null}
             <Button
-              size="sm"
+              className="w-full"
               disabled={!name.trim() || createMutation.isPending}
               onClick={() => createMutation.mutate()}
             >
@@ -127,6 +130,12 @@ export function CommunityGroupsBadgesTab({
             </Button>
           </div>
         ) : null}
+
+        <div className="border-b border-border px-4 py-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Existing groups ({groups.length})
+          </p>
+        </div>
 
         {groupsQuery.isLoading ? (
           <div className="flex justify-center py-8">
@@ -233,39 +242,30 @@ export function CommunityGroupsBadgesTab({
           <div className="flex justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
+        ) : catalog.length === 0 || catalog.every((b) => !b.unlocked) ? (
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+            No badges unlocked yet
+          </p>
         ) : (
           <ul className="divide-y divide-border">
-            {catalog.map((badge) => (
-              <li
-                key={badge.code}
-                className="flex items-start gap-3 px-4 py-3"
-              >
-                <span
-                  className={
-                    badge.unlocked
-                      ? 'mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary'
-                      : 'mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-muted-foreground'
-                  }
-                >
-                  <Award className="h-4 w-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground">
-                    {badge.label}
-                    {badge.unlocked ? (
+            {catalog
+              .filter((badge) => badge.unlocked)
+              .map((badge) => (
+                <li key={badge.code} className="flex items-start gap-3 px-4 py-3">
+                  <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary">
+                    <Award className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground">
+                      {badge.label}
                       <span className="ml-2 text-[10px] font-semibold uppercase text-primary">
                         Unlocked
                       </span>
-                    ) : (
-                      <span className="ml-2 text-[10px] font-semibold uppercase text-muted-foreground">
-                        Locked
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{badge.description}</p>
-                </div>
-              </li>
-            ))}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{badge.description}</p>
+                  </div>
+                </li>
+              ))}
           </ul>
         )}
       </div>

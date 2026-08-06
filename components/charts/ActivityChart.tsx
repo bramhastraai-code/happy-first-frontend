@@ -26,6 +26,7 @@ export interface ChartPoint {
   label: string;
   value: number;
   tooltipLabel?: string;
+  displayValue?: string;
 }
 
 interface ActivityChartProps {
@@ -35,6 +36,8 @@ interface ActivityChartProps {
   color?: string;
   selectedIndex?: number;
   onBarClick?: (label: string, index: number) => void;
+  tooltipUnit?: string;
+  yAxisLabelFormatter?: (value: number) => string;
 }
 
 const BAR_GRADIENT = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -92,6 +95,8 @@ export default function ActivityChart({
   color = '#ea580c',
   selectedIndex = -1,
   onBarClick,
+  tooltipUnit = 'pts',
+  yAxisLabelFormatter,
 }: ActivityChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
@@ -158,7 +163,12 @@ export default function ActivityChart({
           const p = Array.isArray(params) ? params[0] : params;
           const idx = typeof p.dataIndex === 'number' ? p.dataIndex : -1;
           const name = (idx >= 0 && data[idx]?.tooltipLabel) || p.name;
-          return `<strong>${name}</strong><br/>${numericValue(p.value)} pts`;
+          const unit = tooltipUnit ? ` ${tooltipUnit}` : '';
+          const display =
+            idx >= 0 && data[idx]?.displayValue
+              ? data[idx].displayValue
+              : `${numericValue(p.value)}${unit}`;
+          return `<strong>${name}</strong><br/>${display}`;
         },
       },
       ...(dense && zoom
@@ -196,7 +206,11 @@ export default function ActivityChart({
       yAxis: {
         type: 'value',
         splitLine: { lineStyle: { color: '#f5f5f4' } },
-        axisLabel: { color: '#a8a29e', fontSize: 11 },
+        axisLabel: {
+          color: '#a8a29e',
+          fontSize: 11,
+          formatter: yAxisLabelFormatter ? (value: number) => yAxisLabelFormatter(value) : undefined,
+        },
       },
       series: [
         variant === 'bar'
@@ -258,7 +272,7 @@ export default function ActivityChart({
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, [data, variant, color, onBarClick, selectedIndex]);
+  }, [data, variant, color, onBarClick, selectedIndex, tooltipUnit, yAxisLabelFormatter]);
 
   useEffect(() => {
     return () => {

@@ -747,18 +747,27 @@ export function CommunityChatTab({
     const jump = () => scrollToBottom('auto');
     jump();
     const raf = window.requestAnimationFrame(jump);
+    const raf2 = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(jump);
+    });
     const timer = window.setTimeout(jump, 80);
+    const timer2 = window.setTimeout(jump, 250);
+    const timer3 = window.setTimeout(jump, 500);
     prevMessageCountRef.current = messagesQuery.data?.length ?? 0;
 
     return () => {
       window.cancelAnimationFrame(raf);
+      window.cancelAnimationFrame(raf2);
       window.clearTimeout(timer);
+      window.clearTimeout(timer2);
+      window.clearTimeout(timer3);
     };
   }, [
     communityId,
     searchOpen,
     messagesQuery.isLoading,
     messagesQuery.dataUpdatedAt,
+    messagesQuery.data?.length,
     scrollToBottom,
   ]);
 

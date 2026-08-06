@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { DateTime } from 'luxon';
 import { useAuthStore } from '@/lib/store/authStore';
 import { type Activity } from '@/lib/api/activity';
-import { weeklyPlanAPI, type CreateWeeklyPlanData, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
+import { weeklyPlanAPI, type CreateWeeklyPlanData, type NextWeekPreview, type WeeklyMood, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -18,9 +18,18 @@ import {
 } from '@/components/create-plan/CreatePlanUI';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CheckCircle2, ArrowRight, ChevronLeft, RefreshCw, PlusCircle } from 'lucide-react';
+import { CheckCircle2, ArrowRight, ChevronLeft, RefreshCw, PlusCircle, PauseCircle, CalendarDays } from 'lucide-react';
 import CadenceSlider, { type CadenceValue } from '@/components/ui/CadenceSlider';
 import { cn } from '@/lib/utils';
+import { formatWeekRangeLabel, formatWeekRangeShort } from '@/lib/utils/weekDate';
+
+const WEEKLY_MOOD_OPTIONS: Array<{ value: WeeklyMood; label: string; emoji: string }> = [
+  { value: 'lovely', label: 'Lovely', emoji: '🌸' },
+  { value: 'good', label: 'Good', emoji: '🙂' },
+  { value: 'mixed', label: 'Mixed', emoji: '😐' },
+  { value: 'tough', label: 'Tough', emoji: '😓' },
+  { value: 'exhausted', label: 'Exhausted', emoji: '😴' },
+];
 
 interface SelectedActivity {
   activityId: string;
@@ -62,7 +71,8 @@ function CreatePlanPageContent() {
   const forceFresh = searchParams.get('fresh') === '1';
   const editPlanId = searchParams.get('edit');
   const isEditMode = Boolean(editPlanId);
-  const { user, accessToken, isHydrated,selectedProfile } = useAuthStore();
+  const { user, accessToken, isHydrated, selectedProfile, profiles, setSelectedProfile } =
+    useAuthStore();
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<SelectedActivity[]>([]);
@@ -78,6 +88,10 @@ function CreatePlanPageContent() {
   const [visitedCategories, setVisitedCategories] = useState<Set<'body' | 'mind' | 'soul'>>(new Set(['body']));
   const [targetOverlayActivity, setTargetOverlayActivity] = useState<Activity | null>(null);
   const [weight, setWeight] = useState<number>(selectedProfile?.profile?.weight || 0);
+  const [weeklyMood, setWeeklyMood] = useState<WeeklyMood | ''>('');
+  const [nextWeekPreview, setNextWeekPreview] = useState<NextWeekPreview | null>(null);
+  const [pauseLoading, setPauseLoading] = useState(false);
+  const [pauseMessage, setPauseMessage] = useState('');
   const [showWeightOverlay, setShowWeightOverlay] = useState(false);
   const [mandatoryActivity, setMandatoryActivity] = useState<Activity | null>(null);
   const [showCongratulation, setShowCongratulation] = useState(false);
@@ -98,10 +112,25 @@ function CreatePlanPageContent() {
     if (!isOnboarding) {
       return;
     }
+    if (!isHydrated || !accessToken) return;
 
-    fetchActivities();
+    // Ensure a profile is selected so /weeklyPlan/options receives ?profile=
+    if (!selectedProfile?._id) {
+      const list = profiles || [];
+      const primary =
+        list.find((p) => p?.type === 'primary' || p?.relationship === 'self') || list[0];
+      if (primary) {
+        setSelectedProfile(primary);
+        return;
+      }
+      setError('No profile found for this account. Please sign out and register again.');
+      return;
+    }
+
+    void fetchActivities();
     setStep('select');
-  }, [isOnboarding]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch once profile is ready
+  }, [isOnboarding, isHydrated, accessToken, selectedProfile?._id, profiles, setSelectedProfile]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -180,6 +209,15 @@ function CreatePlanPageContent() {
       }
 
       if (isOnboarding) return;
+
+      if (!isEditMode) {
+        try {
+          const previewRes = await weeklyPlanAPI.getNextWeekPreview();
+          setNextWeekPreview(previewRes.data.data ?? null);
+        } catch (err) {
+          console.error('Failed to load next week preview:', err);
+        }
+      }
 
       // Check if an upcoming plan already exists — send user to edit it
       try {
@@ -388,9 +426,12 @@ function CreatePlanPageContent() {
   };
 
   const confirmRepeatWithWeight = async () => {
-    // Validate weight
     if (!weight || weight <= 0) {
       setError('Please enter your weight');
+      return;
+    }
+    if (!weeklyMood) {
+      setError('Please select your weekly mood');
       return;
     }
 
@@ -399,15 +440,16 @@ function CreatePlanPageContent() {
     setShowWeightOverlay(false);
 
     try {
-      // Update profile with weight
       await authAPI.updateProfile({
         profile: {
           weight: weight,
         },
       });
 
-      // Repeat last week's plan
-      const repeatResponse = await weeklyPlanAPI.repeatLastWeek();
+      const repeatResponse = await weeklyPlanAPI.repeatLastWeek({
+        startingWeight: weight,
+        weeklyMood,
+      });
 
       const createdPlan = repeatResponse?.data?.data;
       const now = new Date();
@@ -433,9 +475,13 @@ function CreatePlanPageContent() {
       return;
     }
 
-    // Validate weight
     if (!weight || weight <= 0) {
       setError('Please enter your weight');
+      return;
+    }
+
+    if (!isEditMode && !weeklyMood) {
+      setError('Please select your weekly mood');
       return;
     }
 
@@ -443,20 +489,24 @@ function CreatePlanPageContent() {
     setError('');
 
     try {
-      // Update profile with weight
       await authAPI.updateProfile({
         profile: {
           weight: weight,
         },
       });
 
-      // Create or update weekly plan with selected activities
       const planData: CreateWeeklyPlanData = {
         activities: selectedActivities.map((act) => ({
           activityId: act.activityId,
           cadence: act.cadence,
           targetValue: act.targetValue,
         })),
+        ...(isEditMode
+          ? {}
+          : {
+              startingWeight: weight,
+              weeklyMood: weeklyMood as WeeklyMood,
+            }),
       };
 
       if (isEditMode && editPlanId) {
@@ -508,7 +558,87 @@ function CreatePlanPageContent() {
     }
   };
 
-  // Congratulation Screen
+  const handlePauseNextWeek = async () => {
+    if (
+      !window.confirm(
+        'Pause your plan for next week? Your current week stays active and unchanged.'
+      )
+    ) {
+      return;
+    }
+
+    setPauseLoading(true);
+    setError('');
+    setPauseMessage('');
+
+    try {
+      const response = await weeklyPlanAPI.pauseNextWeek();
+      setPauseMessage(response.data.message || 'Next week paused successfully.');
+      router.replace('/home');
+    } catch (err) {
+      console.error('Failed to pause next week:', err);
+      setError(apiErrorMessage(err, 'Could not pause next week.'));
+    } finally {
+      setPauseLoading(false);
+    }
+  };
+
+  const weekPreviewBanner =
+    !isEditMode && nextWeekPreview ? (
+      <div className="section-card flex items-center gap-3 border-primary/25 bg-primary-soft/40 p-4">
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+          <CalendarDays className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Next plan week</p>
+          <p className="text-base font-bold text-foreground">
+            {formatWeekRangeLabel(nextWeekPreview.weekStart, nextWeekPreview.weekEnd)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {formatWeekRangeShort(nextWeekPreview.weekStart, nextWeekPreview.weekEnd)}
+          </p>
+        </div>
+      </div>
+    ) : null;
+
+  const moodPicker = !isEditMode ? (
+    <div className="section-card p-4">
+      <p className="text-sm font-semibold text-foreground">Weekly mood</p>
+      <p className="mt-1 text-xs text-muted-foreground">How are you feeling going into this week?</p>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {WEEKLY_MOOD_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => setWeeklyMood(option.value)}
+            className={cn(
+              'rounded-xl border px-3 py-2.5 text-left transition-colors',
+              weeklyMood === option.value
+                ? 'border-primary bg-primary-soft'
+                : 'border-border bg-surface hover:bg-accent/40'
+            )}
+          >
+            <span className="text-lg">{option.emoji}</span>
+            <p className="mt-1 text-xs font-semibold text-foreground">{option.label}</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  const pauseNextWeekButton = !isEditMode && !isOnboarding ? (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => void handlePauseNextWeek()}
+      disabled={pauseLoading}
+      className="w-full gap-2 border-dashed"
+    >
+      <PauseCircle className={cn('h-4 w-4', pauseLoading && 'animate-pulse')} />
+      {pauseLoading ? 'Pausing next week…' : 'Pause plan for next week'}
+    </Button>
+  ) : null;
+
   if (showCongratulation) {
     return (
       <MainLayout hideBottomNav={isOnboarding}>
@@ -610,6 +740,14 @@ function CreatePlanPageContent() {
           </div>
         )}
 
+        {pauseMessage && (
+          <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+            {pauseMessage}
+          </div>
+        )}
+
+        {weekPreviewBanner}
+
         {/* Step 0: Choose Plan Type */}
         {step === 'choice' && (
           <div className="space-y-4">
@@ -651,6 +789,7 @@ function CreatePlanPageContent() {
                 </button>
               )}
             </div>
+            {pauseNextWeekButton}
           </div>
         )}
 
@@ -762,13 +901,17 @@ function CreatePlanPageContent() {
               <p className="mt-1 text-xs text-muted-foreground">Range: 1 – 500 kg</p>
             </div>
 
+            {moodPicker}
+
+            {pauseNextWeekButton}
+
             <div className="flex gap-3 pt-2">
               <Button onClick={handleBack} variant="outline" className="flex-1">
                 <ChevronLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={loading || !weight || weight <= 0}
+                disabled={loading || !weight || weight <= 0 || (!isEditMode && !weeklyMood)}
                 className="create-button flex-1"
               >
                 {loading
@@ -797,7 +940,7 @@ function CreatePlanPageContent() {
           <div className="app-card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-foreground">Enter your weight</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Update your weight to personalize the repeated plan.
+              Update your weight and mood to personalize the repeated plan.
             </p>
             <label className="mt-4 block text-xs font-medium text-muted-foreground">Weight (kg)</label>
             <Input
@@ -814,13 +957,33 @@ function CreatePlanPageContent() {
               className="mt-1.5 w-full"
               autoFocus
             />
+            <div className="mt-4">
+              <p className="text-xs font-medium text-muted-foreground">Weekly mood</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {WEEKLY_MOOD_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setWeeklyMood(option.value)}
+                    className={cn(
+                      'rounded-lg border px-3 py-2 text-left text-xs font-semibold transition-colors',
+                      weeklyMood === option.value
+                        ? 'border-primary bg-primary-soft text-foreground'
+                        : 'border-border bg-surface hover:bg-accent/40'
+                    )}
+                  >
+                    {option.emoji} {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="mt-4 flex gap-3">
               <Button onClick={() => setShowWeightOverlay(false)} variant="outline" className="flex-1">
                 Cancel
               </Button>
               <Button
                 onClick={confirmRepeatWithWeight}
-                disabled={repeatLoading || !weight || weight <= 0}
+                disabled={repeatLoading || !weight || weight <= 0 || !weeklyMood}
                 className="flex-1"
               >
                 {repeatLoading ? 'Processing…' : 'Confirm & repeat'}

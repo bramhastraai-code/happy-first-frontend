@@ -28,6 +28,10 @@ import type {
   LeaderboardData,
   StreakData,
 } from '@/lib/api/dailyLog';
+import type { WeightMoodHistoryPoint } from '@/lib/api/weeklyPlan';
+import ActivityChart from '@/components/charts/ActivityChart';
+import { formatWeekRangeShort } from '@/lib/utils/weekDate';
+import { moodToNumeric, numericToMoodLabel } from '@/lib/utils/moodChart';
 
 type FilterType = 'overall' | 'activity';
 
@@ -40,6 +44,7 @@ interface StreakCalendarViewProps {
   activityCalendarData: ActivityCalendarData | null;
   isCalendarFetching: boolean;
   selectedProfileId?: string;
+  weightMoodHistory?: WeightMoodHistoryPoint[];
   onFilterChange: (type: FilterType) => void;
   onActivitySelect: (activityId: string) => void;
   onBackToActivityList: () => void;
@@ -49,18 +54,43 @@ interface StreakCalendarViewProps {
   onAllTimeLeaderboardPageChange: (page: number) => void;
 }
 
+type DayState = 'future' | 'logged' | 'pending' | 'missed';
+
+function getDayState(day: CalendarDay | ActivityCalendarDay): DayState {
+  if (day.isFuture) return 'future';
+  if (day.hasLog) return 'logged';
+  if (day.isToday) return 'pending';
+  return 'missed';
+}
+
 function dayCellClasses(day: CalendarDay | ActivityCalendarDay) {
+  const state = getDayState(day);
+
   return cn(
     'relative aspect-square w-full rounded-xl border text-xs font-semibold transition-all sm:text-sm',
-    day.isFuture
-      ? 'cursor-not-allowed border-border bg-secondary text-muted-foreground opacity-60'
-      : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-sm',
-    !day.isFuture &&
-      (day.hasLog
-        ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
-        : 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100'),
+    state === 'future' &&
+      'cursor-not-allowed border-border bg-secondary text-muted-foreground opacity-60',
+    state === 'logged' &&
+      'cursor-pointer border-primary bg-primary text-primary-foreground hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-sm',
+    state === 'pending' &&
+      'cursor-pointer border-primary bg-primary-soft text-primary hover:-translate-y-0.5 hover:shadow-sm',
+    state === 'missed' &&
+      'cursor-pointer border-rose-300 bg-rose-50 text-rose-700 hover:-translate-y-0.5 hover:bg-rose-100 hover:shadow-sm',
     day.isToday && 'ring-2 ring-primary ring-offset-1 ring-offset-surface'
   );
+}
+
+function dayStateLabel(state: DayState): string {
+  switch (state) {
+    case 'logged':
+      return 'Logged';
+    case 'pending':
+      return 'Today';
+    case 'missed':
+      return 'Missed';
+    default:
+      return 'Future';
+  }
 }
 
 function CalendarDayCell({
@@ -71,6 +101,7 @@ function CalendarDayCell({
   onClick: () => void;
 }) {
   const dateLabel = day.date.split('T')[0];
+  const state = getDayState(day);
 
   return (
     <button
@@ -78,28 +109,59 @@ function CalendarDayCell({
       disabled={day.isFuture}
       onClick={onClick}
       className={dayCellClasses(day)}
-      title={`${day.dayOfWeek}, ${dateLabel}${day.hasLog ? ' · Logged' : day.isFuture ? '' : ' · Missed'}`}
+      title={`${day.dayOfWeek}, ${dateLabel}${state === 'future' ? '' : ` · ${dayStateLabel(state)}`}`}
     >
       <span className="inline-flex h-full w-full flex-col items-center justify-center gap-0.5">
         <span className="text-[11px] leading-none sm:text-sm">{day.day}</span>
-        {!day.isFuture && (
-          <span
-            className={cn(
-              'h-1.5 w-1.5 rounded-full sm:hidden',
-              day.hasLog ? 'bg-primary-foreground' : 'bg-rose-600'
-            )}
-            aria-hidden
-          />
-        )}
-        {!day.isFuture &&
-          (day.hasLog ? (
+        {state === 'logged' && (
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground sm:hidden" aria-hidden />
             <CheckCircle2 className="hidden h-3 w-3 opacity-90 sm:block" aria-hidden />
-          ) : (
+          </>
+        )}
+        {state === 'pending' && (
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-primary sm:hidden" aria-hidden />
+            <Clock className="hidden h-3 w-3 opacity-80 sm:block" aria-hidden />
+          </>
+        )}
+        {state === 'missed' && (
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-600 sm:hidden" aria-hidden />
             <XCircle className="hidden h-3 w-3 opacity-80 sm:block" aria-hidden />
-          ))}
-        {day.isFuture && <Clock className="hidden h-3 w-3 opacity-50 sm:block" aria-hidden />}
+          </>
+        )}
+        {state === 'future' && <Clock className="hidden h-3 w-3 opacity-50 sm:block" aria-hidden />}
       </span>
     </button>
+  );
+}
+
+function ActivityTotalsList({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{ activityId: string; name: string; unit: string; total: number }>;
+}) {
+  return (
+    <div>
+      <h4 className="mb-2 text-sm font-semibold text-foreground">{title}</h4>
+      {items.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No activity totals yet.</p>
+      ) : (
+        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
+          {items.map((item) => (
+            <li key={item.activityId} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+              <span className="min-w-0 truncate font-medium text-foreground">{item.name}</span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">
+                {item.total.toLocaleString()} {item.unit}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -247,6 +309,7 @@ export function StreakCalendarView({
   activityCalendarData,
   isCalendarFetching,
   selectedProfileId,
+  weightMoodHistory = [],
   onFilterChange,
   onActivitySelect,
   onBackToActivityList,
@@ -294,6 +357,41 @@ export function StreakCalendarView({
   const calendarDays = activeCalendar?.calendarDays ?? [];
   const firstDayOffset = calendarDays.length > 0 ? new Date(calendarDays[0].date).getDay() : 0;
   const activityUnit = activityCalendarData?.calendarDays.find((d) => d.unit)?.unit;
+
+  const weightChartData = weightMoodHistory
+    .filter((point) => typeof point.weight === 'number')
+    .map((point) => ({
+      label: formatWeekRangeShort(point.weekStart, point.weekEnd),
+      value: point.weight as number,
+      tooltipLabel: formatWeekRangeShort(point.weekStart, point.weekEnd),
+    }));
+
+  const moodChartData = weightMoodHistory
+    .map((point) => {
+      const numeric = moodToNumeric(point.mood);
+      if (numeric == null || !point.mood) return null;
+      const weekLabel = formatWeekRangeShort(point.weekStart, point.weekEnd);
+      const moodLabel = point.mood.charAt(0).toUpperCase() + point.mood.slice(1);
+      return {
+        label: weekLabel,
+        value: numeric,
+        tooltipLabel: weekLabel,
+        displayValue: moodLabel,
+      };
+    })
+    .filter((point): point is { label: string; value: number; tooltipLabel: string; displayValue: string } =>
+      point != null
+    );
+
+  const fourWeekTrendChartData =
+    calendarData?.fourWeekTrend?.map((week) => ({
+      label: formatWeekRangeShort(week.weekStart, week.weekEnd),
+      value: week.percentPointsEarned,
+      tooltipLabel: formatWeekRangeShort(week.weekStart, week.weekEnd),
+    })) ?? [];
+
+  const weeklyAverages = calendarData?.weeklyAverages;
+  const activityTotals = calendarData?.activityTotals;
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 sm:space-y-6">
@@ -380,20 +478,74 @@ export function StreakCalendarView({
         )}
       </section>
 
+      {filterType === 'overall' && (weightChartData.length > 0 || moodChartData.length > 0) && (
+        <section className="section-card space-y-5 p-4 sm:p-5">
+          <div>
+            <h2 className="section-title">Weight & mood trends</h2>
+            <p className="text-xs text-muted-foreground">Weekly starting weight and mood over recent plans</p>
+          </div>
+
+          {weightChartData.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Weight (kg)</h3>
+              <ActivityChart
+                data={weightChartData}
+                variant="line"
+                height={200}
+                color="#2563eb"
+                tooltipUnit="kg"
+              />
+            </div>
+          )}
+
+          {moodChartData.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Weekly mood</h3>
+              <ActivityChart
+                data={moodChartData}
+                variant="line"
+                height={200}
+                color="#ea580c"
+                tooltipUnit=""
+                yAxisLabelFormatter={(value) => numericToMoodLabel(value)}
+              />
+            </div>
+          )}
+        </section>
+      )}
+
       {showCalendar && activeCalendar && (
         <>
           <section className="section-card overflow-visible p-4 sm:p-5">
             {filterType === 'activity' && selectedActivityId && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={onBackToActivityList}
-                className="mb-4 -ml-2 gap-2 text-primary hover:text-primary-hover"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Back to activities
-              </Button>
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onBackToActivityList}
+                  className="-ml-2 gap-2 self-start text-primary hover:text-primary-hover"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Back to activities
+                </Button>
+                {streakData.activityStreaks.length > 1 && (
+                  <label className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-xs sm:justify-end">
+                    <span className="sr-only">Switch activity</span>
+                    <select
+                      value={selectedActivityId}
+                      onChange={(e) => onActivitySelect(e.target.value)}
+                      className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    >
+                      {streakData.activityStreaks.map((activity) => (
+                        <option key={activity.activityId} value={activity.activityId}>
+                          {activity.activityName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
             )}
 
             <div className="mb-4 flex items-center justify-between gap-2">
@@ -435,7 +587,9 @@ export function StreakCalendarView({
 
             <div className="mb-2 flex flex-wrap items-center justify-end gap-3 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+                <span className="flex h-5 w-5 items-center justify-center rounded-lg border border-primary bg-primary text-primary-foreground">
+                  <CheckCircle2 className="h-3 w-3" />
+                </span>
                 Logged
               </span>
               <button
@@ -462,13 +616,13 @@ export function StreakCalendarView({
                   Missed
                 </span>
                 <span className="inline-flex items-center gap-2 text-muted-foreground">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary bg-primary-soft ring-2 ring-primary ring-offset-1">
-                    12
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary bg-primary-soft text-primary ring-2 ring-primary ring-offset-1 ring-offset-secondary/50">
+                    <Clock className="h-3.5 w-3.5" />
                   </span>
                   Today
                 </span>
                 <span className="inline-flex items-center gap-2 text-muted-foreground">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-secondary opacity-60">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-secondary text-muted-foreground opacity-60">
                     <Clock className="h-3.5 w-3.5" />
                   </span>
                   Future
@@ -492,6 +646,13 @@ export function StreakCalendarView({
                 <CalendarDayCell key={day.date} day={day} onClick={() => handleDayClick(day)} />
               ))}
             </div>
+
+            {filterType === 'activity' && selectedActivityStreak && (
+              <div className="mt-4 flex items-center justify-center gap-2 text-sm font-semibold text-primary">
+                <Flame className="h-4 w-4" />
+                {selectedActivityStreak.currentStreak} day streak
+              </div>
+            )}
 
             <div className="mt-5 border-t border-border pt-4">
               {activityCalendarData ? (
@@ -518,18 +679,62 @@ export function StreakCalendarView({
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                  <StatTile label="Days logged" value={calendarData?.statistics.daysLogged || 0} />
-                  <StatTile label="Days missed" value={calendarData?.statistics.daysNotLogged || 0} />
-                  <StatTile
-                    label="Completion"
-                    value={`${calendarData?.statistics.completionPercentage || 0}%`}
-                    accent="success"
-                  />
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <StatTile label="Days logged" value={calendarData?.statistics.daysLogged || 0} />
+                    <StatTile label="Days missed" value={calendarData?.statistics.daysNotLogged || 0} />
+                    <StatTile
+                      label="% Points Earned"
+                      value={`${calendarData?.statistics.completionPercentage || 0}%`}
+                      accent="success"
+                    />
+                  </div>
+                  {weeklyAverages && (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+                      <StatTile
+                        label={`${weeklyAverages.monthLabel} Weekly Average`}
+                        value={`${weeklyAverages.monthWeeklyAveragePercent.toFixed(1)}% Points Earned`}
+                        accent="primary"
+                      />
+                      <StatTile
+                        label="Overall Weekly Average"
+                        value={`${weeklyAverages.overallWeeklyAveragePercent.toFixed(1)}% Points Earned`}
+                        accent="primary"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </section>
+
+          {filterType === 'overall' && activityTotals && (
+            <section className="section-card space-y-4 p-4 sm:p-5">
+              <div>
+                <h2 className="section-title">Overall activity totals</h2>
+                <p className="text-xs text-muted-foreground">Cumulative activity values this month and lifetime</p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <ActivityTotalsList title="This month" items={activityTotals.month} />
+                <ActivityTotalsList title="Lifetime" items={activityTotals.lifetime} />
+              </div>
+            </section>
+          )}
+
+          {filterType === 'overall' && fourWeekTrendChartData.length > 0 && (
+            <section className="section-card space-y-4 p-4 sm:p-5">
+              <div>
+                <h2 className="section-title">4-week analysis</h2>
+                <p className="text-xs text-muted-foreground">% Points Earned over the last four completed weeks</p>
+              </div>
+              <ActivityChart
+                data={fourWeekTrendChartData}
+                variant="bar"
+                height={200}
+                tooltipUnit="% Points Earned"
+              />
+            </section>
+          )}
 
           {(activityCalendarData?.leaderboard || calendarData?.leaderboard) && (
             <LeaderboardSection

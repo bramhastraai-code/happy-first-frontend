@@ -34,7 +34,13 @@ export default function CustomNumericInput({
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const renderedValue = isFocused ? displayValue : (value > 0 ? value.toString() : '');
+  const renderedValue = isFocused
+    ? displayValue
+    : value === 0
+      ? '0'
+      : value > 0
+        ? value.toString()
+        : '';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
@@ -75,12 +81,12 @@ export default function CustomNumericInput({
     if (numValue > max) numValue = max;
     
     onChange(numValue);
-    setDisplayValue(numValue > 0 ? numValue.toString() : '');
+    setDisplayValue(numValue === 0 ? '0' : numValue > 0 ? numValue.toString() : '');
   };
 
   const handleFocus = () => {
     setIsFocused(true);
-    setDisplayValue(value > 0 ? value.toString() : '');
+    setDisplayValue(value === 0 ? '0' : value > 0 ? value.toString() : '');
   };
 
   const handleIncrement = () => {
@@ -192,8 +198,8 @@ export default function CustomNumericInput({
       >
         <span className="font-semibold text-foreground">
           {cadence === 'daily'
-            ? `${pointsPerUnit.toFixed(compact ? 1 : 2)} pts`
-            : `${pointsPerUnit.toFixed(compact ? 1 : 2)} pts/${unit}`}
+            ? `${pointsPerUnit.toFixed(compact ? 1 : 2)}%`
+            : `${pointsPerUnit.toFixed(compact ? 1 : 2)}%/${unit}`}
         </span>
         {!compact && cadence === 'weekly' && (
           <span className="block text-xs text-muted-foreground">(weekly)</span>

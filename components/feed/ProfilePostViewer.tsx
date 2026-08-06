@@ -21,6 +21,7 @@ import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
+import { renderCaptionWithMentions } from '@/lib/utils/renderCaptionWithMentions';
 import { cn } from '@/lib/utils';
 
 interface ProfilePostViewerProps {
@@ -492,7 +493,13 @@ export function ProfilePostViewer({
             {post.caption ? (
               <p className="text-sm leading-relaxed">
                 <span className="font-semibold">{post.author.name}</span>{' '}
-                <span className="whitespace-pre-wrap break-words">{post.caption}</span>
+                {renderCaptionWithMentions(post.caption, {
+                  collaborators: [
+                    ...(post.acceptedCollaborators || []),
+                    ...(post.collaborators || []),
+                  ],
+                  inline: true,
+                })}
               </p>
             ) : (
               <p className="text-sm text-muted-foreground">No caption</p>
@@ -559,9 +566,15 @@ export function ProfilePostViewer({
               {post.caption ? (
                 <p className="text-sm leading-snug text-white">
                   <span className="font-semibold">{post.author.name}</span>{' '}
-                  <span className="whitespace-pre-wrap break-words text-white/95">
-                    {post.caption}
-                  </span>
+                  {renderCaptionWithMentions(post.caption, {
+                    collaborators: [
+                      ...(post.acceptedCollaborators || []),
+                      ...(post.collaborators || []),
+                    ],
+                    inline: true,
+                    className: 'text-white/95',
+                    mentionClassName: 'font-semibold text-primary hover:underline',
+                  })}
                 </p>
               ) : null}
               <button

@@ -46,7 +46,7 @@ export function FeedTopBar({
           <Link
             href="/feed/explore"
             className={headerActionBtnClass}
-            aria-label="Search people"
+            aria-label="Search people and posts"
             title="Search"
           >
             <Search className="h-[18px] w-[18px]" />

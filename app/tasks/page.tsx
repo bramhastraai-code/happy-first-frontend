@@ -26,7 +26,8 @@ import { activityAPI, Activity as ActivityType } from '@/lib/api/activity';
 import { DateTime } from 'luxon';
 import { formatWeekRangeLabel, formatWeekRangeShort } from '@/lib/utils/weekDate';
 import { resolveActivityId } from '@/lib/utils/activityId';
-import { canSubmitPartialLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
+import { getActivityInputMax } from '@/lib/utils/activityInput';
+import { canSubmitFullDayLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
@@ -55,18 +56,10 @@ export default function TasksPage() {
   const [showCongrats, setShowCongrats] = useState(false);
   const [earnedPoints, setEarnedPoints] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
-  const [warningActivities, setWarningActivities] = useState<Array<{label: string, value: number, target: number, percentage: number}>>([]);
+  const [warningActivities, setWarningActivities] = useState<Array<{activityId: string; label: string; value: number; target: number; percentage: number}>>([]);
   const [hasUpcomingPlan, setHasUpcomingPlan] = useState(false);
   const [editPlanHref, setEditPlanHref] = useState('/create-plan');
   const [planChoice, setPlanChoice] = useState<PlanChoiceState | null>(null);
-  const [repeatLoading, setRepeatLoading] = useState(false);
-
-  const getActivityInputMax = (activity: WeeklyPlanActivity, activityData?: ActivityType) => {
-    const configuredMax = activityData?.values.find((v) => v.tier === 1)?.maxVal;
-    const baseMax = typeof configuredMax === 'number' ? configuredMax : 500000;
-    const isWeeklyNumericTarget = activity.cadence === 'weekly' && activity.unit.toLowerCase() !== 'days';
-    return isWeeklyNumericTarget ? Math.max(baseMax, baseMax * 7) : baseMax;
-  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -204,34 +197,9 @@ export default function TasksPage() {
     fetchData();
   }, [accessToken, user, router, isHydrated]);
 
-  const handleRepeatPlan = async () => {
-    setRepeatLoading(true);
-    setError('');
-    try {
-      await weeklyPlanAPI.repeatLastWeek();
-      const { plan, planChoice: choice } = await weeklyPlanAPI.getCurrentPlanState();
-      setWeeklyPlan(plan);
-      setPlanChoice(choice);
-      setNoPlanError('');
-      const planIds = new Set(
-        (plan?.activities ?? []).map((a) => resolveActivityId(a)).filter(Boolean)
-      );
-      setCommunityActivities((prev) =>
-        prev.filter((row) => !planIds.has(String(row.activityId)))
-      );
-      if (choice?.canEditCurrent && choice.currentPlanId) {
-        setEditPlanHref(`/create-plan?edit=${choice.currentPlanId}`);
-      }
-      setSuccess('Plan repeated for this week. You can edit it until you enter your first log.');
-      router.replace('/tasks');
-    } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        'Could not repeat last week\'s plan.';
-      setError(message);
-    } finally {
-      setRepeatLoading(false);
-    }
+  const handleRepeatPlan = () => {
+    // Capture weight + weekly mood on create-plan before repeating
+    router.push('/create-plan');
   };
 
 
@@ -283,25 +251,26 @@ export default function TasksPage() {
     setSuccess('');
 
     // Validate activities for warnings
-    const warnings: Array<{label: string, value: number, target: number, percentage: number}> = [];
+    const warnings: Array<{activityId: string; label: string; value: number; target: number; percentage: number}> = [];
     
     Object.entries(activities).forEach(([activityId, value]) => {
-      if (value > 0) {
-        const activity = weeklyPlan?.activities.find(
-          (a) => resolveActivityId(a) === activityId
-        );
-        if (activity && activity.cadence !== 'weekly' && activity.label) {
-          const targetValue =  activity.targetValue ;
-          const percentage = (value / targetValue) * 100;
-          
-          if (percentage < 10 || percentage > 200) {
-            warnings.push({
-              label: activity.label,
-              value,
-              target: targetValue,
-              percentage: Math.round(percentage)
-            });
-          }
+      const activity = weeklyPlan?.activities.find(
+        (a) => resolveActivityId(a) === activityId
+      );
+      if (!activity || activity.TodayLogged) return;
+
+      if (activity.cadence !== 'weekly' && activity.label) {
+        const targetValue = activity.targetValue;
+        const percentage = targetValue > 0 ? (value / targetValue) * 100 : 0;
+        
+        if (percentage < 10 || percentage > 200) {
+          warnings.push({
+            activityId,
+            label: activity.label,
+            value,
+            target: targetValue,
+            percentage: Math.round(percentage),
+          });
         }
       }
     });
@@ -322,6 +291,11 @@ export default function TasksPage() {
       ? validateLogSubmit(weeklyPlan, activities, checkboxActivities, pendingSliders)
       : { ok: true as const, payload: [] as Array<{ activityId: string; value: number }> };
 
+    if (weeklyPlan && !personalValidation.ok) {
+      setError(personalValidation.error);
+      return;
+    }
+
     const communityPayload = communityActivities
       .filter((row) => !row.TodayLogged)
       .map((row) => {
@@ -331,11 +305,10 @@ export default function TasksPage() {
           const isPending = pendingSliders[row.activityId] ?? true;
           if (isPending) return null;
           const value = checkboxActivities[row.activityId] ? 1 : 0;
-          return value > 0
-            ? { activityId: row.activityId, value, communityOnly: true as const }
-            : null;
+          return { activityId: row.activityId, value, communityOnly: true as const };
         }
         const value = activities[row.activityId] ?? 0;
+        // Community numeric: only include when user entered a value (optional vs personal full-day)
         return value > 0
           ? { activityId: row.activityId, value, communityOnly: true as const }
           : null;
@@ -347,11 +320,7 @@ export default function TasksPage() {
     const personalPayload = personalValidation.ok ? personalValidation.payload : [];
 
     if (personalPayload.length === 0 && communityPayload.length === 0) {
-      if (!personalValidation.ok) {
-        setError(personalValidation.error);
-        return;
-      }
-      setError('Please log at least one new activity before submitting.');
+      setError('Please review all activities before submitting.');
       return;
     }
 
@@ -506,9 +475,24 @@ export default function TasksPage() {
     }
   };
 
+  const scrollToActivityRow = (activityId: string) => {
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`activity-row-${activityId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const input = el?.querySelector('input');
+      if (input instanceof HTMLInputElement) {
+        input.focus();
+      }
+    });
+  };
+
   const handleCancelSubmit = () => {
     setShowWarning(false);
+    const firstWarning = warningActivities[0];
     setWarningActivities([]);
+    if (firstWarning?.activityId) {
+      scrollToActivityRow(firstWarning.activityId);
+    }
   };
 
   return (
@@ -640,11 +624,10 @@ export default function TasksPage() {
                 <button
                   type="button"
                   onClick={handleRepeatPlan}
-                  disabled={repeatLoading}
-                  className="rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:bg-accent/40 disabled:opacity-60"
+                  className="rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:bg-accent/40"
                 >
                   <span className="inline-flex rounded-xl bg-secondary p-2.5 text-foreground">
-                    <RefreshCw className={`h-5 w-5 ${repeatLoading ? 'animate-spin' : ''}`} />
+                    <RefreshCw className="h-5 w-5" />
                   </span>
                   <h3 className="mt-3 text-sm font-semibold text-foreground">Repeat last plan</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -979,20 +962,19 @@ export default function TasksPage() {
               disabled={
                 !isAfter6PM ||
                 loading ||
-                (!(
-                  weeklyPlan &&
-                  canSubmitPartialLog(weeklyPlan, activities, checkboxActivities, pendingSliders)
-                ) &&
-                  !communityActivities.some((row) => {
-                    if (row.TodayLogged) return false;
-                    const isWeeklyDays =
-                      row.cadence === 'weekly' &&
-                      String(row.unit || '').toLowerCase() === 'days';
-                    if (isWeeklyDays) {
-                      return !(pendingSliders[row.activityId] ?? true);
-                    }
-                    return (activities[row.activityId] ?? 0) > 0;
-                  }))
+                (weeklyPlan
+                  ? !canSubmitFullDayLog(weeklyPlan, activities, checkboxActivities, pendingSliders)
+                  : communityActivities.length === 0 ||
+                    !communityActivities.some((row) => {
+                      if (row.TodayLogged) return false;
+                      const isWeeklyDays =
+                        row.cadence === 'weekly' &&
+                        String(row.unit || '').toLowerCase() === 'days';
+                      if (isWeeklyDays) {
+                        return !(pendingSliders[row.activityId] ?? true);
+                      }
+                      return true;
+                    }))
               }
               className="submit-log-button w-full py-5 text-base font-semibold"
             >

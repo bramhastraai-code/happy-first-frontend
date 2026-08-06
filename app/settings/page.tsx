@@ -21,6 +21,7 @@ import {
   Loader2,
   Bell,
   AlertCircle,
+  Trash2,
 } from 'lucide-react';
 import { authAPI } from '@/lib/api/auth';
 import { useLogoutConfirm } from '@/lib/hooks/useLogoutConfirm';
@@ -31,6 +32,7 @@ import EditProfileForm from '@/components/settings/EditProfileForm';
 import ChangePasswordForm from '@/components/settings/ChangePasswordForm';
 import SupportFeedbackForm from '@/components/settings/SupportFeedbackForm';
 import PushNotificationToggle from '@/components/settings/PushNotificationToggle';
+import { DeleteAccountDialog } from '@/components/settings/DeleteAccountDialog';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { AppQuickLinks } from '@/components/nav/AppQuickLinks';
 import { Button } from '@/components/ui/button';
@@ -61,7 +63,15 @@ const getPauseStatus = (profile: Profile | null): boolean => {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, accessToken, profiles, selectedProfile, setProfiles, setSelectedProfile } = useAuthStore();
+  const {
+    user,
+    accessToken,
+    profiles,
+    selectedProfile,
+    setProfiles,
+    setSelectedProfile,
+    logout,
+  } = useAuthStore();
   const [userData, setUserData] = useState<typeof user | null>(null);
   const [isPauseEnabled, setIsPauseEnabled] = useState(false);
   const [pauseLoading, setPauseLoading] = useState(false);
@@ -73,6 +83,9 @@ export default function SettingsPage() {
   const [reminderMessage, setReminderMessage] = useState('');
   const [reminderError, setReminderError] = useState('');
   const [openPanel, setOpenPanel] = useState<SettingsPanel>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const currentDayIndex = new Date().getDay();
   const canChangePauseToday = PAUSE_ALLOWED_DAY_INDEXES.includes(currentDayIndex);
@@ -98,6 +111,29 @@ export default function SettingsPage() {
   }, []);
 
   const { requestLogout, LogoutConfirmDialog } = useLogoutConfirm();
+
+  const handleDeleteAccount = async (confirmation: string) => {
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      await authAPI.deleteAccount(confirmation);
+      try {
+        await authAPI.logout();
+      } catch {
+        // Session may already be invalid after delete
+      }
+      logout();
+      setDeleteOpen(false);
+      router.replace('/login');
+    } catch (error: unknown) {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Failed to delete account. Please try again.';
+      setDeleteError(message);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -298,7 +334,7 @@ export default function SettingsPage() {
                     Profile {completionPercentage}% complete
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Complete your profile for better recommendations.
+                    Complete your lifestyle profile for better recommendations and earn 100 Happy Coins (one-time).
                   </p>
                 </div>
               </div>
@@ -364,7 +400,7 @@ export default function SettingsPage() {
               title="Edit profile"
               subtitle={
                 completionPercentage < 100
-                  ? `${completionPercentage}% complete · lifestyle & goals`
+                  ? `${completionPercentage}% complete · earn 100 coins at 100%`
                   : 'Lifestyle, goals, and preferences'
               }
               icon={User}
@@ -510,6 +546,30 @@ export default function SettingsPage() {
               '/settings',
             ]}
           />
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteError('');
+              setDeleteOpen(true);
+            }}
+            className={cn(
+              'mt-2 flex w-full items-center gap-3 rounded-xl border border-border bg-surface px-3 py-3.5 text-left transition-colors',
+              'hover:border-destructive/30 hover:bg-destructive/5 active:bg-destructive/10'
+            )}
+          >
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+              <Trash2 className="h-5 w-5" strokeWidth={2.25} aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold leading-snug text-destructive">
+                Delete account
+              </span>
+              <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
+                Permanently deactivate your account
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          </button>
         </section>
 
         <div className="rounded-2xl border border-dashed border-border px-4 py-4">
@@ -520,6 +580,17 @@ export default function SettingsPage() {
         </div>
       </div>
       {LogoutConfirmDialog}
+      <DeleteAccountDialog
+        open={deleteOpen}
+        loading={deleteLoading}
+        error={deleteError}
+        onCancel={() => {
+          if (deleteLoading) return;
+          setDeleteOpen(false);
+          setDeleteError('');
+        }}
+        onConfirm={(confirmation) => void handleDeleteAccount(confirmation)}
+      />
     </MainLayout>
   );
 }

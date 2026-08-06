@@ -1,10 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Loader2, Pencil, Share2, Trash2, Users } from 'lucide-react';
+import {
+  ChevronLeft,
+  DoorOpen,
+  Loader2,
+  Pencil,
+  Share2,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
@@ -26,6 +34,7 @@ import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
 import { CommunityShareDialog } from '@/components/community/CommunityShareDialog';
 import { useCommunityConfirm } from '@/components/community/useCommunityConfirm';
 import { communityAPI, communityTypeLabel } from '@/lib/api/community';
+import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 
 function apiErrorMessage(err: unknown, fallback: string) {
@@ -34,15 +43,33 @@ function apiErrorMessage(err: unknown, fallback: string) {
   );
 }
 
+function apiErrorDetails(err: unknown): Record<string, unknown> {
+  const data = (err as { response?: { data?: { error?: Record<string, unknown> } } })?.response
+    ?.data?.error;
+  return data && typeof data === 'object' ? data : {};
+}
+
+function formatCreatedOn(iso?: string | null) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export default function CommunityDetailPage() {
   const params = useParams<{ id: string }>();
   const communityId = params.id;
   const router = useRouter();
   const queryClient = useQueryClient();
   const { requestConfirm, ConfirmDialogElement } = useCommunityConfirm();
+  const { selectedProfile } = useAuthStore();
   const [tab, setTab] = useState('dashboard');
   const [shareOpen, setShareOpen] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [soleAdminOpen, setSoleAdminOpen] = useState(false);
+  const [assignAdminProfileId, setAssignAdminProfileId] = useState('');
+  const [leaveBusy, setLeaveBusy] = useState(false);
 
   useEffect(() => {
     if (tab === 'chat') {
@@ -58,6 +85,47 @@ export default function CommunityDetailPage() {
       return res.data.data.community;
     },
   });
+
+  const community = communityQuery.data;
+  const isDeleted = community?.status === 'deleted';
+  const isDisabled = community?.status === 'disabled';
+  const isAdmin = community?.myRole === 'admin';
+  const isModerator = community?.myRole === 'moderator';
+  const isMember = Boolean(community?.isMember);
+  const isPending = community?.myMembershipStatus === 'pending';
+  const canInvite =
+    isMember &&
+    !isDeleted &&
+    !isDisabled &&
+    (isAdmin ||
+      community?.type === 'invite_only' ||
+      community?.type === 'public' ||
+      (community?.type === 'private' && isAdmin));
+
+  const discoverOverviewQuery = useQuery({
+    queryKey: ['community-discover-overview', communityId],
+    enabled: Boolean(communityId) && Boolean(community) && !isMember && !isPending,
+    queryFn: async () => {
+      const res = await communityAPI.discoverOverview(communityId);
+      return res.data.data;
+    },
+  });
+
+  const membersForLeaveQuery = useQuery({
+    queryKey: ['community-members', communityId, 'leave-admin-pick'],
+    enabled: soleAdminOpen,
+    queryFn: async () => {
+      const res = await communityAPI.members(communityId, { sort: 'nameAsc' });
+      return res.data.data.members ?? [];
+    },
+  });
+
+  const adminPickMembers = useMemo(() => {
+    const me = String(selectedProfile?._id || '');
+    return (membersForLeaveQuery.data ?? []).filter(
+      (m) => String(m.profile.id) !== me
+    );
+  }, [membersForLeaveQuery.data, selectedProfile?._id]);
 
   const joinMutation = useMutation({
     mutationFn: () => communityAPI.join(communityId),
@@ -88,19 +156,57 @@ export default function CommunityDetailPage() {
     },
   });
 
-  const community = communityQuery.data;
-  const isDeleted = community?.status === 'deleted';
-  const isAdmin = community?.myRole === 'admin';
-  const isModerator = community?.myRole === 'moderator';
-  const isMember = Boolean(community?.isMember);
-  const isPending = community?.myMembershipStatus === 'pending';
-  const canInvite =
-    isMember &&
-    !isDeleted &&
-    (isAdmin ||
-      community?.type === 'invite_only' ||
-      community?.type === 'public' ||
-      (community?.type === 'private' && isAdmin));
+  const finishLeave = () => {
+    void queryClient.invalidateQueries({ queryKey: ['communities'] });
+    void queryClient.invalidateQueries({ queryKey: ['community', communityId] });
+    router.replace('/community');
+  };
+
+  const runLeave = async (body?: {
+    assignAdminProfileId?: string;
+    acknowledgeDisable?: boolean;
+  }) => {
+    setLeaveBusy(true);
+    setLeaveError(null);
+    try {
+      await communityAPI.leave(communityId, body);
+      setSoleAdminOpen(false);
+      finishLeave();
+    } catch (err: unknown) {
+      const details = apiErrorDetails(err);
+      if (
+        details.requiresAssignOrAcknowledge === true ||
+        details.code === 'SOLE_ADMIN_LEAVE'
+      ) {
+        setSoleAdminOpen(true);
+        setLeaveError(apiErrorMessage(err, 'Assign another admin or acknowledge disable.'));
+      } else {
+        setLeaveError(apiErrorMessage(err, 'Could not leave community'));
+      }
+    } finally {
+      setLeaveBusy(false);
+    }
+  };
+
+  const requestLeave = () => {
+    requestConfirm({
+      title: 'Leave this community?',
+      description:
+        'You will lose access to chat and community activity until you rejoin. This cannot be undone from here.',
+      confirmLabel: 'Leave',
+      onConfirm: () => runLeave(),
+    });
+  };
+
+  const requestDelete = () => {
+    requestConfirm({
+      title: 'Delete this community?',
+      description:
+        'Historical weeks stay available for members until they dismiss it. Delete is blocked if anyone has logged this week. This action cannot be undone.',
+      confirmLabel: 'Delete',
+      onConfirm: () => deleteMutation.mutateAsync(),
+    });
+  };
 
   const joinLabel =
     community?.type === 'private'
@@ -108,6 +214,9 @@ export default function CommunityDetailPage() {
       : community?.type === 'public'
         ? 'Request to join'
         : 'Join community';
+
+  const overview = discoverOverviewQuery.data;
+  const createdOnLabel = formatCreatedOn(overview?.createdOn || community?.createdAt);
 
   return (
     <MainLayout>
@@ -165,6 +274,9 @@ export default function CommunityDetailPage() {
                         : isPending
                           ? ' · Request pending'
                           : ''}
+                  {community.pendingDisableAt
+                    ? ` · Disables ${formatCreatedOn(community.pendingDisableAt) || 'soon'}`
+                    : ''}
                 </span>
               </>
             ) : null
@@ -175,6 +287,7 @@ export default function CommunityDetailPage() {
                 <NotificationBell triggerClassName={cn('relative', headerActionBtnClass)} />
               ) : null}
               {!isDeleted &&
+              !isDisabled &&
               (isMember ||
                 community?.type === 'invite_only' ||
                 community?.type === 'public') ? (
@@ -187,7 +300,7 @@ export default function CommunityDetailPage() {
                   <Share2 className="h-[18px] w-[18px]" />
                 </button>
               ) : null}
-              {isAdmin && !isDeleted ? (
+              {isAdmin && !isDeleted && !isDisabled ? (
                 <>
                   <Link
                     href={`/community/${communityId}/edit`}
@@ -200,15 +313,7 @@ export default function CommunityDetailPage() {
                     type="button"
                     className={headerActionBtnDangerClass}
                     disabled={deleteMutation.isPending}
-                    onClick={() => {
-                      requestConfirm({
-                        title: 'Delete this community?',
-                        description:
-                          'Historical weeks stay available for members until they dismiss it. Delete is blocked if anyone has logged this week. This action cannot be undone.',
-                        confirmLabel: 'Delete',
-                        onConfirm: () => deleteMutation.mutateAsync(),
-                      });
-                    }}
+                    onClick={requestDelete}
                     aria-label="Delete community"
                   >
                     {deleteMutation.isPending ? (
@@ -223,11 +328,72 @@ export default function CommunityDetailPage() {
           }
         />
 
+        {community && isMember && !isDeleted && !isDisabled ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-destructive/30 text-destructive hover:bg-destructive/10"
+              disabled={leaveBusy}
+              onClick={requestLeave}
+            >
+              {leaveBusy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <DoorOpen className="h-3.5 w-3.5" />
+              )}
+              Leave community
+            </Button>
+          </div>
+        ) : null}
+
+        {leaveError && !soleAdminOpen ? (
+          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {leaveError}
+          </p>
+        ) : null}
+
+        {community && isAdmin && !isDeleted && !isDisabled ? (
+          <div className="section-card space-y-3 p-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Admin</p>
+              <p className="text-xs text-muted-foreground">
+                Leave this community or permanently delete it for everyone
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                className="flex-1 border-destructive/30 text-destructive hover:bg-destructive/10"
+                disabled={leaveBusy}
+                onClick={requestLeave}
+              >
+                {leaveBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Leave community
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1 border-destructive/40 bg-destructive/5 text-destructive hover:bg-destructive/10"
+                disabled={deleteMutation.isPending}
+                onClick={requestDelete}
+              >
+                {deleteMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                Delete community
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {community && isDeleted ? (
           <div className="rounded-xl border border-border bg-secondary/60 px-4 py-3">
             <p className="text-sm font-semibold text-foreground">This community was deleted</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Past weekly history remains available to browse. Dismiss to hide it from My groups.
+              Past weekly history remains available to browse. Dismiss to hide it from Your
+              Communities.
             </p>
             <Button
               className="mt-3 w-full"
@@ -243,18 +409,27 @@ export default function CommunityDetailPage() {
           </div>
         ) : null}
 
+        {community && isDisabled ? (
+          <div className="rounded-xl border border-border bg-secondary/60 px-4 py-3">
+            <p className="text-sm font-semibold text-foreground">This community is disabled</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              It was disabled after the sole admin left. History may still be available.
+            </p>
+          </div>
+        ) : null}
+
         {!community ? null : isMember ? (
           <>
             <ChipTabs
               tabs={[
                 { id: 'dashboard', label: 'Dashboard' },
-                { id: 'feed', label: 'Feed' },
-                { id: 'calendar', label: 'Calendar' },
-                { id: 'announcements', label: 'News' },
-                { id: 'groups', label: 'Groups' },
-                { id: 'kudos', label: 'Kudos' },
-                { id: 'chat', label: 'Chat' },
                 { id: 'members', label: 'Members' },
+                { id: 'feed', label: 'Feed' },
+                { id: 'announcements', label: 'News' },
+                { id: 'chat', label: 'Chat' },
+                { id: 'kudos', label: 'Kudos' },
+                { id: 'groups', label: 'Groups' },
+                { id: 'calendar', label: 'Calendar' },
               ]}
               active={tab}
               onChange={setTab}
@@ -267,34 +442,6 @@ export default function CommunityDetailPage() {
                 isAdmin={Boolean(isAdmin)}
               />
             ) : null}
-            {tab === 'feed' ? <CommunityFeedTab communityId={communityId} /> : null}
-            {tab === 'calendar' ? (
-              <CommunityCalendarTab
-                communityId={communityId}
-                isModerator={Boolean(isModerator || isAdmin)}
-              />
-            ) : null}
-            {tab === 'announcements' ? (
-              <CommunityAnnouncementsTab
-                communityId={communityId}
-                isModerator={Boolean(isModerator || isAdmin)}
-              />
-            ) : null}
-            {tab === 'groups' ? (
-              <CommunityGroupsBadgesTab
-                communityId={communityId}
-                isAdmin={Boolean(isAdmin)}
-              />
-            ) : null}
-            {tab === 'kudos' ? (
-              <CommunityAppreciationTab communityId={communityId} />
-            ) : null}
-            {tab === 'chat' ? (
-              <CommunityChatTab
-                communityId={communityId}
-                canModerate={Boolean(isAdmin || isModerator)}
-              />
-            ) : null}
             {tab === 'members' ? (
               <CommunityMembersTab
                 communityId={communityId}
@@ -302,48 +449,263 @@ export default function CommunityDetailPage() {
                 isAdmin={Boolean(isAdmin)}
                 isModerator={Boolean(isModerator || isAdmin)}
                 canInvite={Boolean(canInvite)}
-                onLeft={() => router.replace('/community')}
+              />
+            ) : null}
+            {tab === 'feed' ? <CommunityFeedTab communityId={communityId} /> : null}
+            {tab === 'announcements' ? (
+              <CommunityAnnouncementsTab
+                communityId={communityId}
+                isModerator={Boolean(isModerator || isAdmin)}
+              />
+            ) : null}
+            {tab === 'chat' ? (
+              <CommunityChatTab
+                communityId={communityId}
+                canModerate={Boolean(isAdmin || isModerator)}
+              />
+            ) : null}
+            {tab === 'kudos' ? (
+              <CommunityAppreciationTab communityId={communityId} />
+            ) : null}
+            {tab === 'groups' ? (
+              <CommunityGroupsBadgesTab
+                communityId={communityId}
+                isAdmin={Boolean(isAdmin)}
+              />
+            ) : null}
+            {tab === 'calendar' ? (
+              <CommunityCalendarTab
+                communityId={communityId}
+                isModerator={Boolean(isModerator || isAdmin)}
               />
             ) : null}
           </>
         ) : (
-          <div className="section-card space-y-3 p-5 text-center">
+          <div className="space-y-4">
             {isPending ? (
-              <>
+              <div className="section-card space-y-3 p-5 text-center">
                 <p className="text-sm font-semibold text-foreground">Request pending</p>
                 <p className="text-sm text-muted-foreground">
                   An admin or moderator needs to approve your request before you can access this
                   community.
                 </p>
-              </>
+              </div>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">
-                  {community.type === 'private'
-                    ? 'This community is private. Ask an admin to add you.'
-                    : 'Join to see the dashboard, chat, and members.'}
-                </p>
-                {joinError ? (
-                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                    {joinError}
-                  </p>
-                ) : null}
-                <Button
-                  className="w-full"
-                  disabled={joinMutation.isPending || community.type === 'private'}
-                  onClick={() => {
-                    setJoinError(null);
-                    joinMutation.mutate();
-                  }}
-                >
-                  {joinMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {joinLabel}
-                </Button>
+                {discoverOverviewQuery.isLoading ? (
+                  <div className="flex justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="section-card space-y-4 p-5">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">About this community</p>
+                      {createdOnLabel ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Created {createdOnLabel}
+                        </p>
+                      ) : null}
+                    </div>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {overview?.description ||
+                        community.description ||
+                        'Join to see the dashboard, chat, and members.'}
+                    </p>
+                    <p className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
+                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                      {overview?.memberCount ?? community.memberCount} members
+                    </p>
+
+                    {(overview?.activitiesTracked?.length || community.activities?.length) ? (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Activities
+                        </p>
+                        <ul className="mt-2 flex flex-wrap gap-1.5">
+                          {(overview?.activitiesTracked ||
+                            community.activities.map((a) => ({
+                              id: a.id,
+                              name: a.name,
+                              unit: a.baseUnit || '',
+                            }))
+                          ).map((a) => (
+                            <li
+                              key={a.id}
+                              className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-foreground"
+                            >
+                              {a.name}
+                              {a.unit ? ` · ${a.unit}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {overview?.weeklyTotals?.length ? (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          This week
+                        </p>
+                        <ul className="mt-2 space-y-1.5">
+                          {overview.weeklyTotals.map((row) => (
+                            <li
+                              key={row.activityId}
+                              className="flex justify-between text-sm"
+                            >
+                              <span className="text-muted-foreground">{row.name}</span>
+                              <span className="font-semibold tabular-nums">
+                                {row.total}
+                                {row.unit ? ` ${row.unit}` : ''}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {overview?.overallTotals?.length ? (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Overall
+                        </p>
+                        <ul className="mt-2 space-y-1.5">
+                          {overview.overallTotals.map((row) => (
+                            <li
+                              key={row.activityId}
+                              className="flex justify-between text-sm"
+                            >
+                              <span className="text-muted-foreground">{row.name}</span>
+                              <span className="font-semibold tabular-nums">
+                                {row.total}
+                                {row.unit ? ` ${row.unit}` : ''}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {(overview?.whyJoin?.text || community.joinWhyAi?.text) ? (
+                      <div className="rounded-xl bg-primary-soft/60 px-3 py-3">
+                        <p className="text-xs font-semibold text-foreground">Why join</p>
+                        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                          {overview?.whyJoin?.text || community.joinWhyAi?.text}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                <div className="section-card space-y-3 p-5 text-center">
+                  {joinError ? (
+                    <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                      {joinError}
+                    </p>
+                  ) : null}
+                  <Button
+                    className="w-full"
+                    disabled={joinMutation.isPending || community.type === 'private'}
+                    onClick={() => {
+                      setJoinError(null);
+                      joinMutation.mutate();
+                    }}
+                  >
+                    {joinMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {joinLabel}
+                  </Button>
+                </div>
               </>
             )}
           </div>
         )}
       </div>
+
+      {soleAdminOpen ? (
+        <div className="fixed inset-0 z-[260] flex items-end justify-center p-4 sm:items-center">
+          <button
+            type="button"
+            aria-label="Close"
+            className="absolute inset-0 bg-black/40"
+            disabled={leaveBusy}
+            onClick={() => {
+              if (!leaveBusy) {
+                setSoleAdminOpen(false);
+                setLeaveError(null);
+              }
+            }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative w-full max-w-sm space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-float)]"
+          >
+            <div>
+              <h2 className="text-base font-semibold text-foreground">You are the only admin</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Assign another member as admin, or leave and acknowledge that this community will
+                be disabled next week.
+              </p>
+            </div>
+            {leaveError ? (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {leaveError}
+              </p>
+            ) : null}
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                Assign new admin
+              </label>
+              {membersForLeaveQuery.isLoading ? (
+                <div className="flex justify-center py-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <select
+                  value={assignAdminProfileId}
+                  onChange={(e) => setAssignAdminProfileId(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm"
+                >
+                  <option value="">Choose a member…</option>
+                  {adminPickMembers.map((m) => (
+                    <option key={m.profile.id} value={m.profile.id}>
+                      {m.profile.name} ({m.role})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button
+                disabled={!assignAdminProfileId || leaveBusy}
+                onClick={() =>
+                  void runLeave({ assignAdminProfileId })
+                }
+              >
+                {leaveBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Assign admin & leave
+              </Button>
+              <Button
+                variant="outline"
+                className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                disabled={leaveBusy}
+                onClick={() => void runLeave({ acknowledgeDisable: true })}
+              >
+                Leave & disable next week
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={leaveBusy}
+                onClick={() => {
+                  setSoleAdminOpen(false);
+                  setLeaveError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {community ? (
         <CommunityShareDialog

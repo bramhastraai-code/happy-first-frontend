@@ -207,10 +207,93 @@ export default function FeedProfilePage() {
                 </div>
               </div>
 
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-primary/5 px-3 py-2.5">
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Member since
+                  </p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {data.profile.memberSince || data.profile.createdAt
+                      ? new Date(
+                          (data.profile.memberSince || data.profile.createdAt) as string
+                        ).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
+                      : '—'}
+                  </p>
+                </div>
+                <div className="h-8 w-px bg-border" aria-hidden />
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Days with Happy First
+                  </p>
+                  <p className="text-sm font-semibold tabular-nums text-foreground">
+                    {data.profile.daysWithHappyFirst == null
+                      ? '—'
+                      : data.profile.daysWithHappyFirst}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-2.5 sm:grid-cols-4">
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Total posts</p>
+                  <p className="text-sm font-semibold tabular-nums text-foreground">
+                    {data.postsCount}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Last post</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {data.lastPostAt
+                      ? new Date(data.lastPostAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Days since</p>
+                  <p className="text-sm font-semibold tabular-nums text-foreground">
+                    {data.daysSinceLastPost == null ? '—' : data.daysSinceLastPost}
+                  </p>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      document
+                        .getElementById('profile-posts-grid')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="text-sm font-semibold text-primary hover:underline"
+                  >
+                    {isMe ? 'My previous posts' : 'View posts'}
+                  </button>
+                </div>
+              </div>
+
               <div className="mt-3 space-y-1">
                 <h1 className="text-sm font-semibold text-foreground">{data.profile.name}</h1>
                 {data.followsYou && !data.isMe ? (
                   <p className="text-xs text-muted-foreground">Follows you</p>
+                ) : null}
+                {data.profile.publicHighlight ? (
+                  <p className="rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-2 text-sm leading-snug text-foreground">
+                    {data.profile.publicHighlight}
+                  </p>
+                ) : isMe ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditOpen(true)}
+                    className="text-sm text-muted-foreground"
+                  >
+                    Add a public highlight…
+                  </button>
                 ) : null}
                 {data.profile.bio ? (
                   <p className="whitespace-pre-wrap break-words text-sm leading-snug text-foreground">
@@ -286,10 +369,13 @@ export default function FeedProfilePage() {
               </div>
             </section>
 
-            <div className="mt-4 flex items-center justify-center border-b border-border">
+            <div
+              id="profile-posts-grid"
+              className="mt-4 flex items-center justify-center border-b border-border"
+            >
               <span className="inline-flex items-center gap-1.5 border-t border-foreground px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-foreground">
                 <Grid3X3 className="h-3.5 w-3.5" />
-                Posts
+                {isMe ? 'My previous posts' : 'Posts'}
               </span>
             </div>
 

@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils';
 
 const CATEGORY_FILTERS = ['All', 'Body', 'Mind', 'Soul'] as const;
 
+type LandingTab = 'my-communities' | 'my-groups' | 'discover';
+
 function categoryLabel(community: Community) {
   if (!community.categories?.length) return 'Mixed';
   return community.categories
@@ -25,9 +27,52 @@ function activityPreview(community: Community) {
   return community.activities.map((a) => a.name).slice(0, 3).join(', ');
 }
 
+function roleSubtitle(community: Community) {
+  if (community.status === 'deleted') return 'Deleted · history available';
+  if (community.status === 'disabled') return 'Disabled';
+  if (community.myRole === 'admin') return 'Admin';
+  if (community.myRole === 'moderator') return 'Moderator';
+  return 'Member';
+}
+
+function CommunityListItem({ community }: { community: Community }) {
+  return (
+    <li key={community.id}>
+      <Link
+        href={`/community/${community.id}`}
+        className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-secondary/50"
+      >
+        <CommunityAvatar
+          name={community.name}
+          icon={community.icon}
+          avatarUrl={community.avatarUrl}
+          avatarSeed={community.avatarSeed}
+          avatarStyle={community.avatarStyle}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{community.name}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {roleSubtitle(community)}
+            {community.status !== 'deleted' && community.status !== 'disabled'
+              ? ` · ${community.memberCount} members`
+              : null}
+          </p>
+        </div>
+        {community.status === 'deleted' || community.status === 'disabled' ? (
+          <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+            {community.status === 'deleted' ? 'Deleted' : 'Disabled'}
+          </span>
+        ) : (
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        )}
+      </Link>
+    </li>
+  );
+}
+
 export default function CommunityPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('discover');
+  const [activeTab, setActiveTab] = useState<LandingTab>('my-communities');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<(typeof CATEGORY_FILTERS)[number]>('All');
   const [joiningId, setJoiningId] = useState<string | null>(null);
@@ -47,7 +92,7 @@ export default function CommunityPage() {
 
   const mineQuery = useQuery({
     queryKey: ['communities', 'mine'],
-    enabled: activeTab === 'my-communities',
+    enabled: activeTab === 'my-communities' || activeTab === 'my-groups',
     queryFn: async () => {
       const res = await communityAPI.mine();
       return res.data.data.communities ?? [];
@@ -64,7 +109,16 @@ export default function CommunityPage() {
   });
 
   const communities = discoverQuery.data ?? [];
-  const myCommunities = mineQuery.data ?? [];
+  const myCommunitiesAll = mineQuery.data ?? [];
+
+  const adminCommunities = useMemo(
+    () => myCommunitiesAll.filter((c) => c.myRole === 'admin'),
+    [myCommunitiesAll]
+  );
+  const memberGroups = useMemo(
+    () => myCommunitiesAll.filter((c) => c.myRole !== 'admin'),
+    [myCommunitiesAll]
+  );
 
   const filtered = useMemo(() => {
     if (category === 'All') return communities;
@@ -74,7 +128,10 @@ export default function CommunityPage() {
     );
   }, [communities, category]);
 
-  const totalMembers = filtered.reduce((sum, c) => sum + (c.memberCount || 0), 0);
+  const adminMemberTotal = adminCommunities.reduce(
+    (sum, c) => sum + (c.memberCount || 0),
+    0
+  );
 
   return (
     <MainLayout>
@@ -82,14 +139,15 @@ export default function CommunityPage() {
 
       <div className="community-header mt-3 space-y-4">
         <div
-          className="community-tabs grid grid-cols-2 gap-1 rounded-2xl border border-border bg-secondary/80 p-1"
+          className="community-tabs grid grid-cols-3 gap-1 rounded-2xl border border-border bg-secondary/80 p-1"
           role="tablist"
           aria-label="Community sections"
         >
           {(
             [
+              { id: 'my-communities', label: 'Communities' },
+              { id: 'my-groups', label: 'Groups' },
               { id: 'discover', label: 'Discover' },
-              { id: 'my-communities', label: 'My groups' },
             ] as const
           ).map((tab) => {
             const isActive = activeTab === tab.id;
@@ -101,7 +159,7 @@ export default function CommunityPage() {
                 aria-selected={isActive}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'min-h-10 rounded-xl px-3 text-sm font-semibold transition-colors',
+                  'min-h-10 rounded-xl px-2 text-xs font-semibold transition-colors sm:text-sm',
                   isActive
                     ? 'bg-surface text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -113,25 +171,110 @@ export default function CommunityPage() {
           })}
         </div>
 
-        {activeTab === 'discover' ? (
-          <div key="discover" className="space-y-4" role="tabpanel" aria-label="Discover">
+        {activeTab === 'my-communities' ? (
+          <section
+            key="my-communities"
+            aria-label="Your Communities"
+            className="my-communities space-y-4"
+            role="tabpanel"
+          >
             <div className="app-card p-4">
               <div className="grid grid-cols-2 divide-x divide-border">
                 <div className="pr-4">
-                  <p className="text-xs font-medium text-muted-foreground">Active groups</p>
+                  <p className="text-xs font-medium text-muted-foreground">Your Communities</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                    {filtered.length}
+                    {mineQuery.isLoading ? '—' : adminCommunities.length}
                   </p>
                 </div>
                 <div className="pl-4">
                   <p className="text-xs font-medium text-muted-foreground">Total members</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                    {totalMembers.toLocaleString()}
+                    {mineQuery.isLoading ? '—' : adminMemberTotal.toLocaleString()}
                   </p>
                 </div>
               </div>
             </div>
 
+            {mineQuery.isLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : adminCommunities.length > 0 ? (
+              <ul className="section-card divide-y divide-border">
+                {adminCommunities.map((community) => (
+                  <CommunityListItem key={community.id} community={community} />
+                ))}
+              </ul>
+            ) : (
+              <div className="section-card p-6 text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary">
+                  <Users className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <h2 className="text-base font-semibold text-foreground">No communities yet</h2>
+                <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+                  Create a community to lead members, or discover groups to join.
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <Button variant="outline" onClick={() => setActiveTab('discover')}>
+                    Discover
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </Button>
+                  <Button asChild>
+                    <Link href="/community/create">
+                      <Plus className="h-4 w-4" />
+                      Create
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {activeTab === 'my-groups' ? (
+          <section
+            key="my-groups"
+            aria-label="My Groups"
+            className="my-groups space-y-4"
+            role="tabpanel"
+          >
+            <div className="mb-1 flex items-center justify-between px-0.5">
+              <h2 className="section-title">My Groups</h2>
+              <span className="text-xs text-muted-foreground">
+                {mineQuery.isLoading ? '' : `${memberGroups.length} joined`}
+              </span>
+            </div>
+
+            {mineQuery.isLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : memberGroups.length > 0 ? (
+              <ul className="section-card divide-y divide-border">
+                {memberGroups.map((community) => (
+                  <CommunityListItem key={community.id} community={community} />
+                ))}
+              </ul>
+            ) : (
+              <div className="section-card p-6 text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary">
+                  <Users className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <h2 className="text-base font-semibold text-foreground">No groups yet</h2>
+                <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+                  Join a community from Discover to see it here.
+                </p>
+                <Button variant="outline" className="mt-4" onClick={() => setActiveTab('discover')}>
+                  Browse communities
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {activeTab === 'discover' ? (
+          <div key="discover" className="space-y-4" role="tabpanel" aria-label="Discover">
             <div className="section-card p-4">
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -162,9 +305,9 @@ export default function CommunityPage() {
               </div>
             </div>
 
-            <section aria-label="Communities" className="trending-communities">
+            <section aria-label="Discover New Communities" className="trending-communities">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="section-title">Communities</h2>
+                <h2 className="section-title">Discover New Communities</h2>
                 <span className="text-xs text-muted-foreground">{filtered.length} shown</span>
               </div>
 
@@ -198,7 +341,9 @@ export default function CommunityPage() {
                             {categoryLabel(community)}
                           </span>
                           <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                            {community.description || activityPreview(community) || 'Wellness group'}
+                            {community.description ||
+                              activityPreview(community) ||
+                              'Wellness group'}
                           </p>
                           <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                             <Users className="h-3 w-3" />
@@ -248,83 +393,7 @@ export default function CommunityPage() {
               )}
             </section>
           </div>
-        ) : (
-          <section
-            key="my-communities"
-            aria-label="My communities"
-            className="my-communities"
-            role="tabpanel"
-          >
-            {mineQuery.isLoading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : myCommunities.length > 0 ? (
-              <ul className="section-card divide-y divide-border">
-                {myCommunities.map((community) => (
-                  <li key={community.id}>
-                    <Link
-                      href={`/community/${community.id}`}
-                      className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-secondary/50"
-                    >
-                      <CommunityAvatar
-                        name={community.name}
-                        icon={community.icon}
-                        avatarUrl={community.avatarUrl}
-                        avatarSeed={community.avatarSeed}
-                        avatarStyle={community.avatarStyle}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">{community.name}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {community.status === 'deleted'
-                            ? 'Deleted · history available'
-                            : community.myRole === 'admin'
-                              ? 'Admin'
-                              : community.myRole === 'moderator'
-                                ? 'Moderator'
-                                : 'Member'}{' '}
-                          {community.status !== 'deleted'
-                            ? `· ${community.memberCount} members`
-                            : null}
-                        </p>
-                      </div>
-                      {community.status === 'deleted' ? (
-                        <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                          Deleted
-                        </span>
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="section-card p-6 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary">
-                  <Users className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <h2 className="text-base font-semibold text-foreground">No groups yet</h2>
-                <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
-                  Join a community from Discover or create your own group.
-                </p>
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  <Button variant="outline" onClick={() => setActiveTab('discover')}>
-                    Browse communities
-                    <ChevronRight className="ml-1 h-4 w-4" />
-                  </Button>
-                  <Button asChild>
-                    <Link href="/community/create">
-                      <Plus className="h-4 w-4" />
-                      Create
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            )}
-          </section>
-        )}
+        ) : null}
       </div>
 
       <CommunityJoinScanner open={scannerOpen} onClose={() => setScannerOpen(false)} />

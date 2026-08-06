@@ -28,6 +28,7 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [website, setWebsite] = useState('');
+  const [publicHighlight, setPublicHighlight] = useState('');
   const [avatarSeed, setAvatarSeed] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarStyle, setAvatarStyle] = useState<string>(AVATAR_STYLE);
@@ -54,6 +55,7 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
     setName(selectedProfile.name ?? '');
     setBio(selectedProfile.bio ?? '');
     setWebsite(selectedProfile.website ?? '');
+    setPublicHighlight(selectedProfile.publicHighlight ?? '');
     setAvatarSeed(
       selectedProfile.avatarSeed ||
         selectedProfile.name ||
@@ -118,6 +120,7 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
       const response = await authAPI.updateProfile({
         name: trimmedName,
         bio: bio.trim().slice(0, 150),
+        publicHighlight: publicHighlight.trim().slice(0, 200),
         website: (() => {
           const trimmed = website
             .trim()
@@ -171,7 +174,16 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
         setUser({ ...user, name: trimmedName });
       }
 
-      setMessage('Profile updated successfully.');
+      const coinRewards = (response.data.data as { coinRewards?: { awarded?: { reason: string; amount: number }[] } })
+        ?.coinRewards?.awarded;
+      if (coinRewards?.length) {
+        const total = coinRewards.reduce((sum, row) => sum + (row.amount || 0), 0);
+        setMessage(
+          `Profile updated successfully. You earned ${total} Happy Coin${total === 1 ? '' : 's'}!`
+        );
+      } else {
+        setMessage('Profile updated successfully.');
+      }
       onSaved?.();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -221,6 +233,31 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
               placeholder="Write a short bio…"
               className={FIELD_CLASS}
             />
+          </div>
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs font-medium text-foreground">
+                Public highlight
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                {publicHighlight.length}/200
+              </span>
+            </div>
+            <textarea
+              value={publicHighlight}
+              onChange={(e) => {
+                setPublicHighlight(e.target.value.slice(0, 200));
+                setError('');
+                setMessage('');
+              }}
+              rows={2}
+              maxLength={200}
+              placeholder="One thing you want people to know — a motto, favourite activity, or achievement…"
+              className={FIELD_CLASS}
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Shown on your public profile. Optional.
+            </p>
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-foreground">

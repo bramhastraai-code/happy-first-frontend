@@ -11,19 +11,32 @@ import {
 } from '@/components/week-analysis/WeekAnalysisView';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import {
+  latestCompletedWeekStartISO,
+  resolveWeekStartISO,
+} from '@/lib/utils/weekDate';
 
 function WeekAnalysisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { accessToken, isHydrated } = useAuthStore();
   const weekStartParam = searchParams.get('weekStart');
+  const resolvedWeekStart = resolveWeekStartISO(weekStartParam);
 
-  const { data, isLoading, isError, error, refetch } = useWeekAnalysisData(weekStartParam);
+  const { data, isLoading, isError, error, refetch } = useWeekAnalysisData(resolvedWeekStart);
 
   useEffect(() => {
     if (!isHydrated) return;
     if (!accessToken) router.push('/login');
   }, [accessToken, isHydrated, router]);
+
+  // Never analyse the in-progress week — rewrite the URL to a completed week.
+  useEffect(() => {
+    if (!isHydrated || !accessToken) return;
+    if (weekStartParam !== resolvedWeekStart) {
+      router.replace(`/week-analysis?weekStart=${resolvedWeekStart || latestCompletedWeekStartISO()}`);
+    }
+  }, [accessToken, isHydrated, resolvedWeekStart, router, weekStartParam]);
 
   if (!isHydrated || !accessToken) {
     return <WeekAnalysisLoading />;
@@ -40,7 +53,7 @@ function WeekAnalysisContent() {
     return <WeekAnalysisError message={message} onRetry={() => void refetch()} />;
   }
 
-  return <WeekAnalysisView data={data} />;
+  return <WeekAnalysisView data={data} onWeekChange={(weekStart) => router.push(`/week-analysis?weekStart=${weekStart}`)} />;
 }
 
 export default function WeekAnalysisPage() {

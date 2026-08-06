@@ -14,7 +14,7 @@ import {
   MapPin,
   type LucideIcon,
 } from 'lucide-react';
-import { DateTime } from 'luxon';
+import { latestCompletedWeekStartISO } from '@/lib/utils/weekDate';
 
 export interface AppQuickLink {
   href: string;
@@ -24,7 +24,7 @@ export interface AppQuickLink {
 }
 
 export function getAppQuickLinks(): AppQuickLink[] {
-  const weekStart = DateTime.local().startOf('week').toFormat('yyyy-MM-dd');
+  const weekStart = latestCompletedWeekStartISO();
 
   return [
     {

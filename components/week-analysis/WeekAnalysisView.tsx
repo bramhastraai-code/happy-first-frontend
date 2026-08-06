@@ -7,6 +7,8 @@ import {
   AlertTriangle,
   BarChart3,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
   Lightbulb,
   Target,
   TrendingDown,
@@ -21,7 +23,12 @@ import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { Button } from '@/components/ui/button';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { cn } from '@/lib/utils';
-import { formatWeekRangeLabel } from '@/lib/utils/weekDate';
+import {
+  canNavigateToNextWeek,
+  formatWeekRangeLabel,
+  formatWeekRangeShort,
+  shiftWeekStartISO,
+} from '@/lib/utils/weekDate';
 import type { WeekAnalysisData } from '@/lib/hooks/useWeekAnalysisData';
 import type {
   DailyActivityLoss,
@@ -29,10 +36,12 @@ import type {
   WeeklyActivityLoss,
 } from '@/lib/api/dailyLog';
 import type { ActivityAnalytics } from '@/lib/api/weeklyPlan';
+import ActivityChart from '@/components/charts/ActivityChart';
 
 interface WeekAnalysisViewProps {
   data: WeekAnalysisData;
   onRetry?: () => void;
+  onWeekChange?: (weekStart: string) => void;
 }
 
 function progressTone(percent: number) {
@@ -42,74 +51,57 @@ function progressTone(percent: number) {
   return 'bg-destructive';
 }
 
-function rankTone(percentile: number) {
-  if (percentile >= 90) return 'bg-amber-500 text-white';
-  if (percentile >= 70) return 'bg-success text-white';
-  if (percentile >= 50) return 'bg-primary text-primary-foreground';
-  return 'bg-secondary text-secondary-foreground';
-}
-
 function ActivityPerformanceCard({ activity }: { activity: ActivityAnalytics }) {
   const targetUnits =
     activity.cadence === 'daily' ? activity.targetValue * 7 : activity.targetValue;
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <article className="rounded-xl border border-border bg-surface px-3 py-2.5 sm:px-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold text-foreground">{activity.activityLabel}</h3>
+            <h3 className="text-sm font-semibold text-foreground">{activity.activityLabel}</h3>
             {activity.rank != null && (
-              <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-bold', rankTone(activity.rankPercentile))}>
-                #{activity.rank}
+              <span className="text-xs font-medium text-muted-foreground">
+                Rank: {activity.rank} / {activity.totalParticipants}
               </span>
             )}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground capitalize">
+          <p className="text-[11px] text-muted-foreground capitalize">
             {activity.cadence} · {activity.unit}
           </p>
         </div>
         <div className="text-right">
-          <p className="text-xl font-bold tabular-nums text-success">{activity.totalPointsAchieved.toFixed(1)}</p>
-          <p className="text-xs text-muted-foreground">of {activity.pointsAllocated.toFixed(1)} pts</p>
+          <p className="text-base font-bold tabular-nums text-success">
+            {activity.totalPointsAchieved.toFixed(1)}
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            of {activity.pointsAllocated.toFixed(1)}% Points Earned
+          </p>
         </div>
       </div>
 
-      {activity.rank != null && (
-        <div className="mt-4 rounded-xl bg-secondary/70 p-3">
-          <div className="mb-2 flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-muted-foreground">Community rank</span>
-            <span className="font-semibold text-foreground">
-              Top {activity.rankPercentile}%
-              <span className="text-muted-foreground"> · #{activity.rank}/{activity.totalParticipants}</span>
-            </span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-border">
-            <div
-              className={cn('h-full rounded-full transition-all', progressTone(activity.rankPercentile))}
-              style={{ width: `${Math.min(activity.rankPercentile, 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="mt-4">
-        <div className="mb-2 flex items-center justify-between text-sm">
+      <div className="mt-2.5">
+        <div className="mb-1.5 flex items-center justify-between text-xs">
           <span className="text-muted-foreground">Progress</span>
           <span className="font-medium tabular-nums text-foreground">
             {activity.achievedUnits} / {targetUnits} {activity.unit}
           </span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-border">
+        <div className="h-1.5 overflow-hidden rounded-full bg-border">
           <div
             className={cn('h-full rounded-full transition-all', progressTone(activity.achievementPercentage))}
             style={{ width: `${Math.min(activity.achievementPercentage, 100)}%` }}
           />
         </div>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="font-semibold text-foreground">{activity.achievementPercentage}% complete</span>
+        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+          <span className="font-semibold text-foreground">
+            {activity.achievementPercentage}% Points Earned
+          </span>
           {activity.pendingUnits > 0 && (
-            <span className="text-primary">{activity.pendingUnits} {activity.unit} remaining</span>
+            <span className="text-primary">
+              {activity.pendingUnits} {activity.unit} remaining
+            </span>
           )}
         </div>
       </div>
@@ -127,7 +119,7 @@ function DailyLossCard({ activity }: { activity: DailyActivityLoss }) {
         </div>
         <div className="text-right">
           <p className="font-bold tabular-nums text-success">{activity.earnedPoints.toFixed(1)}</p>
-          <p className="text-xs text-muted-foreground">of {activity.potentialPoints.toFixed(1)} pts</p>
+          <p className="text-xs text-muted-foreground">of {activity.potentialPoints.toFixed(1)}% Points Earned</p>
         </div>
       </div>
 
@@ -195,7 +187,7 @@ function WeeklyLossCard({ activity }: { activity: WeeklyActivityLoss }) {
         </div>
         <div className="text-right">
           <p className="font-bold tabular-nums text-success">{activity.earnedPoints.toFixed(1)}</p>
-          <p className="text-xs text-muted-foreground">of {activity.potentialPoints.toFixed(1)} pts</p>
+          <p className="text-xs text-muted-foreground">of {activity.potentialPoints.toFixed(1)}% Points Earned</p>
         </div>
       </div>
 
@@ -248,8 +240,8 @@ function buildInsights(
   return tips;
 }
 
-export function WeekAnalysisView({ data }: WeekAnalysisViewProps) {
-  const { analytics, pointLosses, plan } = data;
+export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) {
+  const { analytics, pointLosses, plan, fourWeekTrend } = data;
   const [expanded, setExpanded] = useState({
     performance: true,
     dailyLosses: true,
@@ -279,27 +271,66 @@ export function WeekAnalysisView({ data }: WeekAnalysisViewProps) {
   const toggle = (key: keyof typeof expanded) =>
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
 
+  const canGoNext = canNavigateToNextWeek(pointLosses.weekStart);
+  const prevWeekStart = shiftWeekStartISO(pointLosses.weekStart, -1);
+  const nextWeekStart = shiftWeekStartISO(pointLosses.weekStart, 1);
+
+  const fourWeekTrendChartData = fourWeekTrend.map((week) => ({
+    label: formatWeekRangeShort(week.weekStart, week.weekEnd),
+    value: week.percentPointsEarned,
+    tooltipLabel: formatWeekRangeShort(week.weekStart, week.weekEnd),
+  }));
+
   return (
     <MainLayout>
       <PageHeader
         title="Week analysis"
-        subtitle={weekLabel || 'Your weekly performance breakdown'}
+        subtitle={
+          weekLabel
+            ? `${weekLabel} · completed week only`
+            : 'Historical breakdown for completed weeks'
+        }
         action={
-          <span className="chip chip-active flex items-center gap-1.5 text-xs">
-            <Calendar className="h-3.5 w-3.5" />
-            {plan?.status === 'active' ? 'Active plan' : plan ? 'Past week' : 'No plan'}
-          </span>
+          onWeekChange ? (
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onWeekChange(prevWeekStart)}
+                className="h-8 gap-1 px-2"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Prev
+              </Button>
+              {canGoNext ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onWeekChange(nextWeekStart)}
+                  className="h-8 gap-1 px-2"
+                >
+                  Next
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              ) : (
+                <span className="chip flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground">
+                  Next
+                  <ChevronRight className="h-3.5 w-3.5 opacity-50" />
+                </span>
+              )}
+            </div>
+          ) : (
+            <span className="chip chip-active flex items-center gap-1.5 text-xs">
+              <Calendar className="h-3.5 w-3.5" />
+              {plan ? 'Past week' : 'No plan'}
+            </span>
+          )
         }
       />
 
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Points earned"
-          value={pointLosses.totalPointsEarned.toFixed(1)}
-          hint={`${achievementRate}% of potential`}
-          icon={Zap}
-          accent="green"
-        />
         <StatCard
           label="Points lost"
           value={pointLosses.totalPointsLost.toFixed(1)}
@@ -308,9 +339,16 @@ export function WeekAnalysisView({ data }: WeekAnalysisViewProps) {
           accent="orange"
         />
         <StatCard
+          label="Points earned"
+          value={pointLosses.totalPointsEarned.toFixed(1)}
+          hint={`${achievementRate}% Points Earned`}
+          icon={Zap}
+          accent="green"
+        />
+        <StatCard
           label="Potential"
           value={pointLosses.totalPotentialPoints.toFixed(1)}
-          hint="Maximum for the week"
+          hint="Max % Points Earned this week"
           icon={Target}
           accent="neutral"
         />
@@ -323,10 +361,25 @@ export function WeekAnalysisView({ data }: WeekAnalysisViewProps) {
         />
       </div>
 
+      {fourWeekTrendChartData.length > 0 && (
+        <section className="section-card mb-4 space-y-4 p-4 sm:p-5">
+          <div>
+            <h2 className="section-title">4-week analysis</h2>
+            <p className="text-xs text-muted-foreground">% Points Earned over the last four completed weeks</p>
+          </div>
+          <ActivityChart
+            data={fourWeekTrendChartData}
+            variant="bar"
+            height={200}
+            tooltipUnit="% Points Earned"
+          />
+        </section>
+      )}
+
       {analytics && (
         <CollapsibleSection
           title="Activity performance"
-          subtitle={`${analytics.summary.totalPointsAchieved.toFixed(1)} of ${analytics.summary.totalPointsAllocated.toFixed(1)} pts achieved`}
+          subtitle={`${analytics.summary.totalPointsAchieved.toFixed(1)} of ${analytics.summary.totalPointsAllocated.toFixed(1)}% Points Earned`}
           icon={Trophy}
           expanded={expanded.performance}
           onToggle={() => toggle('performance')}
@@ -353,7 +406,7 @@ export function WeekAnalysisView({ data }: WeekAnalysisViewProps) {
         title="Daily activity losses"
         subtitle={
           dailyActivities.length
-            ? `${dailyActivities.reduce((sum, a) => sum + a.pointsLost, 0).toFixed(1)} pts lost`
+            ? `${dailyActivities.reduce((sum, a) => sum + a.pointsLost, 0).toFixed(1)}% Points Earned lost`
             : 'No daily activities'
         }
         icon={Calendar}
@@ -374,7 +427,7 @@ export function WeekAnalysisView({ data }: WeekAnalysisViewProps) {
       {weeklyActivities.length > 0 && (
         <CollapsibleSection
           title="Weekly activity losses"
-          subtitle={`${weeklyActivities.reduce((sum, a) => sum + a.pointsLost, 0).toFixed(1)} pts lost`}
+          subtitle={`${weeklyActivities.reduce((sum, a) => sum + a.pointsLost, 0).toFixed(1)}% Points Earned lost`}
           icon={Target}
           expanded={expanded.weeklyLosses}
           onToggle={() => toggle('weeklyLosses')}

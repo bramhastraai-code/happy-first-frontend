@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store/authStore';
-import { dailyLogAPI, type DailySummary, type SubmitPreviousDailyLogData } from '@/lib/api/dailyLog';
+import { dailyLogAPI, type CalendarDay, type DailySummary, type SubmitPreviousDailyLogData } from '@/lib/api/dailyLog';
 import { invalidateDashboardQueries } from '@/lib/queries/invalidateDashboard';
 import { weeklyPlanAPI, type WeeklyPlan, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import MainLayout from '@/components/layout/MainLayout';
@@ -18,17 +18,20 @@ import { activityAPI, type Activity as ActivityType } from '@/lib/api/activity';
 import { DateTime } from 'luxon';
 import { cn } from '@/lib/utils';
 import { resolveActivityId } from '@/lib/utils/activityId';
-import { canSubmitPartialLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
+import { getActivityInputMax } from '@/lib/utils/activityInput';
+import { canSubmitFullDayLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 
 type PageMode = 'submit' | 'view' | 'closed' | 'loading';
 
-const getActivityInputMax = (activity: WeeklyPlanActivity, activityData?: ActivityType) => {
-  const configuredMax = activityData?.values.find((v) => v.tier === 1)?.maxVal;
-  const baseMax = typeof configuredMax === 'number' ? configuredMax : 500000;
-  const isWeeklyNumericTarget = activity.cadence === 'weekly' && activity.unit.toLowerCase() !== 'days';
-  return isWeeklyNumericTarget ? Math.max(baseMax, baseMax * 7) : baseMax;
-};
+function formatSubmittedValue(activity: DailySummary['activities'][number]) {
+  const unit = String(activity.unit || '').toLowerCase();
+  const isWeeklyDays = activity.cadance === 'weekly' && unit === 'days';
+  if (isWeeklyDays) {
+    return activity.achieved > 0 ? 'Done' : 'Not Done';
+  }
+  return `${activity.achieved} ${activity.unit}`;
+}
 
 function isPastDate(dateIso: string, zone: string) {
   if (!dateIso) return false;
@@ -77,11 +80,12 @@ function PreviousLogPageContent() {
   const [checkingLog, setCheckingLog] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
   const [warningActivities, setWarningActivities] = useState<
-    Array<{ label: string; value: number; target: number; percentage: number }>
+    Array<{ activityId: string; label: string; value: number; target: number; percentage: number }>
   >([]);
   const [earnedPoints, setEarnedPoints] = useState(0);
   const [showCongrats, setShowCongrats] = useState(false);
   const [actlist, setActlist] = useState<ActivityType[]>([]);
+  const [pickerCalendarDays, setPickerCalendarDays] = useState<CalendarDay[]>([]);
 
   const dateIsPast = isPastDate(selectedDate, zone);
 
@@ -165,18 +169,22 @@ function PreviousLogPageContent() {
       return;
     }
 
+    const latestAllowedLabel = DateTime.fromISO(yesterday).toFormat('cccc, d LLL yyyy');
+
     if (logAlreadyExists) {
       setDeadlineMessage('This day is already logged. Viewing your submitted entries.');
       return;
     }
 
     if (dateIsPast) {
-      setDeadlineMessage('You can submit a missed log for this day.');
+      setDeadlineMessage(`You can submit a missed log for this day. Latest day you can submit: ${latestAllowedLabel}.`);
       return;
     }
 
-    setDeadlineMessage('Only past dates can be submitted. Today and future dates are blocked.');
-  }, [selectedDate, logAlreadyExists, dateIsPast]);
+    setDeadlineMessage(
+      `Latest day you can submit: ${latestAllowedLabel}. Today and future are blocked.`
+    );
+  }, [selectedDate, logAlreadyExists, dateIsPast, yesterday]);
 
   useEffect(() => {
     const checkLogAndFetchPlan = async () => {
@@ -254,6 +262,18 @@ function PreviousLogPageContent() {
     void checkLogAndFetchPlan();
   }, [selectedDate, selectedProfile, zone]);
 
+  useEffect(() => {
+    if (!selectedProfile?._id || !selectedDate) return;
+
+    const parsed = DateTime.fromISO(selectedDate);
+    if (!parsed.isValid) return;
+
+    dailyLogAPI
+      .getCalendar(selectedProfile._id, { month: parsed.month, year: parsed.year })
+      .then((res) => setPickerCalendarDays(res.data.data.calendarDays ?? []))
+      .catch(() => setPickerCalendarDays([]));
+  }, [selectedProfile?._id, selectedDate]);
+
   const handleActivityChange = (activityId: string, value: string) => {
     setActivities((prev) => ({ ...prev, [activityId]: parseFloat(value) || 0 }));
   };
@@ -282,22 +302,22 @@ function PreviousLogPageContent() {
 
     setError('');
 
-    const warnings: Array<{ label: string; value: number; target: number; percentage: number }> =
+    const warnings: Array<{ activityId: string; label: string; value: number; target: number; percentage: number }> =
       [];
     Object.entries(activities).forEach(([activityId, value]) => {
-      if (value > 0) {
-        const activity = weeklyPlan.activities.find((a) => resolveActivityId(a) === activityId);
-        if (activity && activity.cadence !== 'weekly' && activity.label) {
-          const targetValue = activity.targetValue;
-          const percentage = (value / targetValue) * 100;
-          if (percentage < 10 || percentage > 200) {
-            warnings.push({
-              label: activity.label,
-              value,
-              target: targetValue,
-              percentage: Math.round(percentage),
-            });
-          }
+      const activity = weeklyPlan.activities.find((a) => resolveActivityId(a) === activityId);
+      if (!activity || activity.TodayLogged) return;
+      if (activity.cadence !== 'weekly' && activity.label) {
+        const targetValue = activity.targetValue;
+        const percentage = targetValue > 0 ? (value / targetValue) * 100 : 0;
+        if (percentage < 10 || percentage > 200) {
+          warnings.push({
+            activityId,
+            label: activity.label,
+            value,
+            target: targetValue,
+            percentage: Math.round(percentage),
+          });
         }
       }
     });
@@ -342,9 +362,24 @@ function PreviousLogPageContent() {
     void handleSubmit();
   };
 
+  const scrollToActivityRow = (activityId: string) => {
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`activity-row-${activityId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const input = el?.querySelector('input');
+      if (input instanceof HTMLInputElement) {
+        input.focus();
+      }
+    });
+  };
+
   const handleCancelSubmit = () => {
     setShowWarning(false);
+    const firstWarning = warningActivities[0];
     setWarningActivities([]);
+    if (firstWarning?.activityId) {
+      scrollToActivityRow(firstWarning.activityId);
+    }
   };
 
   if (!isMounted || !isHydrated) return null;
@@ -387,7 +422,7 @@ function PreviousLogPageContent() {
                 {formattedSelectedDate || 'Pick any past date'}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Any past day · up to {DateTime.fromISO(yesterday).toFormat('d MMM yyyy')}
+                Latest day you can submit: {DateTime.fromISO(yesterday).toFormat('d MMM yyyy')}. Today and future are blocked.
               </p>
             </div>
             {pickerEnabled && selectedDate && (
@@ -395,6 +430,7 @@ function PreviousLogPageContent() {
                 value={selectedDate}
                 onChange={setSelectedDate}
                 maxDate={yesterday}
+                calendarDays={pickerCalendarDays}
               />
             )}
           </div>
@@ -452,7 +488,7 @@ function PreviousLogPageContent() {
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h2 className="section-title">Submitted log</h2>
-              <span className="chip text-xs">{daySummary.totalPoints.toFixed(1)} pts</span>
+              <span className="chip text-xs">{daySummary.totalPoints.toFixed(1)}%</span>
             </div>
             <ul className="section-card divide-y divide-border">
               {daySummary.activities.map((activity) => (
@@ -470,10 +506,10 @@ function PreviousLogPageContent() {
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-sm font-bold tabular-nums text-foreground">
-                      {activity.achieved} {activity.unit}
+                      {formatSubmittedValue(activity)}
                     </p>
                     <p className="text-xs tabular-nums text-muted-foreground">
-                      +{activity.pointsEarned.toFixed(1)} pts
+                      +{activity.pointsEarned.toFixed(1)}%
                     </p>
                   </div>
                 </li>
@@ -519,7 +555,7 @@ function PreviousLogPageContent() {
             </div>
             <div className="flex gap-2">
               <Button type="button" onClick={handleCancelSubmit} variant="outline" className="flex-1">
-                Go back
+                Go back & edit
               </Button>
               <Button type="button" onClick={handleConfirmSubmit} className="flex-1">
                 Submit anyway
@@ -564,7 +600,7 @@ function PreviousLogPageContent() {
             disabled={
               loading ||
               checkingLog ||
-              !canSubmitPartialLog(weeklyPlan, activities, checkboxActivities, pendingSliders)
+              !canSubmitFullDayLog(weeklyPlan, activities, checkboxActivities, pendingSliders)
             }
             className="w-full py-5 text-base font-semibold"
           >

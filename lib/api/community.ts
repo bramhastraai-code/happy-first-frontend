@@ -37,8 +37,10 @@ export interface Community {
   memberCount: number;
   type: CommunityType;
   isPublic: boolean;
-  status?: 'active' | 'deleted';
+  status?: 'active' | 'deleted' | 'disabled';
   deletedAt?: string | null;
+  pendingDisableAt?: string | null;
+  disabledAt?: string | null;
   currentWeekStart?: string | null;
   activityConfigLocked?: boolean;
   hasPendingActivityConfig?: boolean;
@@ -49,6 +51,11 @@ export interface Community {
   avatarSeed?: string | null;
   avatarStyle?: string | null;
   icon?: string | null;
+  joinWhyAi?: {
+    text: string;
+    generatedAt?: string | null;
+    source?: string | null;
+  } | null;
   createdBy: {
     userId: string;
     profileId: string;
@@ -58,6 +65,19 @@ export interface Community {
   isMember: boolean;
   myMembershipStatus: CommunityMemberStatus | null;
   hiddenDeleted?: boolean;
+}
+
+export type CommunityMemberSort = 'joinedAsc' | 'joinedDesc' | 'nameAsc';
+
+export interface CommunityDiscoverOverview {
+  community: Community;
+  createdOn: string;
+  description: string;
+  memberCount: number;
+  activitiesTracked: Array<{ id: string; name: string; unit: string }>;
+  weeklyTotals: Array<{ activityId: string; name: string; unit: string; total: number }>;
+  overallTotals: Array<{ activityId: string; name: string; unit: string; total: number }>;
+  whyJoin: { text: string; source?: string | null };
 }
 
 export interface CommunityWeekSummary {
@@ -528,6 +548,9 @@ export const communityAPI = {
   get: (id: string) =>
     api.get<Envelope<{ community: Community }>>(`/community/${id}`),
 
+  discoverOverview: (id: string) =>
+    api.get<Envelope<CommunityDiscoverOverview>>(`/community/${id}/discover-overview`),
+
   create: (payload: {
     name: string;
     description?: string;
@@ -613,10 +636,27 @@ export const communityAPI = {
   join: (id: string, payload?: { groupId?: string }) =>
     api.post<Envelope<{ community: Community }>>(`/community/${id}/join`, payload || {}),
 
-  leave: (id: string) =>
-    api.post<Envelope<{ left: boolean; deleted: boolean }>>(`/community/${id}/leave`),
+  leave: (
+    id: string,
+    body?: { assignAdminProfileId?: string; acknowledgeDisable?: boolean }
+  ) =>
+    api.post<
+      Envelope<{
+        left: boolean;
+        deleted: boolean;
+        willDisable?: boolean;
+        pendingDisableAt?: string | null;
+      }>
+    >(`/community/${id}/leave`, body || {}),
 
-  members: (id: string, params?: { status?: CommunityMemberStatus }) =>
+  members: (
+    id: string,
+    params?: {
+      status?: CommunityMemberStatus;
+      sort?: CommunityMemberSort;
+      q?: string;
+    }
+  ) =>
     api.get<Envelope<{ members: CommunityMember[] }>>(`/community/${id}/members`, {
       params,
     }),
@@ -980,12 +1020,20 @@ export const communityAPI = {
 
   appreciations: (
     id: string,
-    params?: { direction?: 'received' | 'given'; profileId?: string; limit?: number }
+    params?: {
+      direction?: 'received' | 'given';
+      profileId?: string;
+      limit?: number;
+      cursor?: string;
+    }
   ) =>
-    api.get<Envelope<{ appreciations: CommunityAppreciation[] }>>(
-      `/community/${id}/appreciations`,
-      { params }
-    ),
+    api.get<
+      Envelope<{
+        appreciations: CommunityAppreciation[];
+        nextCursor: string | null;
+        direction?: string;
+      }>
+    >(`/community/${id}/appreciations`, { params }),
 
   appreciationStats: (id: string, params?: { profileId?: string }) =>
     api.get<Envelope<{ received: number; given: number }>>(

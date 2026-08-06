@@ -10,6 +10,10 @@ export interface FollowPerson {
   avatarStyle?: string | null;
   bio?: string | null;
   website?: string | null;
+  publicHighlight?: string | null;
+  createdAt?: string | null;
+  memberSince?: string | null;
+  daysWithHappyFirst?: number | null;
   level?: string | null;
   city?: string | null;
   sameLevel?: boolean;
@@ -26,6 +30,8 @@ export interface PublicProfileData {
   followersCount: number;
   followingCount: number;
   postsCount: number;
+  lastPostAt?: string | null;
+  daysSinceLastPost?: number | null;
   isFollowing: boolean;
   followsYou: boolean;
   isMe: boolean;

@@ -45,7 +45,7 @@ export interface WeeklyPlan {
   activities: WeeklyPlanActivity[];
   weekStart: string;
   weekEnd: string;
-  status: 'active' | 'completed' | 'carried-forward';
+  status: 'active' | 'completed' | 'carried-forward' | 'paused';
   unlockedSets?: number[];
   /** @deprecated typo kept for older payloads */
   unloockedSets?: number[];
@@ -55,12 +55,39 @@ export interface WeeklyPlan {
   canEditCurrent?: boolean;
 }
 
+export type WeeklyMood = 'lovely' | 'good' | 'mixed' | 'tough' | 'exhausted';
+
 export interface CreateWeeklyPlanData {
   activities: Array<{
     activityId: string;
     cadence: 'daily' | 'weekly';
     targetValue: number;
   }>;
+  startingWeight?: number;
+  weeklyMood?: WeeklyMood;
+  weight?: number;
+  mood?: WeeklyMood;
+}
+
+export interface WeightMoodHistoryPoint {
+  weekStart: string;
+  weekEnd: string;
+  weight?: number | null;
+  mood?: WeeklyMood | null;
+  status?: string;
+}
+
+export interface NextWeekPreview {
+  weekStart: string;
+  weekEnd: string;
+}
+
+export interface RepeatWeeklyPlanData {
+  activities?: CreateWeeklyPlanData['activities'];
+  startingWeight?: number;
+  weeklyMood?: WeeklyMood;
+  weight?: number;
+  mood?: WeeklyMood;
 }
 
 export interface ActivityAnalytics {
@@ -166,6 +193,22 @@ export const weeklyPlanAPI = {
     };
   },
 
-  firstSetup: (activities:CreateWeeklyPlanData) => api.post('/weeklyPlan/firstTimeSetup', activities),
-  repeatLastWeek: () => api.post('/weeklyPlan/repeatLastWeek', {}),
+  firstSetup: (activities: CreateWeeklyPlanData) => api.post('/weeklyPlan/firstTimeSetup', activities),
+
+  repeatLastWeek: (data?: RepeatWeeklyPlanData) =>
+    api.post('/weeklyPlan/repeatLastWeek', data ?? {}),
+
+  pauseNextWeek: () =>
+    api.post<{ success: boolean; message: string }>('/weeklyPlan/pauseNextWeek'),
+
+  getWeightMoodHistory: (limit = 12) =>
+    api.get<{ success: boolean; message: string; data: { points: WeightMoodHistoryPoint[] } }>(
+      '/weeklyPlan/weight-mood-history',
+      { params: { limit } }
+    ),
+
+  getNextWeekPreview: () =>
+    api.get<{ success: boolean; message: string; data: NextWeekPreview }>(
+      '/weeklyPlan/next-week-preview'
+    ),
 };

@@ -10,6 +10,10 @@ export function isWeeklyDaysActivity(activity: WeeklyPlan['activities'][number])
   return activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days';
 }
 
+export function getRemainingActivities(weeklyPlan: WeeklyPlan) {
+  return weeklyPlan.activities.filter((activity) => !activity.TodayLogged);
+}
+
 export function getActivityLogValue(
   activity: WeeklyPlan['activities'][number],
   activities: Record<string, number>,
@@ -28,8 +32,7 @@ export function getActivityLogValue(
     return checkboxActivities[activityId] ? 1 : 0;
   }
 
-  const value = activities[activityId] ?? 0;
-  return value > 0 ? value : null;
+  return activities[activityId] ?? 0;
 }
 
 export function buildLogSubmitPayload(
@@ -41,7 +44,7 @@ export function buildLogSubmitPayload(
   return weeklyPlan.activities
     .map((activity) => {
       const value = getActivityLogValue(activity, activities, checkboxActivities, pendingSliders);
-      if (value == null || value <= 0) return null;
+      if (value == null) return null;
       return {
         activityId: resolveActivityId(activity),
         value,
@@ -50,13 +53,35 @@ export function buildLogSubmitPayload(
     .filter((entry): entry is LogActivityEntry => entry != null);
 }
 
+/** True when every not-yet-logged plan activity is ready for full-day submit. */
+export function canSubmitFullDayLog(
+  weeklyPlan: WeeklyPlan,
+  activities: Record<string, number>,
+  checkboxActivities: Record<string, boolean>,
+  pendingSliders: Record<string, boolean>
+): boolean {
+  const remaining = getRemainingActivities(weeklyPlan);
+  if (remaining.length === 0) return false;
+
+  return remaining.every((activity) => {
+    const activityId = resolveActivityId(activity);
+    if (isWeeklyDaysActivity(activity)) {
+      return !(pendingSliders[activityId] ?? true);
+    }
+    void activities[activityId];
+    void checkboxActivities[activityId];
+    return true;
+  });
+}
+
+/** @deprecated Use canSubmitFullDayLog */
 export function canSubmitPartialLog(
   weeklyPlan: WeeklyPlan,
   activities: Record<string, number>,
   checkboxActivities: Record<string, boolean>,
   pendingSliders: Record<string, boolean>
 ): boolean {
-  return buildLogSubmitPayload(weeklyPlan, activities, checkboxActivities, pendingSliders).length > 0;
+  return canSubmitFullDayLog(weeklyPlan, activities, checkboxActivities, pendingSliders);
 }
 
 /** True when at least one plan activity has not been logged for the day yet. */
@@ -77,25 +102,36 @@ export function validateLogSubmit(
   checkboxActivities: Record<string, boolean>,
   pendingSliders: Record<string, boolean>
 ): { ok: true; payload: LogActivityEntry[] } | { ok: false; error: string } {
-  const payload = buildLogSubmitPayload(weeklyPlan, activities, checkboxActivities, pendingSliders);
+  const remaining = getRemainingActivities(weeklyPlan);
 
-  if (payload.length === 0) {
-    const hasPendingOnly = weeklyPlan.activities.some((activity) => {
-      if (activity.TodayLogged || !isWeeklyDaysActivity(activity)) return false;
-      const activityId = resolveActivityId(activity);
-      return pendingSliders[activityId] ?? true;
-    });
-
-    if (hasPendingOnly) {
-      return {
-        ok: false,
-        error: 'Set each activity to Done or Not Done, or enter a value for at least one activity.',
-      };
-    }
-
+  if (remaining.length === 0) {
     return {
       ok: false,
-      error: 'Please log at least one new activity before submitting.',
+      error: 'All activities are already logged for today.',
+    };
+  }
+
+  const pendingCheckbox = remaining.find((activity) => {
+    if (!isWeeklyDaysActivity(activity)) return false;
+    const activityId = resolveActivityId(activity);
+    return pendingSliders[activityId] ?? true;
+  });
+
+  if (pendingCheckbox) {
+    return {
+      ok: false,
+      error: `Set "${pendingCheckbox.label || 'each weekly activity'}" to Done or Not Done before submitting.`,
+    };
+  }
+
+  const payload = buildLogSubmitPayload(weeklyPlan, activities, checkboxActivities, pendingSliders);
+  const remainingIds = new Set(remaining.map((a) => resolveActivityId(a)));
+  const payloadIds = new Set(payload.map((e) => e.activityId));
+
+  if (payload.length !== remaining.length || ![...remainingIds].every((id) => payloadIds.has(id))) {
+    return {
+      ok: false,
+      error: 'Please review every activity before submitting your daily log.',
     };
   }
 

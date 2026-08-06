@@ -87,6 +87,7 @@ export interface UpdateProfileData {
   avatarUrl?: string | null;
   bio?: string;
   website?: string;
+  publicHighlight?: string;
   profile?: {
     health?: string;
     family?: string;
@@ -173,5 +174,71 @@ export const authAPI = {
 
   updatePause: (profileId: string, data: UpdatePauseData) => api.patch(`/profile/${profileId}/pause`, data),
 
-  referralStats: () => api.get('/userAuth/referralStats'),
+  referralStats: () =>
+    api.get<{ data: ReferralStatsData }>('/userAuth/referralStats'),
+
+  /** Soft-delete account. confirmation must be exactly "delete profile". */
+  deleteAccount: (confirmation: string) =>
+    api.post<{ data: { deleted: boolean }; message?: string }>('/userAuth/delete-account', {
+      confirmation,
+    }),
 };
+
+export type ReferredMemberStatus = 'active' | 'inactive';
+
+export interface ReferredMember {
+  _id: string;
+  name: string;
+  email?: string | null;
+  phoneNumber?: string | null;
+  countryCode?: string | null;
+  joinedAt?: string | null;
+  createdAt?: string | null;
+  onboardingStatus?: string | null;
+  subscriptionStatus?: string | null;
+  status: ReferredMemberStatus;
+  canWhatsAppRemind?: boolean;
+}
+
+export interface ReferralActivityImpact {
+  activityId: string;
+  name: string;
+  unit: string;
+  category?: string | null;
+  total: number;
+  logCount: number;
+}
+
+export interface ReferralPlatformImpact {
+  membersPercent: number;
+  xpPercent: number;
+  coinsPercent: number;
+  feedPostsPercent: number;
+  activitiesPercent: number;
+  totals?: {
+    referredMembers: number;
+    platformMembers: number;
+    referredXp: number;
+    platformXp: number;
+    referredCoins: number;
+    platformCoins: number;
+    referredFeedPosts: number;
+    platformFeedPosts: number;
+    referredActivityLogs: number;
+    platformActivityLogs: number;
+  };
+}
+
+export interface ReferralStatsData {
+  totalReferrals: number;
+  HappyPoints: number;
+  happyCoinsEarned?: number;
+  referredUsers: ReferredMember[];
+  activityImpact?: ReferralActivityImpact[];
+  platformImpact?: ReferralPlatformImpact;
+  insight?: {
+    daysSinceLastReferral: number | null;
+    message: string;
+  };
+  activeWindowDays?: number;
+}

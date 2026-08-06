@@ -24,6 +24,17 @@ export interface FeedRepostRef {
   createdAt?: string;
 }
 
+export interface FeedCollaborator {
+  profileId: string;
+  userId?: string | null;
+  name: string;
+  avatarUrl?: string | null;
+  avatarSeed?: string | null;
+  avatarStyle?: string | null;
+  status: 'pending' | 'accepted' | 'declined';
+  isMe?: boolean;
+}
+
 export interface FeedPost {
   id: string;
   imageUrl: string;
@@ -33,6 +44,9 @@ export interface FeedPost {
   caption: string;
   createdAt: string;
   communityId?: string | null;
+  communityName?: string | null;
+  collaborators?: FeedCollaborator[];
+  acceptedCollaborators?: FeedCollaborator[];
   author: FeedAuthor;
   repostOf?: FeedRepostRef | null;
   repostCount?: number;
@@ -97,6 +111,10 @@ export interface FeedPage {
   nextCursor: string | null;
 }
 
+export interface FeedSearchPage extends FeedPage {
+  query?: string;
+}
+
 export interface FeedLikePerson {
   profileId: string;
   userId?: string | null;
@@ -110,11 +128,36 @@ export interface FeedLikePerson {
   likedAt?: string;
 }
 
+export type PublishTarget = 'post' | 'story' | 'both';
+
+export interface CreatePostResult {
+  post: FeedPost;
+  feedPost?: FeedPost | null;
+  story?: FeedPost | null;
+}
+
 type ApiEnvelope<T> = { data: T; message?: string; success?: boolean };
+
+export function formatCollaborationLabel(
+  authorName: string,
+  accepted: Array<{ name: string }> | undefined | null
+) {
+  const list = accepted || [];
+  if (!list.length) return authorName;
+  if (list.length === 1) return `${authorName} with ${list[0].name}`;
+  return `${authorName} with ${list[0].name} and ${list.length - 1} others`;
+}
 
 export const feedAPI = {
   getFeed: (params?: { limit?: number; cursor?: string; communityId?: string }) =>
     api.get<ApiEnvelope<FeedPage>>('/feed', { params }),
+
+  searchFeed: (params: {
+    q: string;
+    limit?: number;
+    cursor?: string;
+    communityId?: string;
+  }) => api.get<ApiEnvelope<FeedSearchPage>>('/feed/search', { params }),
 
   getStories: () =>
     api.get<ApiEnvelope<{ stories: FeedStory[] }>>('/feed/stories'),
@@ -141,7 +184,14 @@ export const feedAPI = {
 
   createPost: (
     file: File | Blob | Array<File | Blob>,
-    options?: { caption?: string; kind?: 'post' | 'story'; communityId?: string }
+    options?: {
+      caption?: string;
+      kind?: PublishTarget;
+      publishTo?: PublishTarget;
+      communityId?: string;
+      collaboratorProfileIds?: string[];
+      alsoPublishToGlobal?: boolean;
+    }
   ) => {
     const form = new FormData();
     const files = Array.isArray(file) ? file : [file];
@@ -153,12 +203,31 @@ export const feedAPI = {
       form.append('media', item, filename);
     });
     if (options?.caption?.trim()) form.append('caption', options.caption.trim());
-    form.append('kind', options?.kind || 'post');
+    const target = options?.publishTo || options?.kind || 'post';
+    form.append('kind', target === 'both' ? 'both' : target);
+    form.append('publishTo', target);
     if (options?.communityId) form.append('communityId', options.communityId);
-    return api.post<ApiEnvelope<{ post: FeedPost }>>('/feed/posts', form, {
+    if (options?.collaboratorProfileIds?.length) {
+      form.append('collaboratorProfileIds', JSON.stringify(options.collaboratorProfileIds));
+    }
+    if (typeof options?.alsoPublishToGlobal === 'boolean') {
+      form.append('alsoPublishToGlobal', options.alsoPublishToGlobal ? 'true' : 'false');
+    }
+    return api.post<ApiEnvelope<CreatePostResult>>('/feed/posts', form, {
       timeout: 180_000,
     });
   },
+
+  respondToCollaboration: (photoId: string, action: 'accept' | 'decline') =>
+    api.post<ApiEnvelope<{ post: FeedPost }>>(`/feed/${photoId}/collaboration`, {
+      action,
+    }),
+
+  removeCollaborator: (photoId: string, profileId: string) =>
+    api.post<ApiEnvelope<{ post: FeedPost }>>(
+      `/feed/${photoId}/collaboration/remove`,
+      { profileId }
+    ),
 
   toggleLike: (photoId: string) =>
     api.post<ApiEnvelope<{ likedByMe: boolean; likeCount: number }>>(

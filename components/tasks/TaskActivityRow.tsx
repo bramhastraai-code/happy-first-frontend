@@ -49,6 +49,18 @@ function StatusBadge({
   );
 }
 
+function formatAchievedValue(activity: WeeklyPlanActivity, isWeeklyDays: boolean) {
+  const achieved = activity.achieved ?? 0;
+  if (isWeeklyDays) {
+    return achieved > 0 ? 'Done' : 'Not Done';
+  }
+  const unitLabel = activity.unit || '';
+  const formatted = Number.isInteger(achieved)
+    ? achieved.toLocaleString()
+    : achieved.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  return unitLabel ? `${formatted} ${unitLabel}` : formatted;
+}
+
 export default function TaskActivityRow({
   activity,
   activityData,
@@ -69,6 +81,7 @@ export default function TaskActivityRow({
     activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days';
   const unitLabel = activity.unit || '';
   const cadenceSuffix = activity.cadence === 'daily' ? '/day' : '/week';
+  const loggedDisplay = formatAchievedValue(activity, isWeeklyDays);
 
   const renderControl = () => {
     if (!isAfter6PM) {
@@ -107,10 +120,14 @@ export default function TaskActivityRow({
       if (isWeeklyDays) {
         return (
           <>
-            <CustomSlider checked={checkboxChecked} onChange={() => {}} disabled />
+            <CustomSlider
+              checked={(activity.achieved ?? 0) > 0}
+              onChange={() => {}}
+              disabled
+            />
             <StatusBadge tone="logged">
               <CheckCircle2 className="h-3 w-3" />
-              Logged
+              {loggedDisplay}
             </StatusBadge>
           </>
         );
@@ -122,12 +139,15 @@ export default function TaskActivityRow({
             <input
               type="text"
               disabled
-              value={value || 0}
-              className="h-12 w-full rounded-lg border border-input bg-secondary px-3 text-center text-base font-semibold text-foreground opacity-80"
+              value={loggedDisplay}
+              className="h-12 w-full rounded-lg border border-input bg-secondary px-3 text-center text-sm font-semibold text-foreground opacity-80"
             />
             <CheckCircle2 className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-success" />
           </div>
-          <StatusBadge tone="logged">Logged</StatusBadge>
+          <StatusBadge tone="logged">
+            <CheckCircle2 className="h-3 w-3" />
+            Logged
+          </StatusBadge>
         </>
       );
     }
@@ -142,7 +162,7 @@ export default function TaskActivityRow({
             onPendingChange={(pending) => onPendingChange(activityId, pending)}
           />
           <StatusBadge tone="points">
-            {(activity.pointsPerUnit ?? 0).toFixed(1)} pts
+            {(activity.pointsPerUnit ?? 0).toFixed(1)}%
           </StatusBadge>
         </>
       );
@@ -165,6 +185,7 @@ export default function TaskActivityRow({
 
   return (
     <div
+      id={`activity-row-${activityId}`}
       className={cn(
         'relative flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between',
         !isLast && 'border-b border-border',

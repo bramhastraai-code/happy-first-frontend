@@ -8,6 +8,7 @@ export interface AppNotification {
     | 'message'
     | 'post'
     | 'follow'
+    | 'post_collaboration'
     | 'community_announcement'
     | 'community_week_summary'
     | 'community_nudge'

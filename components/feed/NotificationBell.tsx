@@ -17,6 +17,7 @@ import { DateTime } from 'luxon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { notificationsAPI, type AppNotification } from '@/lib/api/notifications';
+import { feedAPI } from '@/lib/api/feed';
 import { cn } from '@/lib/utils';
 
 interface NotificationBellProps {
@@ -29,6 +30,7 @@ function iconFor(type: AppNotification['type']) {
   if (type === 'like') return Heart;
   if (type === 'comment') return MessageCircle;
   if (type === 'follow') return UserPlus;
+  if (type === 'post_collaboration') return UserPlus;
   if (type === 'community_announcement') return Megaphone;
   if (type === 'community_week_summary') return Megaphone;
   if (type === 'community_nudge') return Megaphone;
@@ -73,6 +75,23 @@ export function NotificationBell({
     mutationFn: (id: string) => notificationsAPI.markRead(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+
+  const collabMutation = useMutation({
+    mutationFn: ({
+      photoId,
+      action,
+    }: {
+      photoId: string;
+      action: 'accept' | 'decline';
+      notificationId: string;
+    }) => feedAPI.respondToCollaboration(photoId, action),
+    onSuccess: (_data, variables) => {
+      void notificationsAPI.markRead(variables.notificationId);
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      void queryClient.invalidateQueries({ queryKey: ['profilePosts'] });
     },
   });
 
@@ -186,58 +205,96 @@ export function NotificationBell({
                         >
                           <Icon className="h-4 w-4" />
                         </button>
-                        <button
-                          type="button"
-                          className="min-w-0 flex-1 text-left"
-                          onClick={() => {
-                            if (!item.readAt) markOne.mutate(item.id);
-                            if (
-                              (item.type === 'community_announcement' ||
-                                item.type === 'community_week_summary' ||
-                                item.type === 'community_nudge' ||
-                                item.type === 'community_event' ||
-                                item.type === 'community_event_reminder' ||
-                                item.type === 'community_appreciation' ||
-                                item.type === 'community_mention' ||
-                                item.type === 'community_reply') &&
-                              item.communityId
-                            ) {
-                              router.push(`/community/${item.communityId}`);
-                              setOpen(false);
-                              return;
-                            }
-                            if (item.type === 'message' && item.conversationId) {
-                              onOpenMessage?.(item.conversationId);
-                              setOpen(false);
-                              return;
-                            }
-                            if (item.type === 'follow' && item.actor.profileId) {
-                              router.push(`/feed/profile/${item.actor.profileId}`);
-                              setOpen(false);
-                              return;
-                            }
-                            if (item.photoId) {
-                              onOpenPost?.(item.photoId);
-                              setOpen(false);
-                              return;
-                            }
-                            if (item.actor.profileId) {
-                              router.push(`/feed/profile/${item.actor.profileId}`);
-                              setOpen(false);
-                            }
-                          }}
-                        >
-                          <p className="text-sm font-medium text-foreground">{item.title}</p>
-                          {item.body && (
-                            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                              {item.body}
+                        <div className="min-w-0 flex-1">
+                          <button
+                            type="button"
+                            className="w-full text-left"
+                            onClick={() => {
+                              if (!item.readAt) markOne.mutate(item.id);
+                              if (
+                                (item.type === 'community_announcement' ||
+                                  item.type === 'community_week_summary' ||
+                                  item.type === 'community_nudge' ||
+                                  item.type === 'community_event' ||
+                                  item.type === 'community_event_reminder' ||
+                                  item.type === 'community_appreciation' ||
+                                  item.type === 'community_mention' ||
+                                  item.type === 'community_reply') &&
+                                item.communityId
+                              ) {
+                                router.push(`/community/${item.communityId}`);
+                                setOpen(false);
+                                return;
+                              }
+                              if (item.type === 'message' && item.conversationId) {
+                                onOpenMessage?.(item.conversationId);
+                                setOpen(false);
+                                return;
+                              }
+                              if (item.type === 'follow' && item.actor.profileId) {
+                                router.push(`/feed/profile/${item.actor.profileId}`);
+                                setOpen(false);
+                                return;
+                              }
+                              if (item.photoId) {
+                                onOpenPost?.(item.photoId);
+                                setOpen(false);
+                                return;
+                              }
+                              if (item.actor.profileId) {
+                                router.push(`/feed/profile/${item.actor.profileId}`);
+                                setOpen(false);
+                              }
+                            }}
+                          >
+                            <p className="text-sm font-medium text-foreground">{item.title}</p>
+                            {item.body && (
+                              <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                                {item.body}
+                              </p>
+                            )}
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              {DateTime.fromISO(item.createdAt).toRelative()}
+                              {item.actor.profileId ? ' · View profile' : ''}
                             </p>
-                          )}
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            {DateTime.fromISO(item.createdAt).toRelative()}
-                            {item.actor.profileId ? ' · View profile' : ''}
-                          </p>
-                        </button>
+                          </button>
+                          {item.type === 'post_collaboration' &&
+                          item.photoId &&
+                          item.title.toLowerCase().includes('invited') ? (
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                type="button"
+                                disabled={collabMutation.isPending}
+                                onClick={() => {
+                                  if (!item.readAt) markOne.mutate(item.id);
+                                  collabMutation.mutate({
+                                    photoId: item.photoId!,
+                                    action: 'accept',
+                                    notificationId: item.id,
+                                  });
+                                }}
+                                className="rounded-lg bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground"
+                              >
+                                Accept
+                              </button>
+                              <button
+                                type="button"
+                                disabled={collabMutation.isPending}
+                                onClick={() => {
+                                  if (!item.readAt) markOne.mutate(item.id);
+                                  collabMutation.mutate({
+                                    photoId: item.photoId!,
+                                    action: 'decline',
+                                    notificationId: item.id,
+                                  });
+                                }}
+                                className="rounded-lg bg-secondary px-2.5 py-1 text-[11px] font-semibold text-foreground"
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     );
                   })

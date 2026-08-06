@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Heart, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChipTabs } from '@/components/ui/ChipTabs';
@@ -12,6 +12,30 @@ import { useAuthStore } from '@/lib/store/authStore';
 
 interface CommunityAppreciationTabProps {
   communityId: string;
+}
+
+function formatAppreciationDate(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const diff = Date.now() - d.getTime();
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diff < hour) {
+    const mins = Math.max(1, Math.floor(diff / minute));
+    return `${mins}m ago`;
+  }
+  if (diff < day) {
+    return `${Math.floor(diff / hour)}h ago`;
+  }
+  if (diff < 7 * day) {
+    return `${Math.floor(diff / day)}d ago`;
+  }
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+  });
 }
 
 export function CommunityAppreciationTab({ communityId }: CommunityAppreciationTabProps) {
@@ -40,12 +64,18 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
     },
   });
 
-  const listQuery = useQuery({
+  const listQuery = useInfiniteQuery({
     queryKey: ['community-appreciations', communityId, direction],
-    queryFn: async () => {
-      const res = await communityAPI.appreciations(communityId, { direction });
-      return res.data.data.appreciations ?? [];
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const res = await communityAPI.appreciations(communityId, {
+        direction,
+        cursor: pageParam,
+        limit: 20,
+      });
+      return res.data.data;
     },
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 
   const boardQuery = useQuery({
@@ -96,7 +126,7 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
   const members = (membersQuery.data ?? []).filter(
     (m) => String(m.profile.id) !== String(selectedProfile?._id)
   );
-  const appreciations = listQuery.data ?? [];
+  const appreciations = listQuery.data?.pages.flatMap((p) => p.appreciations) ?? [];
 
   return (
     <div className="space-y-4">
@@ -181,53 +211,76 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
             No appreciations yet.
           </p>
         ) : (
-          <ul className="divide-y divide-border">
-            {appreciations.map((row) => {
-              const other = direction === 'received' ? row.from : row.to;
-              return (
-                <li key={row.id} className="flex items-center gap-3 px-4 py-3">
-                  <Link href={`/feed/profile/${other.profileId}`} className="shrink-0">
-                    <ProfileAvatar
-                      name={other.name}
-                      avatarUrl={other.avatarUrl}
-                      avatarSeed={other.avatarSeed}
-                      avatarStyle={other.avatarStyle}
-                      size="sm"
-                    />
-                  </Link>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold">
-                      {row.emoji} {row.label}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {direction === 'received' ? (
-                        <>
-                          From{' '}
-                          <Link
-                            href={`/feed/profile/${other.profileId}`}
-                            className="font-medium text-foreground hover:underline"
-                          >
-                            {other.name}
-                          </Link>
-                        </>
-                      ) : (
-                        <>
-                          To{' '}
-                          <Link
-                            href={`/feed/profile/${other.profileId}`}
-                            className="font-medium text-foreground hover:underline"
-                          >
-                            {other.name}
-                          </Link>
-                        </>
-                      )}
-                      {row.message ? ` · ${row.message}` : ''}
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <ul className="divide-y divide-border">
+              {appreciations.map((row) => {
+                // Received = people who appreciated me (from); Given = people I appreciated (to)
+                const other = direction === 'received' ? row.from : row.to;
+                return (
+                  <li key={row.id} className="flex items-center gap-3 px-4 py-3">
+                    <Link href={`/feed/profile/${other.profileId}`} className="shrink-0">
+                      <ProfileAvatar
+                        name={other.name}
+                        avatarUrl={other.avatarUrl}
+                        avatarSeed={other.avatarSeed}
+                        avatarStyle={other.avatarStyle}
+                        size="sm"
+                      />
+                    </Link>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold">
+                          {row.emoji} {row.label}
+                        </p>
+                        <span className="shrink-0 text-[11px] text-muted-foreground">
+                          {formatAppreciationDate(row.createdAt)}
+                        </span>
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {direction === 'received' ? (
+                          <>
+                            From{' '}
+                            <Link
+                              href={`/feed/profile/${other.profileId}`}
+                              className="font-medium text-foreground hover:underline"
+                            >
+                              {other.name}
+                            </Link>
+                          </>
+                        ) : (
+                          <>
+                            To{' '}
+                            <Link
+                              href={`/feed/profile/${other.profileId}`}
+                              className="font-medium text-foreground hover:underline"
+                            >
+                              {other.name}
+                            </Link>
+                          </>
+                        )}
+                        {row.message ? ` · ${row.message}` : ''}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {listQuery.hasNextPage ? (
+              <div className="border-t border-border p-3">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={listQuery.isFetchingNextPage}
+                  onClick={() => void listQuery.fetchNextPage()}
+                >
+                  {listQuery.isFetchingNextPage ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : null}
+                  Load more
+                </Button>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
 

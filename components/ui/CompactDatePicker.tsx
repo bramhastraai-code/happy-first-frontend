@@ -20,6 +20,40 @@ interface CompactDatePickerProps {
 const PANEL_WIDTH = 224;
 const PANEL_HEIGHT_ESTIMATE = 300;
 
+type DayEligibility = 'disabled' | 'logged' | 'eligible';
+
+function resolveDayEligibility(
+  cell: { date: string; isDisabled: boolean; hasLog: boolean },
+  todayIso: string
+): DayEligibility {
+  if (cell.isDisabled) return 'disabled';
+  if (cell.hasLog) return 'logged';
+  if (cell.date < todayIso) return 'eligible';
+  return 'disabled';
+}
+
+function dayCellClasses(
+  cell: { date: string; isDisabled: boolean; hasLog: boolean },
+  selectedValue: string,
+  todayIso: string
+) {
+  const eligibility = resolveDayEligibility(cell, todayIso);
+  const isSelected = selectedValue === cell.date;
+
+  if (isSelected) {
+    return 'bg-primary text-primary-foreground';
+  }
+
+  switch (eligibility) {
+    case 'logged':
+      return 'bg-secondary text-muted-foreground ring-1 ring-border';
+    case 'eligible':
+      return 'bg-primary-soft text-primary hover:bg-accent';
+    default:
+      return 'cursor-not-allowed text-muted-foreground/40';
+  }
+}
+
 export default function CompactDatePicker({
   value,
   onChange,
@@ -144,8 +178,8 @@ export default function CompactDatePicker({
   const todayIso = DateTime.local().toFormat('yyyy-MM-dd');
   const maxIso = max.toFormat('yyyy-MM-dd');
   const minIso = min ? min.toFormat('yyyy-MM-dd') : null;
-  const quickPickIso = maxIso < todayIso ? maxIso : todayIso;
-  const quickPickLabel = maxIso < todayIso ? 'Latest allowed' : 'Today';
+  const quickPickIso = maxIso;
+  const quickPickLabel = 'Latest allowed';
   const quickPickDisabled = Boolean(minIso && quickPickIso < minIso);
 
   const pickDate = (iso: string) => {
@@ -216,12 +250,7 @@ export default function CompactDatePicker({
                 onClick={() => pickDate(cell.date)}
                 className={cn(
                   'relative flex h-7 w-full items-center justify-center rounded-md text-[11px] font-medium transition-colors',
-                  cell.isDisabled && 'cursor-not-allowed text-muted-foreground/40',
-                  !cell.isDisabled && value === cell.date && 'bg-primary text-primary-foreground',
-                  !cell.isDisabled &&
-                    value !== cell.date &&
-                    'text-foreground hover:bg-secondary',
-                  !cell.isDisabled && cell.hasLog && value !== cell.date && 'ring-1 ring-primary/40'
+                  dayCellClasses(cell, value, todayIso)
                 )}
               >
                 {cell.day}
