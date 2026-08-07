@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getCookie, useAuthStore } from '@/lib/store/authStore';
+import { getCookie, useAuthStore, type Profile } from '@/lib/store/authStore';
 import { isTokenExpiringSoon } from '@/lib/auth/jwt';
 import { getApiBaseUrl } from '@/lib/api/apiBaseUrl';
 
@@ -7,6 +7,8 @@ const apiBaseUrl = getApiBaseUrl();
 
 export interface RefreshResult {
   token: string | null;
+  user?: NonNullable<ReturnType<typeof useAuthStore.getState>['user']> | null;
+  profiles?: Profile[] | null;
   /**
    * True only when the server explicitly rejected the refresh token (401/403).
    * Network errors, timeouts, and 5xx responses keep the session alive.
@@ -51,14 +53,33 @@ export async function refreshAccessToken(): Promise<RefreshResult> {
         }
       );
 
-      const accessToken = response.data?.data?.accessToken as string | undefined;
+      const data = response.data?.data as
+        | {
+            accessToken?: string;
+            user?: NonNullable<ReturnType<typeof useAuthStore.getState>['user']>;
+            profiles?: Profile[];
+          }
+        | undefined;
+      const accessToken = data?.accessToken;
       if (!accessToken) {
         // Treat a malformed success response as transient, not as a dead session.
         return { token: null, sessionExpired: false };
       }
 
-      useAuthStore.getState().setAccessToken(accessToken);
-      return { token: accessToken, sessionExpired: false };
+      const store = useAuthStore.getState();
+      store.setAccessToken(accessToken);
+      if (data?.user) {
+        store.setUser(data.user);
+      }
+      if (data?.profiles) {
+        store.setProfiles(data.profiles);
+      }
+      return {
+        token: accessToken,
+        user: data?.user ?? null,
+        profiles: data?.profiles ?? null,
+        sessionExpired: false,
+      };
     } catch (error) {
       const status = axios.isAxiosError(error) ? error.response?.status : undefined;
       return { token: null, sessionExpired: status === 401 || status === 403 };

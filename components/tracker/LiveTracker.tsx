@@ -104,7 +104,7 @@ export default function LiveTracker() {
           <button
             type="button"
             onClick={() => router.push('/tracker')}
-            className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-stone-900/55 text-white shadow-lg backdrop-blur-md transition hover:bg-stone-900/70"
+            className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-xl bg-stone-900/55 text-white shadow-lg backdrop-blur-md transition hover:bg-stone-900/70"
             aria-label="Back to tracker"
           >
             <ChevronLeft className="h-5 w-5" />

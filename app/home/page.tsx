@@ -42,7 +42,7 @@ export default function HomePage() {
 function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, accessToken, isHydrated, selectedProfile, setUser } = useAuthStore();
+  const { user, accessToken, isHydrated, sessionReady, selectedProfile, setUser } = useAuthStore();
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
   const [economy, setEconomy] = useState<EconomySummary | null>(null);
   const [expandedSections, setExpandedSections] = useState({
@@ -58,7 +58,7 @@ function HomePageContent() {
   const [isMounted, setIsMounted] = useState(false);
   const isProfilePaused = Boolean(selectedProfile?.pause ?? selectedProfile?.setting?.pause);
 
-  const dataEnabled = isHydrated && !!accessToken && !!user && !!selectedProfile?._id;
+  const dataEnabled = isHydrated && sessionReady && !!accessToken && !!user && !!selectedProfile?._id;
 
   const {
     isBootstrapping,
@@ -156,11 +156,11 @@ function HomePageContent() {
   };
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || !sessionReady) return;
     if (!accessToken || !user) {
       router.push('/login');
     }
-  }, [accessToken, user, router, isHydrated]);
+  }, [accessToken, user, router, isHydrated, sessionReady]);
 
   useEffect(() => {
     if (searchParams.get('refresh') !== '1' || !dataEnabled) return;
@@ -262,7 +262,7 @@ function HomePageContent() {
       : (selectedDateIsToday ? (streakData?.overallStreak.currentStreak || 0) : 0);
 
   // Show loading only on first visit with no cached data
-  if (!isHydrated || isBootstrapping) {
+  if (!isHydrated || !sessionReady || isBootstrapping) {
     return (
       <MainLayout>
         <LoadingScreen fullScreen label="Loading your dashboard…" />
@@ -295,7 +295,7 @@ function HomePageContent() {
               onClick={() => router.push('/xp')}
               className="section-card flex items-center gap-3 p-4 text-left transition hover:border-primary/30"
             >
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
                 <Sparkles className="h-5 w-5" />
               </span>
               <span className="min-w-0">
@@ -315,7 +315,7 @@ function HomePageContent() {
               onClick={() => router.push('/coins')}
               className="section-card flex items-center gap-3 p-4 text-left transition hover:border-primary/30"
             >
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
                 <Coins className="h-5 w-5" />
               </span>
               <span className="min-w-0">
@@ -336,7 +336,7 @@ function HomePageContent() {
           </div>
         ) : null}
 
-        <Card className="section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft/80 to-surface">
+        {/* <Card className="section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft/80 to-surface">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
@@ -358,7 +358,7 @@ function HomePageContent() {
               </Button>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {isRefreshing && (
           <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">

@@ -10,6 +10,10 @@ import { cn } from '@/lib/utils';
 export const headerActionBtnClass =
   'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30';
 
+/** Back chevron — no circle/border outline. */
+export const headerBackBtnClass =
+  'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30';
+
 export const headerActionBtnDangerClass =
   'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-destructive transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/30';
 
@@ -28,6 +32,8 @@ interface AppPageHeaderProps {
   avatarHref?: string | null;
   /** `label` = home-style uppercase eyebrow; `plain` = normal subtitle */
   subtitleTone?: 'label' | 'plain';
+  /** `end` = right of title (default); `below` = full-width row under content */
+  actionsPlacement?: 'end' | 'below';
   className?: string;
 }
 
@@ -40,6 +46,7 @@ export function AppPageHeader({
   showAvatar = true,
   avatarHref,
   subtitleTone = 'label',
+  actionsPlacement = 'end',
   className,
 }: AppPageHeaderProps) {
   const { selectedProfile, user } = useAuthStore();
@@ -113,12 +120,18 @@ export function AppPageHeader({
           ) : null}
         </div>
 
-        {actions ? (
-          <div className="profile-switcher flex shrink-0 items-center gap-1.5 self-center">
+        {actions && actionsPlacement === 'end' ? (
+          <div className="profile-switcher flex max-w-[9.75rem] shrink-0 flex-wrap items-center justify-end gap-1.5 self-start sm:max-w-none">
             {actions}
           </div>
         ) : null}
       </div>
+
+      {actions && actionsPlacement === 'below' ? (
+        <div className="profile-switcher mt-3 flex flex-wrap items-center justify-end gap-1.5">
+          {actions}
+        </div>
+      ) : null}
     </header>
   );
 }

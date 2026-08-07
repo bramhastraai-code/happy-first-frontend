@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { DateTime } from 'luxon';
-import { Heart, Loader2, Send, X } from 'lucide-react';
+import { Loader2, Send, X } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { feedAPI, type FeedComment, type FeedPost } from '@/lib/api/feed';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { HappyIcon } from '@/components/ui/HappyIcon';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 
@@ -289,7 +290,7 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
         )}
         aria-label={comment.likedByMe ? 'Unlike comment' : 'Like comment'}
       >
-        <Heart className={cn('h-3.5 w-3.5', comment.likedByMe && 'fill-primary')} />
+        <HappyIcon className="h-3.5 w-3.5" filled={comment.likedByMe} />
       </button>
     </div>
   );

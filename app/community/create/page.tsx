@@ -128,7 +128,7 @@ export default function CreateCommunityPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/community"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-secondary"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             aria-label="Back"
           >
             <ChevronLeft className="h-5 w-5" />

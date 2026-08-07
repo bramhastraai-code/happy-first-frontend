@@ -152,44 +152,37 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
 
   return (
     <div className="relative space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-foreground">Community feed</p>
-          <p className="text-xs text-muted-foreground">
-            Posts shared by members of this community
-          </p>
-        </div>
+      <div className="flex items-center gap-2">
+        <label className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Search posts…"
+            className="h-10 w-full rounded-xl border border-input bg-secondary pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-ring"
+            inputMode="search"
+            aria-label="Search posts"
+          />
+          {searchInput ? (
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-surface"
+              onClick={() => setSearchInput('')}
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </label>
         <Button
           size="sm"
-          className="shrink-0 gap-1.5"
+          className="h-10 shrink-0 gap-1.5"
           onClick={() => setCreateOpen(true)}
         >
           <Plus className="h-4 w-4" />
           Post
         </Button>
       </div>
-
-      <label className="relative block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={searchInput}
-          onChange={(event) => setSearchInput(event.target.value)}
-          placeholder="Search this community feed…"
-          className="h-10 w-full rounded-xl border border-input bg-secondary pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-ring"
-          inputMode="search"
-          aria-label="Search community feed"
-        />
-        {searchInput ? (
-          <button
-            type="button"
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-surface"
-            onClick={() => setSearchInput('')}
-            aria-label="Clear search"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        ) : null}
-      </label>
 
       <div
         ref={scrollRef}
@@ -201,14 +194,7 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
           </div>
         ) : activeQuery.isError ? (
           <div className="rounded-xl border border-border bg-surface px-4 py-10 text-center">
-            <p className="text-sm font-semibold text-foreground">Couldn&apos;t load community feed</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {(activeQuery.error as { response?: { data?: { message?: string } } })?.response?.data
-                ?.message ||
-                (activeQuery.error instanceof Error
-                  ? activeQuery.error.message
-                  : 'Something went wrong')}
-            </p>
+            <p className="text-sm font-semibold text-foreground">Couldn&apos;t load feed</p>
             <Button className="mt-4" onClick={() => void activeQuery.refetch()}>
               Try again
             </Button>
@@ -216,10 +202,10 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
         ) : posts.length === 0 ? (
           isSearching ? (
             <p className="py-16 text-center text-sm text-muted-foreground">
-              No posts found for “{searchQ}”
+              No posts found
             </p>
           ) : (
-            <FeedEmpty onCreate={() => setCreateOpen(true)} />
+            <FeedEmpty variant="community" onCreate={() => setCreateOpen(true)} />
           )
         ) : (
           posts.map((post) => (
@@ -227,6 +213,7 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
               key={post.id}
               post={post}
               liking={likingId === post.id}
+              hideCommunityLabel
               onToggleLike={handleToggleLike}
               onOpenComments={setActivePost}
               isOwner={

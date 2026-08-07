@@ -6,9 +6,9 @@ import {
   ensureValidAccessToken,
   getAccessToken,
   isTokenExpiringSoon,
-  refreshAccessToken,
   syncAccessTokenFromCookie,
 } from '@/lib/auth/tokenManager';
+import { restoreSession } from '@/lib/auth/sessionRestore';
 import { performLogout } from '@/lib/auth/session';
 import { useNotificationRealtime } from '@/lib/hooks/useNotificationRealtime';
 
@@ -20,28 +20,63 @@ function NotificationRealtimeBridge() {
 }
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { isHydrated, accessToken, user } = useAuthStore();
+  const { isHydrated, accessToken, user, sessionReady, setSessionReady } = useAuthStore();
   const checkingRef = useRef(false);
+  const bootstrappedRef = useRef(false);
+
+  // Cold-start / PWA reopen: restore from refresh cookie even if localStorage
+  // user or the JS accessToken cookie was cleared.
+  useEffect(() => {
+    if (!isHydrated || bootstrappedRef.current) return;
+    bootstrappedRef.current = true;
+
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      syncAccessTokenFromCookie();
+      try {
+        const { authenticated, sessionExpired } = await restoreSession();
+        if (cancelled) return;
+
+        if (!authenticated && sessionExpired) {
+          await performLogout();
+          if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+            window.location.href = '/login';
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setSessionReady(true);
+        }
+      }
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isHydrated, setSessionReady]);
 
   useEffect(() => {
-    if (!isHydrated) return;
-
-    syncAccessTokenFromCookie();
+    if (!isHydrated || !sessionReady) return;
 
     const checkToken = async () => {
       if (checkingRef.current) return;
       checkingRef.current = true;
 
       try {
-        if (!user) return;
-
+        syncAccessTokenFromCookie();
         const token = getAccessToken();
-        // Refresh when the token is missing (e.g. app reopened after it
-        // expired) or about to expire; the refresh cookie decides whether
-        // the session is still alive.
-        if (!token || isTokenExpiringSoon(token)) {
-          const { token: refreshed, sessionExpired } = await refreshAccessToken();
-          if (!refreshed && sessionExpired) {
+        const { user: currentUser } = useAuthStore.getState();
+
+        // Boot already attempted a cookie-only restore. Skip anonymous polling
+        // so logged-out users don't hit /refresh every minute.
+        if (!currentUser && !token) return;
+
+        if (!token || isTokenExpiringSoon(token) || !currentUser) {
+          const { authenticated, sessionExpired } = await restoreSession();
+          if (!authenticated && sessionExpired) {
             await performLogout();
             if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
               window.location.href = '/login';
@@ -63,13 +98,20 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const onFocus = () => {
       void checkToken();
     };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void checkToken();
+      }
+    };
     window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       window.clearInterval(intervalId);
       window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [isHydrated, accessToken, user]);
+  }, [isHydrated, sessionReady, accessToken, user]);
 
   return (
     <>

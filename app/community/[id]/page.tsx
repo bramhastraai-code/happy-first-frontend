@@ -20,6 +20,7 @@ import {
   AppPageHeader,
   headerActionBtnClass,
   headerActionBtnDangerClass,
+  headerBackBtnClass,
 } from '@/components/ui/AppPageHeader';
 import { NotificationBell } from '@/components/feed/NotificationBell';
 import { CommunityDashboardTab } from '@/components/community/CommunityDashboardTab';
@@ -223,9 +224,10 @@ export default function CommunityDetailPage() {
       <div className="space-y-4">
         <AppPageHeader
           showAvatar={false}
+          actionsPlacement="end"
           leading={
             <div className="flex shrink-0 items-center gap-2">
-              <Link href="/community" className={headerActionBtnClass} aria-label="Back">
+              <Link href="/community" className={headerBackBtnClass} aria-label="Back">
                 <ChevronLeft className="h-5 w-5" />
               </Link>
               {community ? (
@@ -262,21 +264,23 @@ export default function CommunityDetailPage() {
                     community.activities.map((a) => a.name).join(', ') ||
                     'Community'}
                 </p>
-                <span className="inline-flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-                  <Users className="h-3 w-3" />
-                  {community.memberCount} members
-                  {isAdmin
-                    ? ' · Admin'
-                    : isModerator
-                      ? ' · Moderator'
-                      : isMember
-                        ? ' · Member'
-                        : isPending
-                          ? ' · Request pending'
-                          : ''}
-                  {community.pendingDisableAt
-                    ? ` · Disables ${formatCreatedOn(community.pendingDisableAt) || 'soon'}`
-                    : ''}
+                <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground">
+                  <Users className="h-3 w-3 shrink-0" />
+                  <span>
+                    {community.memberCount} members
+                    {isAdmin
+                      ? ' · Admin'
+                      : isModerator
+                        ? ' · Moderator'
+                        : isMember
+                          ? ' · Member'
+                          : isPending
+                            ? ' · Request pending'
+                            : ''}
+                    {community.pendingDisableAt
+                      ? ` · Disables ${formatCreatedOn(community.pendingDisableAt) || 'soon'}`
+                      : ''}
+                  </span>
                 </span>
               </>
             ) : null
@@ -298,6 +302,22 @@ export default function CommunityDetailPage() {
                   onClick={() => setShareOpen(true)}
                 >
                   <Share2 className="h-[18px] w-[18px]" />
+                </button>
+              ) : null}
+              {isMember && !isDeleted && !isDisabled ? (
+                <button
+                  type="button"
+                  className={headerActionBtnDangerClass}
+                  disabled={leaveBusy}
+                  onClick={requestLeave}
+                  aria-label="Leave community"
+                  title="Leave community"
+                >
+                  {leaveBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <DoorOpen className="h-[18px] w-[18px]" />
+                  )}
                 </button>
               ) : null}
               {isAdmin && !isDeleted && !isDisabled ? (
@@ -328,64 +348,10 @@ export default function CommunityDetailPage() {
           }
         />
 
-        {community && isMember && !isDeleted && !isDisabled ? (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-destructive/30 text-destructive hover:bg-destructive/10"
-              disabled={leaveBusy}
-              onClick={requestLeave}
-            >
-              {leaveBusy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <DoorOpen className="h-3.5 w-3.5" />
-              )}
-              Leave community
-            </Button>
-          </div>
-        ) : null}
-
         {leaveError && !soleAdminOpen ? (
           <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {leaveError}
           </p>
-        ) : null}
-
-        {community && isAdmin && !isDeleted && !isDisabled ? (
-          <div className="section-card space-y-3 p-4">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Admin</p>
-              <p className="text-xs text-muted-foreground">
-                Leave this community or permanently delete it for everyone
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                variant="outline"
-                className="flex-1 border-destructive/30 text-destructive hover:bg-destructive/10"
-                disabled={leaveBusy}
-                onClick={requestLeave}
-              >
-                {leaveBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Leave community
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1 border-destructive/40 bg-destructive/5 text-destructive hover:bg-destructive/10"
-                disabled={deleteMutation.isPending}
-                onClick={requestDelete}
-              >
-                {deleteMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-                Delete community
-              </Button>
-            </div>
-          </div>
         ) : null}
 
         {community && isDeleted ? (

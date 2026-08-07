@@ -132,7 +132,7 @@ function ActivityPlanCard({
 
 export default function UpcomingPage() {
   const router = useRouter();
-  const { accessToken, user, isHydrated } = useAuthStore();
+  const { accessToken, user, isHydrated, sessionReady } = useAuthStore();
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -140,7 +140,7 @@ export default function UpcomingPage() {
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || !sessionReady) return;
 
     if (!accessToken || !user) {
       router.push('/login');
@@ -166,7 +166,7 @@ export default function UpcomingPage() {
     };
 
     void fetchWeeklyPlan();
-  }, [accessToken, user, router, isHydrated]);
+  }, [accessToken, user, router, isHydrated, sessionReady]);
 
   const dailyActivities = useMemo(
     () => weeklyPlan?.activities.filter((a) => a.cadence === 'daily') ?? [],
@@ -189,7 +189,7 @@ export default function UpcomingPage() {
   const unlockedSets =
     weeklyPlan?.unlockedSets?.length ?? weeklyPlan?.unloockedSets?.length ?? 0;
 
-  if (!isHydrated || loading) {
+  if (!isHydrated || !sessionReady || loading) {
     return (
       <MainLayout>
         <LoadingScreen fullScreen label="Loading upcoming plan…" />

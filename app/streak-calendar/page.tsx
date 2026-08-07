@@ -14,7 +14,7 @@ type FilterType = 'overall' | 'activity';
 
 export default function StreakCalendarPage() {
   const router = useRouter();
-  const { accessToken, isHydrated, selectedProfile } = useAuthStore();
+  const { accessToken, isHydrated, sessionReady, selectedProfile } = useAuthStore();
   const [filterType, setFilterType] = useState<FilterType>('activity');
   const [selectedActivityId, setSelectedActivityId] = useState<string>('');
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth() + 1);
@@ -24,7 +24,7 @@ export default function StreakCalendarPage() {
   const [allTimeLeaderboardPage, setAllTimeLeaderboardPage] = useState(1);
   const [weightMoodHistory, setWeightMoodHistory] = useState<WeightMoodHistoryPoint[]>([]);
 
-  const enabled = isHydrated && !!accessToken && !!selectedProfile?._id;
+  const enabled = isHydrated && sessionReady && !!accessToken && !!selectedProfile?._id;
 
   const streakQuery = useStreakData(selectedProfile?._id, enabled);
   const calendarQuery = useCalendarData(
@@ -57,11 +57,11 @@ export default function StreakCalendarPage() {
   }, [enabled]);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || !sessionReady) return;
     if (!accessToken || !selectedProfile) {
       router.push('/login');
     }
-  }, [accessToken, isHydrated, selectedProfile, router]);
+  }, [accessToken, isHydrated, sessionReady, selectedProfile, router]);
 
   const handlePreviousMonth = () => {
     const currentCalendar = activityCalendarData || calendarData;

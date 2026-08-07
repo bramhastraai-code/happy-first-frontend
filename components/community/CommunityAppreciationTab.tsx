@@ -1,14 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Heart, Loader2 } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Loader2 } from 'lucide-react';
+import { HappyIcon } from '@/components/ui/HappyIcon';
 import { Button } from '@/components/ui/button';
 import { ChipTabs } from '@/components/ui/ChipTabs';
+import { CustomDropdown } from '@/components/ui/CustomDropdown';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { communityAPI } from '@/lib/api/community';
 import { useAuthStore } from '@/lib/store/authStore';
+import { cn } from '@/lib/utils';
 
 interface CommunityAppreciationTabProps {
   communityId: string;
@@ -117,7 +120,7 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
     onError: (err: unknown) => {
       setError(
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-          'Could not send appreciation'
+          'Could not send'
       );
     },
   });
@@ -128,58 +131,83 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
   );
   const appreciations = listQuery.data?.pages.flatMap((p) => p.appreciations) ?? [];
 
+  const memberOptions = useMemo(
+    () =>
+      members.map((m) => ({
+        value: String(m.profile.id),
+        label: m.profile.name || 'Member',
+      })),
+    [members]
+  );
+
   return (
     <div className="space-y-4">
-      <div className="section-card grid grid-cols-2 divide-x divide-border p-4">
-        <div className="pr-4">
-          <p className="text-xs text-muted-foreground">Received</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums">{statsQuery.data?.received ?? 0}</p>
-        </div>
-        <div className="pl-4">
-          <p className="text-xs text-muted-foreground">Given</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums">{statsQuery.data?.given ?? 0}</p>
+      {/* Stats */}
+      <div className="section-card overflow-hidden">
+        <div className="grid grid-cols-2 divide-x divide-border">
+          <div className="flex flex-col items-center px-3 py-4 text-center">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary-soft text-primary">
+              <ArrowDownLeft className="h-4 w-4" />
+            </span>
+            <p className="mt-2.5 text-xl font-bold tabular-nums tracking-tight text-foreground">
+              {statsQuery.data?.received ?? 0}
+            </p>
+            <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Received</p>
+          </div>
+          <div className="flex flex-col items-center px-3 py-4 text-center">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary-soft text-primary">
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+            <p className="mt-2.5 text-xl font-bold tabular-nums tracking-tight text-foreground">
+              {statsQuery.data?.given ?? 0}
+            </p>
+            <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Given</p>
+          </div>
         </div>
       </div>
 
-      <div className="section-card space-y-3 p-4">
+      {/* Send */}
+      <section className="section-card space-y-3 p-4">
         <div className="flex items-center gap-2">
-          <Heart className="h-4 w-4 text-muted-foreground" />
-          <p className="text-sm font-semibold">Send appreciation</p>
+          <HappyIcon className="h-4 w-4 text-primary" />
+          <p className="text-sm font-semibold text-foreground">Send kudos</p>
         </div>
-        <select
+
+        <CustomDropdown
           value={toProfileId}
-          onChange={(e) => setToProfileId(e.target.value)}
-          className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm"
-        >
-          <option value="">Choose a member…</option>
-          {members.map((m) => (
-            <option key={m.profile.id} value={m.profile.id}>
-              {m.profile.name}
-            </option>
-          ))}
-        </select>
-        <div className="flex flex-wrap gap-2">
-          {types.map((t) => (
-            <button
-              key={t.code}
-              type="button"
-              onClick={() => setType(t.code)}
-              className={
-                type === t.code
-                  ? 'rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground'
-                  : 'rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-muted-foreground'
-              }
-            >
-              {t.emoji} {t.label}
-            </button>
-          ))}
-        </div>
+          placeholder="Choose member"
+          onChange={setToProfileId}
+          options={memberOptions}
+          disabled={membersQuery.isLoading || members.length === 0}
+          aria-label="Choose member"
+        />
+
+        {types.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {types.map((t) => (
+              <button
+                key={t.code}
+                type="button"
+                onClick={() => setType(t.code)}
+                className={cn(
+                  'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+                  type === t.code
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {t.emoji} {t.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         <input
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Optional short message"
+          placeholder="Message (optional)"
           maxLength={200}
-          className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm"
+          className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
         />
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
         <Button
@@ -190,8 +218,9 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
           {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Send
         </Button>
-      </div>
+      </section>
 
+      {/* Activity */}
       <ChipTabs
         tabs={[
           { id: 'received', label: 'Received' },
@@ -207,14 +236,11 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : appreciations.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-            No appreciations yet.
-          </p>
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground">No kudos yet</p>
         ) : (
           <>
             <ul className="divide-y divide-border">
               {appreciations.map((row) => {
-                // Received = people who appreciated me (from); Given = people I appreciated (to)
                 const other = direction === 'received' ? row.from : row.to;
                 return (
                   <li key={row.id} className="flex items-center gap-3 px-4 py-3">
@@ -225,11 +251,12 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
                         avatarSeed={other.avatarSeed}
                         avatarStyle={other.avatarStyle}
                         size="sm"
+                        rounded="xl"
                       />
                     </Link>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold">
+                        <p className="text-sm font-semibold text-foreground">
                           {row.emoji} {row.label}
                         </p>
                         <span className="shrink-0 text-[11px] text-muted-foreground">
@@ -237,27 +264,12 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
                         </span>
                       </div>
                       <p className="truncate text-xs text-muted-foreground">
-                        {direction === 'received' ? (
-                          <>
-                            From{' '}
-                            <Link
-                              href={`/feed/profile/${other.profileId}`}
-                              className="font-medium text-foreground hover:underline"
-                            >
-                              {other.name}
-                            </Link>
-                          </>
-                        ) : (
-                          <>
-                            To{' '}
-                            <Link
-                              href={`/feed/profile/${other.profileId}`}
-                              className="font-medium text-foreground hover:underline"
-                            >
-                              {other.name}
-                            </Link>
-                          </>
-                        )}
+                        <Link
+                          href={`/feed/profile/${other.profileId}`}
+                          className="font-medium text-foreground hover:underline"
+                        >
+                          {other.name}
+                        </Link>
                         {row.message ? ` · ${row.message}` : ''}
                       </p>
                     </div>
@@ -284,48 +296,77 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
         )}
       </div>
 
-      <div className="section-card overflow-hidden">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold">Appreciation leaderboard</p>
-            <p className="text-xs text-muted-foreground">Most loved & most generous</p>
-          </div>
-          <select
+      {/* Leaderboard */}
+      <section className="section-card overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-4 py-3">
+          <h2 className="text-sm font-semibold text-foreground">Leaderboard</h2>
+          <CustomDropdown
+            variant="pill"
+            align="right"
             value={period}
-            onChange={(e) => setPeriod(e.target.value as 'weekly' | 'overall')}
-            className="h-8 rounded-lg border border-input bg-secondary px-2 text-[11px] font-semibold"
-          >
-            <option value="overall">Overall</option>
-            <option value="weekly">This week</option>
-          </select>
+            aria-label="Leaderboard period"
+            onChange={(value) => setPeriod(value as 'weekly' | 'overall')}
+            options={[
+              { value: 'overall', label: 'Overall' },
+              { value: 'weekly', label: 'This week' },
+            ]}
+          />
         </div>
-        <div className="grid grid-cols-2 divide-x divide-border">
+        <div className="grid grid-cols-2 divide-x divide-border border-t border-border">
           <div className="p-3">
-            <p className="mb-2 text-[11px] font-semibold uppercase text-muted-foreground">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Received
             </p>
-            <ul className="space-y-2">
-              {(boardQuery.data?.received || []).slice(0, 5).map((row) => (
-                <li key={row.profileId} className="flex justify-between text-xs">
-                  <span className="truncate">{row.rank}. {row.name}</span>
-                  <span className="font-semibold tabular-nums">{row.count}</span>
-                </li>
-              ))}
-            </ul>
+            {boardQuery.isLoading ? (
+              <Loader2 className="mx-auto my-4 h-4 w-4 animate-spin text-muted-foreground" />
+            ) : (boardQuery.data?.received || []).length === 0 ? (
+              <p className="py-3 text-center text-xs text-muted-foreground">—</p>
+            ) : (
+              <ul className="space-y-2">
+                {(boardQuery.data?.received || []).slice(0, 5).map((row) => (
+                  <li key={row.profileId} className="flex justify-between gap-2 text-xs">
+                    <Link
+                      href={`/feed/profile/${row.profileId}`}
+                      className="min-w-0 truncate font-medium text-foreground hover:underline"
+                    >
+                      {row.rank}. {row.name}
+                    </Link>
+                    <span className="shrink-0 font-semibold tabular-nums text-primary">
+                      {row.count}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div className="p-3">
-            <p className="mb-2 text-[11px] font-semibold uppercase text-muted-foreground">Given</p>
-            <ul className="space-y-2">
-              {(boardQuery.data?.given || []).slice(0, 5).map((row) => (
-                <li key={row.profileId} className="flex justify-between text-xs">
-                  <span className="truncate">{row.rank}. {row.name}</span>
-                  <span className="font-semibold tabular-nums">{row.count}</span>
-                </li>
-              ))}
-            </ul>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Given
+            </p>
+            {boardQuery.isLoading ? (
+              <Loader2 className="mx-auto my-4 h-4 w-4 animate-spin text-muted-foreground" />
+            ) : (boardQuery.data?.given || []).length === 0 ? (
+              <p className="py-3 text-center text-xs text-muted-foreground">—</p>
+            ) : (
+              <ul className="space-y-2">
+                {(boardQuery.data?.given || []).slice(0, 5).map((row) => (
+                  <li key={row.profileId} className="flex justify-between gap-2 text-xs">
+                    <Link
+                      href={`/feed/profile/${row.profileId}`}
+                      className="min-w-0 truncate font-medium text-foreground hover:underline"
+                    >
+                      {row.rank}. {row.name}
+                    </Link>
+                    <span className="shrink-0 font-semibold tabular-nums text-primary">
+                      {row.count}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

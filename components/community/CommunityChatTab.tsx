@@ -1134,7 +1134,7 @@ export function CommunityChatTab({
               <button
                 type="button"
                 onClick={onBack}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] hover:bg-black/5"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-[#54656f] hover:bg-black/5"
                 aria-label="Back to chats"
               >
                 <ChevronLeft className="h-5 w-5" />

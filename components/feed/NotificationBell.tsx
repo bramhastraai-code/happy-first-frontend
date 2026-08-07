@@ -7,17 +7,18 @@ import {
   Bell,
   CheckCheck,
   Compass,
-  Heart,
   Megaphone,
   MessageCircle,
   MessageSquare,
   UserPlus,
+  type LucideProps,
 } from 'lucide-react';
 import { DateTime } from 'luxon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { notificationsAPI, type AppNotification } from '@/lib/api/notifications';
 import { feedAPI } from '@/lib/api/feed';
+import { HappyIcon } from '@/components/ui/HappyIcon';
 import { cn } from '@/lib/utils';
 
 interface NotificationBellProps {
@@ -26,8 +27,12 @@ interface NotificationBellProps {
   triggerClassName?: string;
 }
 
+function HappyLikeIcon({ className, ...props }: LucideProps) {
+  return <HappyIcon className={className} {...(props as { strokeWidth?: number })} />;
+}
+
 function iconFor(type: AppNotification['type']) {
-  if (type === 'like') return Heart;
+  if (type === 'like') return HappyLikeIcon;
   if (type === 'comment') return MessageCircle;
   if (type === 'follow') return UserPlus;
   if (type === 'post_collaboration') return UserPlus;
@@ -35,7 +40,7 @@ function iconFor(type: AppNotification['type']) {
   if (type === 'community_week_summary') return Megaphone;
   if (type === 'community_nudge') return Megaphone;
   if (type === 'community_event' || type === 'community_event_reminder') return Megaphone;
-  if (type === 'community_appreciation') return Heart;
+  if (type === 'community_appreciation') return HappyLikeIcon;
   if (type === 'community_mention' || type === 'community_reply') return MessageCircle;
   return MessageSquare;
 }

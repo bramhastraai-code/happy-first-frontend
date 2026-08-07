@@ -6,7 +6,6 @@ import { DateTime } from 'luxon';
 import {
   ChevronLeft,
   ChevronRight,
-  Heart,
   MessageCircle,
   MessageSquare,
   MoreHorizontal,
@@ -29,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { FeedLikesSheet } from '@/components/feed/FeedLikesSheet';
 import { FollowButton } from '@/components/feed/FollowButton';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { HappyIcon } from '@/components/ui/HappyIcon';
 import { cn } from '@/lib/utils';
 
 interface FeedPostCardProps {
@@ -41,6 +41,8 @@ interface FeedPostCardProps {
   liking?: boolean;
   canMessage?: boolean;
   isOwner?: boolean;
+  /** Hide “Community: …” badge (e.g. inside community feed tab) */
+  hideCommunityLabel?: boolean;
 }
 
 function formatCount(value: number) {
@@ -62,6 +64,7 @@ export function FeedPostCard({
   liking = false,
   canMessage = false,
   isOwner = false,
+  hideCommunityLabel = false,
 }: FeedPostCardProps) {
   const queryClient = useQueryClient();
   const { selectedProfile } = useAuthStore();
@@ -321,10 +324,10 @@ export function FeedPostCard({
                     ? ` and ${accepted.length - 1} others`
                     : null}
                 </span>
-              ) : post.communityId && post.communityName ? (
+              ) : !hideCommunityLabel && post.communityId && post.communityName ? (
                 <span className="font-medium text-muted-foreground">
                   {' '}
-                  · Community:{' '}
+                  ·{' '}
                   <Link
                     href={`/community/${post.communityId}`}
                     className="font-semibold text-primary hover:underline"
@@ -343,9 +346,11 @@ export function FeedPostCard({
               />
             ) : null}
           </div>
-          {accepted.length > 0 && post.communityId && post.communityName ? (
+          {accepted.length > 0 &&
+          !hideCommunityLabel &&
+          post.communityId &&
+          post.communityName ? (
             <p className="truncate text-xs text-muted-foreground">
-              Community:{' '}
               <Link
                 href={`/community/${post.communityId}`}
                 className="font-medium text-primary hover:underline"
@@ -562,7 +567,7 @@ export function FeedPostCard({
               exit={{ opacity: 0, scale: 1.2 }}
               className="pointer-events-none absolute inset-0 flex items-center justify-center"
             >
-              <Heart className="h-20 w-20 fill-white text-white drop-shadow-lg" />
+              <HappyIcon className="h-20 w-20 text-white drop-shadow-lg" filled />
             </motion.span>
           )}
         </AnimatePresence>
@@ -579,7 +584,7 @@ export function FeedPostCard({
           )}
           aria-label={post.likedByMe ? 'Unlike' : 'Like'}
         >
-          <Heart className={cn('h-5 w-5', post.likedByMe && 'fill-primary')} />
+          <HappyIcon className="h-5 w-5" filled={post.likedByMe} />
         </button>
         <button
           type="button"

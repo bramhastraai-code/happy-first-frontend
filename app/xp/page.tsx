@@ -3,15 +3,42 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, Sparkles, Trophy } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  Sparkles,
+  Trophy,
+  Target,
+  TrendingUp,
+  Coins,
+  ChevronRight,
+  Users,
+} from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
-import { AppPageHeader } from '@/components/ui/AppPageHeader';
+import { PageHeader, StatCard } from '@/components/ui/PageHeader';
+import LoadingScreen from '@/components/ui/LoadingScreen';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { useAuthStore } from '@/lib/store/authStore';
 import { economyAPI, type XpDashboard, type LevelMember } from '@/lib/api/economy';
+import { cn } from '@/lib/utils';
+
+const XP_STEPS = [
+  {
+    title: 'Log challenging activities',
+    detail: 'XP reflects how demanding the lifestyle you’ve committed to is.',
+  },
+  {
+    title: 'Hit your daily goal',
+    detail: 'Steady days compound — consistency levels you up faster.',
+  },
+  {
+    title: 'Climb the levels',
+    detail: 'Tap any level to meet members at that standing.',
+  },
+];
 
 export default function XpPage() {
   const router = useRouter();
-  const { accessToken, user, isHydrated } = useAuthStore();
+  const { accessToken, user, isHydrated, sessionReady } = useAuthStore();
   const [data, setData] = useState<XpDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -20,7 +47,7 @@ export default function XpPage() {
   const [membersLoading, setMembersLoading] = useState(false);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || !sessionReady) return;
     if (!accessToken || !user) {
       router.push('/login');
       return;
@@ -35,7 +62,7 @@ export default function XpPage() {
         setLoading(false);
       }
     })();
-  }, [accessToken, user, isHydrated, router]);
+  }, [accessToken, user, isHydrated, sessionReady, router]);
 
   const openLevel = async (level: number) => {
     setSelectedLevel(level);
@@ -54,60 +81,73 @@ export default function XpPage() {
     ? Math.min(100, Math.round((data.todayXp / Math.max(data.dailyGoal, 1)) * 100))
     : 0;
 
+  const currentLevelXp = data?.levels.find((l) => l.current)?.totalXp ?? 0;
+  const levelProgressPct =
+    data?.nextLevel != null
+      ? Math.min(
+          100,
+          Math.round(
+            ((data.totalXp - currentLevelXp) /
+              Math.max(data.nextLevel.totalXp - currentLevelXp, 1)) *
+              100
+          )
+        )
+      : 100;
+
   return (
     <MainLayout>
-      <AppPageHeader
+      <PageHeader
         title="Happy First XP"
         subtitle="How challenging is the lifestyle you’ve committed to?"
       />
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading…
-        </div>
+        <LoadingScreen label="Loading XP…" fullScreen />
       ) : data ? (
-        <div className="mt-4 space-y-5">
-          <section className="section-card p-5">
+        <div className="space-y-4">
+          {/* Hero standing */}
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+            className="section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft via-surface to-surface p-5"
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Lifetime XP
                 </p>
-                <p className="mt-1 text-3xl font-bold tabular-nums">{data.totalXp.toLocaleString()}</p>
-                <p className="mt-1 text-sm text-foreground">
-                  Level {data.level} · {data.levelTitle}
+                <p className="mt-1 text-4xl font-bold tabular-nums tracking-tight text-foreground">
+                  {data.totalXp.toLocaleString()}
+                </p>
+                <p className="mt-1.5 text-sm font-medium text-foreground">
+                  Level {data.level}
+                  <span className="text-muted-foreground"> · {data.levelTitle}</span>
                 </p>
               </div>
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-float)]">
                 <Sparkles className="h-6 w-6" />
               </span>
             </div>
 
             {data.nextLevel ? (
-              <div className="mt-4">
-                <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+              <div className="mt-5">
+                <div className="mb-1.5 flex justify-between gap-2 text-xs text-muted-foreground">
                   <span>
-                    Next: {data.nextLevel.title} ({data.nextLevel.totalXp.toLocaleString()} XP)
+                    Next:{' '}
+                    <span className="font-medium text-foreground">
+                      {data.nextLevel.title}
+                    </span>{' '}
+                    ({data.nextLevel.totalXp.toLocaleString()} XP)
                   </span>
-                  <span>{data.nextLevel.remaining.toLocaleString()} to go</span>
+                  <span className="shrink-0 tabular-nums">
+                    {data.nextLevel.remaining.toLocaleString()} to go
+                  </span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div className="h-2 overflow-hidden rounded-full bg-secondary">
                   <div
-                    className="h-full rounded-full bg-sky-500 transition-all"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        Math.round(
-                          ((data.totalXp - (data.levels.find((l) => l.current)?.totalXp || 0)) /
-                            Math.max(
-                              data.nextLevel.totalXp -
-                                (data.levels.find((l) => l.current)?.totalXp || 0),
-                              1
-                            )) *
-                            100
-                        )
-                      )}%`,
-                    }}
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${levelProgressPct}%` }}
                   />
                 </div>
                 {data.prediction.estimatedDaysRemaining != null ? (
@@ -120,96 +160,163 @@ export default function XpPage() {
             ) : null}
 
             <div className="mt-5">
-              <div className="mb-1 flex justify-between text-xs">
-                <span className="font-medium text-foreground">Daily XP goal</span>
+              <div className="mb-1.5 flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                  <Target className="h-3.5 w-3.5 text-primary" />
+                  Daily XP goal
+                </span>
                 <span className="tabular-nums text-muted-foreground">
                   {data.todayXp} / {data.dailyGoal}
                 </span>
               </div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
                   style={{ width: `${goalPct}%` }}
                 />
               </div>
+              <p className="mt-1.5 text-[11px] font-medium text-primary">{goalPct}% today</p>
             </div>
 
-            <Link href="/coins" className="mt-4 inline-block text-sm font-medium text-primary">
+            <Link
+              href="/coins"
+              className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-primary transition-colors hover:text-primary-hover"
+            >
+              <Coins className="h-3.5 w-3.5" />
               View Happy First Coins →
             </Link>
-          </section>
+          </motion.section>
 
-          <section className="section-card p-4">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-              <Trophy className="h-4 w-4 text-amber-600" /> Personal bests
-            </h2>
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  ['Day', data.personalBest.day],
-                  ['Week', data.personalBest.week],
-                  ['Month', data.personalBest.month],
-                ] as const
-              ).map(([label, value]) => (
-                <div key={label} className="rounded-xl bg-muted/50 px-3 py-2 text-center">
-                  <p className="text-[11px] text-muted-foreground">{label}</p>
-                  <p className="text-base font-semibold tabular-nums">{value}</p>
-                </div>
-              ))}
+          {goalPct >= 100 ? (
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+              <div className="flex gap-2">
+                <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <p className="text-sm leading-snug text-foreground">
+                  Daily goal crushed — keep logging to push toward{' '}
+                  <span className="font-semibold text-primary">
+                    {data.nextLevel?.title ?? 'the next milestone'}
+                  </span>
+                  .
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Personal bests */}
+          <section aria-label="Personal bests">
+            <h2 className="section-title mb-3">Personal bests</h2>
+            <div className="grid grid-cols-3 gap-3">
+              <StatCard
+                label="Best day"
+                value={data.personalBest.day}
+                icon={Trophy}
+                accent="orange"
+              />
+              <StatCard
+                label="Best week"
+                value={data.personalBest.week}
+                icon={TrendingUp}
+                accent="orange"
+              />
+              <StatCard
+                label="Best month"
+                value={data.personalBest.month}
+                icon={Sparkles}
+                accent="neutral"
+              />
             </div>
           </section>
 
-          <section className="section-card overflow-hidden">
-            <div className="border-b border-border px-4 py-3">
-              <h2 className="text-sm font-semibold">XP sources</h2>
-              <p className="text-xs text-muted-foreground">Lifetime by activity</p>
-            </div>
+          {/* XP sources */}
+          <section aria-label="XP sources">
+            <h2 className="section-title mb-3">XP sources</h2>
+            <p className="mb-3 text-xs text-muted-foreground">Lifetime by activity</p>
             {data.sources.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-muted-foreground">
-                Log activities to start earning XP.
-              </p>
+              <div className="section-card px-4 py-10 text-center">
+                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+                  <Sparkles className="h-6 w-6" />
+                </span>
+                <p className="text-sm font-medium text-foreground">No XP yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Log activities to start earning XP.
+                </p>
+              </div>
             ) : (
-              <ul className="divide-y divide-border">
-                {data.sources.map((row) => (
-                  <li key={row.activity} className="flex justify-between px-4 py-2.5 text-sm">
-                    <span>{row.activity}</span>
-                    <span className="font-semibold tabular-nums">{row.xp} XP</span>
-                  </li>
-                ))}
+              <ul className="section-card divide-y divide-border overflow-hidden">
+                {data.sources.map((row) => {
+                  const maxXp = Math.max(...data.sources.map((s) => s.xp), 1);
+                  const pct = Math.round((row.xp / maxXp) * 100);
+                  return (
+                    <li key={row.activity} className="px-4 py-3">
+                      <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                        <span className="truncate font-medium text-foreground">
+                          {row.activity}
+                        </span>
+                        <span className="shrink-0 font-bold tabular-nums text-primary">
+                          {row.xp} XP
+                        </span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
 
-          <section className="section-card overflow-hidden">
-            <div className="border-b border-border px-4 py-3">
-              <h2 className="text-sm font-semibold">Levels</h2>
-              <p className="text-xs text-muted-foreground">
-                Tap a level to see members (follow / chat from their profile)
-              </p>
-            </div>
-            <ul className="divide-y divide-border">
+          {/* Levels */}
+          <section aria-label="Levels">
+            <h2 className="section-title mb-3">Levels</h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Tap a level to see members — follow or chat from their profile
+            </p>
+            <ul className="section-card divide-y divide-border overflow-hidden">
               {data.levels.map((row) => (
                 <li key={row.level}>
                   <button
                     type="button"
                     onClick={() => openLevel(row.level)}
-                    className={`flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/40 ${
-                      row.current ? 'bg-primary-soft/40' : ''
-                    }`}
+                    className={cn(
+                      'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary/60',
+                      row.current && 'bg-primary-soft/50',
+                      selectedLevel === row.level && 'bg-primary-soft/70'
+                    )}
                   >
-                    <span className="w-8 shrink-0 text-xs font-bold text-muted-foreground">
+                    <span
+                      className={cn(
+                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold',
+                        row.current
+                          ? 'bg-primary text-primary-foreground'
+                          : row.reached
+                            ? 'bg-primary-soft text-primary'
+                            : 'bg-secondary text-muted-foreground'
+                      )}
+                    >
                       L{row.level}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">{row.title}</span>
-                      <span className="block text-xs text-muted-foreground">
+                      <span className="block text-sm font-semibold text-foreground">
+                        {row.title}
+                        {row.current ? (
+                          <span className="ml-1.5 text-[11px] font-semibold text-primary">
+                            You
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
                         {row.totalXp.toLocaleString()} XP · ~{row.approxTime} ·{' '}
                         {row.memberCount} members
                       </span>
                     </span>
                     {row.reached ? (
-                      <span className="text-[11px] font-semibold text-emerald-700">Reached</span>
+                      <span className="text-[11px] font-semibold text-success">Reached</span>
                     ) : null}
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </button>
                 </li>
               ))}
@@ -217,31 +324,57 @@ export default function XpPage() {
           </section>
 
           {selectedLevel != null ? (
-            <section className="section-card overflow-hidden">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <h2 className="text-sm font-semibold">Level {selectedLevel} members</h2>
+            <motion.section
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              aria-label={`Level ${selectedLevel} members`}
+            >
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="section-title flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Level {selectedLevel} members
+                </h2>
                 <button
                   type="button"
-                  className="text-xs text-muted-foreground"
+                  className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
                   onClick={() => setSelectedLevel(null)}
                 >
                   Close
                 </button>
               </div>
               {membersLoading ? (
-                <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
+                <LoadingScreen label="Loading members…" size={64} className="py-8" />
               ) : members.length === 0 ? (
-                <p className="px-4 py-6 text-sm text-muted-foreground">No members at this level yet.</p>
+                <div className="section-card px-4 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No members at this level yet.
+                  </p>
+                </div>
               ) : (
-                <ul className="divide-y divide-border">
+                <ul className="section-card divide-y divide-border overflow-hidden">
                   {members.map((m) => (
                     <li key={m.profileId}>
                       <Link
                         href={`/feed/profile/${m.profileId}`}
-                        className="flex items-center justify-between px-4 py-3 hover:bg-muted/40"
+                        className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-secondary/60"
                       >
-                        <span className="text-sm font-medium">{m.name}</span>
-                        <span className="text-xs tabular-nums text-muted-foreground">
+                        <ProfileAvatar
+                          name={m.name}
+                          avatarUrl={m.avatarUrl}
+                          avatarSeed={m.avatarSeed}
+                          avatarStyle={m.avatarStyle}
+                          size="md"
+                          rounded="xl"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-foreground">
+                            {m.name}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            {m.levelTitle}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-xs font-bold tabular-nums text-primary">
                           {m.totalXp.toLocaleString()} XP
                         </span>
                       </Link>
@@ -249,11 +382,30 @@ export default function XpPage() {
                   ))}
                 </ul>
               )}
-            </section>
+            </motion.section>
           ) : null}
+
+          <section aria-label="How XP works">
+            <h2 className="section-title mb-3">How it works</h2>
+            <ol className="section-card divide-y divide-border">
+              {XP_STEPS.map((step, index) => (
+                <li key={step.title} className="flex gap-3 p-4">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-bold text-primary">
+                    {index + 1}
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{step.title}</p>
+                    <p className="mt-0.5 text-sm text-muted-foreground">{step.detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
         </div>
       ) : (
-        <p className="mt-6 text-sm text-muted-foreground">{error || 'No data'}</p>
+        <div className="section-card px-4 py-10 text-center">
+          <p className="text-sm text-muted-foreground">{error || 'No data'}</p>
+        </div>
       )}
     </MainLayout>
   );

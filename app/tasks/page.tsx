@@ -35,7 +35,7 @@ import { cn } from '@/lib/utils';
 export default function TasksPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { accessToken, user, isHydrated, selectedProfile } = useAuthStore();
+  const { accessToken, user, isHydrated, sessionReady, selectedProfile } = useAuthStore();
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
   const [communityActivities, setCommunityActivities] = useState<MyCommunityActivity[]>([]);
   const [activities, setActivities] = useState<Record<string, number>>({});
@@ -91,8 +91,8 @@ export default function TasksPage() {
   },[]);
 
   useEffect(() => {
-    // Wait for hydration before checking auth
-    if (!isHydrated) return;
+    // Wait for hydration + session restore before checking auth
+    if (!isHydrated || !sessionReady) return;
 
     if (!accessToken || !user) {
       router.push('/login');
@@ -195,7 +195,7 @@ export default function TasksPage() {
       }
     };
     fetchData();
-  }, [accessToken, user, router, isHydrated]);
+  }, [accessToken, user, router, isHydrated, sessionReady]);
 
   const handleRepeatPlan = () => {
     // Capture weight + weekly mood on create-plan before repeating

@@ -8,7 +8,7 @@ import { ChevronLeft, Grid3X3, Loader2, MessageSquare } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
-import { headerActionBtnClass } from '@/components/ui/AppPageHeader';
+import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
 import { Button } from '@/components/ui/button';
 import { FollowButton } from '@/components/feed/FollowButton';
 import { FollowListSheet } from '@/components/feed/FollowListSheet';
@@ -38,6 +38,7 @@ export default function FeedProfilePage() {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [activePost, setActivePost] = useState<FeedPost | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
+  const [repostingId, setRepostingId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
 
   const enabled = isHydrated && !!accessToken && !!profileId;
@@ -115,6 +116,39 @@ export default function FeedProfilePage() {
     onSettled: () => setLikingId(null),
   });
 
+  const repostMutation = useMutation({
+    mutationFn: async (postId: string) => {
+      const res = await feedAPI.toggleRepost(postId);
+      return res.data.data;
+    },
+    onMutate: async (postId) => {
+      setRepostingId(postId);
+      const previous = queryClient.getQueryData(postsKey);
+      const target = posts.find((p) => p.id === postId);
+      if (target) {
+        const repostedByMe = !target.repostedByMe;
+        patchPost(postId, {
+          repostedByMe,
+          repostCount: Math.max(0, (target.repostCount ?? 0) + (repostedByMe ? 1 : -1)),
+        });
+      }
+      return { previous };
+    },
+    onSuccess: (result) => {
+      patchPost(result.photoId, {
+        repostedByMe: result.reposted,
+        repostCount: result.repostCount,
+      });
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
+    },
+    onError: (_err, _postId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(postsKey, context.previous);
+      }
+    },
+    onSettled: () => setRepostingId(null),
+  });
+
   const messageTarget = useMemo(() => {
     if (!data?.profile?.userId || data.profile.userId === user?._id) return null;
     return {
@@ -142,7 +176,7 @@ export default function FeedProfilePage() {
           <button
             type="button"
             onClick={() => router.back()}
-            className={headerActionBtnClass}
+            className={headerBackBtnClass}
             aria-label="Back"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -207,83 +241,13 @@ export default function FeedProfilePage() {
                 </div>
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-primary/5 px-3 py-2.5">
-                <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Member since
-                  </p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {data.profile.memberSince || data.profile.createdAt
-                      ? new Date(
-                          (data.profile.memberSince || data.profile.createdAt) as string
-                        ).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })
-                      : '—'}
-                  </p>
-                </div>
-                <div className="h-8 w-px bg-border" aria-hidden />
-                <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Days with Happy First
-                  </p>
-                  <p className="text-sm font-semibold tabular-nums text-foreground">
-                    {data.profile.daysWithHappyFirst == null
-                      ? '—'
-                      : data.profile.daysWithHappyFirst}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-2.5 sm:grid-cols-4">
-                <div>
-                  <p className="text-[11px] text-muted-foreground">Total posts</p>
-                  <p className="text-sm font-semibold tabular-nums text-foreground">
-                    {data.postsCount}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-muted-foreground">Last post</p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {data.lastPostAt
-                      ? new Date(data.lastPostAt).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })
-                      : '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-muted-foreground">Days since</p>
-                  <p className="text-sm font-semibold tabular-nums text-foreground">
-                    {data.daysSinceLastPost == null ? '—' : data.daysSinceLastPost}
-                  </p>
-                </div>
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      document
-                        .getElementById('profile-posts-grid')
-                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }}
-                    className="text-sm font-semibold text-primary hover:underline"
-                  >
-                    {isMe ? 'My previous posts' : 'View posts'}
-                  </button>
-                </div>
-              </div>
-
               <div className="mt-3 space-y-1">
                 <h1 className="text-sm font-semibold text-foreground">{data.profile.name}</h1>
                 {data.followsYou && !data.isMe ? (
                   <p className="text-xs text-muted-foreground">Follows you</p>
                 ) : null}
                 {data.profile.publicHighlight ? (
-                  <p className="rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-2 text-sm leading-snug text-foreground">
+                  <p className="text-sm leading-snug text-foreground">
                     {data.profile.publicHighlight}
                   </p>
                 ) : isMe ? (
@@ -325,6 +289,20 @@ export default function FeedProfilePage() {
                   >
                     Add a link…
                   </button>
+                ) : null}
+                {data.profile.memberSince || data.profile.createdAt ? (
+                  <p className="pt-0.5 text-xs text-muted-foreground">
+                    Joined{' '}
+                    {new Date(
+                      (data.profile.memberSince || data.profile.createdAt) as string
+                    ).toLocaleDateString('en-US', {
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                    {data.profile.daysWithHappyFirst != null
+                      ? ` · ${data.profile.daysWithHappyFirst} days with Happy First`
+                      : ''}
+                  </p>
                 ) : null}
               </div>
 
@@ -375,7 +353,7 @@ export default function FeedProfilePage() {
             >
               <span className="inline-flex items-center gap-1.5 border-t border-foreground px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-foreground">
                 <Grid3X3 className="h-3.5 w-3.5" />
-                {isMe ? 'My previous posts' : 'Posts'}
+                Posts
               </span>
             </div>
 
@@ -451,8 +429,10 @@ export default function FeedProfilePage() {
         startIndex={viewerIndex ?? 0}
         isOwner={isMe}
         likingId={likingId}
+        repostingId={repostingId}
         onClose={() => setViewerIndex(null)}
         onToggleLike={(postId) => likeMutation.mutate(postId)}
+        onToggleRepost={(postId) => repostMutation.mutate(postId)}
         onOpenComments={(post) => setActivePost(post)}
         onEdit={async (target, caption) => {
           const res = await feedAPI.updatePost(target.id, caption);

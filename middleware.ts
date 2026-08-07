@@ -2,12 +2,22 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { AUTH_ROUTES, PROTECTED_APP_ROUTES } from '@/lib/navigation/protectedRoutes';
 
+function hasSession(request: NextRequest): boolean {
+  // Access cookie is the normal gate. Refresh cookie (httpOnly, same-origin via
+  // the Next proxy) proves the 7-day session is still alive when the short-lived
+  // access cookie was dropped by a PWA / browser storage purge.
+  return Boolean(
+    request.cookies.get('accessToken')?.value ||
+      request.cookies.get('refreshToken')?.value
+  );
+}
+
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('accessToken');
+  const loggedIn = hasSession(request);
   const { pathname } = request.nextUrl;
 
   if (pathname === '/') {
-    if (token) {
+    if (loggedIn) {
       return NextResponse.redirect(new URL('/select-profile', request.url));
     }
     return NextResponse.next();
@@ -17,12 +27,12 @@ export function middleware(request: NextRequest) {
     if (pathname.startsWith('/tracker/live/share/')) {
       return NextResponse.next();
     }
-    if (!token) {
+    if (!loggedIn) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
   }
 
-  if (AUTH_ROUTES.some((route) => pathname.startsWith(route)) && token) {
+  if (AUTH_ROUTES.some((route) => pathname.startsWith(route)) && loggedIn) {
     return NextResponse.redirect(new URL('/select-profile', request.url));
   }
 

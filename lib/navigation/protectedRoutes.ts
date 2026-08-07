@@ -14,6 +14,8 @@ export const PROTECTED_APP_ROUTES = [
   '/streak-calendar',
   '/previous-log',
   '/tracker',
+  '/coins',
+  '/xp',
 ] as const;
 
 export const AUTH_ROUTES = ['/login', '/register', '/verify-otp'] as const;

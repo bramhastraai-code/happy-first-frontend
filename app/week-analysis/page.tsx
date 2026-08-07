@@ -19,26 +19,26 @@ import {
 function WeekAnalysisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { accessToken, isHydrated } = useAuthStore();
+  const { accessToken, isHydrated, sessionReady } = useAuthStore();
   const weekStartParam = searchParams.get('weekStart');
   const resolvedWeekStart = resolveWeekStartISO(weekStartParam);
 
   const { data, isLoading, isError, error, refetch } = useWeekAnalysisData(resolvedWeekStart);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || !sessionReady) return;
     if (!accessToken) router.push('/login');
-  }, [accessToken, isHydrated, router]);
+  }, [accessToken, isHydrated, sessionReady, router]);
 
   // Never analyse the in-progress week — rewrite the URL to a completed week.
   useEffect(() => {
-    if (!isHydrated || !accessToken) return;
+    if (!isHydrated || !sessionReady || !accessToken) return;
     if (weekStartParam !== resolvedWeekStart) {
       router.replace(`/week-analysis?weekStart=${resolvedWeekStart || latestCompletedWeekStartISO()}`);
     }
-  }, [accessToken, isHydrated, resolvedWeekStart, router, weekStartParam]);
+  }, [accessToken, isHydrated, sessionReady, resolvedWeekStart, router, weekStartParam]);
 
-  if (!isHydrated || !accessToken) {
+  if (!isHydrated || !sessionReady || !accessToken) {
     return <WeekAnalysisLoading />;
   }
 

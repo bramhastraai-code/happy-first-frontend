@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { Heart, Loader2, X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { feedAPI, type FeedLikePerson } from '@/lib/api/feed';
 import { FollowButton } from '@/components/feed/FollowButton';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { HappyIcon } from '@/components/ui/HappyIcon';
 
 interface FeedLikesSheetProps {
   open: boolean;
@@ -72,7 +73,7 @@ export function FeedLikesSheet({ open, onClose, photoId }: FeedLikesSheetProps) 
       <div className="relative flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-surface shadow-[var(--shadow-float)] sm:mx-4 sm:rounded-3xl">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
-            <Heart className="h-4 w-4 fill-primary text-primary" />
+            <HappyIcon className="h-4 w-4 text-primary" filled />
             <p className="text-sm font-semibold text-foreground">Likes</p>
             {people.length > 0 ? (
               <span className="text-xs text-muted-foreground">{people.length}</span>

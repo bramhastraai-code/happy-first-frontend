@@ -13,11 +13,11 @@ import { resolveProfileAvatarUrl } from '@/lib/utils/avatar';
 
 export default function SelectProfilePage() {
   const router = useRouter();
-  const { user, profiles, setSelectedProfile, isHydrated } = useAuthStore();
+  const { user, profiles, setSelectedProfile, isHydrated, sessionReady } = useAuthStore();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || !sessionReady) return;
     if (!user) {
       router.push('/login');
       return;
@@ -26,7 +26,7 @@ export default function SelectProfilePage() {
       setSelectedProfile(profiles[0] || null);
       router.push('/home');
     }
-  }, [user, isHydrated, router, setSelectedProfile, profiles]);
+  }, [user, isHydrated, sessionReady, router, setSelectedProfile, profiles]);
 
   const handleSelectProfile = (profile: Profile) => {
     setLoading(true);
@@ -63,7 +63,7 @@ export default function SelectProfilePage() {
     }
   };
 
-  if (!isHydrated || !user) {
+  if (!isHydrated || !sessionReady || !user) {
     return <LoadingScreen fullScreen label="Loading profiles…" />;
   }
 

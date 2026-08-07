@@ -94,8 +94,8 @@ export default function CommunityJoinPage() {
           <Link
             href="/community"
             className={cn(
-              'inline-flex h-11 w-11 items-center justify-center rounded-full',
-              'border border-white/60 bg-white/70 text-foreground shadow-sm backdrop-blur-xl',
+              'inline-flex h-10 w-10 items-center justify-center rounded-xl',
+              'bg-white/70 text-foreground shadow-sm backdrop-blur-xl',
               'transition hover:bg-white'
             )}
             aria-label="Back"

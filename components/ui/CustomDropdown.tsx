@@ -16,8 +16,16 @@ interface CustomDropdownProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  /** Extra classes for the trigger button */
+  triggerClassName?: string;
   disabled?: boolean;
   align?: 'left' | 'right';
+  /**
+   * `default` — full-width form field
+   * `pill` — compact orange-bordered sort chip (e.g. “Newest first”)
+   */
+  variant?: 'default' | 'pill';
+  'aria-label'?: string;
 }
 
 export function CustomDropdown({
@@ -26,13 +34,17 @@ export function CustomDropdown({
   onChange,
   placeholder = 'Select',
   className,
+  triggerClassName,
   disabled = false,
   align = 'left',
+  variant = 'default',
+  'aria-label': ariaLabel,
 }: CustomDropdownProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const selected = options.find((option) => option.value === value);
+  const isPill = variant === 'pill';
 
   useEffect(() => {
     if (!open) return;
@@ -51,24 +63,38 @@ export function CustomDropdown({
   }, [open]);
 
   return (
-    <div ref={rootRef} className={cn('relative', className)}>
+    <div ref={rootRef} className={cn('relative', isPill ? 'inline-flex' : 'w-full', className)}>
       <button
         type="button"
         disabled={disabled}
+        aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
-          'flex h-11 w-full items-center justify-between gap-3 rounded-xl border bg-secondary px-3.5 text-left text-sm font-medium text-foreground transition-colors',
-          open ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/40',
-          disabled && 'opacity-60'
+          'flex items-center justify-between gap-2 text-left font-medium text-foreground transition-colors',
+          isPill
+            ? cn(
+                'h-9 w-auto rounded-full border border-primary bg-surface px-3.5 text-xs',
+                open && 'ring-2 ring-primary/20',
+                !open && 'hover:bg-primary-soft/50'
+              )
+            : cn(
+                'h-11 w-full rounded-xl border bg-secondary px-3.5 text-sm',
+                open
+                  ? 'border-primary ring-2 ring-primary/20'
+                  : 'border-border hover:border-primary/40'
+              ),
+          disabled && 'opacity-60',
+          triggerClassName
         )}
       >
         <span className="min-w-0 truncate">{selected?.label || placeholder}</span>
         <ChevronDown
           className={cn(
-            'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+            'shrink-0 text-foreground transition-transform',
+            isPill ? 'h-3.5 w-3.5' : 'h-4 w-4 text-muted-foreground',
             open && 'rotate-180'
           )}
         />
@@ -79,7 +105,8 @@ export function CustomDropdown({
           id={listId}
           role="listbox"
           className={cn(
-            'absolute z-30 mt-1.5 max-h-60 w-full overflow-auto rounded-xl border border-border bg-surface p-1 shadow-[var(--shadow-float)]',
+            'absolute z-30 mt-1.5 max-h-60 overflow-auto rounded-xl border border-border bg-surface p-1 shadow-[var(--shadow-float)]',
+            isPill ? 'min-w-[11rem] w-max' : 'w-full',
             align === 'right' ? 'right-0' : 'left-0'
           )}
         >

@@ -807,7 +807,7 @@ export function FeedMessagesPanel({
                 <button
                   type="button"
                   onClick={() => setActiveId(null)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] hover:bg-black/5"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-[#54656f] hover:bg-black/5"
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>

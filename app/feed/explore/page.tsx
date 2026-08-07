@@ -10,7 +10,7 @@ import { FollowButton } from '@/components/feed/FollowButton';
 import { FeedPostCard } from '@/components/feed/FeedPostCard';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
-import { headerActionBtnClass } from '@/components/ui/AppPageHeader';
+import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
 import { followAPI, type FollowPerson } from '@/lib/api/follow';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
 import { useAuthStore } from '@/lib/store/authStore';
@@ -130,7 +130,7 @@ export default function FeedExplorePage() {
           <button
             type="button"
             onClick={() => router.back()}
-            className={headerActionBtnClass}
+            className={headerBackBtnClass}
             aria-label="Back"
           >
             <ChevronLeft className="h-6 w-6" strokeWidth={2} />

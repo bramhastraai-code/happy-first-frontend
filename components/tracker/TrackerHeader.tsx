@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import {
   AppPageHeader,
-  headerActionBtnClass,
+  headerBackBtnClass,
 } from '@/components/ui/AppPageHeader';
 import { cn } from '@/lib/utils';
 
@@ -36,7 +36,7 @@ export default function TrackerHeader({
       leading={
         <Link
           href={backHref}
-          className={headerActionBtnClass}
+          className={headerBackBtnClass}
           aria-label={backLabel}
         >
           <ChevronLeft className="h-5 w-5" />

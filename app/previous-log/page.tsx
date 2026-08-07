@@ -58,7 +58,7 @@ function PreviousLogPageContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const { accessToken, user, isHydrated, selectedProfile } = useAuthStore();
+  const { accessToken, user, isHydrated, sessionReady, selectedProfile } = useAuthStore();
   const zone = selectedProfile?.timezone || 'local';
 
   const yesterday = useMemo(
@@ -130,11 +130,11 @@ function PreviousLogPageContent() {
   }, []);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || !sessionReady) return;
     if (!accessToken || !user) {
       router.push('/login');
     }
-  }, [accessToken, user, router, isHydrated]);
+  }, [accessToken, user, router, isHydrated, sessionReady]);
 
   useEffect(() => {
     if (showCongrats) {
@@ -382,7 +382,7 @@ function PreviousLogPageContent() {
     }
   };
 
-  if (!isMounted || !isHydrated) return null;
+  if (!isMounted || !isHydrated || !sessionReady) return null;
 
   const canSubmit = mode === 'submit';
   const showForm = mode === 'submit';

@@ -393,7 +393,7 @@ export function FeedCreateSheet({
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-foreground">
-              {communityId ? 'Share with community' : 'Create'}
+              {communityId ? 'New post' : 'Create'}
             </p>
             <p className="text-xs text-muted-foreground">
               {textMode
@@ -467,7 +467,7 @@ export function FeedCreateSheet({
                 className="h-4 w-4 rounded border-input accent-primary"
               />
               <span className="text-sm font-medium text-foreground">
-                Also share to Global Feed
+                Also post to global feed
               </span>
             </label>
           ) : null}

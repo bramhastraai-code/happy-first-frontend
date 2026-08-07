@@ -71,7 +71,7 @@ function CreatePlanPageContent() {
   const forceFresh = searchParams.get('fresh') === '1';
   const editPlanId = searchParams.get('edit');
   const isEditMode = Boolean(editPlanId);
-  const { user, accessToken, isHydrated, selectedProfile, profiles, setSelectedProfile } =
+  const { user, accessToken, isHydrated, sessionReady, selectedProfile, profiles, setSelectedProfile } =
     useAuthStore();
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -112,7 +112,7 @@ function CreatePlanPageContent() {
     if (!isOnboarding) {
       return;
     }
-    if (!isHydrated || !accessToken) return;
+    if (!isHydrated || !sessionReady || !accessToken) return;
 
     // Ensure a profile is selected so /weeklyPlan/options receives ?profile=
     if (!selectedProfile?._id) {
@@ -130,10 +130,10 @@ function CreatePlanPageContent() {
     void fetchActivities();
     setStep('select');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch once profile is ready
-  }, [isOnboarding, isHydrated, accessToken, selectedProfile?._id, profiles, setSelectedProfile]);
+  }, [isOnboarding, isHydrated, sessionReady, accessToken, selectedProfile?._id, profiles, setSelectedProfile]);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || !sessionReady) return;
 
     if (!accessToken || !user) {
       planInitRef.current = false;
@@ -256,7 +256,7 @@ function CreatePlanPageContent() {
     };
 
     void bootstrap();
-  }, [accessToken, user, router, isHydrated, isOnboarding, isEditMode, editPlanId, forceFresh]);
+  }, [accessToken, user, router, isHydrated, sessionReady, isOnboarding, isEditMode, editPlanId, forceFresh]);
 
   const fetchActivities = async () => {
     try {

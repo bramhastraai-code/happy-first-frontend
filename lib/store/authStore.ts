@@ -85,6 +85,8 @@ interface AuthState {
   profileSelectedInSession: boolean;
   isAuthenticated: () => boolean;
   isHydrated: boolean;
+  /** True after the boot-time refresh/restore attempt finishes. */
+  sessionReady: boolean;
   setUser: (user: User | null) => void;
   setProfiles: (profiles: Profile[] | null) => void;
   setAccessToken: (token: string | null) => void;
@@ -93,6 +95,7 @@ interface AuthState {
   needsProfileSelection: () => boolean;
   logout: () => void;
   setHydrated: (hydrated: boolean) => void;
+  setSessionReady: (ready: boolean) => void;
 }
 
 // Helper function to set cookie
@@ -145,6 +148,7 @@ export const useAuthStore = create<AuthState>()(
       profileSelectedInSession: false,
       isAuthenticated: () => !!get().accessToken && !!get().user,
       isHydrated: false,
+      sessionReady: false,
       setUser: (user) => set({ user }),
       setProfiles: (profiles) => set({ profiles }),
       setAccessToken: (token) => {
@@ -169,9 +173,17 @@ export const useAuthStore = create<AuthState>()(
       },
       logout: () => {
         deleteCookie("accessToken");
-        set({ user: null, profiles: null, accessToken: null, selectedProfile: null, profileSelectedInSession: false });
+        set({
+          user: null,
+          profiles: null,
+          accessToken: null,
+          selectedProfile: null,
+          profileSelectedInSession: false,
+          sessionReady: true,
+        });
       },
       setHydrated: (hydrated) => set({ isHydrated: hydrated }),
+      setSessionReady: (ready) => set({ sessionReady: ready }),
     }),
     {
       name: "auth-storage",
@@ -189,6 +201,7 @@ export const useAuthStore = create<AuthState>()(
           }
           // Reset session flag on page reload
           state.profileSelectedInSession = false;
+          state.sessionReady = false;
           state.setHydrated(true);
         }
       },
