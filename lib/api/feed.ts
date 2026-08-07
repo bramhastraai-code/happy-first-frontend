@@ -152,6 +152,9 @@ export const feedAPI = {
   getFeed: (params?: { limit?: number; cursor?: string; communityId?: string }) =>
     api.get<ApiEnvelope<FeedPage>>('/feed', { params }),
 
+  getExploreFeed: (params?: { limit?: number; cursor?: string }) =>
+    api.get<ApiEnvelope<FeedPage>>('/feed/explore', { params }),
+
   searchFeed: (params: {
     q: string;
     limit?: number;

@@ -77,6 +77,9 @@ function ViewerPostCard({
   onShare: () => void;
 }) {
   const { selectedProfile } = useAuthStore();
+  const ownsPost =
+    isOwner ||
+    Boolean(selectedProfile?._id && post.author.profileId === selectedProfile._id);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [heartBurst, setHeartBurst] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
@@ -98,7 +101,7 @@ function ViewerPostCard({
 
   const canRepost =
     Boolean(onToggleRepost) &&
-    !isOwner &&
+    !ownsPost &&
     !post.communityId &&
     !post.isStory &&
     post.repostOf?.author.profileId !== selectedProfile?._id;
@@ -189,7 +192,7 @@ function ViewerPostCard({
                 exit={{ opacity: 0, scale: 0.96, y: -4 }}
                 className="absolute right-0 top-10 z-40 w-max min-w-[10rem] overflow-hidden rounded-xl border border-border bg-surface shadow-[var(--shadow-float)]"
               >
-                {isOwner ? (
+                {ownsPost ? (
                   <>
                     <button
                       type="button"

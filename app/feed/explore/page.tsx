@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { ChevronLeft, Loader2, Search, UserPlus } from 'lucide-react';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, Copy, Loader2, Play, Search, UserPlus } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { FollowButton } from '@/components/feed/FollowButton';
-import { FeedPostCard } from '@/components/feed/FeedPostCard';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
+import { ProfilePostViewer } from '@/components/feed/ProfilePostViewer';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
 import { followAPI, type FollowPerson } from '@/lib/api/follow';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
+import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 
@@ -52,14 +53,76 @@ function PersonRow({ person }: { person: FollowPerson }) {
 
 type SearchTab = 'people' | 'posts';
 
+function ExplorePostGrid({
+  posts,
+  onOpen,
+}: {
+  posts: FeedPost[];
+  onOpen: (index: number) => void;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-0.5 sm:gap-1.5">
+      {posts.map((post, index) => {
+        const cover = post.mediaItems?.[0]?.url || post.imageUrl;
+        const isVideo =
+          (post.mediaItems?.[0]?.mediaType || post.mediaType) === 'video';
+        const multi = (post.mediaItems?.length || 0) > 1;
+
+        return (
+          <button
+            key={post.id}
+            type="button"
+            onClick={() => onOpen(index)}
+            className={cn(
+              'relative aspect-square overflow-hidden bg-neutral-900',
+              'sm:rounded-lg'
+            )}
+            aria-label={post.caption || `Post by ${post.author.name}`}
+          >
+            {isVideo ? (
+              <video
+                src={resolveMediaUrl(cover)}
+                className="h-full w-full object-cover"
+                muted
+                playsInline
+                preload="metadata"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={resolveMediaUrl(cover)}
+                alt={post.caption || post.author.name}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+            )}
+            {multi ? (
+              <span className="absolute right-1.5 top-1.5 text-white drop-shadow">
+                <Copy className="h-3.5 w-3.5" />
+              </span>
+            ) : isVideo ? (
+              <span className="absolute right-1.5 top-1.5 text-white drop-shadow">
+                <Play className="h-3.5 w-3.5 fill-white" />
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function FeedExplorePage() {
   const router = useRouter();
-  const { accessToken, isHydrated, selectedProfile, user } = useAuthStore();
+  const queryClient = useQueryClient();
+  const { accessToken, isHydrated, selectedProfile } = useAuthStore();
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [tab, setTab] = useState<SearchTab>('people');
   const [activePost, setActivePost] = useState<FeedPost | null>(null);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
+  const [repostingId, setRepostingId] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebounced(query.trim()), 280);
@@ -67,6 +130,7 @@ export default function FeedExplorePage() {
   }, [query]);
 
   const enabled = isHydrated && !!accessToken;
+  const isSearching = debounced.length >= 1;
 
   const suggestionsQuery = useQuery({
     queryKey: ['followSuggestions', 'explore'],
@@ -79,7 +143,7 @@ export default function FeedExplorePage() {
 
   const searchQuery = useQuery({
     queryKey: ['followSearch', debounced],
-    enabled: enabled && debounced.length >= 1 && tab === 'people',
+    enabled: enabled && isSearching && tab === 'people',
     queryFn: async () => {
       const res = await followAPI.searchUsers(debounced, 20);
       return res.data.data.people;
@@ -88,21 +152,20 @@ export default function FeedExplorePage() {
 
   const browsingQuery = useQuery({
     queryKey: ['followSearch', 'browse'],
-    enabled: enabled && debounced.length === 0 && tab === 'people',
+    enabled: enabled && !isSearching && tab === 'people',
     queryFn: async () => {
       const res = await followAPI.searchUsers('', 5);
       return res.data.data.people;
     },
   });
 
-  const postsSearchQuery = useInfiniteQuery({
-    queryKey: ['feedSearch', debounced, selectedProfile?._id],
-    enabled: enabled && debounced.length >= 1 && tab === 'posts',
+  const explorePostsQuery = useInfiniteQuery({
+    queryKey: ['feedExplore', selectedProfile?._id],
+    enabled: enabled && tab === 'posts' && !isSearching,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
-      const res = await feedAPI.searchFeed({
-        q: debounced,
-        limit: 12,
+      const res = await feedAPI.getExploreFeed({
+        limit: 30,
         cursor: pageParam,
       });
       return res.data.data;
@@ -110,7 +173,21 @@ export default function FeedExplorePage() {
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 
-  const isSearching = debounced.length >= 1;
+  const postsSearchQuery = useInfiniteQuery({
+    queryKey: ['feedSearch', debounced, selectedProfile?._id],
+    enabled: enabled && isSearching && tab === 'posts',
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const res = await feedAPI.searchFeed({
+        q: debounced,
+        limit: 30,
+        cursor: pageParam,
+      });
+      return res.data.data;
+    },
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+
   const list = useMemo(() => {
     if (isSearching) return searchQuery.data || [];
     return browsingQuery.data || [];
@@ -118,9 +195,62 @@ export default function FeedExplorePage() {
 
   const suggestions = suggestionsQuery.data || [];
   const listLoading = isSearching ? searchQuery.isLoading : browsingQuery.isLoading;
+
+  const activePostsQuery = isSearching ? postsSearchQuery : explorePostsQuery;
   const posts = useMemo(
-    () => postsSearchQuery.data?.pages.flatMap((page) => page.posts) ?? [],
-    [postsSearchQuery.data]
+    () => activePostsQuery.data?.pages.flatMap((page) => page.posts) ?? [],
+    [activePostsQuery.data]
+  );
+
+  const patchPost = (postId: string, patch: Partial<FeedPost>) => {
+    const keys = [
+      ['feedExplore', selectedProfile?._id],
+      ['feedSearch', debounced, selectedProfile?._id],
+    ] as const;
+    keys.forEach((key) => {
+      queryClient.setQueryData<{
+        pages: { posts: FeedPost[]; nextCursor: string | null }[];
+        pageParams: unknown[];
+      }>(key, (old) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            posts: page.posts.map((post) =>
+              post.id === postId ? { ...post, ...patch } : post
+            ),
+          })),
+        };
+      });
+    });
+  };
+
+  const removePost = (postId: string) => {
+    const keys = [
+      ['feedExplore', selectedProfile?._id],
+      ['feedSearch', debounced, selectedProfile?._id],
+    ] as const;
+    keys.forEach((key) => {
+      queryClient.setQueryData<{
+        pages: { posts: FeedPost[]; nextCursor: string | null }[];
+        pageParams: unknown[];
+      }>(key, (old) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            posts: page.posts.filter((post) => post.id !== postId),
+          })),
+        };
+      });
+    });
+  };
+
+  const viewerPost = viewerIndex !== null ? posts[viewerIndex] : null;
+  const viewerIsOwner = Boolean(
+    viewerPost && selectedProfile?._id && viewerPost.author.profileId === selectedProfile._id
   );
 
   return (
@@ -142,8 +272,8 @@ export default function FeedExplorePage() {
               onChange={(event) => setQuery(event.target.value)}
               placeholder={
                 tab === 'posts'
-                  ? 'Search posts, #hashtags, places…'
-                  : 'Search by name or phone number…'
+                  ? 'Search posts'
+                  : 'Search people'
               }
               className="h-11 w-full rounded-xl border border-input bg-secondary pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
               autoFocus
@@ -234,61 +364,87 @@ export default function FeedExplorePage() {
         ) : (
           <section className="space-y-3">
             {!isSearching ? (
-              <p className="px-1 py-10 text-center text-sm text-muted-foreground">
-                Search keywords, hashtags, activities, communities, or places
-              </p>
-            ) : postsSearchQuery.isLoading ? (
+              <div className="px-1">
+                <h2 className="text-sm font-semibold text-foreground">Suggested posts</h2>
+              </div>
+            ) : null}
+
+            {activePostsQuery.isLoading ? (
               <div className="flex justify-center py-10">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             ) : posts.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                No posts found for “{debounced}”
+                {isSearching
+                  ? `No posts found for “${debounced}”`
+                  : 'No posts to explore yet'}
               </p>
             ) : (
               <>
-                {posts.map((post) => (
-                  <FeedPostCard
-                    key={post.id}
-                    post={post}
-                    onToggleLike={async (photoId) => {
-                      setLikingId(photoId);
-                      try {
-                        await feedAPI.toggleLike(photoId);
-                        void postsSearchQuery.refetch();
-                      } finally {
-                        setLikingId(null);
-                      }
-                    }}
-                    onOpenComments={setActivePost}
-                    liking={likingId === post.id}
-                    isOwner={post.author.profileId === selectedProfile?._id}
-                    canMessage={Boolean(
-                      post.author.userId && post.author.userId !== user?._id
-                    )}
-                  />
-                ))}
-                {postsSearchQuery.hasNextPage ? (
+                <ExplorePostGrid
+                  posts={posts}
+                  onOpen={(index) => setViewerIndex(index)}
+                />
+                {activePostsQuery.hasNextPage ? (
                   <button
                     type="button"
                     className="mx-auto block rounded-xl bg-secondary px-4 py-2 text-sm font-semibold text-foreground"
-                    disabled={postsSearchQuery.isFetchingNextPage}
-                    onClick={() => void postsSearchQuery.fetchNextPage()}
+                    disabled={activePostsQuery.isFetchingNextPage}
+                    onClick={() => void activePostsQuery.fetchNextPage()}
                   >
-                    {postsSearchQuery.isFetchingNextPage ? 'Loading…' : 'Load more'}
+                    {activePostsQuery.isFetchingNextPage ? 'Loading…' : 'Load more'}
                   </button>
                 ) : null}
               </>
             )}
           </section>
         )}
-
-        <p className={cn('px-1 text-center text-[11px] text-muted-foreground')}>
-          {tab === 'posts'
-            ? 'Search is server-side and paginated across the feed'
-            : 'Tap a name to open their profile · Follow to connect'}
-        </p>
       </div>
+
+      <ProfilePostViewer
+        open={viewerIndex !== null}
+        posts={posts}
+        startIndex={viewerIndex ?? 0}
+        isOwner={viewerIsOwner}
+        likingId={likingId}
+        repostingId={repostingId}
+        onClose={() => setViewerIndex(null)}
+        onToggleLike={async (postId) => {
+          setLikingId(postId);
+          try {
+            const res = await feedAPI.toggleLike(postId);
+            patchPost(postId, {
+              likedByMe: res.data.data.likedByMe,
+              likeCount: res.data.data.likeCount,
+            });
+          } finally {
+            setLikingId(null);
+          }
+        }}
+        onToggleRepost={async (postId) => {
+          setRepostingId(postId);
+          try {
+            const res = await feedAPI.toggleRepost(postId);
+            patchPost(postId, {
+              repostedByMe: res.data.data.reposted,
+              repostCount: res.data.data.repostCount,
+            });
+          } finally {
+            setRepostingId(null);
+          }
+        }}
+        onOpenComments={setActivePost}
+        onEdit={async (target, caption) => {
+          const res = await feedAPI.updatePost(target.id, caption);
+          patchPost(target.id, { caption: res.data.data.post.caption });
+        }}
+        onDelete={async (target) => {
+          await feedAPI.deletePost(target.id);
+          removePost(target.id);
+          if (activePost?.id === target.id) setActivePost(null);
+          if (posts.length <= 1) setViewerIndex(null);
+        }}
+      />
 
       {activePost ? (
         <FeedCommentsSheet
