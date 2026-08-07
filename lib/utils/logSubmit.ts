@@ -10,6 +10,44 @@ export function isWeeklyDaysActivity(activity: WeeklyPlan['activities'][number])
   return activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days';
 }
 
+export type UnusualValueWarning = {
+  activityId: string;
+  label: string;
+  value: number;
+  target: number;
+  percentage: number;
+};
+
+/** Flag numeric entries that are unusually low (<10%) or high (>200%) vs target. Skips weekly days (done/not-done) only. */
+export function collectUnusualValueWarnings(
+  weeklyPlan: WeeklyPlan,
+  activities: Record<string, number>
+): UnusualValueWarning[] {
+  const warnings: UnusualValueWarning[] = [];
+
+  Object.entries(activities).forEach(([activityId, value]) => {
+    const activity = weeklyPlan.activities.find((a) => resolveActivityId(a) === activityId);
+    if (!activity || activity.TodayLogged || !activity.label) return;
+    // Weekly days use Done/Not Done — not comparable as a numeric target ratio
+    if (isWeeklyDaysActivity(activity)) return;
+
+    const targetValue = activity.targetValue;
+    const percentage = targetValue > 0 ? (value / targetValue) * 100 : 0;
+
+    if (percentage < 10 || percentage > 200) {
+      warnings.push({
+        activityId,
+        label: activity.label,
+        value,
+        target: targetValue,
+        percentage: Math.round(percentage),
+      });
+    }
+  });
+
+  return warnings;
+}
+
 export function getRemainingActivities(weeklyPlan: WeeklyPlan) {
   return weeklyPlan.activities.filter((activity) => !activity.TodayLogged);
 }

@@ -74,19 +74,31 @@ export default function CustomNumericInput({
 
   const handleBlur = () => {
     setIsFocused(false);
-    
+
+    // Empty after focus → treat as 0 again (untouched look), but require a typed value while focused
+    if (displayValue.trim() === '') {
+      onChange(0);
+      setDisplayValue('0');
+      return;
+    }
+
     // Clamp value on blur
     let numValue = parseFloat(displayValue) || 0;
     if (numValue < min) numValue = min;
     if (numValue > max) numValue = max;
-    
+
     onChange(numValue);
     setDisplayValue(numValue === 0 ? '0' : numValue > 0 ? numValue.toString() : '');
   };
 
   const handleFocus = () => {
     setIsFocused(true);
-    setDisplayValue(value === 0 ? '0' : value > 0 ? value.toString() : '');
+    // Clear leading 0 so typing "15" does not become "150"
+    if (value === 0) {
+      setDisplayValue('');
+      return;
+    }
+    setDisplayValue(value > 0 ? value.toString() : '');
   };
 
   const handleIncrement = () => {

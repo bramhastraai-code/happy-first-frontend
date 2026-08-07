@@ -27,7 +27,12 @@ import { DateTime } from 'luxon';
 import { formatWeekRangeLabel, formatWeekRangeShort } from '@/lib/utils/weekDate';
 import { resolveActivityId } from '@/lib/utils/activityId';
 import { getActivityInputMax } from '@/lib/utils/activityInput';
-import { canSubmitFullDayLog, extractEarnedPoints, validateLogSubmit } from '@/lib/utils/logSubmit';
+import {
+  canSubmitFullDayLog,
+  collectUnusualValueWarnings,
+  extractEarnedPoints,
+  validateLogSubmit,
+} from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
@@ -250,30 +255,8 @@ export default function TasksPage() {
     setError('');
     setSuccess('');
 
-    // Validate activities for warnings
-    const warnings: Array<{activityId: string; label: string; value: number; target: number; percentage: number}> = [];
-    
-    Object.entries(activities).forEach(([activityId, value]) => {
-      const activity = weeklyPlan?.activities.find(
-        (a) => resolveActivityId(a) === activityId
-      );
-      if (!activity || activity.TodayLogged) return;
-
-      if (activity.cadence !== 'weekly' && activity.label) {
-        const targetValue = activity.targetValue;
-        const percentage = targetValue > 0 ? (value / targetValue) * 100 : 0;
-        
-        if (percentage < 10 || percentage > 200) {
-          warnings.push({
-            activityId,
-            label: activity.label,
-            value,
-            target: targetValue,
-            percentage: Math.round(percentage),
-          });
-        }
-      }
-    });
+    // Validate numeric activities for unusually low/high values (daily + weekly mins/etc.)
+    const warnings = weeklyPlan ? collectUnusualValueWarnings(weeklyPlan, activities) : [];
 
     // If there are warnings and user hasn't confirmed yet, show warning banner
     if (warnings.length > 0 && !showWarning) {
