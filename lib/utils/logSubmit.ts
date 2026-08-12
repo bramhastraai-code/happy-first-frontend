@@ -18,7 +18,12 @@ export type UnusualValueWarning = {
   percentage: number;
 };
 
-/** Flag numeric entries that are unusually low (<10%) or high (>200%) vs target. Skips weekly days (done/not-done) only. */
+/**
+ * Flag numeric entries that are unusually low (<10%) or high (>200%) vs target.
+ * Skips weekly days (done/not-done). Also skips weekly activities logged as 0 —
+ * a weekly goal may already be finished earlier in the week with nothing left to log.
+ * Daily cadence always runs the unusual check, including 0.
+ */
 export function collectUnusualValueWarnings(
   weeklyPlan: WeeklyPlan,
   activities: Record<string, number>
@@ -30,6 +35,8 @@ export function collectUnusualValueWarnings(
     if (!activity || activity.TodayLogged || !activity.label) return;
     // Weekly days use Done/Not Done — not comparable as a numeric target ratio
     if (isWeeklyDaysActivity(activity)) return;
+    // Weekly numeric: 0 is normal when the weekly target was already met earlier
+    if (activity.cadence === 'weekly' && value === 0) return;
 
     const targetValue = activity.targetValue;
     const percentage = targetValue > 0 ? (value / targetValue) * 100 : 0;
