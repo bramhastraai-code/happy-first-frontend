@@ -22,6 +22,7 @@ import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { HappyIcon } from '@/components/ui/HappyIcon';
+import { ZoomableImage } from '@/components/ui/ZoomableImage';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { renderCaptionWithMentions } from '@/lib/utils/renderCaptionWithMentions';
 import { useAuthStore } from '@/lib/store/authStore';
@@ -83,7 +84,6 @@ function ViewerPostCard({
   const [mediaIndex, setMediaIndex] = useState(0);
   const [heartBurst, setHeartBurst] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
-  const lastTap = useRef(0);
   const touchStartX = useRef<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const shareMenuRef = useRef<HTMLDivElement>(null);
@@ -134,16 +134,6 @@ function ViewerPostCard({
     if (!post.likedByMe) onToggleLike();
     setHeartBurst(true);
     window.setTimeout(() => setHeartBurst(false), 700);
-  };
-
-  const handleMediaTap = () => {
-    const now = Date.now();
-    if (now - lastTap.current < 320) {
-      triggerLikeBurst();
-      lastTap.current = 0;
-      return;
-    }
-    lastTap.current = now;
   };
 
   const handleRepost = () => {
@@ -255,20 +245,12 @@ function ViewerPostCard({
             onDoubleClick={triggerLikeBurst}
           />
         ) : (
-          <button
-            type="button"
-            className="flex w-full items-center justify-center"
-            onClick={handleMediaTap}
-            aria-label="Double tap to like"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              key={`${post.id}-${safeMedia}`}
-              src={mediaUrl}
-              alt={post.caption || post.author.name}
-              className="max-h-[min(58vh,520px)] w-full object-contain"
-            />
-          </button>
+          <ZoomableImage
+            src={mediaUrl}
+            alt={post.caption || post.author.name}
+            className="max-h-[min(58vh,520px)] w-full object-contain"
+            stageClassName="max-h-[min(58vh,520px)] w-full"
+          />
         )}
 
         {multi ? (

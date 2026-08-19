@@ -20,9 +20,25 @@ export interface FollowPerson {
   sameActivity?: boolean;
   sameLocation?: boolean;
   matchLabel?: string | null;
+  allowMessages?: boolean;
   isFollowing: boolean;
   followsYou: boolean;
   isMe: boolean;
+}
+
+export interface PublicProfileCommunity {
+  id: string;
+  name: string;
+  type: 'public' | 'private' | 'invite_only' | string;
+  isPublic: boolean;
+  memberCount: number;
+  role: 'admin' | 'moderator' | 'member' | string;
+  viewerIsMember: boolean;
+  viewerCanJoin: boolean;
+  avatarUrl?: string | null;
+  avatarSeed?: string | null;
+  avatarStyle?: string | null;
+  icon?: string | null;
 }
 
 export interface PublicProfileData {
@@ -32,6 +48,12 @@ export interface PublicProfileData {
   postsCount: number;
   lastPostAt?: string | null;
   daysSinceLastPost?: number | null;
+  thisWeekActivitiesTotal?: number;
+  totalActivitiesTotal?: number;
+  xpTotal?: number;
+  coinsBalance?: number;
+  allowMessages?: boolean;
+  communities?: PublicProfileCommunity[];
   isFollowing: boolean;
   followsYou: boolean;
   isMe: boolean;

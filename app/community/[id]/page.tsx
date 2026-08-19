@@ -68,6 +68,7 @@ export default function CommunityDetailPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [soleAdminOpen, setSoleAdminOpen] = useState(false);
   const [assignAdminProfileId, setAssignAdminProfileId] = useState('');
   const [leaveBusy, setLeaveBusy] = useState(false);
@@ -146,6 +147,14 @@ export default function CommunityDetailPage() {
       void queryClient.invalidateQueries({ queryKey: ['communities'] });
       void queryClient.invalidateQueries({ queryKey: ['community', communityId] });
       router.replace('/community');
+    },
+    onError: (err) => {
+      setDeleteError(
+        apiErrorMessage(
+          err,
+          'Could not delete this community. If members have already logged this week, wait until the weekly reset.'
+        )
+      );
     },
   });
 
@@ -351,6 +360,11 @@ export default function CommunityDetailPage() {
         {leaveError && !soleAdminOpen ? (
           <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {leaveError}
+          </p>
+        ) : null}
+        {deleteError ? (
+          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {deleteError}
           </p>
         ) : null}
 

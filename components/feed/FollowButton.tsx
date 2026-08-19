@@ -14,6 +14,8 @@ interface FollowButtonProps {
   size?: 'sm' | 'default';
   className?: string;
   onChanged?: (result: FollowActionResult) => void;
+  /** Public profile uses Connect instead of Follow. */
+  verb?: 'follow' | 'connect';
 }
 
 export function FollowButton({
@@ -24,6 +26,7 @@ export function FollowButton({
   size = 'default',
   className,
   onChanged,
+  verb = 'follow',
 }: FollowButtonProps) {
   const queryClient = useQueryClient();
 
@@ -68,7 +71,18 @@ export function FollowButton({
 
   if (isMe) return null;
 
-  const label = isFollowing ? 'Following' : followsYou ? 'Follow back' : 'Follow';
+  const label =
+    verb === 'connect'
+      ? isFollowing
+        ? 'Connected'
+        : followsYou
+          ? 'Connect back'
+          : 'Connect'
+      : isFollowing
+        ? 'Following'
+        : followsYou
+          ? 'Follow back'
+          : 'Follow';
 
   return (
     <Button

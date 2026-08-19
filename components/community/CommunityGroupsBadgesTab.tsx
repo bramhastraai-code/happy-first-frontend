@@ -92,7 +92,8 @@ export function CommunityGroupsBadgesTab({
             <div>
               <p className="text-sm font-semibold text-foreground">Groups</p>
               <p className="text-xs text-muted-foreground">
-                Apartments, departments, or teams within this community
+                Apartments, departments, or teams within this community. Ask an admin if you need a
+                new group.
               </p>
             </div>
           </div>
@@ -143,7 +144,9 @@ export function CommunityGroupsBadgesTab({
           </div>
         ) : groups.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-            No groups yet{isAdmin ? ' — create one above.' : '.'}
+            {isAdmin
+              ? 'No groups yet — create one above for apartments, teams, or departments.'
+              : 'No groups yet. An admin can create groups such as apartments or teams.'}
           </p>
         ) : (
           <ul className="divide-y divide-border">

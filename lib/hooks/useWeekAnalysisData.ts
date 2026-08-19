@@ -89,6 +89,8 @@ export function useWeekAnalysisData(weekStartInput?: string | null) {
           weekStart: raw.weekStart,
           weekEnd: raw.weekEnd,
           percentPointsEarned,
+          pointsEarned: raw.totalPointsEarned,
+          pointsLost: raw.totalPointsLost,
         };
       });
 

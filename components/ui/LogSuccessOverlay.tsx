@@ -5,6 +5,7 @@ import { Check, Sparkles } from 'lucide-react';
 interface LogSuccessOverlayProps {
   points: number;
   message?: string;
+  entries?: Array<{ label: string; value: string }>;
 }
 
 /**
@@ -14,13 +15,13 @@ interface LogSuccessOverlayProps {
 export default function LogSuccessOverlay({
   points,
   message = "You've successfully logged your activities!",
+  entries = [],
 }: LogSuccessOverlayProps) {
   const earned = Number(points) || 0;
   const hasPoints = earned > 0;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden animate-fade-in">
-      {/* Atmosphere — warm orange wash, soft radial light */}
       <div
         className="absolute inset-0"
         style={{
@@ -49,11 +50,25 @@ export default function LogSuccessOverlay({
         <h1 className="mb-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
           Nice work
         </h1>
-        <p className="mx-auto mb-8 max-w-xs text-base leading-relaxed text-orange-50/90 sm:text-lg">
+        <p className="mx-auto mb-6 max-w-xs text-base leading-relaxed text-orange-50/90 sm:text-lg">
           {hasPoints
             ? message
             : 'Your log was saved, but no points were earned for the values submitted.'}
         </p>
+
+        {entries.length > 0 ? (
+          <ul className="mb-5 max-h-36 overflow-y-auto rounded-2xl border border-white/20 bg-white/15 px-3 py-2 text-left backdrop-blur-sm">
+            {entries.map((entry) => (
+              <li
+                key={`${entry.label}-${entry.value}`}
+                className="flex items-center justify-between gap-3 py-1.5 text-sm text-white"
+              >
+                <span className="truncate font-medium">{entry.label}</span>
+                <span className="shrink-0 tabular-nums font-semibold">{entry.value}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
         <div className="overflow-hidden rounded-2xl border border-white/20 bg-white/95 p-5 shadow-[var(--shadow-float)] backdrop-blur-sm">
           <div className="mb-1 flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

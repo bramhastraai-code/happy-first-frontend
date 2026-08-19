@@ -156,6 +156,7 @@ export interface CalendarDay {
   hasLog: boolean;
   isToday: boolean;
   isFuture: boolean;
+  inPlan?: boolean;
 }
 
 export interface ActivityCalendarDay extends CalendarDay {
@@ -193,12 +194,15 @@ export interface ActivityTotalEntry {
   name: string;
   unit: string;
   total: number;
+  category?: string;
 }
 
 export interface FourWeekTrendEntry {
   weekStart: string;
   weekEnd: string;
   percentPointsEarned: number;
+  pointsEarned?: number;
+  pointsLost?: number;
 }
 
 export interface CalendarData {

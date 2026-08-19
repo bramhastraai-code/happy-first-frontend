@@ -1,34 +1,49 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DateTime } from 'luxon';
 import { leaderboardAPI } from '@/lib/api/leaderboard';
 import type { LeaderboardData } from '@/lib/api/leaderboard';
 import { activityAPI, Activity } from '@/lib/api/activity';
 import { useAuthStore } from '@/lib/store/authStore';
 import ActivitySelect from '@/components/ui/ActivitySelect';
-import { DateRangePicker, type DateRange } from '@/components/ui/DateRangePicker';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Loader2, Trophy, Medal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-function currentWeekRange(): DateRange {
-  const today = DateTime.now();
+const MAX_PAST_WEEKS = 52;
+
+function weekBounds(offset: number) {
+  const start = DateTime.now().startOf('week').plus({ weeks: offset });
+  const end = offset === 0 ? DateTime.now() : start.endOf('week');
   return {
-    start: today.startOf('week').toISODate() ?? '',
-    end: today.toISODate() ?? '',
+    start: start.toISODate() ?? '',
+    end: end.toISODate() ?? '',
+    label:
+      offset === 0
+        ? 'This week'
+        : `${start.toFormat('d LLL')} – ${end.toFormat('d LLL yyyy')}`,
+    rangeLabel: `${start.toFormat('d LLL')} – ${end.toFormat('d LLL')}`,
   };
+}
+
+function formatScore(value: number, asPercent: boolean) {
+  const formatted = Number(value).toFixed(2);
+  return asPercent ? `${formatted}%` : formatted;
 }
 
 export default function Leaderboard() {
   const { selectedProfile } = useAuthStore();
-  const [range, setRange] = useState<DateRange>(currentWeekRange);
+  const [weekOffset, setWeekOffset] = useState(0);
   const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<string>('');
+
+  const week = useMemo(() => weekBounds(weekOffset), [weekOffset]);
+  const asPercent = !selectedActivity;
 
   useEffect(() => {
     void activityAPI.getList().then((response) => {
@@ -39,7 +54,7 @@ export default function Leaderboard() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedActivity, range]);
+  }, [selectedActivity, weekOffset]);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -48,8 +63,8 @@ export default function Leaderboard() {
       try {
         const response = await leaderboardAPI.getRange(
           selectedActivity,
-          range.start,
-          range.end,
+          week.start,
+          week.end,
           page
         );
 
@@ -65,9 +80,9 @@ export default function Leaderboard() {
     };
 
     void fetchLeaderboard();
-  }, [selectedActivity, range, page, selectedProfile?._id]);
+  }, [selectedActivity, week.start, week.end, page, selectedProfile?._id]);
 
-  const unit = activities.find((a) => a._id === selectedActivity)?.baseUnit || 'points';
+  const unit = activities.find((a) => a._id === selectedActivity)?.baseUnit || '%';
   const ranks = leaderboard?.ranks ?? [];
   const pagination = leaderboard?.pagination;
   const totalLeaders = leaderboard?.totalLeaders ?? 0;
@@ -80,7 +95,32 @@ export default function Leaderboard() {
   return (
     <div className="space-y-3 overflow-visible">
       <div className="flex w-full items-center gap-2">
-        <DateRangePicker className="min-w-0 flex-1 basis-1/2" value={range} onChange={setRange} />
+        <div className="flex min-w-0 flex-1 items-center gap-1 rounded-full border border-input bg-surface px-1 py-0.5">
+          <button
+            type="button"
+            disabled={weekOffset <= -MAX_PAST_WEEKS || loading}
+            onClick={() => setWeekOffset((value) => value - 1)}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Previous week"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="min-w-0 flex-1 text-center">
+            <p className="truncate text-xs font-semibold text-foreground">{week.label}</p>
+            {weekOffset !== 0 ? null : (
+              <p className="truncate text-[10px] text-muted-foreground">{week.rangeLabel}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            disabled={weekOffset >= 0 || loading}
+            onClick={() => setWeekOffset((value) => Math.min(0, value + 1))}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Next week"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
         <ActivitySelect
           className="min-w-0 flex-1 basis-1/2"
           value={selectedActivity}
@@ -105,7 +145,8 @@ export default function Leaderboard() {
           <div className="mt-1 flex items-end justify-between gap-3">
             <p className="text-2xl font-bold text-foreground">#{userRank.rank}</p>
             <p className="text-sm font-semibold text-foreground">
-              {userRank.value.toFixed(1)} <span className="font-normal text-muted-foreground">{unit}</span>
+              {formatScore(userRank.value, asPercent)}{' '}
+              {!asPercent && <span className="font-normal text-muted-foreground">{unit}</span>}
             </p>
           </div>
         </div>
@@ -155,7 +196,7 @@ export default function Leaderboard() {
                     </p>
                   </div>
                   <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                    {entry.value.toFixed(1)}
+                    {formatScore(entry.value, asPercent)}
                   </p>
                 </li>
               );

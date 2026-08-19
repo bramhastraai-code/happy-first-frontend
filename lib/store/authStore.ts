@@ -50,6 +50,7 @@ export interface Profile {
     tone: 'soft' | 'coach' | 'strict';
     summaryOptIn: boolean;
     unlockedSets: number[];
+    allowMessages?: boolean;
   };
   setting: {
     autoActivityPlanRenew: boolean;

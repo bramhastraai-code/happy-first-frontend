@@ -248,9 +248,15 @@ export default function ReferralPage() {
         </section>
 
         {/* Impact — only when there is data */}
+        {!loading && referralStats.insight?.message ? (
+          <p className="rounded-2xl border border-primary/20 bg-primary-soft/50 px-4 py-3 text-sm text-foreground">
+            {referralStats.insight.message}
+          </p>
+        ) : null}
+
         {!loading && impactRows.length > 0 ? (
           <section>
-            <h2 className="section-title mb-3">Impact</h2>
+            <h2 className="section-title mb-3">You are the reason for…</h2>
             <ul className="section-card space-y-3 p-4">
               {impactRows.map((row) => (
                 <li key={row.label}>

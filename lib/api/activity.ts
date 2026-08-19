@@ -16,6 +16,8 @@ export interface Activity {
       minVal:number;
     }
   ]
+  /** Suggested target when adding this activity to a plan. */
+  defaultTarget?: number | null;
 }
 
 export const activityAPI = {

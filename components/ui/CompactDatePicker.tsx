@@ -179,7 +179,8 @@ export default function CompactDatePicker({
   const maxIso = max.toFormat('yyyy-MM-dd');
   const minIso = min ? min.toFormat('yyyy-MM-dd') : null;
   const quickPickIso = maxIso;
-  const quickPickLabel = 'Latest allowed';
+  const yesterday = DateTime.local().minus({ days: 1 }).startOf('day');
+  const quickPickLabel = max.hasSame(yesterday, 'day') ? 'Yesterday' : max.toFormat('d MMM');
   const quickPickDisabled = Boolean(minIso && quickPickIso < minIso);
 
   const pickDate = (iso: string) => {
@@ -269,6 +270,20 @@ export default function CompactDatePicker({
         >
           {quickPickLabel}
         </button>
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2.5 w-2.5 rounded-sm bg-primary-soft ring-1 ring-primary/30" />
+            Can log
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2.5 w-2.5 rounded-sm bg-secondary ring-1 ring-border" />
+            Already logged
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2.5 w-2.5 rounded-sm bg-muted/60" />
+            Blocked
+          </span>
+        </div>
       </div>
     ) : null;
 

@@ -31,7 +31,10 @@ import {
   canSubmitFullDayLog,
   collectUnusualValueWarnings,
   extractEarnedPoints,
+  formatLoggedActivityValue,
   validateLogSubmit,
+  type LogSuccessEntry,
+} from '@/lib/utils/logSubmit';
 } from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
@@ -60,6 +63,7 @@ export default function TasksPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [showCongrats, setShowCongrats] = useState(false);
   const [earnedPoints, setEarnedPoints] = useState(0);
+  const [loggedEntries, setLoggedEntries] = useState<LogSuccessEntry[]>([]);
   const [showWarning, setShowWarning] = useState(false);
   const [warningActivities, setWarningActivities] = useState<Array<{activityId: string; label: string; value: number; target: number; percentage: number}>>([]);
   const [hasUpcomingPlan, setHasUpcomingPlan] = useState(false);
@@ -75,7 +79,7 @@ export default function TasksPage() {
     if (showCongrats) {
       const timer = setTimeout(() => {
         router.push('/home?refresh=1');
-      }, 3000);
+      }, 4500);
 
       return () => clearTimeout(timer);
     }
@@ -318,6 +322,17 @@ export default function TasksPage() {
       const response = await dailyLogAPI.submit(submitData);
       const points = extractEarnedPoints(response.data.data);
       setEarnedPoints(points);
+      setLoggedEntries(
+        submitData.activities.map((entry) => {
+          const planAct = weeklyPlan?.activities.find(
+            (activity) => resolveActivityId(activity) === entry.activityId
+          );
+          if (planAct) return formatLoggedActivityValue(planAct, entry.value);
+          const communityAct = communityActivities.find((row) => row.activityId === entry.activityId);
+          if (communityAct) return formatLoggedActivityValue(communityAct, entry.value);
+          return { label: 'Activity', value: String(entry.value) };
+        })
+      );
 
       await invalidateDashboardQueries(queryClient);
       
@@ -484,6 +499,7 @@ export default function TasksPage() {
         <LogSuccessOverlay
           points={earnedPoints}
           message="You've successfully logged your activities!"
+          entries={loggedEntries}
         />
       )}
 
@@ -816,7 +832,7 @@ export default function TasksPage() {
           {!isProfilePaused && (weeklyPlan || communityActivities.length > 0) && (
             <form onSubmit={handleSubmit} className="space-y-4">
               {weeklyPlan
-                ? (['mind', 'body', 'soul'] as const).map((category) => (
+                ? (['body', 'mind', 'soul'] as const).map((category) => (
                     <TaskCategorySection
                       key={category}
                       category={category}

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Flame, Activity, ChevronDown, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, MapPin, Coins, Sparkles } from 'lucide-react';
+import { Trophy, Flame, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, Coins, Sparkles, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { economyAPI, type EconomySummary } from '@/lib/api/economy';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { ChipTabs } from '@/components/ui/ChipTabs';
@@ -20,8 +20,6 @@ import TourStartButton from '@/components/ui/TourStartButton';
 import { homeTourSteps } from '@/lib/utils/tourSteps';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import ActivityChart from '@/components/charts/ActivityChart';
-import { WeekTips, buildWeekTips } from '@/components/ui/WeekTips';
-import CompactDatePicker from '@/components/ui/CompactDatePicker';
 import { useHomePageData } from '@/lib/queries/useHomePageData';
 import { GlobalSearch } from '@/components/home/GlobalSearch';
 import { resolveActivityIcon } from '@/lib/utils/activityIcon';
@@ -43,7 +41,7 @@ function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, accessToken, isHydrated, sessionReady, selectedProfile, setUser } = useAuthStore();
-  const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+  const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
   const [economy, setEconomy] = useState<EconomySummary | null>(null);
   const [expandedSections, setExpandedSections] = useState({
     weeklyPerformance: true,
@@ -146,15 +144,6 @@ function HomePageContent() {
     }, 100);
   };
 
-  const handleWeekBarClick = (weekStartISO: string) => {
-    prefetchDailySummary(weekStartISO);
-    setLogDateFilter(weekStartISO);
-    setExpandedSections(prev => ({ ...prev, logTracker: true }));
-    setTimeout(() => {
-      document.querySelector('.log-tracker')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
-  };
-
   useEffect(() => {
     if (!isHydrated || !sessionReady) return;
     if (!accessToken || !user) {
@@ -226,33 +215,36 @@ function HomePageContent() {
   };
 
   const weekDays = getCurrentWeekDays();
-  const todayLogged = weekDays.find((d) => d.isToday)?.hasLog ?? false;
   const daysLoggedThisWeek = weekDays.filter((d) => d.hasLog).length;
   const daysLoggedHint = `${daysLoggedThisWeek} this week`;
-  const pendingDailyCount =
-    weeklyPlan?.activities.filter((a) => a.cadence === 'daily' && !a.TodayLogged).length ?? 0;
-  const weekTips = buildWeekTips({
-    streak: streakData?.overallStreak.currentStreak ?? 0,
-    todayLogged,
-    daysLoggedThisWeek,
-    weekPoints: stats.points,
-    pendingDailyCount,
-    hasPlan: Boolean(weeklyPlan) && !noPlanError,
-  });
   const trackerCalendarDays = weeklyLogData?.calendarDays || [];
   const trackerFirstDayOffset = trackerCalendarDays.length > 0
     ? new Date(trackerCalendarDays[0].date).getDay()
     : 0;
   const todayDate = DateTime.local().toFormat('yyyy-MM-dd');
+  const calendarMonth = DateTime.fromISO(logDateFilter).isValid
+    ? DateTime.fromISO(logDateFilter).startOf('month')
+    : DateTime.local().startOf('month');
+  const canPrevLogMonth =
+    calendarMonth > DateTime.local().minus({ months: 24 }).startOf('month');
+  const canNextLogMonth = calendarMonth.endOf('month') < DateTime.local().endOf('month');
+  const goToLogMonth = (delta: number) => {
+    const target = calendarMonth.plus({ months: delta });
+    const today = DateTime.local();
+    const nextDate = target.hasSame(today, 'month')
+      ? today
+      : delta < 0
+        ? target.endOf('month')
+        : target.startOf('month');
+    selectLogDate(nextDate.toFormat('yyyy-MM-dd'));
+  };
   const dayChartPoints = useMemo(
-    () => monthlyData.filter((p) => p.date.split('T')[0] <= todayDate),
+    () => monthlyData.filter((p) => p.date.split('T')[0] < todayDate),
     [monthlyData, todayDate]
   );
   const selectedDayChartIndex = useMemo(() => {
-    const match = dayChartPoints.findIndex((p) => p.date.split('T')[0] === logDateFilter);
-    if (match >= 0) return match;
-    return dayChartPoints.findIndex((p) => p.date.split('T')[0] === todayDate);
-  }, [dayChartPoints, logDateFilter, todayDate]);
+    return dayChartPoints.findIndex((p) => p.date.split('T')[0] === logDateFilter);
+  }, [dayChartPoints, logDateFilter]);
   const selectedDateCalendarDay = trackerCalendarDays.find((d) => d.date.split('T')[0] === logDateFilter);
   const selectedDateHasLog = selectedDateCalendarDay?.hasLog || false;
   const selectedDateIsToday = logDateFilter === todayDate;
@@ -422,10 +414,6 @@ function HomePageContent() {
                       <Link href={`/create-plan?edit=${upcomingPlan._id}`}>Edit upcoming</Link>
                     </Button>
                   )}
-                <span className="chip chip-active shrink-0 text-[10px]">
-                  <Flame className="h-3 w-3" />
-                  {streakData?.overallStreak.currentStreak || 0}d streak
-                </span>
               </div>
             </div>
             <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
@@ -487,25 +475,41 @@ function HomePageContent() {
         </Card>
 
         {/* Stats Grid */}
-        <div className="stats-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4">
-          <div onClick={() => router.push('/streak-calendar')} className="h-full cursor-pointer">
-            <StatCard
-              label="Current streak"
-              value={`${streakData?.overallStreak.currentStreak || 0} days`}
-              hint={`Best: ${streakData?.overallStreak.longestStreak || 0} days`}
-              icon={Flame}
-              accent="orange"
-            />
-          </div>
-          <div onClick={() => router.push('/streak-calendar')} className="h-full cursor-pointer">
-            <StatCard
-              label="Days logged"
-              value={totalDaysLogged}
-              hint={daysLoggedHint}
-              icon={CalendarDays}
-              accent="neutral"
-            />
-          </div>
+        <div className="stats-grid grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+          <button
+            type="button"
+            onClick={() => router.push('/streak-calendar')}
+            className="h-full rounded-2xl border border-border bg-surface p-3 text-left shadow-[var(--shadow-card)] transition hover:border-primary/30 sm:p-4"
+          >
+            <div className="grid h-full grid-cols-2 divide-x divide-border">
+              <div className="flex items-center gap-3 pr-3">
+                <span className="inline-flex shrink-0 rounded-xl bg-primary-soft p-2 text-primary sm:p-2.5">
+                  <Flame className="h-4 w-4 sm:h-5 sm:w-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-lg font-bold leading-tight tracking-tight tabular-nums sm:text-xl">
+                    {streakData?.overallStreak.currentStreak || 0} days
+                  </p>
+                  <p className="truncate text-xs font-medium text-foreground sm:text-sm">Current streak</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    Best: {streakData?.overallStreak.longestStreak || 0} days
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 pl-3">
+                <span className="inline-flex shrink-0 rounded-xl bg-secondary p-2 text-secondary-foreground sm:p-2.5">
+                  <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-lg font-bold leading-tight tracking-tight tabular-nums sm:text-xl">
+                    {totalDaysLogged}
+                  </p>
+                  <p className="truncate text-xs font-medium text-foreground sm:text-sm">Days logged</p>
+                  <p className="truncate text-xs text-muted-foreground">{daysLoggedHint}</p>
+                </div>
+              </div>
+            </div>
+          </button>
           <div className="h-full">
           <StatCard
             label={isShowingPreviousWeek ? 'Previous week score' : 'Week score'}
@@ -809,13 +813,11 @@ function HomePageContent() {
               )}
         </CollapsibleSection>
 
-      <WeekTips tips={weekTips} />
-
       <div className="mt-2 space-y-4 sm:mt-4">
         <CollapsibleSection
           className="weekly-performance"
           title="Monthly performance"
-          subtitle={viewMode === 'week' ? 'Points by week' : 'Points by day'}
+          subtitle={viewMode === 'week' ? 'Weekly consistency scores' : 'Daily scores (today excluded)'}
           icon={BarChart3}
           expanded={expandedSections.weeklyPerformance}
           onToggle={() => toggleSection('weeklyPerformance')}
@@ -826,8 +828,8 @@ function HomePageContent() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <ChipTabs
                   tabs={[
-                    { id: 'day', label: 'Day' },
                     { id: 'week', label: 'Week' },
+                    { id: 'day', label: 'Day' },
                   ]}
                   active={viewMode}
                   onChange={(id) => setViewMode(id as 'day' | 'week')}
@@ -838,10 +840,13 @@ function HomePageContent() {
                 <ActivityChart
                   data={weeklyData.slice(0, -1).map((week) => ({
                     label: week.weekStart,
-                    value: Number(week.totalPoints.toFixed(1)),
+                    value: Number(week.totalPoints.toFixed(2)),
+                    displayValue: `${week.totalPoints.toFixed(2)}%`,
                   }))}
                   variant="bar"
                   height={240}
+                  tooltipUnit="%"
+                  showBarLabels
                   onBarClick={(_, index) => {
                     const week = weeklyData.slice(0, -1)[index];
                     if (week) router.push(`/week-analysis?weekStart=${week.weekStartISO}`);
@@ -852,10 +857,12 @@ function HomePageContent() {
                   data={dayChartPoints.map((point) => ({
                     label: String(point.day),
                     tooltipLabel: DateTime.fromISO(point.date.split('T')[0]).toFormat('MMM d'),
-                    value: Number(point.points.toFixed(1)),
+                    value: Number(point.points.toFixed(2)),
+                    displayValue: `${point.points.toFixed(2)}%`,
                   }))}
                   variant="line"
                   height={260}
+                  tooltipUnit="%"
                   selectedIndex={selectedDayChartIndex}
                   onBarClick={(_, index) => {
                     const point = dayChartPoints[index];
@@ -869,13 +876,13 @@ function HomePageContent() {
                   <>
                     <div className="rounded-xl bg-secondary p-2 text-center sm:p-3">
                       <p className="text-base font-bold text-foreground sm:text-lg">
-                        {weeklyData.length > 1 ? (weeklyData.slice(0, -1).reduce((sum, w) => sum + w.totalPoints, 0) / (weeklyData.length - 1)).toFixed(1) : 0}
+                        {weeklyData.length > 1 ? `${(weeklyData.slice(0, -1).reduce((sum, w) => sum + w.totalPoints, 0) / (weeklyData.length - 1)).toFixed(2)}%` : '0.00%'}
                       </p>
                       <p className="text-xs text-muted-foreground">Weekly avg</p>
                     </div>
                     <div className="rounded-xl bg-secondary p-3 text-center">
                       <p className="text-lg font-bold text-success">
-                        {weeklyData.length > 1 ? Math.max(...weeklyData.slice(0, -1).map(w => w.totalPoints)).toFixed(1) : 0}
+                        {weeklyData.length > 1 ? `${Math.max(...weeklyData.slice(0, -1).map(w => w.totalPoints)).toFixed(2)}%` : '0.00%'}
                       </p>
                       <p className="text-xs text-muted-foreground">Best week</p>
                     </div>
@@ -888,13 +895,13 @@ function HomePageContent() {
                   <>
                     <div className="rounded-xl bg-secondary p-2 text-center sm:p-3">
                       <p className="text-base font-bold text-foreground sm:text-lg">
-                        {dayChartPoints.length > 0 ? (dayChartPoints.reduce((sum, d) => sum + d.points, 0) / dayChartPoints.length).toFixed(1) : 0}
+                        {dayChartPoints.length > 0 ? `${(dayChartPoints.reduce((sum, d) => sum + d.points, 0) / dayChartPoints.length).toFixed(2)}%` : '0.00%'}
                       </p>
                       <p className="text-xs text-muted-foreground">Daily avg</p>
                     </div>
                     <div className="rounded-xl bg-secondary p-3 text-center">
                       <p className="text-lg font-bold text-success">
-                        {dayChartPoints.length > 0 ? Math.max(...dayChartPoints.map(d => d.points)).toFixed(1) : 0}
+                        {dayChartPoints.length > 0 ? `${Math.max(...dayChartPoints.map(d => d.points)).toFixed(2)}%` : '0.00%'}
                       </p>
                       <p className="text-xs text-muted-foreground">Best day</p>
                     </div>
@@ -917,8 +924,8 @@ function HomePageContent() {
 
         <CollapsibleSection
           className="leaderboard-section"
-          title="Leaderboard"
-          subtitle="Compare progress with others"
+          title="Weekly Consistency Leaderboard"
+          subtitle="Compare weekly % with others"
           icon={Trophy}
           expanded={expandedSections.leaderboard}
           onToggle={() => toggleSection('leaderboard')}
@@ -940,16 +947,40 @@ function HomePageContent() {
         >
           <div className="rounded-xl border border-border bg-secondary/40 p-3 sm:p-4">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-sm font-semibold text-foreground">
-                {weeklyLogData?.monthName || DateTime.local().toFormat('LLLL')} {weeklyLogData?.year || DateTime.local().year}
-              </h3>
+              <div className="flex items-center justify-between gap-2 sm:justify-start">
+                <button
+                  type="button"
+                  disabled={!canPrevLogMonth}
+                  onClick={() => goToLogMonth(-1)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-background hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Previous month"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <h3 className="min-w-[8.5rem] text-center text-sm font-semibold text-foreground">
+                  {weeklyLogData?.monthName || DateTime.local().toFormat('LLLL')} {weeklyLogData?.year || DateTime.local().year}
+                </h3>
+                <button
+                  type="button"
+                  disabled={!canNextLogMonth}
+                  onClick={() => goToLogMonth(1)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-background hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Next month"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
               <div className="flex gap-3 text-xs font-medium text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-primary" />
+                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-white">
+                    <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                  </span>
                   Logged
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-rose-400" />
+                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-white">
+                    <X className="h-2.5 w-2.5" strokeWidth={3} />
+                  </span>
                   Missing
                 </span>
               </div>
@@ -993,23 +1024,21 @@ function HomePageContent() {
                         </span>
                         {!day.isFuture && (
                           <span
-                            className={`absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full ${day.hasLog ? 'bg-primary-foreground/90' : 'bg-rose-400'}`}
-                          />
+                            className={`absolute bottom-0.5 right-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-white shadow-sm ${
+                              day.hasLog ? 'bg-emerald-500' : 'bg-rose-500'
+                            }`}
+                          >
+                            {day.hasLog ? (
+                              <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                            ) : (
+                              <X className="h-2.5 w-2.5" strokeWidth={3} />
+                            )}
+                          </span>
                         )}
                       </button>
                     );
                   })}
                 </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2">
-            <span className="text-xs font-medium text-muted-foreground">Date</span>
-            <CompactDatePicker
-              value={logDateFilter}
-              onChange={selectLogDate}
-              maxDate={DateTime.local().toFormat('yyyy-MM-dd')}
-              calendarDays={trackerCalendarDays}
-            />
           </div>
 
           {!selectedDateHasLog && !noPlanError && (

@@ -116,6 +116,7 @@ export interface UpdateProfileData {
     tone?: 'soft' | 'coach' | 'strict';
     summaryOptIn?: boolean;
     unlockedSets?: number[];
+    allowMessages?: boolean;
   };
 }
 

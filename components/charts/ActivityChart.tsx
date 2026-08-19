@@ -29,6 +29,12 @@ export interface ChartPoint {
   displayValue?: string;
 }
 
+export interface ChartBarGroup {
+  name: string;
+  color: string;
+  values: number[];
+}
+
 interface ActivityChartProps {
   data: ChartPoint[];
   variant?: 'bar' | 'line';
@@ -38,6 +44,10 @@ interface ActivityChartProps {
   onBarClick?: (label: string, index: number) => void;
   tooltipUnit?: string;
   yAxisLabelFormatter?: (value: number) => string;
+  showBarLabels?: boolean;
+  showLineLabels?: boolean;
+  enableInsideZoom?: boolean;
+  barGroups?: ChartBarGroup[];
 }
 
 const BAR_GRADIENT = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -97,6 +107,10 @@ export default function ActivityChart({
   onBarClick,
   tooltipUnit = 'pts',
   yAxisLabelFormatter,
+  showBarLabels = false,
+  showLineLabels = false,
+  enableInsideZoom = true,
+  barGroups,
 }: ActivityChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
@@ -109,10 +123,29 @@ export default function ActivityChart({
     }
 
     const dense = isDenseLineChart(variant, data.length);
-    const zoom = dense ? zoomWindow(data.length, selectedIndex) : null;
+    const zoom = dense && enableInsideZoom ? zoomWindow(data.length, selectedIndex) : null;
+
+    const groupedBars = variant === 'bar' && (barGroups?.length ?? 0) > 0;
+    const barLabel = showBarLabels
+      ? {
+          show: true,
+          position: 'top' as const,
+          fontSize: 10,
+          fontWeight: 600,
+          color: '#57534e',
+          formatter: (params: { dataIndex?: number; value?: unknown }) => {
+            const idx = typeof params.dataIndex === 'number' ? params.dataIndex : -1;
+            if (!groupedBars && idx >= 0 && data[idx]?.displayValue) {
+              return data[idx].displayValue;
+            }
+            const n = numericValue(params.value);
+            return Number.isInteger(n) ? String(n) : n.toFixed(1);
+          },
+        }
+      : undefined;
 
     const barData =
-      variant === 'bar'
+      variant === 'bar' && !groupedBars
         ? data.map((d, index) => ({
             value: d.value,
             itemStyle: {
@@ -150,19 +183,40 @@ export default function ActivityChart({
       grid: {
         left: 8,
         right: 8,
-        top: 16,
-        bottom: dense ? 28 : 8,
+        top:
+          groupedBars || (showBarLabels && variant === 'bar') || (showLineLabels && variant === 'line')
+            ? 36
+            : 16,
+        bottom: dense && zoom ? 28 : 8,
         containLabel: true,
       },
+      ...(groupedBars
+        ? {
+            legend: {
+              top: 0,
+              left: 0,
+              itemWidth: 10,
+              itemHeight: 10,
+              textStyle: { fontSize: 11, color: '#57534e' },
+            },
+          }
+        : {}),
       tooltip: {
         trigger: 'axis',
         backgroundColor: '#1c1917',
         borderWidth: 0,
         textStyle: { color: '#fafaf9', fontSize: 12 },
         formatter: (params) => {
-          const p = Array.isArray(params) ? params[0] : params;
-          const idx = typeof p.dataIndex === 'number' ? p.dataIndex : -1;
-          const name = (idx >= 0 && data[idx]?.tooltipLabel) || p.name;
+          const list = Array.isArray(params) ? params : [params];
+          const idx = typeof list[0]?.dataIndex === 'number' ? list[0].dataIndex : -1;
+          const name = (idx >= 0 && data[idx]?.tooltipLabel) || list[0]?.name || '';
+          if (groupedBars) {
+            const rows = list
+              .map((item) => `${item.marker || ''}${item.seriesName}: ${numericValue(item.value).toFixed(1)}`)
+              .join('<br/>');
+            return `<strong>${name}</strong><br/>${rows}`;
+          }
+          const p = list[0];
           const unit = tooltipUnit ? ` ${tooltipUnit}` : '';
           const display =
             idx >= 0 && data[idx]?.displayValue
@@ -212,39 +266,72 @@ export default function ActivityChart({
           formatter: yAxisLabelFormatter ? (value: number) => yAxisLabelFormatter(value) : undefined,
         },
       },
-      series: [
-        variant === 'bar'
-          ? {
-              type: 'bar',
-              data: barData,
-              barMaxWidth: 28,
-            }
-          : {
-              type: 'line',
-              data: lineData,
-              smooth: dense ? 0.35 : true,
-              connectNulls: true,
-              symbol: 'circle',
-              showSymbol: true,
-              lineStyle: { color, width: dense ? 2 : 3 },
-              emphasis: {
-                focus: 'series',
-                scale: true,
-                itemStyle: {
-                  borderColor: '#1c1917',
-                  borderWidth: 2,
-                },
+      series: groupedBars
+        ? (barGroups || []).map((group) => ({
+            type: 'bar' as const,
+            name: group.name,
+            data: group.values.map((value, index) => ({
+              value,
+              itemStyle: {
+                color: group.color,
+                borderRadius: [6, 6, 0, 0],
+                borderColor: index === selectedIndex ? '#1c1917' : 'transparent',
+                borderWidth: index === selectedIndex ? 2 : 0,
               },
-              areaStyle: dense
-                ? undefined
-                : {
-                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                      { offset: 0, color: 'rgba(234,88,12,0.25)' },
-                      { offset: 1, color: 'rgba(234,88,12,0)' },
-                    ]),
+            })),
+            barMaxWidth: 18,
+            ...(barLabel ? { label: barLabel } : {}),
+          }))
+        : [
+            variant === 'bar'
+              ? {
+                  type: 'bar' as const,
+                  data: barData,
+                  barMaxWidth: 28,
+                  ...(barLabel ? { label: barLabel } : {}),
+                }
+              : {
+                  type: 'line' as const,
+                  data: lineData,
+                  smooth: dense ? 0.35 : true,
+                  connectNulls: true,
+                  symbol: 'circle',
+                  showSymbol: true,
+                  lineStyle: { color, width: dense ? 2 : 3 },
+                  ...(showLineLabels
+                    ? {
+                        label: {
+                          show: true,
+                          position: 'top' as const,
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: '#57534e',
+                          formatter: (params: { dataIndex?: number; value?: unknown }) => {
+                            const idx = typeof params.dataIndex === 'number' ? params.dataIndex : -1;
+                            if (idx >= 0 && data[idx]?.displayValue) return data[idx].displayValue;
+                            return String(numericValue(params.value));
+                          },
+                        },
+                      }
+                    : {}),
+                  emphasis: {
+                    focus: 'series' as const,
+                    scale: true,
+                    itemStyle: {
+                      borderColor: '#1c1917',
+                      borderWidth: 2,
+                    },
                   },
-            },
-      ],
+                  areaStyle: dense
+                    ? undefined
+                    : {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                          { offset: 0, color: 'rgba(234,88,12,0.25)' },
+                          { offset: 1, color: 'rgba(234,88,12,0)' },
+                        ]),
+                      },
+                },
+          ],
     };
 
     instanceRef.current.setOption(option, true);
@@ -272,7 +359,7 @@ export default function ActivityChart({
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, [data, variant, color, onBarClick, selectedIndex, tooltipUnit, yAxisLabelFormatter]);
+  }, [data, variant, color, onBarClick, selectedIndex, tooltipUnit, yAxisLabelFormatter, showBarLabels, showLineLabels, enableInsideZoom, barGroups]);
 
   useEffect(() => {
     return () => {
@@ -282,9 +369,24 @@ export default function ActivityChart({
   }, []);
 
   return (
-    <div className="w-full touch-pan-x">
-      <div ref={chartRef} style={{ width: '100%', height }} />
-      {isDenseLineChart(variant, data.length) && (
+    <div
+      className={
+        enableInsideZoom && isDenseLineChart(variant, data.length)
+          ? 'w-full touch-pan-x'
+          : onBarClick
+            ? 'w-full cursor-pointer touch-pan-y'
+            : 'w-full touch-pan-y'
+      }
+    >
+      <div
+        ref={chartRef}
+        style={{
+          width: '100%',
+          height,
+          touchAction: enableInsideZoom && isDenseLineChart(variant, data.length) ? 'pan-x' : 'pan-y',
+        }}
+      />
+      {enableInsideZoom && isDenseLineChart(variant, data.length) && (
         <p className="mt-1 text-center text-[10px] text-muted-foreground">
           Swipe chart to browse days · dots show logged days
         </p>

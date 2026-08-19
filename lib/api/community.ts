@@ -51,6 +51,8 @@ export interface Community {
   avatarSeed?: string | null;
   avatarStyle?: string | null;
   icon?: string | null;
+  allowAdminWhatsApp?: boolean;
+  allowMemberWhatsApp?: boolean;
   joinWhyAi?: {
     text: string;
     generatedAt?: string | null;
@@ -146,6 +148,9 @@ export interface CommunityMember {
     xpLevel?: number;
     xpLevelTitle?: string;
   };
+  canWhatsApp?: boolean;
+  phoneNumber?: string | null;
+  countryCode?: string | null;
 }
 
 export interface CommunityGroup {
@@ -577,6 +582,8 @@ export const communityAPI = {
       avatarSeed?: string | null;
       avatarStyle?: string | null;
       icon?: string | null;
+      allowAdminWhatsApp?: boolean;
+      allowMemberWhatsApp?: boolean;
     }
   ) => api.patch<Envelope<{ community: Community }>>(`/community/${id}`, payload),
 

@@ -32,7 +32,7 @@ export function collectUnusualValueWarnings(
 
   Object.entries(activities).forEach(([activityId, value]) => {
     const activity = weeklyPlan.activities.find((a) => resolveActivityId(a) === activityId);
-    if (!activity || activity.TodayLogged || !activity.label) return;
+    if (!activity || activity.TodayLogged) return;
     // Weekly days use Done/Not Done — not comparable as a numeric target ratio
     if (isWeeklyDaysActivity(activity)) return;
     // Weekly numeric: 0 is normal when the weekly target was already met earlier
@@ -44,7 +44,7 @@ export function collectUnusualValueWarnings(
     if (percentage < 10 || percentage > 200) {
       warnings.push({
         activityId,
-        label: activity.label,
+        label: activity.label || 'Activity',
         value,
         target: targetValue,
         percentage: Math.round(percentage),
@@ -203,4 +203,20 @@ export function extractEarnedPoints(responseData?: {
     return responseData.totalPoints;
   }
   return (responseData.details ?? []).reduce((sum, item) => sum + (item.points ?? 0), 0);
+}
+
+export type LogSuccessEntry = { label: string; value: string };
+
+export function formatLoggedActivityValue(
+  activity: { label?: string; name?: string; unit?: string; cadence?: string },
+  value: number
+): LogSuccessEntry {
+  const label = activity.label || activity.name || 'Activity';
+  const unit = String(activity.unit || '').toLowerCase();
+  const isWeeklyDays = activity.cadence === 'weekly' && unit === 'days';
+  if (isWeeklyDays) {
+    return { label, value: value > 0 ? 'Done' : 'Not Done' };
+  }
+  const unitLabel = activity.unit ? ` ${activity.unit}` : '';
+  return { label, value: `${value}${unitLabel}` };
 }

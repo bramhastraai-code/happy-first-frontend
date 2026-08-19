@@ -18,6 +18,7 @@ import { ProfilePostViewer } from '@/components/feed/ProfilePostViewer';
 import { ProfileEditSheet } from '@/components/feed/ProfileEditSheet';
 import { followAPI } from '@/lib/api/follow';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
+import { communityAPI } from '@/lib/api/community';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
@@ -40,6 +41,7 @@ export default function FeedProfilePage() {
   const [likingId, setLikingId] = useState<string | null>(null);
   const [repostingId, setRepostingId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [joiningId, setJoiningId] = useState<string | null>(null);
 
   const enabled = isHydrated && !!accessToken && !!profileId;
   const postsKey = ['profilePosts', profileId] as const;
@@ -292,11 +294,12 @@ export default function FeedProfilePage() {
                 ) : null}
                 {data.profile.memberSince || data.profile.createdAt ? (
                   <p className="pt-0.5 text-xs text-muted-foreground">
-                    Joined{' '}
+                    Member since{' '}
                     {new Date(
                       (data.profile.memberSince || data.profile.createdAt) as string
                     ).toLocaleDateString('en-US', {
                       month: 'short',
+                      day: 'numeric',
                       year: 'numeric',
                     })}
                     {data.profile.daysWithHappyFirst != null
@@ -305,6 +308,36 @@ export default function FeedProfilePage() {
                   </p>
                 ) : null}
               </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {(
+                  [
+                    { label: 'This week', value: data.thisWeekActivitiesTotal ?? 0 },
+                    { label: 'Activities', value: data.totalActivitiesTotal ?? 0 },
+                    { label: 'XP', value: data.xpTotal ?? 0 },
+                    { label: 'Coins', value: data.coinsBalance ?? 0 },
+                  ] as const
+                ).map((stat) => (
+                  <div
+                    key={stat.label}
+                    className="rounded-xl border border-border bg-secondary/40 px-3 py-2 text-center"
+                  >
+                    <p className="text-sm font-bold tabular-nums text-foreground">
+                      {Number(stat.value).toLocaleString()}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+              {data.daysSinceLastPost != null ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {data.daysSinceLastPost === 0
+                    ? 'Posted today'
+                    : `Last post ${data.daysSinceLastPost} day${data.daysSinceLastPost === 1 ? '' : 's'} ago`}
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">No posts yet</p>
+              )}
 
               <div className="mt-3 flex gap-2">
                 {isMe ? (
@@ -330,9 +363,10 @@ export default function FeedProfilePage() {
                       isFollowing={data.isFollowing}
                       followsYou={data.followsYou}
                       isMe={false}
+                      verb="connect"
                       className="h-8 flex-1 rounded-lg"
                     />
-                    {messageTarget ? (
+                    {messageTarget && (data.allowMessages ?? data.profile.allowMessages ?? true) ? (
                       <button
                         type="button"
                         onClick={() => setMessagesOpen(true)}
@@ -341,20 +375,81 @@ export default function FeedProfilePage() {
                         <MessageSquare className="h-4 w-4" />
                         Message
                       </button>
+                    ) : !isMe && messageTarget ? (
+                      <p className="flex h-8 flex-1 items-center justify-center text-xs text-muted-foreground">
+                        Messaging is off
+                      </p>
                     ) : null}
                   </>
                 )}
               </div>
             </section>
 
+            {(data.communities?.length ?? 0) > 0 ? (
+              <section className="mt-4 px-1">
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Communities they admin
+                </h2>
+                <ul className="space-y-2">
+                  {data.communities!.map((community) => (
+                    <li
+                      key={community.id}
+                      className="flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5"
+                    >
+                      <Link
+                        href={`/community/${community.id}`}
+                        className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground hover:underline"
+                      >
+                        {community.name}
+                        <span className="ml-2 text-[11px] font-medium text-muted-foreground">
+                          {community.memberCount} members
+                        </span>
+                      </Link>
+                      {community.viewerCanJoin ? (
+                        <button
+                          type="button"
+                          disabled={joiningId === community.id}
+                          onClick={async () => {
+                            setJoiningId(community.id);
+                            try {
+                              await communityAPI.join(community.id);
+                              await queryClient.invalidateQueries({
+                                queryKey: ['publicProfile', profileId],
+                              });
+                              router.push(`/community/${community.id}`);
+                            } finally {
+                              setJoiningId(null);
+                            }
+                          }}
+                          className="shrink-0 rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                        >
+                          {joiningId === community.id ? 'Joining…' : 'Join'}
+                        </button>
+                      ) : community.viewerIsMember ? (
+                        <Link
+                          href={`/community/${community.id}`}
+                          className="shrink-0 text-xs font-semibold text-primary"
+                        >
+                          Open
+                        </Link>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
             <div
               id="profile-posts-grid"
-              className="mt-4 flex items-center justify-center border-b border-border"
+              className="mt-4 flex items-center justify-center gap-3 border-b border-border"
             >
-              <span className="inline-flex items-center gap-1.5 border-t border-foreground px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-foreground">
+              <a
+                href="#profile-posts-grid"
+                className="inline-flex items-center gap-1.5 border-t border-foreground px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-foreground"
+              >
                 <Grid3X3 className="h-3.5 w-3.5" />
-                Posts
-              </span>
+                View posts
+              </a>
             </div>
 
             {postsQuery.isLoading ? (

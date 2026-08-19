@@ -23,7 +23,9 @@ import {
   canSubmitFullDayLog,
   collectUnusualValueWarnings,
   extractEarnedPoints,
+  formatLoggedActivityValue,
   validateLogSubmit,
+  type LogSuccessEntry,
 } from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 
@@ -88,6 +90,7 @@ function PreviousLogPageContent() {
     Array<{ activityId: string; label: string; value: number; target: number; percentage: number }>
   >([]);
   const [earnedPoints, setEarnedPoints] = useState(0);
+  const [loggedEntries, setLoggedEntries] = useState<LogSuccessEntry[]>([]);
   const [showCongrats, setShowCongrats] = useState(false);
   const [actlist, setActlist] = useState<ActivityType[]>([]);
   const [pickerCalendarDays, setPickerCalendarDays] = useState<CalendarDay[]>([]);
@@ -143,7 +146,7 @@ function PreviousLogPageContent() {
 
   useEffect(() => {
     if (showCongrats) {
-      const timer = setTimeout(() => router.push('/home?refresh=1'), 3000);
+      const timer = setTimeout(() => router.push('/home?refresh=1'), 4500);
       return () => clearTimeout(timer);
     }
   }, [showCongrats, router]);
@@ -329,6 +332,15 @@ function PreviousLogPageContent() {
       };
       const response = await dailyLogAPI.submitPrevious(submitData);
       setEarnedPoints(extractEarnedPoints(response.data.data));
+      setLoggedEntries(
+        validation.payload.map((entry) => {
+          const planAct = weeklyPlan.activities.find(
+            (activity) => resolveActivityId(activity) === entry.activityId
+          );
+          if (planAct) return formatLoggedActivityValue(planAct, entry.value);
+          return { label: 'Activity', value: String(entry.value) };
+        })
+      );
       await invalidateDashboardQueries(queryClient);
       setShowCongrats(true);
     } catch (err: unknown) {
@@ -382,6 +394,7 @@ function PreviousLogPageContent() {
         <LogSuccessOverlay
           points={earnedPoints}
           message="Your missed day log was saved successfully!"
+          entries={loggedEntries}
         />
       )}
 
@@ -554,7 +567,7 @@ function PreviousLogPageContent() {
         {showForm && weeklyPlan && (
           <div className="space-y-4">
             <h2 className="section-title">Log activities</h2>
-            {(['mind', 'body', 'soul'] as const).map((category) => (
+            {(['body', 'mind', 'soul'] as const).map((category) => (
               <TaskCategorySection
                 key={category}
                 category={category}

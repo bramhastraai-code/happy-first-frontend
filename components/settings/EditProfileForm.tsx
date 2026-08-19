@@ -47,6 +47,7 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
     },
     preferences: {
       tone: 'coach' as 'soft' | 'coach' | 'strict',
+      allowMessages: true,
     },
   });
 
@@ -83,6 +84,7 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
       },
       preferences: {
         tone: selectedProfile.preferences?.tone ?? 'coach',
+        allowMessages: selectedProfile.preferences?.allowMessages !== false,
       },
     });
   }, [selectedProfile]);
@@ -256,7 +258,8 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
               className={FIELD_CLASS}
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Shown on your public profile. Optional.
+              Shown on your public profile. Optional. Updating your profile in a new quarter can
+              earn 10 Happy Coins.
             </p>
           </div>
           <div>
@@ -385,6 +388,7 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
                 setProfileData((prev) => ({
                   ...prev,
                   preferences: {
+                    ...prev.preferences,
                     tone: e.target.value as 'soft' | 'coach' | 'strict',
                   },
                 }))
@@ -396,6 +400,31 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
               <option value="strict">Strict (like a father)</option>
             </select>
           </div>
+
+          <label className="flex items-start gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-primary"
+              checked={profileData.preferences.allowMessages}
+              onChange={(e) =>
+                setProfileData((prev) => ({
+                  ...prev,
+                  preferences: {
+                    ...prev.preferences,
+                    allowMessages: e.target.checked,
+                  },
+                }))
+              }
+            />
+            <span>
+              <span className="block text-sm font-medium text-foreground">
+                Allow messages from other members
+              </span>
+              <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                People can start a chat from your public profile when this is on.
+              </span>
+            </span>
+          </label>
         </div>
       </div>
 

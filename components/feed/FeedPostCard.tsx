@@ -29,6 +29,7 @@ import { FeedLikesSheet } from '@/components/feed/FeedLikesSheet';
 import { FollowButton } from '@/components/feed/FollowButton';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { HappyIcon } from '@/components/ui/HappyIcon';
+import { ZoomableImage } from '@/components/ui/ZoomableImage';
 import { cn } from '@/lib/utils';
 
 interface FeedPostCardProps {
@@ -48,10 +49,6 @@ interface FeedPostCardProps {
 function formatCount(value: number) {
   if (value < 1000) return String(value);
   return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}k`;
-}
-
-function isDesktopViewport() {
-  return typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches;
 }
 
 export function FeedPostCard({
@@ -158,7 +155,7 @@ export function FeedPostCard({
     }
     lastTap.current = now;
     window.setTimeout(() => {
-      if (lastTap.current === now && isDesktopViewport() && !isVideo) {
+      if (lastTap.current === now && !isVideo) {
         setPreviewOpen(true);
       }
     }, 280);
@@ -504,7 +501,7 @@ export function FeedPostCard({
               'sm:cursor-zoom-in'
             )}
             onClick={handleMediaTap}
-            aria-label={isDesktopViewport() ? 'Preview image' : 'Like on double tap'}
+            aria-label={isVideo ? 'Play video' : 'Open photo'}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -827,7 +824,7 @@ export function FeedPostCard({
           )
         : null}
 
-      {previewOpen && isDesktopViewport()
+      {previewOpen
         ? createPortal(
             <div className="fixed inset-0 z-[240] flex items-center justify-center bg-black/90 p-3 sm:p-6">
               <button
@@ -874,11 +871,11 @@ export function FeedPostCard({
                     className="max-h-[min(88vh,900px)] max-w-full rounded-lg object-contain"
                   />
                 ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <ZoomableImage
                     src={mediaUrl}
                     alt={post.caption || `${post.author.name} activity`}
                     className="max-h-[min(88vh,900px)] max-w-full rounded-lg object-contain"
+                    stageClassName="max-h-[min(88vh,900px)] w-full"
                   />
                 )}
                 {multi ? (

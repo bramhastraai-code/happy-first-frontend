@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Award,
@@ -54,12 +53,13 @@ interface StreakCalendarViewProps {
   onAllTimeLeaderboardPageChange: (page: number) => void;
 }
 
-type DayState = 'future' | 'logged' | 'pending' | 'missed';
+type DayState = 'future' | 'logged' | 'pending' | 'missed' | 'idle';
 
 function getDayState(day: CalendarDay | ActivityCalendarDay): DayState {
   if (day.isFuture) return 'future';
   if (day.hasLog) return 'logged';
   if (day.isToday) return 'pending';
+  if (day.inPlan === false) return 'idle';
   return 'missed';
 }
 
@@ -76,6 +76,8 @@ function dayCellClasses(day: CalendarDay | ActivityCalendarDay) {
       'cursor-pointer border-primary bg-primary-soft text-primary hover:-translate-y-0.5 hover:shadow-sm',
     state === 'missed' &&
       'cursor-pointer border-rose-300 bg-rose-50 text-rose-700 hover:-translate-y-0.5 hover:bg-rose-100 hover:shadow-sm',
+    state === 'idle' &&
+      'cursor-pointer border-border bg-secondary/70 text-muted-foreground hover:bg-accent',
     day.isToday && 'ring-2 ring-primary ring-offset-1 ring-offset-surface'
   );
 }
@@ -88,6 +90,8 @@ function dayStateLabel(state: DayState): string {
       return 'Today';
     case 'missed':
       return 'Missed';
+    case 'idle':
+      return 'No plan';
     default:
       return 'Future';
   }
@@ -113,53 +117,80 @@ function CalendarDayCell({
     >
       <span className="inline-flex h-full w-full flex-col items-center justify-center gap-0.5">
         <span className="text-[11px] leading-none sm:text-sm">{day.day}</span>
-        {state === 'logged' && (
-          <>
-            <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground sm:hidden" aria-hidden />
-            <CheckCircle2 className="hidden h-3 w-3 opacity-90 sm:block" aria-hidden />
-          </>
-        )}
-        {state === 'pending' && (
-          <>
-            <span className="h-1.5 w-1.5 rounded-full bg-primary sm:hidden" aria-hidden />
-            <Clock className="hidden h-3 w-3 opacity-80 sm:block" aria-hidden />
-          </>
-        )}
-        {state === 'missed' && (
-          <>
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-600 sm:hidden" aria-hidden />
-            <XCircle className="hidden h-3 w-3 opacity-80 sm:block" aria-hidden />
-          </>
-        )}
-        {state === 'future' && <Clock className="hidden h-3 w-3 opacity-50 sm:block" aria-hidden />}
+        {state === 'logged' && <CheckCircle2 className="h-3 w-3 opacity-90" aria-hidden />}
+        {state === 'pending' && <Clock className="h-3 w-3 opacity-80" aria-hidden />}
+        {state === 'missed' && <XCircle className="h-3 w-3 opacity-80" aria-hidden />}
+        {state === 'future' && <CalendarDays className="h-3 w-3 opacity-50" aria-hidden />}
       </span>
     </button>
   );
 }
+
+const CATEGORY_ORDER = ['body', 'mind', 'soul'] as const;
+const CATEGORY_META: Record<string, { label: string; emoji: string }> = {
+  body: { label: 'Body', emoji: '💪' },
+  mind: { label: 'Mind', emoji: '🧠' },
+  soul: { label: 'Soul', emoji: '✨' },
+};
 
 function ActivityTotalsList({
   title,
   items,
 }: {
   title: string;
-  items: Array<{ activityId: string; name: string; unit: string; total: number }>;
+  items: Array<{ activityId: string; name: string; unit: string; total: number; category?: string }>;
 }) {
+  const grouped = CATEGORY_ORDER.map((category) => ({
+    category,
+    items: items
+      .filter((item) => (item.category || 'body').toLowerCase() === category)
+      .sort((a, b) => b.total - a.total),
+  })).filter((group) => group.items.length > 0);
+
+  const uncategorized = items.filter(
+    (item) => !CATEGORY_ORDER.includes((item.category || 'body').toLowerCase() as (typeof CATEGORY_ORDER)[number])
+  );
+
   return (
     <div>
       <h4 className="mb-2 text-sm font-semibold text-foreground">{title}</h4>
       {items.length === 0 ? (
         <p className="text-xs text-muted-foreground">No activity totals yet.</p>
       ) : (
-        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
-          {items.map((item) => (
-            <li key={item.activityId} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-              <span className="min-w-0 truncate font-medium text-foreground">{item.name}</span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">
-                {item.total.toLocaleString()} {item.unit}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-3">
+          {grouped.map((group) => {
+            const meta = CATEGORY_META[group.category];
+            return (
+              <div key={group.category}>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {meta.emoji} {meta.label}
+                </p>
+                <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
+                  {group.items.map((item) => (
+                    <li key={item.activityId} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                      <span className="min-w-0 truncate font-medium text-foreground">{item.name}</span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {item.total.toLocaleString()} {item.unit}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+          {uncategorized.length > 0 && (
+            <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
+              {uncategorized.map((item) => (
+                <li key={item.activityId} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                  <span className="min-w-0 truncate font-medium text-foreground">{item.name}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {item.total.toLocaleString()} {item.unit}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );
@@ -319,7 +350,6 @@ export function StreakCalendarView({
   onAllTimeLeaderboardPageChange,
 }: StreakCalendarViewProps) {
   const router = useRouter();
-  const [legendOpen, setLegendOpen] = useState(false);
 
   const selectedActivityStreak = selectedActivityId
     ? streakData.activityStreaks.find((a) => a.activityId === selectedActivityId) ?? null
@@ -361,9 +391,10 @@ export function StreakCalendarView({
   const weightChartData = weightMoodHistory
     .filter((point) => typeof point.weight === 'number')
     .map((point) => ({
-      label: formatWeekRangeShort(point.weekStart, point.weekEnd),
-      value: point.weight as number,
-      tooltipLabel: formatWeekRangeShort(point.weekStart, point.weekEnd),
+              label: formatWeekRangeShort(point.weekStart, point.weekEnd),
+              value: point.weight as number,
+              tooltipLabel: formatWeekRangeShort(point.weekStart, point.weekEnd),
+              displayValue: `${point.weight} kg`,
     }));
 
   const moodChartData = weightMoodHistory
@@ -388,6 +419,7 @@ export function StreakCalendarView({
       label: formatWeekRangeShort(week.weekStart, week.weekEnd),
       value: week.percentPointsEarned,
       tooltipLabel: formatWeekRangeShort(week.weekStart, week.weekEnd),
+      displayValue: `${week.percentPointsEarned.toFixed(1)}%`,
     })) ?? [];
 
   const weeklyAverages = calendarData?.weeklyAverages;
@@ -430,8 +462,8 @@ export function StreakCalendarView({
 
         <ChipTabs
           tabs={[
-            { id: 'overall', label: 'Overall' },
             { id: 'activity', label: 'By activity' },
+            { id: 'overall', label: 'Overall' },
           ]}
           active={filterType}
           onChange={(id) => onFilterChange(id as FilterType)}
@@ -494,6 +526,8 @@ export function StreakCalendarView({
                 height={200}
                 color="#2563eb"
                 tooltipUnit="kg"
+                showLineLabels
+                enableInsideZoom={false}
               />
             </div>
           )}
@@ -507,6 +541,8 @@ export function StreakCalendarView({
                 height={200}
                 color="#ea580c"
                 tooltipUnit=""
+                showLineLabels
+                enableInsideZoom={false}
                 yAxisLabelFormatter={(value) => numericToMoodLabel(value)}
               />
             </div>
@@ -529,9 +565,9 @@ export function StreakCalendarView({
                   <ChevronLeft className="h-4 w-4" />
                   Back to activities
                 </Button>
-                {streakData.activityStreaks.length > 1 && (
+                {streakData.activityStreaks.length > 0 && (
                   <label className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-xs sm:justify-end">
-                    <span className="sr-only">Switch activity</span>
+                    <span className="shrink-0 text-xs font-medium text-muted-foreground">Activity</span>
                     <select
                       value={selectedActivityId}
                       onChange={(e) => onActivitySelect(e.target.value)}
@@ -585,50 +621,32 @@ export function StreakCalendarView({
               </button>
             </div>
 
-            <div className="mb-2 flex flex-wrap items-center justify-end gap-3 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="flex h-5 w-5 items-center justify-center rounded-lg border border-primary bg-primary text-primary-foreground">
-                  <CheckCircle2 className="h-3 w-3" />
+            <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-border bg-secondary/50 p-3 text-xs sm:grid-cols-4">
+              <span className="inline-flex items-center gap-2 text-muted-foreground">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary bg-primary text-primary-foreground">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
                 </span>
                 Logged
               </span>
-              <button
-                type="button"
-                onClick={() => setLegendOpen((v) => !v)}
-                className="text-primary hover:underline"
-              >
-                {legendOpen ? 'Hide legend' : 'Legend'}
-              </button>
+              <span className="inline-flex items-center gap-2 text-muted-foreground">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700">
+                  <XCircle className="h-3.5 w-3.5" />
+                </span>
+                Missed
+              </span>
+              <span className="inline-flex items-center gap-2 text-muted-foreground">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary bg-primary-soft text-primary ring-2 ring-primary ring-offset-1 ring-offset-secondary/50">
+                  <Clock className="h-3.5 w-3.5" />
+                </span>
+                Today
+              </span>
+              <span className="inline-flex items-center gap-2 text-muted-foreground">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-secondary text-muted-foreground opacity-60">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                </span>
+                Future
+              </span>
             </div>
-
-            {legendOpen && (
-              <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-border bg-secondary/50 p-3 text-xs sm:grid-cols-4">
-                <span className="inline-flex items-center gap-2 text-muted-foreground">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary bg-primary text-primary-foreground">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  </span>
-                  Logged
-                </span>
-                <span className="inline-flex items-center gap-2 text-muted-foreground">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700">
-                    <XCircle className="h-3.5 w-3.5" />
-                  </span>
-                  Missed
-                </span>
-                <span className="inline-flex items-center gap-2 text-muted-foreground">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary bg-primary-soft text-primary ring-2 ring-primary ring-offset-1 ring-offset-secondary/50">
-                    <Clock className="h-3.5 w-3.5" />
-                  </span>
-                  Today
-                </span>
-                <span className="inline-flex items-center gap-2 text-muted-foreground">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-secondary text-muted-foreground opacity-60">
-                    <Clock className="h-3.5 w-3.5" />
-                  </span>
-                  Future
-                </span>
-              </div>
-            )}
 
             <div className="mb-1.5 grid grid-cols-7 gap-1.5">
               {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
@@ -648,9 +666,19 @@ export function StreakCalendarView({
             </div>
 
             {filterType === 'activity' && selectedActivityStreak && (
-              <div className="mt-4 flex items-center justify-center gap-2 text-sm font-semibold text-primary">
-                <Flame className="h-4 w-4" />
-                {selectedActivityStreak.currentStreak} day streak
+              <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-primary/20 bg-primary-soft/60 p-3">
+                <div className="text-center">
+                  <p className="text-lg font-bold tabular-nums text-primary">{selectedActivityStreak.currentStreak}</p>
+                  <p className="text-[11px] text-muted-foreground">Current streak</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold tabular-nums text-foreground">{selectedActivityStreak.longestStreak}</p>
+                  <p className="text-[11px] text-muted-foreground">Longest</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold tabular-nums text-foreground">{selectedActivityStreak.totalDaysLogged}</p>
+                  <p className="text-[11px] text-muted-foreground">Days logged</p>
+                </div>
               </div>
             )}
 
@@ -661,7 +689,7 @@ export function StreakCalendarView({
                     <StatTile label="Days logged" value={activityCalendarData.statistics?.daysLogged ?? 0} />
                     <StatTile label="Days missed" value={activityCalendarData.statistics?.daysNotLogged ?? 0} />
                     <StatTile
-                      label="Completion"
+                      label="% Points Earned"
                       value={`${activityCalendarData.statistics?.completionPercentage ?? 0}%`}
                       accent="success"
                     />
@@ -732,6 +760,8 @@ export function StreakCalendarView({
                 variant="bar"
                 height={200}
                 tooltipUnit="% Points Earned"
+                showBarLabels
+                enableInsideZoom={false}
               />
             </section>
           )}

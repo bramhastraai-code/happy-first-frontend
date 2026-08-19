@@ -15,12 +15,12 @@ export const homeTourSteps: Step[] = [
   {
     target: '.stats-grid',
     title: 'Streak & score',
-    content: 'Track your current streak and weekly points at a glance.',
+    content: 'Streak and days logged sit together here, plus your weekly score.',
   },
   {
     target: '.weekly-performance',
     title: 'Monthly performance',
-    content: 'Review your activity chart. Switch between day and week views.',
+    content: 'Week view is the default. Switch to Day for the daily line chart.',
   },
   {
     target: '.pending-activities',
@@ -29,13 +29,13 @@ export const homeTourSteps: Step[] = [
   },
   {
     target: '.leaderboard-section',
-    title: 'Leaderboard',
-    content: 'See how you rank against others this week.',
+    title: 'Weekly Consistency Leaderboard',
+    content: 'Compare weekly % with others. Use the arrows to change week.',
   },
   {
     target: '.log-tracker',
     title: 'Daily log tracker',
-    content: 'Pick a date and review what you logged that day.',
+    content: 'Use the month arrows, then tap a date to review or submit a log.',
   },
   {
     target: '.bottom-nav',

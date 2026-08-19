@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
-  AlertTriangle,
   BarChart3,
   Calendar,
   ChevronLeft,
@@ -56,54 +55,32 @@ function ActivityPerformanceCard({ activity }: { activity: ActivityAnalytics }) 
     activity.cadence === 'daily' ? activity.targetValue * 7 : activity.targetValue;
 
   return (
-    <article className="rounded-xl border border-border bg-surface px-3 py-2.5 sm:px-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-foreground">{activity.activityLabel}</h3>
-            {activity.rank != null && (
-              <span className="text-xs font-medium text-muted-foreground">
-                Rank: {activity.rank} / {activity.totalParticipants}
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-muted-foreground capitalize">
-            {activity.cadence} · {activity.unit}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-base font-bold tabular-nums text-success">
-            {activity.totalPointsAchieved.toFixed(1)}
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            of {activity.pointsAllocated.toFixed(1)}% Points Earned
-          </p>
-        </div>
+    <article className="rounded-lg border border-border bg-surface px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <h3 className="min-w-0 truncate text-sm font-semibold text-foreground">{activity.activityLabel}</h3>
+        {activity.rank != null && activity.totalParticipants > 0 && (
+          <span className="shrink-0 rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-foreground">
+            {activity.rank} / {activity.totalParticipants}
+          </span>
+        )}
+        <p className="ml-auto shrink-0 text-sm font-bold tabular-nums text-success">
+          {activity.totalPointsAchieved.toFixed(1)}
+          <span className="ml-1 text-[10px] font-medium text-muted-foreground">
+            / {activity.pointsAllocated.toFixed(1)}
+          </span>
+        </p>
       </div>
 
-      <div className="mt-2.5">
-        <div className="mb-1.5 flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Progress</span>
-          <span className="font-medium tabular-nums text-foreground">
-            {activity.achievedUnits} / {targetUnits} {activity.unit}
-          </span>
-        </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-border">
+      <div className="mt-1.5 flex items-center gap-2">
+        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-border">
           <div
             className={cn('h-full rounded-full transition-all', progressTone(activity.achievementPercentage))}
             style={{ width: `${Math.min(activity.achievementPercentage, 100)}%` }}
           />
         </div>
-        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-          <span className="font-semibold text-foreground">
-            {activity.achievementPercentage}% Points Earned
-          </span>
-          {activity.pendingUnits > 0 && (
-            <span className="text-primary">
-              {activity.pendingUnits} {activity.unit} remaining
-            </span>
-          )}
-        </div>
+        <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
+          {activity.achievedUnits} / {targetUnits} {activity.unit}
+        </span>
       </div>
     </article>
   );
@@ -118,21 +95,27 @@ function DailyLossCard({ activity }: { activity: DailyActivityLoss }) {
           <p className="text-xs text-muted-foreground">Daily · {activity.unit}</p>
         </div>
         <div className="text-right">
-          <p className="font-bold tabular-nums text-success">{activity.earnedPoints.toFixed(1)}</p>
-          <p className="text-xs text-muted-foreground">of {activity.potentialPoints.toFixed(1)}% Points Earned</p>
+          {activity.pointsLost > 0 ? (
+            <>
+              <p className="font-bold tabular-nums text-destructive">-{activity.pointsLost.toFixed(1)}</p>
+              <p className="text-xs text-muted-foreground">points lost</p>
+              <p className="mt-1 text-xs tabular-nums text-success">
+                {activity.earnedPoints.toFixed(1)} earned
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-bold tabular-nums text-success">{activity.earnedPoints.toFixed(1)}</p>
+              <p className="text-xs text-muted-foreground">of {activity.potentialPoints.toFixed(1)}% Points Earned</p>
+            </>
+          )}
         </div>
       </div>
 
       {activity.pointsLost > 0 && (
-        <div className="mt-3 rounded-xl border border-destructive/20 bg-red-50 px-3 py-2.5">
-          <p className="flex items-center gap-2 text-sm font-semibold text-destructive">
-            <AlertTriangle className="h-4 w-4" />
-            {activity.pointsLost.toFixed(1)} points lost
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {activity.missedDays.length} missed · {activity.partialDays.length} incomplete days
-          </p>
-        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {activity.missedDays.length} missed · {activity.partialDays.length} incomplete days
+        </p>
       )}
 
       {activity.missedDays.length > 0 && (
@@ -186,8 +169,20 @@ function WeeklyLossCard({ activity }: { activity: WeeklyActivityLoss }) {
           </p>
         </div>
         <div className="text-right">
-          <p className="font-bold tabular-nums text-success">{activity.earnedPoints.toFixed(1)}</p>
-          <p className="text-xs text-muted-foreground">of {activity.potentialPoints.toFixed(1)}% Points Earned</p>
+          {activity.pointsLost > 0 ? (
+            <>
+              <p className="font-bold tabular-nums text-destructive">-{activity.pointsLost.toFixed(1)}</p>
+              <p className="text-xs text-muted-foreground">points lost</p>
+              <p className="mt-1 text-xs tabular-nums text-success">
+                {activity.earnedPoints.toFixed(1)} earned
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-bold tabular-nums text-success">{activity.earnedPoints.toFixed(1)}</p>
+              <p className="text-xs text-muted-foreground">of {activity.potentialPoints.toFixed(1)}% Points Earned</p>
+            </>
+          )}
         </div>
       </div>
 
@@ -280,6 +275,7 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
     value: week.percentPointsEarned,
     tooltipLabel: formatWeekRangeShort(week.weekStart, week.weekEnd),
   }));
+  const selectedTrendIndex = fourWeekTrend.findIndex((week) => week.weekStart === data.weekStart);
 
   return (
     <MainLayout>
@@ -315,14 +311,14 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               ) : (
-                <span className="chip flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground">
+                <Button type="button" variant="outline" size="sm" disabled className="h-8 gap-1 px-2">
                   Next
-                  <ChevronRight className="h-3.5 w-3.5 opacity-50" />
-                </span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
               )}
             </div>
           ) : (
-            <span className="chip chip-active flex items-center gap-1.5 text-xs">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-3 py-1.5 text-xs text-muted-foreground">
               <Calendar className="h-3.5 w-3.5" />
               {plan ? 'Past week' : 'No plan'}
             </span>
@@ -365,13 +361,33 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
         <section className="section-card mb-4 space-y-4 p-4 sm:p-5">
           <div>
             <h2 className="section-title">4-week analysis</h2>
-            <p className="text-xs text-muted-foreground">% Points Earned over the last four completed weeks</p>
+            <p className="text-xs text-muted-foreground">
+              Points lost then points earned. Tap a week to open it.
+            </p>
           </div>
           <ActivityChart
             data={fourWeekTrendChartData}
             variant="bar"
-            height={200}
-            tooltipUnit="% Points Earned"
+            height={220}
+            selectedIndex={selectedTrendIndex}
+            showBarLabels
+            enableInsideZoom={false}
+            barGroups={[
+              {
+                name: 'Points lost',
+                color: '#e11d48',
+                values: fourWeekTrend.map((week) => Number(week.pointsLost ?? 0)),
+              },
+              {
+                name: 'Points earned',
+                color: '#16a34a',
+                values: fourWeekTrend.map((week) => Number(week.pointsEarned ?? 0)),
+              },
+            ]}
+            onBarClick={(_, index) => {
+              const week = fourWeekTrend[index];
+              if (week?.weekStart && onWeekChange) onWeekChange(week.weekStart);
+            }}
           />
         </section>
       )}
@@ -384,7 +400,7 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
           expanded={expanded.performance}
           onToggle={() => toggle('performance')}
           className="mb-4"
-          contentClassName="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5"
+          contentClassName="space-y-2 px-3 pb-3 sm:px-4 sm:pb-4"
         >
           {analytics.activities.length === 0 ? (
             <p className="text-sm text-muted-foreground">No activities in this plan.</p>

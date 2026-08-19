@@ -8,7 +8,6 @@ import {
   CalendarDays,
   ClipboardList,
   Loader2,
-  MapPin,
   Rss,
   Search,
   UserSearch,
@@ -28,7 +27,6 @@ const QUICK_LINKS = [
   { name: 'Community', href: '/community', icon: Users },
   { name: 'Tasks', href: '/tasks', icon: ClipboardList },
   { name: 'Events', href: '/community', icon: CalendarDays },
-  { name: 'Tracker', href: '/tracker', icon: MapPin },
   { name: 'Find people', href: '/feed/explore', icon: UserSearch },
 ];
 

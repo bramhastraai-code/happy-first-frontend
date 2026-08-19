@@ -30,6 +30,8 @@ export default function EditCommunityPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<CommunityType>('public');
+  const [allowAdminWhatsApp, setAllowAdminWhatsApp] = useState(true);
+  const [allowMemberWhatsApp, setAllowMemberWhatsApp] = useState(false);
   const [selectedLevels, setSelectedLevels] = useState<Record<string, CommunityActivityLevel>>(
     {}
   );
@@ -84,6 +86,8 @@ export default function EditCommunityPage() {
     setName(community.name || '');
     setDescription(community.description || '');
     setType(community.type || (community.isPublic === false ? 'private' : 'public'));
+    setAllowAdminWhatsApp(community.allowAdminWhatsApp !== false);
+    setAllowMemberWhatsApp(Boolean(community.allowMemberWhatsApp));
     const levels: Record<string, CommunityActivityLevel> = {};
     const sourceConfig =
       community.pendingActivityConfig?.length
@@ -132,6 +136,8 @@ export default function EditCommunityPage() {
         name: name.trim(),
         description: description.trim(),
         type,
+        allowAdminWhatsApp,
+        allowMemberWhatsApp,
         activityConfig,
         icon: avatar.pendingFile ? null : avatar.icon || null,
         avatarSeed: avatar.pendingFile ? null : avatar.icon ? null : avatar.avatarSeed,
@@ -312,6 +318,42 @@ export default function EditCommunityPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-3 border-t border-border pt-4">
+            <p className="text-xs font-semibold text-muted-foreground">WhatsApp</p>
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-primary"
+                checked={allowAdminWhatsApp}
+                onChange={(e) => setAllowAdminWhatsApp(e.target.checked)}
+              />
+              <span>
+                <span className="block text-sm font-medium text-foreground">
+                  Allow community admins to send WhatsApp
+                </span>
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                  Admins can open a WhatsApp chat with members from the members list.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-primary"
+                checked={allowMemberWhatsApp}
+                onChange={(e) => setAllowMemberWhatsApp(e.target.checked)}
+              />
+              <span>
+                <span className="block text-sm font-medium text-foreground">
+                  Allow other members to send WhatsApp
+                </span>
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                  Regular members can also open WhatsApp to other members.
+                </span>
+              </span>
+            </label>
           </div>
         </div>
 

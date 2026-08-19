@@ -297,6 +297,25 @@ export default function SettingsPage() {
             <span className="inline-flex rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary sm:text-xs">
               Settings
             </span>
+            {selectedProfile?.createdAt ? (
+              <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
+                Member since{' '}
+                {new Date(selectedProfile.createdAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+                {' · '}
+                {Math.max(
+                  0,
+                  Math.floor(
+                    (Date.now() - new Date(selectedProfile.createdAt).getTime()) /
+                      (24 * 60 * 60 * 1000)
+                  )
+                )}{' '}
+                days
+              </span>
+            ) : null}
             {userData?.phoneNumber ? (
               <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
                 {userData.phoneNumber}
@@ -334,7 +353,8 @@ export default function SettingsPage() {
                     Profile {completionPercentage}% complete
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Complete your lifestyle profile for better recommendations and earn 100 Happy Coins (one-time).
+                    Complete your lifestyle profile for better recommendations and earn 100 Happy
+                    Coins (one-time). Meaningful updates later in a quarter earn 10 more coins.
                   </p>
                 </div>
               </div>

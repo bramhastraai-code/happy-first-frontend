@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Contact,
   Loader2,
+  MessageCircle,
   MoreHorizontal,
   Search,
   Shield,
@@ -87,6 +88,10 @@ async function pickDeviceContacts(): Promise<ContactLike[]> {
 
 function normalizePhone(value: string) {
   return value.replace(/\D/g, '');
+}
+
+function whatsAppDigits(countryCode?: string | null, phone?: string | null) {
+  return `${countryCode || ''}${phone || ''}`.replace(/\D/g, '');
 }
 
 export function CommunityMembersTab({
@@ -578,6 +583,22 @@ export function CommunityMembersTab({
                     >
                       <MoreHorizontal className="h-5 w-5" />
                     </button>
+                  ) : member.canWhatsApp && !isMe ? (
+                    <button
+                      type="button"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                      aria-label="WhatsApp"
+                      onClick={() => {
+                        const digits = whatsAppDigits(member.countryCode, member.phoneNumber);
+                        if (!digits) return;
+                        const text = encodeURIComponent(
+                          `Hi ${member.profile.name}! A note from ${community.name} on Happy First.`
+                        );
+                        window.open(`https://wa.me/${digits}?text=${text}`, '_blank', 'noopener,noreferrer');
+                      }}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </button>
                   ) : null}
                 </li>
               );
@@ -681,6 +702,29 @@ export function CommunityMembersTab({
                     className="flex w-[min(16rem,calc(100vw-1.25rem))] flex-col overflow-hidden rounded-md border border-border bg-white shadow-[0_10px_40px_rgb(28_25_23/0.22)]"
                   >
                     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
+                      {member.canWhatsApp && !isMe ? (
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+                          onClick={() => {
+                            setMenuMemberId(null);
+                            const digits = whatsAppDigits(member.countryCode, member.phoneNumber);
+                            if (!digits) return;
+                            const text = encodeURIComponent(
+                              `Hi ${member.profile.name}! A note from ${community.name} on Happy First.`
+                            );
+                            window.open(
+                              `https://wa.me/${digits}?text=${text}`,
+                              '_blank',
+                              'noopener,noreferrer'
+                            );
+                          }}
+                        >
+                          <MessageCircle className="h-4 w-4 text-primary" />
+                          WhatsApp
+                        </button>
+                      ) : null}
+
                       <button
                         type="button"
                         disabled={appreciateMutation.isPending}

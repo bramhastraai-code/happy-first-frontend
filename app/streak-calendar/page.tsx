@@ -97,8 +97,6 @@ export default function StreakCalendarPage() {
     setSelectedActivityId(activityId);
     setFilterType('activity');
     setShowActivityList(false);
-    setCurrentMonth(new Date().getMonth() + 1);
-    setCurrentYear(new Date().getFullYear());
     setMonthlyLeaderboardPage(1);
     setAllTimeLeaderboardPage(1);
   };

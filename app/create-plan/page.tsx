@@ -604,7 +604,7 @@ function CreatePlanPageContent() {
   const moodPicker = !isEditMode ? (
     <div className="section-card p-4">
       <p className="text-sm font-semibold text-foreground">Weekly mood</p>
-      <p className="mt-1 text-xs text-muted-foreground">How are you feeling going into this week?</p>
+      <p className="mt-1 text-xs text-muted-foreground">How was last week?</p>
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
         {WEEKLY_MOOD_OPTIONS.map((option) => (
           <button
@@ -958,7 +958,7 @@ function CreatePlanPageContent() {
               autoFocus
             />
             <div className="mt-4">
-              <p className="text-xs font-medium text-muted-foreground">Weekly mood</p>
+              <p className="text-xs font-medium text-muted-foreground">How was last week?</p>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {WEEKLY_MOOD_OPTIONS.map((option) => (
                   <button
@@ -1039,15 +1039,18 @@ function TargetSelectionForm({
   onConfirm: (targetValue: number, cadence: 'daily' | 'weekly') => void;
   onCancel: () => void;
 }) {
-  const [targetValue, setTargetValue] = useState<number>(
-    activity.values.find(v => v.tier === tiers)?.minVal || 0
-  );
+  const [targetValue, setTargetValue] = useState<number>(() => {
+    const min = activity.values?.find((v) => v.tier === tiers)?.minVal || 0;
+    const suggested = activity.defaultTarget;
+    if (typeof suggested === 'number' && suggested > 0) return suggested;
+    return min;
+  });
   const [cadence, setCadence] = useState<CadenceValue>(
     activity.allowedCadence.length === 1 ? activity.allowedCadence[0] : 'none'
   );
 
-  const minVal = activity.values.find(v => v.tier === tiers)?.minVal || 0;
-  const maxVal = activity.values.find(v => v.tier === tiers)?.maxVal || 100;
+  const minVal = activity.values?.find(v => v.tier === tiers)?.minVal || 0;
+  const maxVal = activity.values?.find(v => v.tier === tiers)?.maxVal || 100;
   const isWeeklyNumericTarget = cadence === 'weekly' && activity.baseUnit.toLowerCase() !== 'days';
   const effectiveMaxVal = isWeeklyNumericTarget ? maxVal * 7 : maxVal;
 
@@ -1109,6 +1112,9 @@ function TargetSelectionForm({
         />
         <p className="mt-1 text-xs text-muted-foreground">
           Range: {minVal} – {effectiveMaxVal} {activity.baseUnit}
+          {typeof activity.defaultTarget === 'number' && activity.defaultTarget > 0
+            ? ` · Suggested ${activity.defaultTarget}`
+            : ''}
         </p>
       </div>
 

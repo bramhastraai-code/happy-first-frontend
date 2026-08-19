@@ -2,6 +2,8 @@
 
 Next.js 16 app for Happy First Club: auth, activity tracking, weekly plans, community, and referrals.
 
+Product guide (screens, how logging works, points / XP / coins): [README](../README.md).
+
 ## Tech stack
 
 - Next.js 16 (App Router), TypeScript, Tailwind CSS v4
