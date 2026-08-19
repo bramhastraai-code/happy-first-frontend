@@ -17,6 +17,7 @@ import {
   PlanStepProgress,
 } from '@/components/create-plan/CreatePlanUI';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Input } from '@/components/ui/input';
 import { CheckCircle2, ArrowRight, ChevronLeft, RefreshCw, PlusCircle, PauseCircle, CalendarDays } from 'lucide-react';
 import CadenceSlider, { type CadenceValue } from '@/components/ui/CadenceSlider';
@@ -91,6 +92,7 @@ function CreatePlanPageContent() {
   const [weeklyMood, setWeeklyMood] = useState<WeeklyMood | ''>('');
   const [nextWeekPreview, setNextWeekPreview] = useState<NextWeekPreview | null>(null);
   const [pauseLoading, setPauseLoading] = useState(false);
+  const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false);
   const [pauseMessage, setPauseMessage] = useState('');
   const [showWeightOverlay, setShowWeightOverlay] = useState(false);
   const [mandatoryActivity, setMandatoryActivity] = useState<Activity | null>(null);
@@ -559,20 +561,13 @@ function CreatePlanPageContent() {
   };
 
   const handlePauseNextWeek = async () => {
-    if (
-      !window.confirm(
-        'Pause your plan for next week? Your current week stays active and unchanged.'
-      )
-    ) {
-      return;
-    }
-
     setPauseLoading(true);
     setError('');
     setPauseMessage('');
 
     try {
       const response = await weeklyPlanAPI.pauseNextWeek();
+      setPauseConfirmOpen(false);
       setPauseMessage(response.data.message || 'Next week paused successfully.');
       router.replace('/home');
     } catch (err) {
@@ -630,7 +625,7 @@ function CreatePlanPageContent() {
     <Button
       type="button"
       variant="outline"
-      onClick={() => void handlePauseNextWeek()}
+      onClick={() => setPauseConfirmOpen(true)}
       disabled={pauseLoading}
       className="w-full gap-2 border-dashed"
     >
@@ -721,6 +716,18 @@ function CreatePlanPageContent() {
 
   return (
     <MainLayout hideBottomNav={isOnboarding}>
+      <ConfirmDialog
+        open={pauseConfirmOpen}
+        title="Pause plan for next week?"
+        description="Your current week stays active and unchanged. Next week will be paused so you will not be asked to create or log a plan for that week."
+        confirmLabel="Pause next week"
+        cancelLabel="Keep planning"
+        loading={pauseLoading}
+        onConfirm={() => void handlePauseNextWeek()}
+        onCancel={() => {
+          if (!pauseLoading) setPauseConfirmOpen(false);
+        }}
+      />
       <div className="create-plan-header space-y-4">
         <PageHeader
           title={stepTitle}

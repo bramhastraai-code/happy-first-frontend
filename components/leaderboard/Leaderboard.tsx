@@ -8,22 +8,24 @@ import { activityAPI, Activity } from '@/lib/api/activity';
 import { useAuthStore } from '@/lib/store/authStore';
 import ActivitySelect from '@/components/ui/ActivitySelect';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Loader2, Trophy, Medal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Trophy, Medal, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const MAX_PAST_WEEKS = 52;
 
 function weekBounds(offset: number) {
   const start = DateTime.now().startOf('week').plus({ weeks: offset });
-  const end = offset === 0 ? DateTime.now() : start.endOf('week');
+  const weekEnd = start.endOf('week');
+  const end = offset === 0 ? DateTime.now() : weekEnd;
+  const sameYear = start.year === weekEnd.year;
+  const rangeLabel = sameYear
+    ? `${start.toFormat('d LLL')} – ${weekEnd.toFormat('d LLL yyyy')}`
+    : `${start.toFormat('d LLL yyyy')} – ${weekEnd.toFormat('d LLL yyyy')}`;
   return {
     start: start.toISODate() ?? '',
     end: end.toISODate() ?? '',
-    label:
-      offset === 0
-        ? 'This week'
-        : `${start.toFormat('d LLL')} – ${end.toFormat('d LLL yyyy')}`,
-    rangeLabel: `${start.toFormat('d LLL')} – ${end.toFormat('d LLL')}`,
+    label: offset === 0 ? 'This week' : 'Past week',
+    rangeLabel,
   };
 }
 
@@ -94,39 +96,50 @@ export default function Leaderboard() {
 
   return (
     <div className="space-y-3 overflow-visible">
-      <div className="flex w-full items-center gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1 rounded-full border border-input bg-surface px-1 py-0.5">
+      <div className="space-y-2">
+        <div className="flex items-center gap-1 rounded-2xl border border-input bg-surface px-1.5 py-1.5">
           <button
             type="button"
             disabled={weekOffset <= -MAX_PAST_WEEKS || loading}
             onClick={() => setWeekOffset((value) => value - 1)}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Previous week"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <div className="min-w-0 flex-1 text-center">
-            <p className="truncate text-xs font-semibold text-foreground">{week.label}</p>
-            {weekOffset !== 0 ? null : (
-              <p className="truncate text-[10px] text-muted-foreground">{week.rangeLabel}</p>
-            )}
+          <div className="min-w-0 flex-1 px-1 text-center">
+            <p className="text-sm font-semibold leading-tight text-foreground">{week.label}</p>
+            <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{week.rangeLabel}</p>
           </div>
           <button
             type="button"
             disabled={weekOffset >= 0 || loading}
             onClick={() => setWeekOffset((value) => Math.min(0, value + 1))}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Next week"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
-        <ActivitySelect
-          className="min-w-0 flex-1 basis-1/2"
-          value={selectedActivity}
-          onChange={setSelectedActivity}
-          activities={activities}
-        />
+        <div className="flex items-center gap-2">
+          <ActivitySelect
+            className="min-w-0 flex-1"
+            value={selectedActivity}
+            onChange={setSelectedActivity}
+            activities={activities}
+          />
+          {weekOffset !== 0 ? (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => setWeekOffset(0)}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary-soft px-3 text-xs font-semibold text-primary transition-colors hover:bg-accent disabled:opacity-50 sm:h-9"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              This week
+            </button>
+          ) : null}
+        </div>
       </div>
       {loading && !leaderboard && (
         <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
