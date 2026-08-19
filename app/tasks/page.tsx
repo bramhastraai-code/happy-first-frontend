@@ -35,7 +35,6 @@ import {
   validateLogSubmit,
   type LogSuccessEntry,
 } from '@/lib/utils/logSubmit';
-} from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
