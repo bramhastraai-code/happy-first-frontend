@@ -34,6 +34,12 @@ export const queryKeys = {
       allTimeLeaderboardPage = 1
     ) =>
       ['dailyLog', 'calendar', profileId, month, year, leaderboardPage, allTimeLeaderboardPage] as const,
+    calendarLeaderboardAllTime: (
+      profileId: string,
+      page: number,
+      activityId?: string
+    ) =>
+      ['dailyLog', 'leaderboard', 'allTime', profileId, activityId ?? 'overall', page] as const,
     activityCalendar: (
       profileId: string,
       activityId: string,

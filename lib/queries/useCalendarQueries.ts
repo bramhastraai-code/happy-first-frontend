@@ -6,6 +6,7 @@ import {
   fetchStreaks,
   fetchCalendar,
   fetchActivityCalendar,
+  fetchAllTimeLeaderboard,
 } from '@/lib/queries/fetchers';
 
 type FilterType = 'overall' | 'activity';
@@ -56,17 +57,61 @@ export function useCalendarData(
             month,
             year,
             leaderboardPage,
-            allTimeLeaderboardPage
+            allTimeLeaderboardPage,
+            { includeAllTimeLeaderboard: false }
           )
         : fetchCalendar(
             profileId!,
             month,
             year,
             leaderboardPage,
-            allTimeLeaderboardPage
+            allTimeLeaderboardPage,
+            { includeAllTimeLeaderboard: false }
           ),
     staleTime: STALE.calendar,
     enabled: enabled && !!profileId && (filterType === 'overall' || !!activityId),
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useAllTimeLeaderboard(
+  profileId: string | undefined,
+  page: number,
+  activityId: string | undefined,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.dailyLog.calendarLeaderboardAllTime(profileId ?? '', page, activityId),
+    queryFn: () => fetchAllTimeLeaderboard(profileId!, page, activityId),
+    staleTime: STALE.calendar,
+    enabled: enabled && !!profileId,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function prefetchCalendarMonth(
+  queryClient: import('@tanstack/react-query').QueryClient,
+  profileId: string,
+  month: number,
+  year: number,
+  filterType: FilterType,
+  activityId: string
+) {
+  const isActivity = filterType === 'activity' && !!activityId;
+  const queryKey = isActivity
+    ? queryKeys.dailyLog.activityCalendar(profileId, activityId, month, year, 1, 1)
+    : queryKeys.dailyLog.calendar(profileId, month, year, 1, 1);
+
+  return queryClient.prefetchQuery({
+    queryKey,
+    queryFn: () =>
+      isActivity
+        ? fetchActivityCalendar(profileId, activityId, month, year, 1, 1, {
+            includeAllTimeLeaderboard: false,
+          })
+        : fetchCalendar(profileId, month, year, 1, 1, {
+            includeAllTimeLeaderboard: false,
+          }),
+    staleTime: STALE.calendar,
   });
 }

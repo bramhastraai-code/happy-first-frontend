@@ -43,6 +43,15 @@ interface WeekAnalysisViewProps {
   onWeekChange?: (weekStart: string) => void;
 }
 
+function formatPoints(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(2) : '0.00';
+}
+
+function formatPercentValue(value: string | number | null | undefined): string {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+}
+
 function progressTone(percent: number) {
   if (percent >= 100) return 'bg-success';
   if (percent >= 70) return 'bg-primary';
@@ -64,9 +73,9 @@ function ActivityPerformanceCard({ activity }: { activity: ActivityAnalytics }) 
           </span>
         )}
         <p className="ml-auto shrink-0 text-sm font-bold tabular-nums text-success">
-          {activity.totalPointsAchieved.toFixed(1)}
+          {formatPoints(activity.totalPointsAchieved)}
           <span className="ml-1 text-[10px] font-medium text-muted-foreground">
-            / {activity.pointsAllocated.toFixed(1)}
+            / {formatPoints(activity.pointsAllocated)}
           </span>
         </p>
       </div>
@@ -97,16 +106,16 @@ function DailyLossCard({ activity }: { activity: DailyActivityLoss }) {
         <div className="text-right">
           {activity.pointsLost > 0 ? (
             <>
-              <p className="font-bold tabular-nums text-destructive">-{activity.pointsLost.toFixed(1)}</p>
+              <p className="font-bold tabular-nums text-destructive">-{formatPoints(activity.pointsLost)}</p>
               <p className="text-xs text-muted-foreground">points lost</p>
               <p className="mt-1 text-xs tabular-nums text-success">
-                {activity.earnedPoints.toFixed(1)} earned
+                {formatPoints(activity.earnedPoints)} earned
               </p>
             </>
           ) : (
             <>
-              <p className="font-bold tabular-nums text-success">{activity.earnedPoints.toFixed(1)}</p>
-              <p className="text-xs text-muted-foreground">of {activity.potentialPoints.toFixed(1)}% Points Earned</p>
+              <p className="font-bold tabular-nums text-success">{formatPoints(activity.earnedPoints)}</p>
+              <p className="text-xs text-muted-foreground">of {formatPoints(activity.potentialPoints)}% Points Earned</p>
             </>
           )}
         </div>
@@ -129,7 +138,7 @@ function DailyLossCard({ activity }: { activity: DailyActivityLoss }) {
                 <XCircle className="h-3.5 w-3.5 text-destructive" />
                 {DateTime.fromISO(day.date).toFormat('EEE, MMM dd')}
               </span>
-              <span className="font-semibold text-destructive">-{day.pointsLost.toFixed(1)}</span>
+              <span className="font-semibold text-destructive">-{formatPoints(day.pointsLost)}</span>
             </li>
           ))}
         </ul>
@@ -143,7 +152,7 @@ function DailyLossCard({ activity }: { activity: DailyActivityLoss }) {
                 <span className="font-medium text-foreground">
                   {DateTime.fromISO(day.date).toFormat('EEE, MMM dd')}
                 </span>
-                <span className="font-semibold text-amber-700">-{day.pointsLost.toFixed(1)}</span>
+                <span className="font-semibold text-amber-700">-{formatPoints(day.pointsLost)}</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 {day.achieved} / {day.target} {day.unit} ({((day.achieved / day.target) * 100).toFixed(0)}%)
@@ -171,16 +180,16 @@ function WeeklyLossCard({ activity }: { activity: WeeklyActivityLoss }) {
         <div className="text-right">
           {activity.pointsLost > 0 ? (
             <>
-              <p className="font-bold tabular-nums text-destructive">-{activity.pointsLost.toFixed(1)}</p>
+              <p className="font-bold tabular-nums text-destructive">-{formatPoints(activity.pointsLost)}</p>
               <p className="text-xs text-muted-foreground">points lost</p>
               <p className="mt-1 text-xs tabular-nums text-success">
-                {activity.earnedPoints.toFixed(1)} earned
+                {formatPoints(activity.earnedPoints)} earned
               </p>
             </>
           ) : (
             <>
-              <p className="font-bold tabular-nums text-success">{activity.earnedPoints.toFixed(1)}</p>
-              <p className="text-xs text-muted-foreground">of {activity.potentialPoints.toFixed(1)}% Points Earned</p>
+              <p className="font-bold tabular-nums text-success">{formatPoints(activity.earnedPoints)}</p>
+              <p className="text-xs text-muted-foreground">of {formatPoints(activity.potentialPoints)}% Points Earned</p>
             </>
           )}
         </div>
@@ -247,8 +256,10 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
   const weekLabel = formatWeekRangeLabel(pointLosses.weekStart, pointLosses.weekEnd);
   const achievementRate =
     pointLosses.totalPotentialPoints > 0
-      ? ((pointLosses.totalPointsEarned / pointLosses.totalPotentialPoints) * 100).toFixed(1)
-      : '0';
+      ? formatPercentValue(
+          (pointLosses.totalPointsEarned / pointLosses.totalPotentialPoints) * 100
+        )
+      : '0.00';
 
   const dailyActivities = useMemo(
     () => pointLosses.pointLossDetails.filter((a) => a.cadence === 'daily') as DailyActivityLoss[],
@@ -329,21 +340,21 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Points lost"
-          value={pointLosses.totalPointsLost.toFixed(1)}
-          hint={`${pointLosses.lossPercentage}% loss rate`}
+          value={formatPoints(pointLosses.totalPointsLost)}
+          hint={`${formatPercentValue(pointLosses.lossPercentage)}% loss rate`}
           icon={TrendingDown}
           accent="orange"
         />
         <StatCard
           label="Points earned"
-          value={pointLosses.totalPointsEarned.toFixed(1)}
+          value={formatPoints(pointLosses.totalPointsEarned)}
           hint={`${achievementRate}% Points Earned`}
           icon={Zap}
           accent="green"
         />
         <StatCard
           label="Potential"
-          value={pointLosses.totalPotentialPoints.toFixed(1)}
+          value={formatPoints(pointLosses.totalPotentialPoints)}
           hint="Max % Points Earned this week"
           icon={Target}
           accent="neutral"
@@ -356,6 +367,44 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
           accent="orange"
         />
       </div>
+
+      <CollapsibleSection
+        title="Daily activity losses"
+        subtitle={
+          dailyActivities.length
+            ? `${formatPoints(dailyActivities.reduce((sum, a) => sum + a.pointsLost, 0))}% Points Earned lost`
+            : 'No daily activities'
+        }
+        icon={Calendar}
+        expanded={expanded.dailyLosses}
+        onToggle={() => toggle('dailyLosses')}
+        className="mb-4"
+        contentClassName="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5"
+      >
+        {dailyActivities.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No daily activity losses this week.</p>
+        ) : (
+          dailyActivities.map((activity) => (
+            <DailyLossCard key={activity.activityId} activity={activity} />
+          ))
+        )}
+      </CollapsibleSection>
+
+      {weeklyActivities.length > 0 && (
+        <CollapsibleSection
+          title="Weekly activity losses"
+          subtitle={`${formatPoints(weeklyActivities.reduce((sum, a) => sum + a.pointsLost, 0))}% Points Earned lost`}
+          icon={Target}
+          expanded={expanded.weeklyLosses}
+          onToggle={() => toggle('weeklyLosses')}
+          className="mb-4"
+          contentClassName="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5"
+        >
+          {weeklyActivities.map((activity) => (
+            <WeeklyLossCard key={activity.activityId} activity={activity} />
+          ))}
+        </CollapsibleSection>
+      )}
 
       {fourWeekTrendChartData.length > 0 && (
         <section className="section-card mb-4 space-y-4 p-4 sm:p-5">
@@ -395,7 +444,7 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
       {analytics && (
         <CollapsibleSection
           title="Activity performance"
-          subtitle={`${analytics.summary.totalPointsAchieved.toFixed(1)} of ${analytics.summary.totalPointsAllocated.toFixed(1)}% Points Earned`}
+          subtitle={`${formatPoints(analytics.summary.totalPointsAchieved)} of ${formatPoints(analytics.summary.totalPointsAllocated)}% Points Earned`}
           icon={Trophy}
           expanded={expanded.performance}
           onToggle={() => toggle('performance')}
@@ -414,46 +463,8 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
 
       {!analytics && !plan && (
         <div className="section-card mb-4 p-5 text-sm text-muted-foreground">
-          No weekly plan found for this date range. Point loss data is still shown below if you logged activities.
+          No weekly plan found for this date range. Point loss data is still shown above if you logged activities.
         </div>
-      )}
-
-      <CollapsibleSection
-        title="Daily activity losses"
-        subtitle={
-          dailyActivities.length
-            ? `${dailyActivities.reduce((sum, a) => sum + a.pointsLost, 0).toFixed(1)}% Points Earned lost`
-            : 'No daily activities'
-        }
-        icon={Calendar}
-        expanded={expanded.dailyLosses}
-        onToggle={() => toggle('dailyLosses')}
-        className="mb-4"
-        contentClassName="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5"
-      >
-        {dailyActivities.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No daily activity losses this week.</p>
-        ) : (
-          dailyActivities.map((activity) => (
-            <DailyLossCard key={activity.activityId} activity={activity} />
-          ))
-        )}
-      </CollapsibleSection>
-
-      {weeklyActivities.length > 0 && (
-        <CollapsibleSection
-          title="Weekly activity losses"
-          subtitle={`${weeklyActivities.reduce((sum, a) => sum + a.pointsLost, 0).toFixed(1)}% Points Earned lost`}
-          icon={Target}
-          expanded={expanded.weeklyLosses}
-          onToggle={() => toggle('weeklyLosses')}
-          className="mb-4"
-          contentClassName="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5"
-        >
-          {weeklyActivities.map((activity) => (
-            <WeeklyLossCard key={activity.activityId} activity={activity} />
-          ))}
-        </CollapsibleSection>
       )}
 
       <CollapsibleSection

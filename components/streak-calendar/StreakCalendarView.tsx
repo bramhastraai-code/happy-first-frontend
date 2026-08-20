@@ -1,19 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Award,
   CalendarDays,
-  CheckCircle2,
+  Check,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Flame,
   Loader2,
   Medal,
   Target,
   Trophy,
-  XCircle,
+  X,
 } from 'lucide-react';
 import { PageHeader, StatCard } from '@/components/ui/PageHeader';
 import { ChipTabs } from '@/components/ui/ChipTabs';
@@ -49,8 +49,10 @@ interface StreakCalendarViewProps {
   onBackToActivityList: () => void;
   onPreviousMonth: () => void;
   onNextMonth: () => void;
+  onJumpToCurrentMonth: () => void;
   onMonthlyLeaderboardPageChange: (page: number) => void;
   onAllTimeLeaderboardPageChange: (page: number) => void;
+  onLeaderboardScopeChange?: (scope: 'monthly' | 'overall') => void;
 }
 
 type DayState = 'future' | 'logged' | 'pending' | 'missed' | 'idle';
@@ -63,22 +65,27 @@ function getDayState(day: CalendarDay | ActivityCalendarDay): DayState {
   return 'missed';
 }
 
+function formatPercent(value: string | number | null | undefined) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+}
+
 function dayCellClasses(day: CalendarDay | ActivityCalendarDay) {
   const state = getDayState(day);
 
   return cn(
-    'relative aspect-square w-full rounded-xl border text-xs font-semibold transition-all sm:text-sm',
+    'relative aspect-square w-full rounded-lg border text-xs font-semibold transition-colors sm:text-sm',
     state === 'future' &&
-      'cursor-not-allowed border-border bg-secondary text-muted-foreground opacity-60',
+      'cursor-not-allowed border-border bg-secondary text-muted-foreground',
     state === 'logged' &&
-      'cursor-pointer border-primary bg-primary text-primary-foreground hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-sm',
+      'cursor-pointer border-primary bg-primary text-primary-foreground hover:bg-primary/90',
     state === 'pending' &&
-      'cursor-pointer border-primary bg-primary-soft text-primary hover:-translate-y-0.5 hover:shadow-sm',
+      'cursor-pointer border-primary bg-surface text-foreground',
     state === 'missed' &&
-      'cursor-pointer border-rose-300 bg-rose-50 text-rose-700 hover:-translate-y-0.5 hover:bg-rose-100 hover:shadow-sm',
+      'cursor-pointer border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100',
     state === 'idle' &&
       'cursor-pointer border-border bg-secondary/70 text-muted-foreground hover:bg-accent',
-    day.isToday && 'ring-2 ring-primary ring-offset-1 ring-offset-surface'
+    day.isToday && 'ring-2 ring-primary ring-offset-1'
   );
 }
 
@@ -115,13 +122,21 @@ function CalendarDayCell({
       className={dayCellClasses(day)}
       title={`${day.dayOfWeek}, ${dateLabel}${state === 'future' ? '' : ` · ${dayStateLabel(state)}`}`}
     >
-      <span className="inline-flex h-full w-full flex-col items-center justify-center gap-0.5">
-        <span className="text-[11px] leading-none sm:text-sm">{day.day}</span>
-        {state === 'logged' && <CheckCircle2 className="h-3 w-3 opacity-90" aria-hidden />}
-        {state === 'pending' && <Clock className="h-3 w-3 opacity-80" aria-hidden />}
-        {state === 'missed' && <XCircle className="h-3 w-3 opacity-80" aria-hidden />}
-        {state === 'future' && <CalendarDays className="h-3 w-3 opacity-50" aria-hidden />}
-      </span>
+      <span className="inline-flex h-full w-full items-center justify-center">{day.day}</span>
+      {(state === 'logged' || state === 'missed') && (
+        <span
+          className={cn(
+            'absolute bottom-0.5 right-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-white shadow-sm',
+            state === 'logged' ? 'bg-emerald-500' : 'bg-rose-500'
+          )}
+        >
+          {state === 'logged' ? (
+            <Check className="h-2.5 w-2.5" strokeWidth={3} />
+          ) : (
+            <X className="h-2.5 w-2.5" strokeWidth={3} />
+          )}
+        </span>
+      )}
     </button>
   );
 }
@@ -208,17 +223,13 @@ function StatTile({ label, value, accent }: { label: string; value: string | num
   );
 }
 
-function LeaderboardSection({
-  title,
-  subtitle,
+function LeaderboardList({
   leaderboard,
   selectedProfileId,
   unit,
   isLoading,
   onPageChange,
 }: {
-  title: string;
-  subtitle?: string;
   leaderboard: LeaderboardData;
   selectedProfileId?: string;
   unit?: string;
@@ -230,17 +241,7 @@ function LeaderboardSection({
   const endRank = Math.min(pagination.page * pagination.limit, totalLeaders);
 
   return (
-    <section className="section-card p-4 sm:p-5">
-      <div className="mb-4 flex items-center gap-3">
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-primary">
-          <Medal className="h-5 w-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="section-title">{title}</h2>
-          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-        </div>
-      </div>
-
+    <>
       {ranks.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-secondary/50 px-4 py-10 text-center">
           <Trophy className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
@@ -327,6 +328,156 @@ function LeaderboardSection({
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+type LeaderboardScope = 'monthly' | 'overall';
+
+function isActualCurrentMonth(month: number, year: number): boolean {
+  const now = new Date();
+  return month === now.getMonth() + 1 && year === now.getFullYear();
+}
+
+function CombinedLeaderboardSection({
+  monthLeaderboard,
+  allTimeLeaderboard,
+  month,
+  monthName,
+  year,
+  canGoPreviousMonth,
+  canGoNextMonth,
+  activityName,
+  selectedProfileId,
+  unit,
+  isLoading,
+  onPreviousMonth,
+  onNextMonth,
+  onJumpToCurrentMonth,
+  onMonthlyPageChange,
+  onAllTimePageChange,
+  onScopeChange,
+}: {
+  monthLeaderboard?: LeaderboardData;
+  allTimeLeaderboard?: LeaderboardData;
+  month: number;
+  monthName: string;
+  year: number;
+  canGoPreviousMonth: boolean;
+  canGoNextMonth: boolean;
+  activityName?: string;
+  selectedProfileId?: string;
+  unit?: string;
+  isLoading?: boolean;
+  onPreviousMonth: () => void;
+  onNextMonth: () => void;
+  onJumpToCurrentMonth: () => void;
+  onMonthlyPageChange: (page: number) => void;
+  onAllTimePageChange: (page: number) => void;
+  onScopeChange?: (scope: LeaderboardScope) => void;
+}) {
+  const [scope, setScope] = useState<LeaderboardScope>('monthly');
+  const isCurrentMonth = isActualCurrentMonth(month, year);
+
+  const activeLeaderboard = scope === 'monthly' ? monthLeaderboard : allTimeLeaderboard;
+  const onPageChange = scope === 'monthly' ? onMonthlyPageChange : onAllTimePageChange;
+  const title =
+    scope === 'monthly' ? `${monthName} leaderboard` : 'Overall leaderboard';
+  const subtitle =
+    scope === 'monthly'
+      ? activityName || 'Points this month'
+      : `All-time points · ${allTimeLeaderboard?.totalLeaders ?? 0} participants`;
+
+  return (
+    <section className="section-card p-4 sm:p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-primary">
+          <Medal className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="section-title">{title}</h2>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+      </div>
+
+      <div className="mb-4 space-y-3">
+        <ChipTabs
+          tabs={[
+            { id: 'monthly', label: 'Monthly' },
+            { id: 'overall', label: 'Overall' },
+          ]}
+          active={scope}
+          onChange={(id) => {
+            const nextScope = id as LeaderboardScope;
+            setScope(nextScope);
+            onScopeChange?.(nextScope);
+          }}
+        />
+
+        {scope === 'monthly' && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-1 rounded-2xl border border-input bg-surface px-1.5 py-1.5">
+              <button
+                type="button"
+                disabled={!canGoPreviousMonth || isLoading}
+                onClick={onPreviousMonth}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Previous month"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <div className="min-w-0 flex-1 px-1 text-center">
+                <p className="text-sm font-semibold leading-tight text-foreground">
+                  {isCurrentMonth ? 'This month' : monthName}
+                </p>
+                <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">
+                  {monthName} {year}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={!canGoNextMonth || isLoading}
+                onClick={onNextMonth}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Next month"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            {!isCurrentMonth ? (
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={onJumpToCurrentMonth}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary-soft px-3 text-xs font-semibold text-primary transition-colors hover:bg-accent disabled:opacity-50 sm:h-9"
+              >
+                <CalendarDays className="h-3.5 w-3.5" />
+                This month
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {activeLeaderboard ? (
+        <LeaderboardList
+          leaderboard={activeLeaderboard}
+          selectedProfileId={selectedProfileId}
+          unit={unit}
+          isLoading={isLoading}
+          onPageChange={onPageChange}
+        />
+      ) : isLoading ? (
+        <div className="flex items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-4 py-10 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          Loading ranks…
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-border bg-secondary/50 px-4 py-10 text-center">
+          <Trophy className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-foreground">No rankings yet</p>
+        </div>
+      )}
     </section>
   );
 }
@@ -346,8 +497,10 @@ export function StreakCalendarView({
   onBackToActivityList,
   onPreviousMonth,
   onNextMonth,
+  onJumpToCurrentMonth,
   onMonthlyLeaderboardPageChange,
   onAllTimeLeaderboardPageChange,
+  onLeaderboardScopeChange,
 }: StreakCalendarViewProps) {
   const router = useRouter();
 
@@ -419,7 +572,7 @@ export function StreakCalendarView({
       label: formatWeekRangeShort(week.weekStart, week.weekEnd),
       value: week.percentPointsEarned,
       tooltipLabel: formatWeekRangeShort(week.weekStart, week.weekEnd),
-      displayValue: `${week.percentPointsEarned.toFixed(1)}%`,
+      displayValue: `${formatPercent(week.percentPointsEarned)}%`,
     })) ?? [];
 
   const weeklyAverages = calendarData?.weeklyAverages;
@@ -590,16 +743,16 @@ export function StreakCalendarView({
                 onClick={onPreviousMonth}
                 disabled={!activeCalendar.pagination.canGoPrevious}
                 aria-label="Previous month"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-4 w-4" />
               </button>
 
               <div className="min-w-0 flex-1 text-center">
                 {activityCalendarData?.activityName && (
                   <p className="truncate text-sm font-medium text-primary">{activityCalendarData.activityName}</p>
                 )}
-                <h3 className="text-lg font-semibold text-foreground">
+                <h3 className="text-sm font-semibold text-foreground sm:text-lg">
                   {activeCalendar.monthName} {activeCalendar.year}
                 </h3>
                 {isCalendarFetching && (
@@ -615,36 +768,24 @@ export function StreakCalendarView({
                 onClick={onNextMonth}
                 disabled={!activeCalendar.pagination.canGoNext}
                 aria-label="Next month"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-border bg-secondary/50 p-3 text-xs sm:grid-cols-4">
-              <span className="inline-flex items-center gap-2 text-muted-foreground">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary bg-primary text-primary-foreground">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-3 text-xs font-medium text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-white">
+                  <Check className="h-2.5 w-2.5" strokeWidth={3} />
                 </span>
                 Logged
               </span>
-              <span className="inline-flex items-center gap-2 text-muted-foreground">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700">
-                  <XCircle className="h-3.5 w-3.5" />
+              <span className="flex items-center gap-1.5">
+                <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-white">
+                  <X className="h-2.5 w-2.5" strokeWidth={3} />
                 </span>
-                Missed
-              </span>
-              <span className="inline-flex items-center gap-2 text-muted-foreground">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary bg-primary-soft text-primary ring-2 ring-primary ring-offset-1 ring-offset-secondary/50">
-                  <Clock className="h-3.5 w-3.5" />
-                </span>
-                Today
-              </span>
-              <span className="inline-flex items-center gap-2 text-muted-foreground">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-secondary text-muted-foreground opacity-60">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                </span>
-                Future
+                Missing
               </span>
             </div>
 
@@ -690,7 +831,7 @@ export function StreakCalendarView({
                     <StatTile label="Days missed" value={activityCalendarData.statistics?.daysNotLogged ?? 0} />
                     <StatTile
                       label="% Points Earned"
-                      value={`${activityCalendarData.statistics?.completionPercentage ?? 0}%`}
+                      value={`${formatPercent(activityCalendarData.statistics?.completionPercentage)}%`}
                       accent="success"
                     />
                   </div>
@@ -701,7 +842,7 @@ export function StreakCalendarView({
                     />
                     <StatTile
                       label="Points earned"
-                      value={Number(activityCalendarData.statistics?.totalPoints ?? 0).toFixed(1)}
+                      value={formatPercent(activityCalendarData.statistics?.totalPoints)}
                       accent="primary"
                     />
                   </div>
@@ -713,7 +854,7 @@ export function StreakCalendarView({
                     <StatTile label="Days missed" value={calendarData?.statistics.daysNotLogged || 0} />
                     <StatTile
                       label="% Points Earned"
-                      value={`${calendarData?.statistics.completionPercentage || 0}%`}
+                      value={`${formatPercent(calendarData?.statistics.completionPercentage)}%`}
                       accent="success"
                     />
                   </div>
@@ -721,12 +862,12 @@ export function StreakCalendarView({
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
                       <StatTile
                         label={`${weeklyAverages.monthLabel} Weekly Average`}
-                        value={`${weeklyAverages.monthWeeklyAveragePercent.toFixed(1)}% Points Earned`}
+                        value={`${formatPercent(weeklyAverages.monthWeeklyAveragePercent)}% Points Earned`}
                         accent="primary"
                       />
                       <StatTile
                         label="Overall Weekly Average"
-                        value={`${weeklyAverages.overallWeeklyAveragePercent.toFixed(1)}% Points Earned`}
+                        value={`${formatPercent(weeklyAverages.overallWeeklyAveragePercent)}% Points Earned`}
                         accent="primary"
                       />
                     </div>
@@ -766,38 +907,31 @@ export function StreakCalendarView({
             </section>
           )}
 
-          {(activityCalendarData?.leaderboard || calendarData?.leaderboard) && (
-            <LeaderboardSection
-              title={`${activeCalendar.monthName} leaderboard`}
-              subtitle={
-                activityCalendarData
-                  ? activityCalendarData.activityName
-                  : 'Points this month'
+          {(activityCalendarData?.leaderboard ||
+            calendarData?.leaderboard ||
+            activityCalendarData?.allTimeLeaderboard ||
+            calendarData?.allTimeLeaderboard) &&
+            activeCalendar && (
+            <CombinedLeaderboardSection
+              monthLeaderboard={activityCalendarData?.leaderboard || calendarData?.leaderboard}
+              allTimeLeaderboard={
+                activityCalendarData?.allTimeLeaderboard || calendarData?.allTimeLeaderboard
               }
-              leaderboard={
-                activityCalendarData?.leaderboard || calendarData?.leaderboard!
-              }
+              month={activeCalendar.month}
+              monthName={activeCalendar.monthName}
+              year={activeCalendar.year}
+              canGoPreviousMonth={activeCalendar.pagination.canGoPrevious}
+              canGoNextMonth={activeCalendar.pagination.canGoNext}
+              activityName={activityCalendarData?.activityName}
               selectedProfileId={selectedProfileId}
               unit={activityCalendarData ? activityUnit ?? undefined : 'pts'}
               isLoading={isCalendarFetching}
-              onPageChange={onMonthlyLeaderboardPageChange}
-            />
-          )}
-
-          {(activityCalendarData?.allTimeLeaderboard || calendarData?.allTimeLeaderboard) && (
-            <LeaderboardSection
-              title="Overall leaderboard"
-              subtitle={`All-time points · ${
-                (activityCalendarData?.allTimeLeaderboard || calendarData?.allTimeLeaderboard)!
-                  .totalLeaders
-              } participants`}
-              leaderboard={
-                activityCalendarData?.allTimeLeaderboard || calendarData?.allTimeLeaderboard!
-              }
-              selectedProfileId={selectedProfileId}
-              unit={activityCalendarData ? activityUnit ?? undefined : 'pts'}
-              isLoading={isCalendarFetching}
-              onPageChange={onAllTimeLeaderboardPageChange}
+              onPreviousMonth={onPreviousMonth}
+              onNextMonth={onNextMonth}
+              onJumpToCurrentMonth={onJumpToCurrentMonth}
+              onMonthlyPageChange={onMonthlyLeaderboardPageChange}
+              onAllTimePageChange={onAllTimeLeaderboardPageChange}
+              onScopeChange={onLeaderboardScopeChange}
             />
           )}
         </>

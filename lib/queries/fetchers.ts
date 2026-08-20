@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon';
-import { dailyLogAPI, type DailySummary, type MonthlySummary, type WeeklySummary, type StreakData, type CalendarData, type ActivityCalendarData } from '@/lib/api/dailyLog';
+import { dailyLogAPI, type DailySummary, type MonthlySummary, type WeeklySummary, type StreakData, type CalendarData, type ActivityCalendarData, type LeaderboardData } from '@/lib/api/dailyLog';
 import { weeklyPlanAPI, type WeeklyPlan } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import { activityAPI, type Activity } from '@/lib/api/activity';
@@ -39,13 +39,21 @@ export async function fetchCalendar(
   month: number,
   year: number,
   leaderboardPage = 1,
-  allTimeLeaderboardPage = 1
+  allTimeLeaderboardPage = 1,
+  options?: {
+    includeAnalytics?: boolean;
+    includeMonthlyLeaderboard?: boolean;
+    includeAllTimeLeaderboard?: boolean;
+  }
 ): Promise<CalendarData> {
   const res = await dailyLogAPI.getCalendar(profileId, {
     month,
     year,
     leaderboardPage,
     allTimeLeaderboardPage,
+    includeAnalytics: options?.includeAnalytics,
+    includeMonthlyLeaderboard: options?.includeMonthlyLeaderboard,
+    includeAllTimeLeaderboard: options?.includeAllTimeLeaderboard,
   });
   return res.data.data;
 }
@@ -56,15 +64,33 @@ export async function fetchActivityCalendar(
   month: number,
   year: number,
   leaderboardPage = 1,
-  allTimeLeaderboardPage = 1
+  allTimeLeaderboardPage = 1,
+  options?: {
+    includeMonthlyLeaderboard?: boolean;
+    includeAllTimeLeaderboard?: boolean;
+  }
 ): Promise<ActivityCalendarData> {
   const res = await dailyLogAPI.getActivityCalendar(profileId, activityId, {
     month,
     year,
     leaderboardPage,
     allTimeLeaderboardPage,
+    includeMonthlyLeaderboard: options?.includeMonthlyLeaderboard,
+    includeAllTimeLeaderboard: options?.includeAllTimeLeaderboard,
   });
   return res.data.data;
+}
+
+export async function fetchAllTimeLeaderboard(
+  profileId: string,
+  page: number,
+  activityId?: string
+): Promise<LeaderboardData> {
+  const res = await dailyLogAPI.getLeaderboard(profileId, {
+    activityId,
+    page,
+  });
+  return res.data.data.leaderboard;
 }
 
 export async function fetchUserInfo() {

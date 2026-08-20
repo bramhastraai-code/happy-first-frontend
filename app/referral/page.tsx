@@ -28,6 +28,12 @@ const SHARE_OPTIONS = [
 
 type MemberSort = 'newest' | 'oldest' | 'nameAsc';
 
+const ACTIVITY_CATEGORIES = [
+  { id: 'body', label: 'Body', emoji: '💪' },
+  { id: 'mind', label: 'Mind', emoji: '🧠' },
+  { id: 'soul', label: 'Soul', emoji: '✨' },
+] as const;
+
 function formatJoinedDate(iso?: string | null): string {
   if (!iso) return '—';
   try {
@@ -39,6 +45,10 @@ function formatJoinedDate(iso?: string | null): string {
   } catch {
     return '—';
   }
+}
+
+function formatPercent(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(2) : '0.00';
 }
 
 function formatActivityTotal(total: number, unit: string): string {
@@ -104,6 +114,31 @@ export default function ReferralPage() {
     () => sortMembers(referralStats.referredUsers || [], sort),
     [referralStats.referredUsers, sort]
   );
+
+  const activityGroups = useMemo(() => {
+    const rows = referralStats.activityImpact ?? [];
+    const grouped: Array<{
+      id: string;
+      label: string;
+      emoji: string;
+      items: typeof rows;
+    }> = ACTIVITY_CATEGORIES.map((category) => ({
+      ...category,
+      items: rows
+        .filter((row) => (row.category || 'body').toLowerCase() === category.id)
+        .sort((a, b) => b.total - a.total),
+    })).filter((group) => group.items.length > 0);
+
+    const known = new Set(ACTIVITY_CATEGORIES.map((c) => c.id));
+    const other = rows.filter((row) => {
+      const cat = (row.category || 'body').toLowerCase();
+      return !known.has(cat as (typeof ACTIVITY_CATEGORIES)[number]['id']);
+    });
+    if (other.length > 0) {
+      grouped.push({ id: 'other', label: 'Other', emoji: '✨', items: other });
+    }
+    return grouped;
+  }, [referralStats.activityImpact]);
 
   const handleCopyLink = async () => {
     if (!referralLink) return;
@@ -262,7 +297,9 @@ export default function ReferralPage() {
                 <li key={row.label}>
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className="text-foreground">{row.label}</span>
-                    <span className="font-semibold tabular-nums text-primary">{row.value}%</span>
+                    <span className="font-semibold tabular-nums text-primary">
+                      {formatPercent(row.value)}%
+                    </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
                     <div
@@ -276,22 +313,31 @@ export default function ReferralPage() {
           </section>
         ) : null}
 
-        {!loading && (referralStats.activityImpact?.length ?? 0) > 0 ? (
+        {!loading && activityGroups.length > 0 ? (
           <section>
             <h2 className="section-title mb-3">Activity</h2>
-            <ul className="section-card divide-y divide-border">
-              {referralStats.activityImpact!.map((row) => (
-                <li
-                  key={row.activityId}
-                  className="flex items-center justify-between gap-3 px-4 py-3"
-                >
-                  <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
-                  <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                    {formatActivityTotal(row.total, row.unit)}
+            <div className="space-y-3">
+              {activityGroups.map((group) => (
+                <div key={group.id}>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.emoji} {group.label}
                   </p>
-                </li>
+                  <ul className="section-card divide-y divide-border">
+                    {group.items.map((row) => (
+                      <li
+                        key={row.activityId}
+                        className="flex items-center justify-between gap-3 px-4 py-3"
+                      >
+                        <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
+                        <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                          {formatActivityTotal(row.total, row.unit)}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           </section>
         ) : null}
 

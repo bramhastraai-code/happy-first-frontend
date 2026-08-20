@@ -323,6 +323,9 @@ export const dailyLogAPI = {
       year?: number;
       leaderboardPage?: number;
       allTimeLeaderboardPage?: number;
+      includeAnalytics?: boolean;
+      includeMonthlyLeaderboard?: boolean;
+      includeAllTimeLeaderboard?: boolean;
     }
   ) => {
     const params: {
@@ -330,6 +333,9 @@ export const dailyLogAPI = {
       year?: number;
       leaderboardPage?: number;
       allTimeLeaderboardPage?: number;
+      includeAnalytics?: boolean;
+      includeMonthlyLeaderboard?: boolean;
+      includeAllTimeLeaderboard?: boolean;
     } = {};
     if (options?.month !== undefined) params.month = options.month;
     if (options?.year !== undefined) params.year = options.year;
@@ -337,6 +343,9 @@ export const dailyLogAPI = {
     if (options?.allTimeLeaderboardPage !== undefined) {
       params.allTimeLeaderboardPage = options.allTimeLeaderboardPage;
     }
+    if (options?.includeAnalytics === false) params.includeAnalytics = false;
+    if (options?.includeMonthlyLeaderboard === false) params.includeMonthlyLeaderboard = false;
+    if (options?.includeAllTimeLeaderboard === false) params.includeAllTimeLeaderboard = false;
     return api.get<{
       success: boolean;
       message: string;
@@ -352,6 +361,8 @@ export const dailyLogAPI = {
       year?: number;
       leaderboardPage?: number;
       allTimeLeaderboardPage?: number;
+      includeMonthlyLeaderboard?: boolean;
+      includeAllTimeLeaderboard?: boolean;
     }
   ) => {
     const params: {
@@ -359,15 +370,45 @@ export const dailyLogAPI = {
       year?: number;
       leaderboardPage?: number;
       allTimeLeaderboardPage?: number;
+      includeMonthlyLeaderboard?: boolean;
+      includeAllTimeLeaderboard?: boolean;
     } = {};
     if (options?.month !== undefined) params.month = options.month;
     if (options?.year !== undefined) params.year = options.year;
     if (options?.leaderboardPage !== undefined) params.leaderboardPage = options.leaderboardPage;
     if (options?.allTimeLeaderboardPage !== undefined) params.allTimeLeaderboardPage = options.allTimeLeaderboardPage;
+    if (options?.includeMonthlyLeaderboard === false) params.includeMonthlyLeaderboard = false;
+    if (options?.includeAllTimeLeaderboard === false) params.includeAllTimeLeaderboard = false;
     return api.get<{
       success: boolean;
       message: string;
       data: ActivityCalendarData;
     }>(`/dailyLog/calendar/activity/${profileId}/${activityId}`, { params });
+  },
+
+  getLeaderboard: (
+    profileId: string,
+    options?: {
+      activityId?: string;
+      month?: number;
+      year?: number;
+      page?: number;
+    }
+  ) => {
+    const params: {
+      activityId?: string;
+      month?: number;
+      year?: number;
+      page?: number;
+    } = {};
+    if (options?.activityId) params.activityId = options.activityId;
+    if (options?.month !== undefined) params.month = options.month;
+    if (options?.year !== undefined) params.year = options.year;
+    if (options?.page !== undefined) params.page = options.page;
+    return api.get<{
+      success: boolean;
+      message: string;
+      data: { leaderboard: LeaderboardData };
+    }>(`/dailyLog/leaderboard/${profileId}`, { params });
   },
 };
