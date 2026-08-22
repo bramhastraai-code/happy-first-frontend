@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store/authStore';
 import { dailyLogAPI, type CalendarDay, type DailySummary, type SubmitDailyLogData } from '@/lib/api/dailyLog';
 import { invalidateDashboardQueries } from '@/lib/queries/invalidateDashboard';
-import { weeklyPlanAPI, type WeeklyPlan, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
+import { weeklyPlanAPI, type WeeklyPlan } from '@/lib/api/weeklyPlan';
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { resolveActivityId } from '@/lib/utils/activityId';
 import { getActivityInputMax } from '@/lib/utils/activityInput';
 import {
+  applyDaySummaryToPlan,
   canSubmitFullDayLog,
   collectUnusualValueWarnings,
   extractEarnedPoints,
@@ -189,7 +190,17 @@ function PreviousLogPageContent() {
       return;
     }
 
+    const hasPartialLogs = Boolean(
+      weeklyPlan?.activities?.some((activity) => activity.TodayLogged)
+    );
+
     if (dateIsLoggable) {
+      if (hasPartialLogs) {
+        setDeadlineMessage(
+          'Some activities are already saved for this day. Submit the remaining ones.'
+        );
+        return;
+      }
       setDeadlineMessage(
         selectedIsToday
           ? 'Log today’s activities here. Future dates stay blocked.'
@@ -199,7 +210,7 @@ function PreviousLogPageContent() {
     }
 
     setDeadlineMessage(`You can log through ${latestAllowedLabel}. Future dates are blocked.`);
-  }, [selectedDate, logAlreadyExists, dateIsLoggable, selectedIsToday, today, zone]);
+  }, [selectedDate, logAlreadyExists, dateIsLoggable, selectedIsToday, today, zone, weeklyPlan]);
 
   useEffect(() => {
     const checkLogAndFetchPlan = async () => {
@@ -213,12 +224,13 @@ function PreviousLogPageContent() {
         setDaySummary(null);
         setWeeklyPlan(null);
 
+        let summary: DailySummary | null = null;
         try {
           const summaryResponse = await dailyLogAPI.getSummary('daily', selectedDate);
-          const summary = summaryResponse.data.data as DailySummary;
+          summary = summaryResponse.data.data as DailySummary;
           setDaySummary(summary);
 
-          if (summary?.isFullyLogged || summary?.isTodayLogged) {
+          if (summary?.isFullyLogged) {
             setLogAlreadyExists(true);
             setCheckingLog(false);
             setLoading(false);
@@ -241,7 +253,18 @@ function PreviousLogPageContent() {
 
         const response = await weeklyPlanAPI.getCurrent(selectedDate);
         if (response.data.data) {
-          const plan = response.data.data;
+          const plan = applyDaySummaryToPlan(response.data.data, summary);
+
+          if (
+            summary &&
+            plan.activities.length > 0 &&
+            plan.activities.every((activity) => activity.TodayLogged)
+          ) {
+            setLogAlreadyExists(true);
+            setWeeklyPlan(null);
+            return;
+          }
+
           setWeeklyPlan(plan);
 
           const initialActivities: Record<string, number> = {};
@@ -250,6 +273,7 @@ function PreviousLogPageContent() {
 
           plan.activities.forEach((activity) => {
             const activityId = resolveActivityId(activity);
+            if (activity.TodayLogged) return;
             if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
               initialCheckboxActivities[activityId] = false;
               initialPendingSliders[activityId] = true;
@@ -275,7 +299,7 @@ function PreviousLogPageContent() {
     };
 
     void checkLogAndFetchPlan();
-  }, [selectedDate, selectedProfile, zone]);
+  }, [selectedDate, selectedProfile, zone, dateIsLoggable]);
 
   useEffect(() => {
     if (!selectedProfile?._id || !selectedDate) return;

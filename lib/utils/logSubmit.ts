@@ -141,6 +141,39 @@ export function isAllActivitiesLogged(weeklyPlan: WeeklyPlan | null | undefined)
   return weeklyPlan.activities.every((activity) => activity.TodayLogged);
 }
 
+/** Overlay a day's summary onto the plan so already-logged rows lock correctly. */
+export function applyDaySummaryToPlan(
+  plan: WeeklyPlan,
+  summary?: {
+    activities?: Array<{
+      activityId: string;
+      achieved: number;
+      status: string;
+    }>;
+  } | null
+): WeeklyPlan {
+  if (!summary?.activities?.length) return plan;
+
+  const byId = new Map(
+    summary.activities.map((row) => [String(row.activityId), row])
+  );
+
+  return {
+    ...plan,
+    activities: plan.activities.map((activity) => {
+      const row = byId.get(resolveActivityId(activity));
+      if (!row || row.status === 'pending') {
+        return { ...activity, TodayLogged: false };
+      }
+      return {
+        ...activity,
+        TodayLogged: true,
+        achieved: row.achieved,
+      };
+    }),
+  };
+}
+
 export function validateLogSubmit(
   weeklyPlan: WeeklyPlan,
   activities: Record<string, number>,
