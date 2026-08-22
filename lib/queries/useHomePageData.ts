@@ -10,6 +10,7 @@ import {
 import { DateTime } from 'luxon';
 import { GC, queryKeys, STALE } from '@/lib/queries/keys';
 import { invalidateDashboardQueries } from '@/lib/queries/invalidateDashboard';
+import { toLocalDateKey } from '@/lib/utils/calendarDate';
 import {
   fetchCurrentPlan,
   fetchUpcomingPlan,
@@ -109,13 +110,35 @@ export function useHomePageData({
 
   const weekCalendarDays = useMemo(() => {
     const byDate = new Map<string, CalendarDay>();
+
+    const mergeDay = (day: CalendarDay) => {
+      const key = toLocalDateKey(day.date);
+      const existing = byDate.get(key);
+      if (!existing) {
+        byDate.set(key, day);
+        return;
+      }
+      if (day.hasLog && !existing.hasLog) {
+        byDate.set(key, { ...existing, hasLog: true });
+      }
+    };
+
     for (const query of weekCalendarQueries) {
       for (const day of query.data?.calendarDays ?? []) {
-        byDate.set(day.date.split('T')[0], day);
+        mergeDay(day);
       }
     }
+
+    // Keep the weekly strip aligned with the daily log tracker month query.
+    for (const day of calendarQuery.data?.calendarDays ?? []) {
+      mergeDay(day);
+    }
+
     return Array.from(byDate.values());
-  }, [weekCalendarQueries.map((query) => query.dataUpdatedAt).join('|')]);
+  }, [
+    calendarQuery.dataUpdatedAt,
+    weekCalendarQueries.map((query) => query.dataUpdatedAt).join('|'),
+  ]);
 
   const todayDailyQuery = useQuery({
     queryKey: queryKeys.dailyLog.summary('daily', localDate, profileId),

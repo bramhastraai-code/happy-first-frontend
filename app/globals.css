@@ -1,3 +1,4 @@
+@import "@fontsource-variable/plus-jakarta-sans/wght.css";
 @import "tailwindcss";
 
 @theme {
@@ -34,7 +35,7 @@
   --radius-pill: 9999px;
   --shadow-card: 0 1px 3px rgb(28 25 23 / 0.06), 0 8px 24px rgb(28 25 23 / 0.04);
   --shadow-float: 0 12px 40px rgb(234 88 12 / 0.12);
-  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
 }
 
 * {

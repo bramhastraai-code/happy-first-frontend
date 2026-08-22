@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DateTime } from 'luxon';
 import { cn } from '@/lib/utils';
+import { toLocalDateKey } from '@/lib/utils/calendarDate';
 import type { CalendarDay } from '@/lib/api/dailyLog';
 
 interface CompactDatePickerProps {
@@ -24,20 +25,20 @@ type DayEligibility = 'disabled' | 'logged' | 'eligible';
 
 function resolveDayEligibility(
   cell: { date: string; isDisabled: boolean; hasLog: boolean },
-  todayIso: string
+  maxIso: string
 ): DayEligibility {
   if (cell.isDisabled) return 'disabled';
   if (cell.hasLog) return 'logged';
-  if (cell.date < todayIso) return 'eligible';
+  if (cell.date <= maxIso) return 'eligible';
   return 'disabled';
 }
 
 function dayCellClasses(
   cell: { date: string; isDisabled: boolean; hasLog: boolean },
   selectedValue: string,
-  todayIso: string
+  maxIso: string
 ) {
-  const eligibility = resolveDayEligibility(cell, todayIso);
+  const eligibility = resolveDayEligibility(cell, maxIso);
   const isSelected = selectedValue === cell.date;
 
   if (isSelected) {
@@ -75,7 +76,7 @@ export default function CompactDatePicker({
 
   const selected = DateTime.fromISO(value);
   const min = minDate ? DateTime.fromISO(minDate).startOf('day') : null;
-  const max = maxDate ? DateTime.fromISO(maxDate) : DateTime.local();
+  const max = maxDate ? DateTime.fromISO(maxDate).startOf('day') : DateTime.local().startOf('day');
   const [viewMonth, setViewMonth] = useState(() =>
     selected.isValid ? selected.startOf('month') : DateTime.local().startOf('month')
   );
@@ -142,7 +143,7 @@ export default function CompactDatePicker({
   const logByDate = useMemo(() => {
     const map = new Map<string, boolean>();
     calendarDays.forEach((d) => {
-      map.set(d.date.split('T')[0], d.hasLog);
+      map.set(toLocalDateKey(d.date), d.hasLog);
     });
     return map;
   }, [calendarDays]);
@@ -175,12 +176,16 @@ export default function CompactDatePicker({
   }, [viewMonth, max, min, logByDate]);
 
   const label = selected.isValid ? selected.toFormat('d MMM') : 'Pick date';
-  const todayIso = DateTime.local().toFormat('yyyy-MM-dd');
   const maxIso = max.toFormat('yyyy-MM-dd');
   const minIso = min ? min.toFormat('yyyy-MM-dd') : null;
   const quickPickIso = maxIso;
-  const yesterday = DateTime.local().minus({ days: 1 }).startOf('day');
-  const quickPickLabel = max.hasSame(yesterday, 'day') ? 'Yesterday' : max.toFormat('d MMM');
+  const today = DateTime.local().startOf('day');
+  const yesterday = today.minus({ days: 1 });
+  const quickPickLabel = max.hasSame(today, 'day')
+    ? 'Today'
+    : max.hasSame(yesterday, 'day')
+      ? 'Yesterday'
+      : max.toFormat('d MMM');
   const quickPickDisabled = Boolean(minIso && quickPickIso < minIso);
 
   const pickDate = (iso: string) => {
@@ -251,7 +256,7 @@ export default function CompactDatePicker({
                 onClick={() => pickDate(cell.date)}
                 className={cn(
                   'relative flex h-7 w-full items-center justify-center rounded-md text-[11px] font-medium transition-colors',
-                  dayCellClasses(cell, value, todayIso)
+                  dayCellClasses(cell, value, maxIso)
                 )}
               >
                 {cell.day}

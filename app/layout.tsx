@@ -1,17 +1,10 @@
 import type { Metadata, Viewport } from 'next';
-import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import QueryProvider from '@/components/providers/QueryProvider';
 import AuthProvider from '@/components/providers/AuthProvider';
 import PwaProvider from '@/components/providers/PwaProvider';
 import { siteMetadata } from '@/lib/site-metadata';
 import { BRAND_NAME } from '@/lib/brand';
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  variable: '--font-jakarta',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   ...siteMetadata,
@@ -39,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${jakarta.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         <PwaProvider>
           <QueryProvider>
             <AuthProvider>{children}</AuthProvider>

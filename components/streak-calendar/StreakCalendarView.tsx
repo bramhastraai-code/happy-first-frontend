@@ -30,6 +30,7 @@ import type {
 import type { WeightMoodHistoryPoint } from '@/lib/api/weeklyPlan';
 import ActivityChart from '@/components/charts/ActivityChart';
 import { formatWeekRangeShort } from '@/lib/utils/weekDate';
+import { toLocalDateKey } from '@/lib/utils/calendarDate';
 import { moodToNumeric, numericToMoodLabel } from '@/lib/utils/moodChart';
 
 type FilterType = 'overall' | 'activity';
@@ -111,7 +112,7 @@ function CalendarDayCell({
   day: CalendarDay | ActivityCalendarDay;
   onClick: () => void;
 }) {
-  const dateLabel = day.date.split('T')[0];
+  const dateLabel = toLocalDateKey(day.date);
   const state = getDayState(day);
 
   return (
@@ -514,7 +515,7 @@ export function StreakCalendarView({
 
   const handleDayClick = (day: CalendarDay | ActivityCalendarDay) => {
     if (day.isFuture) return;
-    const dateStr = day.date.split('T')[0];
+    const dateStr = toLocalDateKey(day.date);
     if (day.hasLog) {
       router.push(`/home?date=${dateStr}`);
       return;

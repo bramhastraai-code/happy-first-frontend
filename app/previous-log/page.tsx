@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store/authStore';
-import { dailyLogAPI, type CalendarDay, type DailySummary, type SubmitPreviousDailyLogData } from '@/lib/api/dailyLog';
+import { dailyLogAPI, type CalendarDay, type DailySummary, type SubmitDailyLogData } from '@/lib/api/dailyLog';
 import { invalidateDashboardQueries } from '@/lib/queries/invalidateDashboard';
 import { weeklyPlanAPI, type WeeklyPlan, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import MainLayout from '@/components/layout/MainLayout';
@@ -40,11 +40,11 @@ function formatSubmittedValue(activity: DailySummary['activities'][number]) {
   return `${activity.achieved} ${activity.unit}`;
 }
 
-function isPastDate(dateIso: string, zone: string) {
+function isLoggableDate(dateIso: string, zone: string) {
   if (!dateIso) return false;
   const today = DateTime.now().setZone(zone).toISODate() || '';
   if (!today) return false;
-  return dateIso < today;
+  return dateIso <= today;
 }
 
 export default function PreviousLogPage() {
@@ -72,6 +72,10 @@ function PreviousLogPageContent() {
     () => DateTime.now().setZone(zone).minus({ days: 1 }).toISODate() || '',
     [zone]
   );
+  const today = useMemo(
+    () => DateTime.now().setZone(zone).toISODate() || '',
+    [zone]
+  );
 
   const [selectedDate, setSelectedDate] = useState('');
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null);
@@ -95,7 +99,8 @@ function PreviousLogPageContent() {
   const [actlist, setActlist] = useState<ActivityType[]>([]);
   const [pickerCalendarDays, setPickerCalendarDays] = useState<CalendarDay[]>([]);
 
-  const dateIsPast = isPastDate(selectedDate, zone);
+  const dateIsLoggable = isLoggableDate(selectedDate, zone);
+  const selectedIsToday = Boolean(selectedDate && today && selectedDate === today);
 
   const extractErrorMessage = (err: unknown, fallback: string) => {
     if (
@@ -114,7 +119,7 @@ function PreviousLogPageContent() {
   const mode: PageMode = useMemo(() => {
     if (!selectedDate || checkingLog || (loading && !weeklyPlan && !daySummary)) return 'loading';
     if (logAlreadyExists && daySummary) return 'view';
-    if (dateIsPast && weeklyPlan && !logAlreadyExists) return 'submit';
+    if (dateIsLoggable && weeklyPlan && !logAlreadyExists) return 'submit';
     return 'closed';
   }, [
     selectedDate,
@@ -123,7 +128,7 @@ function PreviousLogPageContent() {
     weeklyPlan,
     daySummary,
     logAlreadyExists,
-    dateIsPast,
+    dateIsLoggable,
   ]);
 
   useEffect(() => {
@@ -162,7 +167,7 @@ function PreviousLogPageContent() {
       const parsed = DateTime.fromISO(requested, { zone });
       if (parsed.isValid) {
         const iso = parsed.toISODate() || '';
-        if (iso && isPastDate(iso, zone)) {
+        if (iso && isLoggableDate(iso, zone)) {
           nextDate = iso;
         }
       }
@@ -173,26 +178,28 @@ function PreviousLogPageContent() {
 
   useEffect(() => {
     if (!selectedDate) {
-      setDeadlineMessage('Select any past date to submit a missed log.');
+      setDeadlineMessage('Select a date through today to submit or view a log.');
       return;
     }
 
-    const latestAllowedLabel = DateTime.fromISO(yesterday).toFormat('cccc, d LLL yyyy');
+    const latestAllowedLabel = DateTime.fromISO(today, { zone }).toFormat('cccc, d LLL yyyy');
 
     if (logAlreadyExists) {
       setDeadlineMessage('This day is already logged. Viewing your submitted entries.');
       return;
     }
 
-    if (dateIsPast) {
-      setDeadlineMessage(`You can submit a missed log for this day. Latest day you can submit: ${latestAllowedLabel}.`);
+    if (dateIsLoggable) {
+      setDeadlineMessage(
+        selectedIsToday
+          ? 'Log today’s activities here. Future dates stay blocked.'
+          : `You can submit a missed log for this day. Latest day you can submit: ${latestAllowedLabel}.`
+      );
       return;
     }
 
-    setDeadlineMessage(
-      `Latest day you can submit: ${latestAllowedLabel}. Today and future are blocked.`
-    );
-  }, [selectedDate, logAlreadyExists, dateIsPast, yesterday]);
+    setDeadlineMessage(`You can log through ${latestAllowedLabel}. Future dates are blocked.`);
+  }, [selectedDate, logAlreadyExists, dateIsLoggable, selectedIsToday, today, zone]);
 
   useEffect(() => {
     const checkLogAndFetchPlan = async () => {
@@ -227,7 +234,7 @@ function PreviousLogPageContent() {
 
         setCheckingLog(false);
 
-        if (!isPastDate(selectedDate, zone)) {
+        if (!dateIsLoggable) {
           setWeeklyPlan(null);
           return;
         }
@@ -295,8 +302,8 @@ function PreviousLogPageContent() {
   };
 
   const handleSubmit = async () => {
-    if (!dateIsPast) {
-      setError('You can only submit missed logs for past dates.');
+    if (!dateIsLoggable) {
+      setError('You can only submit logs for today or past dates.');
       return;
     }
     if (!selectedProfile) {
@@ -326,11 +333,14 @@ function PreviousLogPageContent() {
 
     setLoading(true);
     try {
-      const submitData: SubmitPreviousDailyLogData = {
-        date: selectedDate,
-        activities: validation.payload,
-      };
-      const response = await dailyLogAPI.submitPrevious(submitData);
+      const response = selectedIsToday
+        ? await dailyLogAPI.submit({
+            activities: validation.payload,
+          } satisfies SubmitDailyLogData)
+        : await dailyLogAPI.submitPrevious({
+            date: selectedDate,
+            activities: validation.payload,
+          });
       setEarnedPoints(extractEarnedPoints(response.data.data));
       setLoggedEntries(
         validation.payload.map((entry) => {
@@ -386,7 +396,7 @@ function PreviousLogPageContent() {
   const canSubmit = mode === 'submit';
   const showForm = mode === 'submit';
   const showView = mode === 'view' && daySummary;
-  const pickerEnabled = Boolean(yesterday);
+  const pickerEnabled = Boolean(today);
 
   return (
     <MainLayout>
@@ -400,7 +410,7 @@ function PreviousLogPageContent() {
 
       <PageHeader
         title="Missed day log"
-        subtitle="Enter any past day — or view if already saved"
+        subtitle="Enter today or any past day — or view if already saved"
         action={
           selectedDate ? (
             <span className="chip chip-active text-xs">
@@ -422,14 +432,14 @@ function PreviousLogPageContent() {
                 {formattedSelectedDate || 'Pick any past date'}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Latest day you can submit: {DateTime.fromISO(yesterday).toFormat('d MMM yyyy')}. Today and future are blocked.
+                You can log through {DateTime.fromISO(today, { zone }).toFormat('d MMM yyyy')}. Future dates are blocked.
               </p>
             </div>
             {pickerEnabled && selectedDate && (
               <CompactDatePicker
                 value={selectedDate}
                 onChange={setSelectedDate}
-                maxDate={yesterday}
+                maxDate={today}
                 calendarDays={pickerCalendarDays}
               />
             )}
@@ -471,7 +481,7 @@ function PreviousLogPageContent() {
                 {deadlineMessage}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Submit: any past day. Already logged days are view-only.
+                Submit: today or any past day. Already logged days are view-only.
               </p>
             </div>
           </div>
@@ -604,7 +614,7 @@ function PreviousLogPageContent() {
             }
             className="w-full py-5 text-base font-semibold"
           >
-            {loading ? 'Submitting…' : checkingLog ? 'Checking…' : 'Submit missed log'}
+            {loading ? 'Submitting…' : checkingLog ? 'Checking…' : selectedIsToday ? 'Submit today’s log' : 'Submit missed log'}
           </Button>
         )}
 
@@ -615,15 +625,25 @@ function PreviousLogPageContent() {
               <div className="text-sm text-muted-foreground">
                 <p className="font-semibold text-foreground">How missed logs work</p>
                 <ul className="mt-2 list-inside list-disc space-y-1">
-                  <li>Pick any past day</li>
+                  <li>Pick today or any past day</li>
                   <li>Enter activity values and submit</li>
                   <li>If already submitted, you can view the log here</li>
                   <li>A weekly plan must exist for that date</li>
                 </ul>
-                {pickerEnabled && selectedDate !== yesterday && (
+                {pickerEnabled && selectedDate !== today && (
                   <Button
                     type="button"
                     className="mt-4"
+                    variant="outline"
+                    onClick={() => setSelectedDate(today)}
+                  >
+                    Open today
+                  </Button>
+                )}
+                {pickerEnabled && selectedDate !== yesterday && !selectedIsToday && (
+                  <Button
+                    type="button"
+                    className="mt-4 ml-2"
                     variant="outline"
                     onClick={() => setSelectedDate(yesterday)}
                   >

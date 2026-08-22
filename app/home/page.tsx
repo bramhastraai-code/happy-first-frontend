@@ -23,6 +23,7 @@ import ActivityChart from '@/components/charts/ActivityChart';
 import { useHomePageData } from '@/lib/queries/useHomePageData';
 import { GlobalSearch } from '@/components/home/GlobalSearch';
 import { resolveActivityIcon } from '@/lib/utils/activityIcon';
+import { calendarDayMatches, toLocalDateKey } from '@/lib/utils/calendarDate';
 import Link from 'next/link';
 
 export default function HomePage() {
@@ -186,9 +187,8 @@ function HomePageContent() {
   const stats = {
     points: summary?.totalPoints || 0,
   };
-  const weekDaysLogged = summary?.totalDaysLogged ?? 0;
   const totalDaysLogged = streakData?.overallStreak.totalDaysLogged ?? 0;
-  const weekScoreHint = `${weekDaysLogged} of 7 days`;
+  const trackerCalendarDays = weeklyLogData?.calendarDays || [];
 
   // Get current week's days (Monday to Sunday)
   const getCurrentWeekDays = () => {
@@ -199,7 +199,9 @@ function HomePageContent() {
     for (let i = 0; i < 7; i++) {
       const day = startOfWeek.plus({ days: i });
       const dateString = day.toFormat('yyyy-MM-dd');
-      const calendarDay = weekCalendarDays.find((d) => d.date.split('T')[0] === dateString);
+      const calendarDay =
+        weekCalendarDays.find((d) => calendarDayMatches(d, dateString)) ??
+        trackerCalendarDays.find((d) => calendarDayMatches(d, dateString));
       
       days.push({
         date: dateString,
@@ -216,8 +218,8 @@ function HomePageContent() {
 
   const weekDays = getCurrentWeekDays();
   const daysLoggedThisWeek = weekDays.filter((d) => d.hasLog).length;
+  const weekScoreHint = `${daysLoggedThisWeek} of 7 days`;
   const daysLoggedHint = `${daysLoggedThisWeek} this week`;
-  const trackerCalendarDays = weeklyLogData?.calendarDays || [];
   const trackerFirstDayOffset = trackerCalendarDays.length > 0
     ? new Date(trackerCalendarDays[0].date).getDay()
     : 0;
@@ -245,7 +247,9 @@ function HomePageContent() {
   const selectedDayChartIndex = useMemo(() => {
     return dayChartPoints.findIndex((p) => p.date.split('T')[0] === logDateFilter);
   }, [dayChartPoints, logDateFilter]);
-  const selectedDateCalendarDay = trackerCalendarDays.find((d) => d.date.split('T')[0] === logDateFilter);
+  const selectedDateCalendarDay = trackerCalendarDays.find((d) =>
+    calendarDayMatches(d, logDateFilter)
+  );
   const selectedDateHasLog = selectedDateCalendarDay?.hasLog || false;
   const selectedDateIsToday = logDateFilter === todayDate;
   const selectedDayStreak =
@@ -1000,7 +1004,7 @@ function HomePageContent() {
                   ))}
 
                   {trackerCalendarDays.map((day) => {
-                    const dateOnly = day.date.split('T')[0];
+                    const dateOnly = toLocalDateKey(day.date);
                     const isSelected = logDateFilter === dateOnly;
                     const baseClasses = day.isFuture
                       ? 'cursor-not-allowed border-border bg-secondary text-muted-foreground'
