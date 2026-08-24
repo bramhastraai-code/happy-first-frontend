@@ -23,6 +23,7 @@ import { CheckCircle2, ArrowRight, ChevronLeft, RefreshCw, PlusCircle, PauseCirc
 import CadenceSlider, { type CadenceValue } from '@/components/ui/CadenceSlider';
 import { cn } from '@/lib/utils';
 import { formatWeekRangeLabel, formatWeekRangeShort } from '@/lib/utils/weekDate';
+import { getPlanTargetRange } from '@/lib/utils/activityInput';
 
 const WEEKLY_MOOD_OPTIONS: Array<{ value: WeeklyMood; label: string; emoji: string }> = [
   { value: 'lovely', label: 'Lovely', emoji: '🌸' },
@@ -1046,20 +1047,22 @@ function TargetSelectionForm({
   onConfirm: (targetValue: number, cadence: 'daily' | 'weekly') => void;
   onCancel: () => void;
 }) {
-  const [targetValue, setTargetValue] = useState<number>(() => {
-    const min = activity.values?.find((v) => v.tier === tiers)?.minVal || 0;
-    const suggested = activity.defaultTarget;
-    if (typeof suggested === 'number' && suggested > 0) return suggested;
-    return min;
-  });
   const [cadence, setCadence] = useState<CadenceValue>(
     activity.allowedCadence.length === 1 ? activity.allowedCadence[0] : 'none'
   );
-
-  const minVal = activity.values?.find(v => v.tier === tiers)?.minVal || 0;
-  const maxVal = activity.values?.find(v => v.tier === tiers)?.maxVal || 100;
-  const isWeeklyNumericTarget = cadence === 'weekly' && activity.baseUnit.toLowerCase() !== 'days';
-  const effectiveMaxVal = isWeeklyNumericTarget ? maxVal * 7 : maxVal;
+  const { minVal, maxVal: effectiveMaxVal } = getPlanTargetRange(activity, tiers, cadence);
+  const [targetValue, setTargetValue] = useState<number>(() => {
+    const { minVal: min, maxVal: max } = getPlanTargetRange(
+      activity,
+      tiers,
+      activity.allowedCadence.length === 1 ? activity.allowedCadence[0] : 'daily'
+    );
+    const suggested = activity.defaultTarget;
+    if (typeof suggested === 'number' && suggested > 0) {
+      return Math.min(Math.max(suggested, min), max);
+    }
+    return min;
+  });
 
   const handleConfirm = () => {
     if (targetValue < minVal || targetValue > effectiveMaxVal || cadence === 'none') {
