@@ -203,7 +203,7 @@ function CreatePlanPageContent() {
                 targetValue: a.targetValue,
                 baseUnit: a.unit || meta?.baseUnit || '',
                 icon: meta?.icon || '🏃',
-                values: meta?.values || a.values || [{ tier: 1, minVal: 0, maxVal: 100 }],
+                values: meta?.values || a.values || [],
                 allowedCadence: meta?.allowedCadence || ['weekly'],
               };
             });

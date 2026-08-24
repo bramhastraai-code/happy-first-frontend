@@ -1,45 +1,62 @@
 import type { WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import type { Activity as ActivityType } from '@/lib/api/activity';
 
-type ActivityValueTier = {
+/** Unlock / value-config tiers used across plan create + logging. */
+export const ACTIVITY_VALUE_TIERS = [1, 2, 3, 4] as const;
+
+export type ActivityValueTier = {
   tier: number;
   minVal: number;
   maxVal: number;
 };
 
+function isValidRange(v: ActivityValueTier | undefined | null): v is ActivityValueTier {
+  return (
+    !!v &&
+    typeof v.tier === 'number' &&
+    typeof v.minVal === 'number' &&
+    typeof v.maxVal === 'number' &&
+    Number.isFinite(v.minVal) &&
+    Number.isFinite(v.maxVal)
+  );
+}
+
 /**
- * Resolve min/max for plan targets.
- * Activities are usually seeded with tier-1 ranges only; unlocked set (user tier)
- * may be 2+, so exact-tier lookup must fall back to the best available row.
+ * Resolve min/max for any unlock tier (1–4+).
+ *
+ * Seed / catalog often only stores a tier-1 row (or identical rows for 1–4).
+ * Never require an exact match on the member's unlock tier — fall back to the
+ * best available configured range so Steps (etc.) stay usable after set-2 unlock.
  */
 export function resolveActivityValueRange(
   values: ActivityValueTier[] | undefined | null,
   userTier = 1
 ): { minVal: number; maxVal: number } | null {
-  if (!Array.isArray(values) || values.length === 0) return null;
+  const rows = (Array.isArray(values) ? values : []).filter(isValidRange);
+  if (rows.length === 0) return null;
 
-  const exact = values.find((v) => v.tier === userTier);
-  if (exact && typeof exact.minVal === 'number' && typeof exact.maxVal === 'number') {
+  const unlockTier = Number.isFinite(userTier) && userTier > 0 ? Math.floor(userTier) : 1;
+
+  // Single configured range → use it for every unlock tier.
+  if (rows.length === 1) {
+    return { minVal: rows[0].minVal, maxVal: rows[0].maxVal };
+  }
+
+  const exact = rows.find((v) => v.tier === unlockTier);
+  if (exact) {
     return { minVal: exact.minVal, maxVal: exact.maxVal };
   }
 
-  const eligible = values
-    .filter(
-      (v) =>
-        typeof v.tier === 'number' &&
-        v.tier <= userTier &&
-        typeof v.minVal === 'number' &&
-        typeof v.maxVal === 'number'
-    )
+  const eligible = rows
+    .filter((v) => v.tier <= unlockTier)
     .sort((a, b) => b.tier - a.tier);
   if (eligible[0]) {
     return { minVal: eligible[0].minVal, maxVal: eligible[0].maxVal };
   }
 
-  const any = [...values]
-    .filter((v) => typeof v.minVal === 'number' && typeof v.maxVal === 'number')
-    .sort((a, b) => a.tier - b.tier)[0];
-  return any ? { minVal: any.minVal, maxVal: any.maxVal } : null;
+  // Unlock tier below every values.tier (unusual) → lowest configured tier.
+  const lowest = [...rows].sort((a, b) => a.tier - b.tier)[0];
+  return { minVal: lowest.minVal, maxVal: lowest.maxVal };
 }
 
 function stepsAwareFallbackMax(nameOrUnit: string): number | undefined {
