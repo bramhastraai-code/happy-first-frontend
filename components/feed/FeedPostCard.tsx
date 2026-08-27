@@ -22,6 +22,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { feedAPI, formatCollaborationLabel, type FeedPost } from '@/lib/api/feed';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { renderCaptionWithMentions } from '@/lib/utils/renderCaptionWithMentions';
+import {
+  renderTextCardImage,
+  textCardGradient,
+  TEXT_CARD_BACKGROUNDS,
+  TEXT_CARD_FONTS,
+  TEXT_CARD_MAX_LENGTH,
+} from '@/lib/utils/textCardImage';
 import { useAuthStore } from '@/lib/store/authStore';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
@@ -31,19 +38,31 @@ import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { HappyIcon } from '@/components/ui/HappyIcon';
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
 import { cn } from '@/lib/utils';
+import { useOverlayHistory } from '@/lib/hooks/useOverlayHistory';
+
+export type FeedPostEditExtras = {
+  textCard?: NonNullable<FeedPost['textCard']>;
+  media?: Blob;
+};
 
 interface FeedPostCardProps {
   post: FeedPost;
   onToggleLike: (postId: string) => void;
   onOpenComments: (post: FeedPost) => void;
   onMessage?: (post: FeedPost) => void;
-  onEdit?: (post: FeedPost, caption: string) => Promise<void> | void;
+  onEdit?: (
+    post: FeedPost,
+    caption: string,
+    extras?: FeedPostEditExtras
+  ) => Promise<void> | void;
   onDelete?: (post: FeedPost) => Promise<void> | void;
   liking?: boolean;
   canMessage?: boolean;
   isOwner?: boolean;
   /** Hide “Community: …” badge (e.g. inside community feed tab) */
   hideCommunityLabel?: boolean;
+  /** Discover visitor mode — disable like/comment/share actions */
+  interactionsDisabled?: boolean;
 }
 
 function formatCount(value: number) {
@@ -62,6 +81,7 @@ export function FeedPostCard({
   canMessage = false,
   isOwner = false,
   hideCommunityLabel = false,
+  interactionsDisabled = false,
 }: FeedPostCardProps) {
   const queryClient = useQueryClient();
   const { selectedProfile } = useAuthStore();
@@ -79,6 +99,16 @@ export function FeedPostCard({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [editCaption, setEditCaption] = useState(post.caption || '');
+  const [editText, setEditText] = useState(post.textCard?.text || '');
+  const [editBgIndex, setEditBgIndex] = useState(() =>
+    Math.max(
+      0,
+      TEXT_CARD_BACKGROUNDS.findIndex((b) => b.id === post.textCard?.backgroundId)
+    )
+  );
+  const [editFontIndex, setEditFontIndex] = useState(() =>
+    Math.max(0, TEXT_CARD_FONTS.findIndex((f) => f.id === post.textCard?.fontId))
+  );
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -99,9 +129,36 @@ export function FeedPostCard({
     setMediaIndex(0);
   }, [post.id]);
 
+  // Auto-advance multi-photo carousel every 3s (pause while fullscreen preview is open)
+  useEffect(() => {
+    if (!multi || previewOpen || mediaItems.length < 2) return;
+    const timer = window.setInterval(() => {
+      setMediaIndex((value) => (value + 1) % mediaItems.length);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [multi, previewOpen, mediaItems.length, post.id]);
+
+  useOverlayHistory({
+    open: previewOpen,
+    onClose: () => setPreviewOpen(false),
+    key: `feed-preview-${post.id}`,
+  });
+
   useEffect(() => {
     setEditCaption(post.caption || '');
-  }, [post.caption]);
+    setEditText(post.textCard?.text || '');
+    setEditBgIndex(
+      Math.max(
+        0,
+        TEXT_CARD_BACKGROUNDS.findIndex((b) => b.id === post.textCard?.backgroundId)
+      )
+    );
+    setEditFontIndex(
+      Math.max(0, TEXT_CARD_FONTS.findIndex((f) => f.id === post.textCard?.fontId))
+    );
+  }, [post.caption, post.textCard]);
+
+  const isTextCardPost = Boolean(post.textCard?.text);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -141,6 +198,7 @@ export function FeedPostCard({
   }, [previewOpen, multi, mediaItems.length]);
 
   const triggerLikeBurst = () => {
+    if (interactionsDisabled) return;
     if (!post.likedByMe) onToggleLike(post.id);
     setHeartBurst(true);
     window.setTimeout(() => setHeartBurst(false), 700);
@@ -324,7 +382,7 @@ export function FeedPostCard({
               ) : !hideCommunityLabel && post.communityId && post.communityName ? (
                 <span className="font-medium text-muted-foreground">
                   {' '}
-                  ·{' '}
+                  posted in{' '}
                   <Link
                     href={`/community/${post.communityId}`}
                     className="font-semibold text-primary hover:underline"
@@ -348,6 +406,7 @@ export function FeedPostCard({
           post.communityId &&
           post.communityName ? (
             <p className="truncate text-xs text-muted-foreground">
+              posted in{' '}
               <Link
                 href={`/community/${post.communityId}`}
                 className="font-medium text-primary hover:underline"
@@ -573,11 +632,15 @@ export function FeedPostCard({
       <div className="mt-3 flex items-center gap-5">
         <button
           type="button"
-          disabled={liking}
-          onClick={() => onToggleLike(post.id)}
+          disabled={liking || interactionsDisabled}
+          onClick={() => {
+            if (interactionsDisabled) return;
+            onToggleLike(post.id);
+          }}
           className={cn(
             'inline-flex items-center text-sm font-medium transition-colors',
-            post.likedByMe ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+            post.likedByMe ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+            interactionsDisabled && 'opacity-60'
           )}
           aria-label={post.likedByMe ? 'Unlike' : 'Like'}
         >
@@ -587,7 +650,13 @@ export function FeedPostCard({
           type="button"
           onClick={() => onOpenComments(post)}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
-          aria-label="Comment"
+          aria-label={
+            interactionsDisabled
+              ? post.commentCount > 0
+                ? 'View comments'
+                : 'Comments'
+              : 'Comment'
+          }
         >
           <MessageCircle className="h-5 w-5" />
           {post.commentCount > 0 ? formatCount(post.commentCount) : null}
@@ -649,15 +718,86 @@ export function FeedPostCard({
           <div
             role="dialog"
             aria-modal="true"
-            className="relative w-full max-w-md rounded-2xl border border-border bg-surface p-4 shadow-[var(--shadow-float)]"
+            className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-surface p-4 shadow-[var(--shadow-float)]"
           >
-            <h3 className="text-base font-semibold text-foreground">Edit caption</h3>
+            <h3 className="text-base font-semibold text-foreground">
+              {isTextCardPost ? 'Edit text post' : 'Edit caption'}
+            </h3>
+
+            {isTextCardPost ? (
+              <div className="mt-3 space-y-3">
+                <div
+                  className="relative mx-auto flex aspect-[4/5] w-full max-w-[280px] items-center justify-center overflow-hidden rounded-2xl p-4"
+                  style={{
+                    background: textCardGradient(TEXT_CARD_BACKGROUNDS[editBgIndex]),
+                  }}
+                >
+                  <textarea
+                    value={editText}
+                    maxLength={TEXT_CARD_MAX_LENGTH}
+                    onChange={(e) => setEditText(e.target.value)}
+                    rows={Math.min(
+                      10,
+                      Math.max(2, editText.split('\n').length + Math.floor(editText.length / 26))
+                    )}
+                    className={cn(
+                      'max-h-full w-full resize-none bg-transparent text-center text-white outline-none placeholder:text-white/70',
+                      editText.length > 160 ? 'text-lg leading-snug' : 'text-2xl leading-snug',
+                      TEXT_CARD_FONTS[editFontIndex].className
+                    )}
+                    placeholder="Edit your status text…"
+                  />
+                  <span className="absolute bottom-2 right-3 text-[10px] font-medium text-white/70">
+                    {editText.length}/{TEXT_CARD_MAX_LENGTH}
+                  </span>
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  {TEXT_CARD_BACKGROUNDS.map((background, index) => (
+                    <button
+                      key={background.id}
+                      type="button"
+                      aria-label={background.label}
+                      onClick={() => setEditBgIndex(index)}
+                      className={cn(
+                        'h-7 w-7 rounded-full transition-transform',
+                        index === editBgIndex
+                          ? 'scale-110 ring-2 ring-primary ring-offset-2 ring-offset-surface'
+                          : 'hover:scale-105'
+                      )}
+                      style={{ background: textCardGradient(background) }}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  {TEXT_CARD_FONTS.map((cardFont, index) => (
+                    <button
+                      key={cardFont.id}
+                      type="button"
+                      onClick={() => setEditFontIndex(index)}
+                      className={cn(
+                        'rounded-xl border px-3 py-1.5 text-sm transition-colors',
+                        cardFont.className,
+                        index === editFontIndex
+                          ? 'border-primary bg-primary-soft text-primary'
+                          : 'border-border bg-secondary/60 text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      Aa
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <label className="mt-3 block text-xs font-medium text-muted-foreground">
+              Caption
+            </label>
             <textarea
               value={editCaption}
               onChange={(e) => setEditCaption(e.target.value.slice(0, 300))}
-              rows={4}
+              rows={isTextCardPost ? 2 : 4}
               maxLength={300}
-              className="mt-3 w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="mt-1.5 w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
               placeholder="Write a caption…"
             />
             <p className="mt-1 text-right text-[11px] text-muted-foreground">
@@ -674,12 +814,34 @@ export function FeedPostCard({
               </Button>
               <Button
                 type="button"
-                disabled={saving}
+                disabled={saving || (isTextCardPost && !editText.trim())}
                 onClick={async () => {
                   if (!onEdit) return;
                   setSaving(true);
                   try {
-                    await onEdit(post, editCaption.trim());
+                    if (isTextCardPost) {
+                      const trimmed = editText.trim();
+                      const background = TEXT_CARD_BACKGROUNDS[editBgIndex];
+                      const font = TEXT_CARD_FONTS[editFontIndex];
+                      const kind = post.textCard?.kind === 'story' ? 'story' : 'post';
+                      const media = await renderTextCardImage({
+                        text: trimmed,
+                        background,
+                        font,
+                        kind,
+                      });
+                      await onEdit(post, editCaption.trim(), {
+                        textCard: {
+                          text: trimmed,
+                          backgroundId: background.id,
+                          fontId: font.id,
+                          kind,
+                        },
+                        media,
+                      });
+                    } else {
+                      await onEdit(post, editCaption.trim());
+                    }
                     setEditOpen(false);
                   } finally {
                     setSaving(false);
@@ -836,10 +998,10 @@ export function FeedPostCard({
               <button
                 type="button"
                 onClick={() => setPreviewOpen(false)}
-                className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top,0px))] z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+                className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top,0px))] z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/40 bg-black/70 text-white shadow-lg backdrop-blur-sm hover:bg-black/85"
                 aria-label="Close"
               >
-                <X className="h-5 w-5" />
+                <X className="h-5 w-5 stroke-[2.5]" />
               </button>
               {multi && safeIndex > 0 ? (
                 <button

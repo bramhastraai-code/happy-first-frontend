@@ -26,9 +26,11 @@ import {
   Share2,
   Smile,
   Trash2,
+  Flag,
   X,
 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { ReportContentDialog } from '@/components/community/ReportContentDialog';
 import { ChatPollBubble } from '@/components/community/ChatPollBubble';
 import { ChatShareCardBubble } from '@/components/community/ChatShareCardBubble';
 import { ChatCreatePollDialog } from '@/components/community/ChatCreatePollDialog';
@@ -190,6 +192,7 @@ export function CommunityChatTab({
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<ConfirmAction>(null);
+  const [reportMessageId, setReportMessageId] = useState<string | null>(null);
   const [mediaPreview, setMediaPreview] = useState<{ file: File; url: string } | null>(null);
   const [lightbox, setLightbox] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -2188,6 +2191,20 @@ export function CommunityChatTab({
 
               <div className="my-1 border-t border-white/10" />
 
+              {!menuMine ? (
+                <button
+                  type="button"
+                  className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left text-[14px] hover:bg-white/10"
+                  onClick={() => {
+                    setReportMessageId(menuMessage.id);
+                    closeMessageMenu();
+                  }}
+                >
+                  <Flag className="h-4 w-4 shrink-0 opacity-90" />
+                  Report
+                </button>
+              ) : null}
+
               <button
                 type="button"
                 className="flex min-h-11 w-full items-center gap-3 px-3.5 py-2.5 text-left text-[14px] hover:bg-white/10"
@@ -2241,6 +2258,13 @@ export function CommunityChatTab({
           else if (confirm.type === 'delete-me') deleteMutation.mutate('me');
           else if (confirm.type === 'delete-everyone') deleteMutation.mutate('everyone');
         }}
+      />
+
+      <ReportContentDialog
+        open={Boolean(reportMessageId)}
+        targetType="community_message"
+        targetId={reportMessageId || ''}
+        onClose={() => setReportMessageId(null)}
       />
 
       <ChatCreatePollDialog

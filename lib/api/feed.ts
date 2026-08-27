@@ -45,8 +45,16 @@ export interface FeedPost {
   createdAt: string;
   communityId?: string | null;
   communityName?: string | null;
+  /** Global mirror of a community post — UI shows “posted in {name}”. */
+  postedFromCommunity?: boolean;
   collaborators?: FeedCollaborator[];
   acceptedCollaborators?: FeedCollaborator[];
+  textCard?: {
+    text: string;
+    backgroundId: string;
+    fontId: string;
+    kind: 'post' | 'story';
+  } | null;
   author: FeedAuthor;
   repostOf?: FeedRepostRef | null;
   repostCount?: number;
@@ -194,6 +202,14 @@ export const feedAPI = {
       communityId?: string;
       collaboratorProfileIds?: string[];
       alsoPublishToGlobal?: boolean;
+      isSurpriseProof?: boolean;
+      linkedActivity?: string;
+      textCard?: {
+        text: string;
+        backgroundId: string;
+        fontId: string;
+        kind: 'post' | 'story';
+      };
     }
   ) => {
     const form = new FormData();
@@ -215,6 +231,15 @@ export const feedAPI = {
     }
     if (typeof options?.alsoPublishToGlobal === 'boolean') {
       form.append('alsoPublishToGlobal', options.alsoPublishToGlobal ? 'true' : 'false');
+    }
+    if (options?.isSurpriseProof) {
+      form.append('isSurpriseProof', 'true');
+    }
+    if (options?.linkedActivity) {
+      form.append('linkedActivity', options.linkedActivity);
+    }
+    if (options?.textCard?.text) {
+      form.append('textCard', JSON.stringify(options.textCard));
     }
     return api.post<ApiEnvelope<CreatePostResult>>('/feed/posts', form, {
       timeout: 180_000,
@@ -269,8 +294,38 @@ export const feedAPI = {
       }>
     >(`/feed/comments/${commentId}`),
 
-  updatePost: (photoId: string, caption: string) =>
-    api.patch<ApiEnvelope<{ post: FeedPost }>>(`/feed/${photoId}`, { caption }),
+  updatePost: (
+    photoId: string,
+    caption: string,
+    options?: {
+      textCard?: {
+        text: string;
+        backgroundId: string;
+        fontId: string;
+        kind: 'post' | 'story';
+      };
+      media?: Blob | File;
+    }
+  ) => {
+    if (options?.media || options?.textCard) {
+      const form = new FormData();
+      form.append('caption', caption ?? '');
+      if (options.textCard) {
+        form.append('textCard', JSON.stringify(options.textCard));
+      }
+      if (options.media) {
+        const filename =
+          options.media instanceof File && options.media.name
+            ? options.media.name
+            : 'text-card.jpg';
+        form.append('media', options.media, filename);
+      }
+      return api.patch<ApiEnvelope<{ post: FeedPost }>>(`/feed/${photoId}`, form, {
+        timeout: 180_000,
+      });
+    }
+    return api.patch<ApiEnvelope<{ post: FeedPost }>>(`/feed/${photoId}`, { caption });
+  },
 
   deletePost: (photoId: string) =>
     api.delete<ApiEnvelope<{ deleted: boolean; photoId: string }>>(`/feed/${photoId}`),

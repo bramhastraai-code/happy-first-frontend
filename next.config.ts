@@ -57,7 +57,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/activity-selection',
-        destination: '/create-plan?mode=first-setup',
+        destination: '/get-started',
         permanent: true,
       },
       {

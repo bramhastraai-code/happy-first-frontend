@@ -62,6 +62,11 @@ export function CommunityActivityConfigPicker({
   targetDefaults,
 }: CommunityActivityConfigPickerProps) {
   const selectedCount = Object.keys(selectedLevels).length;
+  const sortedActivities = [...activities].sort((a, b) =>
+    String(a.name || '').localeCompare(String(b.name || ''), undefined, {
+      sensitivity: 'base',
+    })
+  );
 
   return (
     <div className="section-card p-4">
@@ -69,7 +74,7 @@ export function CommunityActivityConfigPicker({
         <h2 className="text-sm font-semibold text-foreground">Activities & levels</h2>
         <p className="text-xs text-muted-foreground">
           {selectedCount === 0
-            ? 'Tap an activity to add it, then pick a weekly goal level for the group'
+            ? 'Optional — leave empty for a discussion-only community with no targets, or tap activities to add goals'
             : `${selectedCount} selected · tap an activity to remove it`}
         </p>
       </div>
@@ -98,7 +103,7 @@ export function CommunityActivityConfigPicker({
         </div>
       ) : (
         <ul className="max-h-[50vh] space-y-2 overflow-y-auto">
-          {activities.map((activity) => {
+          {sortedActivities.map((activity) => {
             const active = Boolean(selectedLevels[activity._id]);
             const level = selectedLevels[activity._id] || 'active';
             const defaults = targetDefaults?.[activity._id];

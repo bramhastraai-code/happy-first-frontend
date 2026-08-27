@@ -1,12 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { Plus, Rss, ScanLine } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/authStore';
-import {
-  AppPageHeader,
-  headerActionBtnClass,
-} from '@/components/ui/AppPageHeader';
+import { AppPageHeader } from '@/components/ui/AppPageHeader';
+import { HeaderIconButton, HeaderIconLink } from '@/components/ui/HeaderIconAction';
 import { firstNameFrom } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
 
@@ -37,32 +34,22 @@ export function CommunityTopBar({ className, onOpenScanner }: CommunityTopBarPro
       actions={
         <>
           {onOpenScanner ? (
-            <button
-              type="button"
+            <HeaderIconButton
+              icon={<ScanLine className="h-[18px] w-[18px]" />}
+              caption="Scan QR"
               onClick={onOpenScanner}
-              className={headerActionBtnClass}
-              aria-label="Scan community QR"
-              title="Scan QR"
-            >
-              <ScanLine className="h-[18px] w-[18px]" />
-            </button>
+            />
           ) : null}
-          <Link
+          <HeaderIconLink
             href="/feed"
-            className={headerActionBtnClass}
-            aria-label="Open Feed"
-            title="Open Feed"
-          >
-            <Rss className="h-[18px] w-[18px]" />
-          </Link>
-          <Link
+            icon={<Rss className="h-[18px] w-[18px]" />}
+            caption="Feed"
+          />
+          <HeaderIconLink
             href="/community/create"
-            className={headerActionBtnClass}
-            aria-label="Create community"
-            title="Create"
-          >
-            <Plus className="h-[18px] w-[18px]" />
-          </Link>
+            icon={<Plus className="h-[18px] w-[18px]" />}
+            caption="Create"
+          />
         </>
       }
     />

@@ -40,7 +40,8 @@ export const homeTourSteps: Step[] = [
   {
     target: '.bottom-nav',
     title: 'Navigation',
-    content: 'Jump between Home, Tasks, Plan, Referrals, and Community.',
+    content:
+      'Jump between Inspiration (social), Happiness (home & tasks), Community, and Profile (including referrals).',
   },
 ];
 

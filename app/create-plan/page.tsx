@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { DateTime } from 'luxon';
 import { useAuthStore } from '@/lib/store/authStore';
 import { type Activity } from '@/lib/api/activity';
-import { weeklyPlanAPI, type CreateWeeklyPlanData, type NextWeekPreview, type WeeklyMood, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
+import { weeklyPlanAPI, type CreateWeeklyPlanData, type NextWeekPreview, type WeekTarget, type WeeklyMood, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -73,11 +73,18 @@ function CreatePlanPageContent() {
   const forceFresh = searchParams.get('fresh') === '1';
   const editPlanId = searchParams.get('edit');
   const isEditMode = Boolean(editPlanId);
+  const weekTargetParam = searchParams.get('weekTarget');
+  const defaultWeekTarget: WeekTarget = (() => {
+    if (weekTargetParam === 'current' || weekTargetParam === 'next') return weekTargetParam;
+    const weekday = DateTime.local().weekday; // 1=Mon … 7=Sun
+    return weekday >= 1 && weekday <= 5 ? 'current' : 'next';
+  })();
   const { user, accessToken, isHydrated, sessionReady, selectedProfile, profiles, setSelectedProfile } =
     useAuthStore();
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<SelectedActivity[]>([]);
+  const [weekTarget, setWeekTarget] = useState<WeekTarget>(defaultWeekTarget);
   const [step, setStep] = useState<'choice' | 'select' | 'configure'>(
     isOnboarding || isEditMode ? 'select' : 'choice'
   );
@@ -452,6 +459,7 @@ function CreatePlanPageContent() {
       const repeatResponse = await weeklyPlanAPI.repeatLastWeek({
         startingWeight: weight,
         weeklyMood,
+        weekTarget,
       });
 
       const createdPlan = repeatResponse?.data?.data;
@@ -509,6 +517,7 @@ function CreatePlanPageContent() {
           : {
               startingWeight: weight,
               weeklyMood: weeklyMood as WeeklyMood,
+              weekTarget,
             }),
       };
 
@@ -741,6 +750,25 @@ function CreatePlanPageContent() {
         />
 
         <PlanStepProgress step={step} />
+
+        {!isEditMode ? (
+          <div className="section-card space-y-2 p-3 sm:p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Plan for
+            </p>
+            <ChipTabs
+              tabs={[
+                { id: 'current', label: 'This week' },
+                { id: 'next', label: 'Next week' },
+              ]}
+              active={weekTarget}
+              onChange={(id) => setWeekTarget(id as WeekTarget)}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              You can create a plan any day. Switch between this week and next week anytime before saving.
+            </p>
+          </div>
+        ) : null}
 
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">

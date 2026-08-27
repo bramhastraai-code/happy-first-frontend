@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
+import { SocialPostGuidelines } from '@/components/feed/SocialPostGuidelines';
 
 type CreateKind = PublishTarget;
 type PickMode = 'image' | 'video' | 'camera' | 'drop';
@@ -73,6 +74,7 @@ export function FeedCreateSheet({
   const [bgIndex, setBgIndex] = useState(0);
   const [fontIndex, setFontIndex] = useState(0);
   const [alsoPublishToGlobal, setAlsoPublishToGlobal] = useState(false);
+  const [isSurpriseProof, setIsSurpriseProof] = useState(false);
 
   useEffect(() => {
     if (open) setKind(communityId ? 'post' : defaultKind);
@@ -91,16 +93,12 @@ export function FeedCreateSheet({
   });
 
   const peopleSearchQuery = useQuery({
-    queryKey: ['followSearch', 'tag', mentionQuery],
-    enabled:
-      open &&
-      !communityId &&
-      allowsCollaborators &&
-      mentionQuery !== null &&
-      mentionQuery.length >= 1,
+    queryKey: ['following', selectedProfile?._id, 'mentions'],
+    enabled: open && !communityId && allowsCollaborators && !!selectedProfile?._id,
+    staleTime: 60_000,
     queryFn: async () => {
-      const res = await followAPI.searchUsers(mentionQuery || '', 8);
-      return res.data.data.people;
+      const res = await followAPI.getFollowing(selectedProfile!._id, { limit: 100 });
+      return res.data.data.people || [];
     },
   });
 
@@ -118,8 +116,10 @@ export function FeedCreateSheet({
         .map((m) => ({ profileId: m.profile.id, name: m.profile.name }));
     }
 
+    // @ tags only resolve people you follow
     return (peopleSearchQuery.data || [])
       .filter((p) => p.profileId !== me && !selected.has(p.profileId))
+      .filter((p) => !q || p.name.toLowerCase().includes(q))
       .slice(0, 8)
       .map((p) => ({ profileId: p.profileId, name: p.name }));
   }, [
@@ -151,6 +151,7 @@ export function FeedCreateSheet({
     setBgIndex(0);
     setFontIndex(0);
     setAlsoPublishToGlobal(false);
+    setIsSurpriseProof(false);
     uploadMutation.reset();
     onClose();
   };
@@ -185,10 +186,12 @@ export function FeedCreateSheet({
         publishTo === 'story' ? [] : collaborators.map((c) => c.profileId);
 
       // Also resolve @Name mentions typed in the caption (even if chip wasn't tapped)
+      // Global @ tags only resolve people you follow.
       if (publishTo !== 'story' && caption.trim()) {
         const mentionNames = [
           ...caption.matchAll(/@([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)*)/g),
         ].map((m) => m[1].trim());
+        const following = peopleSearchQuery.data || [];
         for (const name of mentionNames) {
           try {
             if (communityId) {
@@ -198,9 +201,7 @@ export function FeedCreateSheet({
               );
               if (hit?.profile?.id) collabIds.push(hit.profile.id);
             } else {
-              const res = await followAPI.searchUsers(name, 8);
-              const people = res.data.data.people || [];
-              const exact = people.find(
+              const exact = following.find(
                 (p) => p.name.toLowerCase() === name.toLowerCase()
               );
               if (exact?.profileId) collabIds.push(exact.profileId);
@@ -215,11 +216,12 @@ export function FeedCreateSheet({
       if (textMode) {
         const trimmed = text.trim();
         if (!trimmed) throw new Error('Type something first');
+        const cardKind = publishTo === 'story' ? 'story' : 'post';
         const blob = await renderTextCardImage({
           text: trimmed,
           background: TEXT_CARD_BACKGROUNDS[bgIndex],
           font: TEXT_CARD_FONTS[fontIndex],
-          kind: publishTo === 'story' ? 'story' : 'post',
+          kind: cardKind,
         });
         const response = await feedAPI.createPost([blob], {
           kind: publishTo,
@@ -228,6 +230,13 @@ export function FeedCreateSheet({
           collaboratorProfileIds: collabIds,
           caption: caption.trim() || undefined,
           alsoPublishToGlobal: communityId ? alsoPublishToGlobal : undefined,
+          isSurpriseProof: isSurpriseProof || undefined,
+          textCard: {
+            text: trimmed,
+            backgroundId: TEXT_CARD_BACKGROUNDS[bgIndex].id,
+            fontId: TEXT_CARD_FONTS[fontIndex].id,
+            kind: cardKind,
+          },
         });
         return response.data.data;
       }
@@ -241,6 +250,7 @@ export function FeedCreateSheet({
           communityId,
           collaboratorProfileIds: collabIds,
           alsoPublishToGlobal: communityId ? alsoPublishToGlobal : undefined,
+          isSurpriseProof: isSurpriseProof || undefined,
         }
       );
       return response.data.data;
@@ -472,6 +482,25 @@ export function FeedCreateSheet({
             </label>
           ) : null}
 
+          {kind !== 'story' ? (
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-secondary/50 px-3 py-2.5">
+              <input
+                type="checkbox"
+                checked={isSurpriseProof}
+                onChange={(e) => setIsSurpriseProof(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-foreground">Surprise activity proof</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  After you complete this week’s surprise, post proof for +50 extra coins
+                </span>
+              </span>
+            </label>
+          ) : null}
+
+          <SocialPostGuidelines />
+
           {textMode ? (
             <>
               <div
@@ -546,7 +575,11 @@ export function FeedCreateSheet({
                   <input
                     value={mentionQuery ?? ''}
                     onChange={(event) => setMentionQuery(event.target.value)}
-                    placeholder="Tag collaborators (@name)"
+                    placeholder={
+                      communityId
+                        ? 'Tag collaborators (@name)'
+                        : 'Tag people you follow (@name)'
+                    }
                     className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
                   />
                   {mentionSuggestions.length > 0 ? (
@@ -592,6 +625,59 @@ export function FeedCreateSheet({
                   ) : null}
                 </div>
               ) : null}
+
+              <div className="relative block">
+                <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Caption (optional)
+                  {allowsCollaborators
+                    ? communityId
+                      ? ' · @tag members'
+                      : ' · @tag people you follow'
+                    : ''}
+                </span>
+                <textarea
+                  ref={captionRef}
+                  value={caption}
+                  onChange={(event) => {
+                    const value = event.target.value.slice(0, 300);
+                    setCaption(value);
+                    if (allowsCollaborators) {
+                      detectMention(value, event.target.selectionStart);
+                    }
+                  }}
+                  onKeyUp={(event) => {
+                    if (!allowsCollaborators) return;
+                    const target = event.currentTarget;
+                    detectMention(target.value, target.selectionStart);
+                  }}
+                  maxLength={300}
+                  rows={2}
+                  placeholder={
+                    kind === 'story'
+                      ? 'Add a caption to your story…'
+                      : 'Write a caption… use @ to tag people you follow'
+                  }
+                  className="w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+                {mentionSuggestions.length > 0 && caption.includes('@') ? (
+                  <ul className="absolute left-0 right-0 z-20 mt-1 max-h-44 overflow-y-auto rounded-xl border border-border bg-surface shadow-[var(--shadow-float)]">
+                    {mentionSuggestions.map((person) => (
+                      <li key={person.profileId}>
+                        <button
+                          type="button"
+                          className="flex w-full px-3 py-2 text-left text-sm hover:bg-secondary"
+                          onClick={() => addCollaborator(person)}
+                        >
+                          @{person.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <p className="mt-1 text-right text-[11px] text-muted-foreground">
+                  {caption.length}/300
+                </p>
+              </div>
 
               <div className="flex gap-2">
                 <Button
@@ -775,7 +861,12 @@ export function FeedCreateSheet({
 
               <div className="relative block">
                 <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Caption (optional){allowsCollaborators ? ' · @tag collaborators' : ''}
+                  Caption (optional)
+                  {allowsCollaborators
+                    ? communityId
+                      ? ' · @tag members'
+                      : ' · @tag people you follow'
+                    : ''}
                 </span>
                 <textarea
                   ref={captionRef}
@@ -797,7 +888,7 @@ export function FeedCreateSheet({
                   placeholder={
                     kind === 'story'
                       ? 'Add to your story…'
-                      : 'Write a caption… use @ to tag people'
+                      : 'Write a caption… use @ to tag people you follow'
                   }
                   className="w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />

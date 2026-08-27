@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -20,6 +20,7 @@ import {
   Sparkles,
   Lock,
   CheckCircle2,
+  ExternalLink,
 } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -29,6 +30,7 @@ import { useAuthStore } from '@/lib/store/authStore';
 import {
   economyAPI,
   type CoinDashboard,
+  type CoinHistoryRow,
   type RedeemCatalogItem,
 } from '@/lib/api/economy';
 import { cn } from '@/lib/utils';
@@ -42,10 +44,130 @@ const REASON_LABELS: Record<string, string> = {
   referral: 'Referral bonus',
   engagement_received: 'Post likes / comments',
   gift_reaction: 'Gift reaction',
+  community_remind: 'Remind inactive member',
   profile_completion: 'Profile 100% complete',
   profile_quarterly_update: 'Quarterly profile update',
   redeem: 'Redeemed',
 };
+
+const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
+const LOG_REASONS = new Set(['daily_log', 'late_log']);
+const POST_LINK_REASONS = new Set(['gift_reaction', 'engagement_received']);
+
+type HistoryDisplayRow =
+  | { kind: 'single'; row: CoinHistoryRow }
+  | {
+      kind: 'daily_group';
+      id: string;
+      dayKey: string;
+      amount: number;
+      activityCount: number;
+      hasLate: boolean;
+      createdAt: string;
+    };
+
+function postIdFromRow(row: CoinHistoryRow): string | null {
+  const metaId =
+    row.meta && typeof row.meta === 'object' && 'photoId' in row.meta
+      ? String((row.meta as { photoId?: string }).photoId || '')
+      : '';
+  if (metaId && OBJECT_ID_RE.test(metaId)) return metaId;
+  if (row.reference && OBJECT_ID_RE.test(row.reference)) return row.reference;
+  return null;
+}
+
+function subtitleForRow(row: CoinHistoryRow): string {
+  const when = new Date(row.createdAt).toLocaleString();
+  if (row.reason === 'redeem' && row.reference && !OBJECT_ID_RE.test(row.reference)) {
+    return `${row.reference} · ${when}`;
+  }
+  if (
+    (row.reason === 'daily_log' ||
+      row.reason === 'late_log' ||
+      row.reason === 'late_penalty' ||
+      row.reason === 'weekly_streak') &&
+    row.reference &&
+    !OBJECT_ID_RE.test(row.reference)
+  ) {
+    return `${row.reference} · ${when}`;
+  }
+  return when;
+}
+
+/** Combine per-activity daily_log / late_log rows into one line per calendar day. */
+function buildHistoryDisplay(history: CoinHistoryRow[]): HistoryDisplayRow[] {
+  const grouped = new Map<
+    string,
+    {
+      dayKey: string;
+      amount: number;
+      activityCount: number;
+      hasLate: boolean;
+      createdAt: string;
+      firstId: string;
+    }
+  >();
+  const out: HistoryDisplayRow[] = [];
+  const emittedGroups = new Set<string>();
+
+  for (const row of history) {
+    if (row.direction === 'credit' && LOG_REASONS.has(row.reason)) {
+      const dayKey =
+        row.reference && !OBJECT_ID_RE.test(row.reference)
+          ? row.reference
+          : new Date(row.createdAt).toISOString().slice(0, 10);
+      const key = `log:${dayKey}`;
+      const existing = grouped.get(key);
+      if (!existing) {
+        grouped.set(key, {
+          dayKey,
+          amount: Number(row.amount) || 0,
+          activityCount: 1,
+          hasLate: row.reason === 'late_log',
+          createdAt: row.createdAt,
+          firstId: row.id,
+        });
+      } else {
+        existing.amount += Number(row.amount) || 0;
+        existing.activityCount += 1;
+        if (row.reason === 'late_log') existing.hasLate = true;
+        if (new Date(row.createdAt) > new Date(existing.createdAt)) {
+          existing.createdAt = row.createdAt;
+        }
+      }
+      if (!emittedGroups.has(key)) {
+        emittedGroups.add(key);
+        const g = grouped.get(key)!;
+        out.push({
+          kind: 'daily_group',
+          id: `group-${g.dayKey}-${g.firstId}`,
+          dayKey: g.dayKey,
+          amount: 0, // filled after pass
+          activityCount: 0,
+          hasLate: false,
+          createdAt: g.createdAt,
+        });
+      }
+      continue;
+    }
+    out.push({ kind: 'single', row });
+  }
+
+  return out.map((item) => {
+    if (item.kind !== 'daily_group') return item;
+    const g = grouped.get(`log:${item.dayKey}`);
+    if (!g) return item;
+    return {
+      kind: 'daily_group',
+      id: item.id,
+      dayKey: g.dayKey,
+      amount: Math.round(g.amount * 100) / 100,
+      activityCount: g.activityCount,
+      hasLate: g.hasLate,
+      createdAt: g.createdAt,
+    };
+  });
+}
 
 const EARN_STEPS = [
   {
@@ -60,6 +182,23 @@ const EARN_STEPS = [
     title: 'Redeem rewards',
     detail: 'Spend coins on merch, unlocks, and upcoming expert sessions.',
   },
+];
+
+/** Member-facing coin earn amounts (mirrors backend coinConfig). */
+const COIN_EARN_METHODS = [
+  { label: 'On-time activity log', amount: '1 coin per activity' },
+  { label: 'Late activity log', amount: '0.5 coin per activity' },
+  { label: 'Missed previous day', amount: '−50% of that day’s expected coins' },
+  { label: '7-day weekly streak', amount: '+25 coins' },
+  { label: 'Community hits 90% of weekly target', amount: '+50 coins' },
+  { label: 'Complete weekly surprise activity', amount: '+50 coins' },
+  { label: 'Post proof after surprise complete', amount: '+50 coins (doubles surprise)' },
+  { label: 'Successful referral', amount: '+100 coins' },
+  { label: 'Profile complete (100%)', amount: '+100 coins (once)' },
+  { label: 'Meaningful profile update', amount: '+10 coins / quarter' },
+  { label: 'Like or comment received on your post', amount: '+1 coin each' },
+  { label: 'React or comment on someone’s post', amount: '+1 coin' },
+  { label: 'Remind inactive community member', amount: '+1 coin / member / week' },
 ];
 
 function catalogIcon(item: RedeemCatalogItem) {
@@ -102,6 +241,11 @@ export default function CoinsPage() {
       }
     })();
   }, [accessToken, user, isHydrated, sessionReady, router]);
+
+  const historyRows = useMemo(
+    () => (data?.history ? buildHistoryDisplay(data.history) : []),
+    [data?.history]
+  );
 
   const handleRedeem = async (item: RedeemCatalogItem) => {
     if (!item.available || !item.cost) return;
@@ -299,8 +443,38 @@ export default function CoinsPage() {
               </div>
             ) : (
               <ul className="section-card divide-y divide-border overflow-hidden">
-                {data.history.map((row) => {
+                {historyRows.map((item) => {
+                  if (item.kind === 'daily_group') {
+                    return (
+                      <li key={item.id} className="flex items-start gap-3 px-4 py-3">
+                        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-success-soft text-success">
+                          <ArrowDownLeft className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground">
+                            {item.hasLate && item.activityCount === 1
+                              ? 'Late log (50%)'
+                              : 'Daily log'}
+                            {item.hasLate && item.activityCount > 1 ? ' (includes late)' : ''}
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {item.dayKey} · {item.activityCount}{' '}
+                            {item.activityCount === 1 ? 'activity' : 'activities'} ·{' '}
+                            {new Date(item.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <p className="shrink-0 text-sm font-bold tabular-nums text-success">
+                          +{item.amount}
+                        </p>
+                      </li>
+                    );
+                  }
+
+                  const row = item.row;
                   const credit = row.direction === 'credit';
+                  const postId =
+                    POST_LINK_REASONS.has(row.reason) ? postIdFromRow(row) : null;
+
                   return (
                     <li key={row.id} className="flex items-start gap-3 px-4 py-3">
                       <span
@@ -327,9 +501,17 @@ export default function CoinsPage() {
                             : ''}
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {row.reference ? `${row.reference} · ` : ''}
-                          {new Date(row.createdAt).toLocaleString()}
+                          {subtitleForRow(row)}
                         </p>
+                        {postId ? (
+                          <Link
+                            href={`/feed?post=${postId}`}
+                            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                          >
+                            View post
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                        ) : null}
                       </div>
                       <p
                         className={cn(
@@ -362,6 +544,23 @@ export default function CoinsPage() {
                 </li>
               ))}
             </ol>
+          </section>
+
+          <section aria-label="Ways to earn coins">
+            <h2 className="section-title mb-3">Ways to earn</h2>
+            <ul className="section-card divide-y divide-border">
+              {COIN_EARN_METHODS.map((row) => (
+                <li
+                  key={row.label}
+                  className="flex items-start justify-between gap-3 px-4 py-3"
+                >
+                  <p className="text-sm text-foreground">{row.label}</p>
+                  <p className="shrink-0 text-sm font-semibold tabular-nums text-primary">
+                    {row.amount}
+                  </p>
+                </li>
+              ))}
+            </ul>
           </section>
         </div>
       ) : (

@@ -2,17 +2,51 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ClipboardList, Rss, Users, Share2 } from 'lucide-react';
+import { Home, Rss, Users, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
-/** Bottom nav: Community (groups) and Feed (social) stay separate. */
+/**
+ * My Inspiration → Feed (social)
+ * My Happiness → Home (+ Tasks stays under Happiness)
+ * My Community → Community
+ * My Profile → Settings (Referrals live inside Profile)
+ */
 const navigation = [
-  { name: 'Home', href: '/home', icon: Home },
-  { name: 'Tasks', href: '/tasks', icon: ClipboardList },
-  { name: 'Community', href: '/community', icon: Users },
-  { name: 'Feed', href: '/feed', icon: Rss },
-  { name: 'Refer', href: '/referral', icon: Share2 },
+  {
+    name: 'Inspiration',
+    href: '/feed',
+    icon: Rss,
+    match: (pathname: string) =>
+      pathname === '/feed' || pathname.startsWith('/feed/'),
+  },
+  {
+    name: 'Happiness',
+    href: '/home',
+    icon: Home,
+    match: (pathname: string) =>
+      pathname === '/home' ||
+      pathname.startsWith('/home/') ||
+      pathname === '/tasks' ||
+      pathname.startsWith('/tasks/'),
+  },
+  {
+    name: 'Community',
+    href: '/community',
+    icon: Users,
+    match: (pathname: string) =>
+      pathname === '/community' || pathname.startsWith('/community/'),
+  },
+  {
+    name: 'Profile',
+    href: '/settings',
+    icon: User,
+    match: (pathname: string) =>
+      pathname === '/settings' ||
+      pathname.startsWith('/settings/') ||
+      pathname === '/referral' ||
+      pathname.startsWith('/referral/'),
+  },
 ];
 
 export default function BottomNav() {
@@ -23,8 +57,7 @@ export default function BottomNav() {
       <div className="mx-auto max-w-lg px-1.5 sm:max-w-3xl sm:px-2 lg:max-w-4xl">
         <div className="flex h-[4.25rem] items-center justify-around">
           {navigation.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const isActive = item.match(pathname);
             const Icon = item.icon;
 
             return (

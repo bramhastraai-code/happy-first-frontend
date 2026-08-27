@@ -51,11 +51,15 @@ export interface Profile {
     summaryOptIn: boolean;
     unlockedSets: number[];
     allowMessages?: boolean;
+    mascotName?: string;
+    mascotColor?: string;
+    defaultLanding?: '/home' | '/feed' | '/community' | '/tasks' | '/settings';
   };
   setting: {
     autoActivityPlanRenew: boolean;
     pause?: boolean;
   };
+  memberSince?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,6 +71,8 @@ interface User {
   name: string;
   email: string;
   city?: string;
+  area?: string;
+  country?: string;
   locationPin?: string;
   dateOfBirth?: string;
   createdAt?: string;

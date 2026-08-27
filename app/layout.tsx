@@ -3,6 +3,7 @@ import './globals.css';
 import QueryProvider from '@/components/providers/QueryProvider';
 import AuthProvider from '@/components/providers/AuthProvider';
 import PwaProvider from '@/components/providers/PwaProvider';
+import MascotThemeProvider from '@/components/providers/MascotThemeProvider';
 import { siteMetadata } from '@/lib/site-metadata';
 import { BRAND_NAME } from '@/lib/brand';
 
@@ -35,7 +36,9 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <PwaProvider>
           <QueryProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <AuthProvider>
+              <MascotThemeProvider>{children}</MascotThemeProvider>
+            </AuthProvider>
           </QueryProvider>
         </PwaProvider>
       </body>

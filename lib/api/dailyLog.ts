@@ -30,7 +30,7 @@ export interface DailySummary {
     target: number;
     pointsEarned: number;
     unit: string;
-    status: 'partial' | 'completed'|'pending';
+    status: 'partial' | 'completed' | 'pending' | 'not_done';
   }>;
   totalPoints: number;
   streak?: number;

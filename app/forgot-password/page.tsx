@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { authAPI } from '@/lib/api/auth';
 import { performLogout } from '@/lib/auth/session';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { useOtpCountdown } from '@/lib/hooks/useOtpCountdown';
 import { markOtpSession, DEFAULT_OTP_EXPIRY_MINUTES } from '@/lib/auth/otpSession';
 import { cn } from '@/lib/utils';
 import { AlertCircle, CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import LoadingScreen from '@/components/ui/LoadingScreen';
 
 function ValidationItem({ text, isValid }: { text: string; isValid: boolean }) {
   return (
@@ -30,8 +31,9 @@ function ValidationItem({ text, isValid }: { text: string; isValid: boolean }) {
   );
 }
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [otpSent, setOtpSent] = useState(false);
   const [resetComplete, setResetComplete] = useState(false);
   const [formData, setFormData] = useState({
@@ -46,6 +48,7 @@ export default function ForgotPasswordPage() {
   const [resendingOtp, setResendingOtp] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
   const [validations, setValidations] = useState({
     minLength: false,
     hasUpperCase: false,
@@ -53,6 +56,23 @@ export default function ForgotPasswordPage() {
     hasNumber: false,
     hasSpecialChar: false,
   });
+
+  useEffect(() => {
+    const phone = (searchParams.get('phone') || '').replace(/\D/g, '').slice(0, 10);
+    const country = searchParams.get('country') || searchParams.get('countryCode') || '';
+    const fromRegister = searchParams.get('from') === 'register';
+    if (!phone && !country && !fromRegister) return;
+    setFormData((prev) => ({
+      ...prev,
+      ...(phone ? { phoneNumber: phone } : {}),
+      ...(country ? { countryCode: country.startsWith('+') ? country : `+${country}` } : {}),
+    }));
+    if (fromRegister || phone) {
+      setInfoMessage(
+        'This number is already registered. Verify with OTP to reset your password and sign in.'
+      );
+    }
+  }, [searchParams]);
 
   const { secondsLeft, canResend, restartTimer } = useOtpCountdown(
     formData.phoneNumber,
@@ -107,7 +127,10 @@ export default function ForgotPasswordPage() {
       markOtpSession(formData.phoneNumber, formData.countryCode, expiresIn);
       restartTimer(expiresIn);
       setOtpSent(true);
-      setSuccessMessage(`OTP sent to your WhatsApp. It is valid for ${DEFAULT_OTP_EXPIRY_MINUTES} minutes.`);
+      setInfoMessage('');
+      setSuccessMessage(
+        `OTP sent to your WhatsApp. It is valid for ${DEFAULT_OTP_EXPIRY_MINUTES} minutes.`
+      );
     } catch (err) {
       setError(
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
@@ -216,6 +239,12 @@ export default function ForgotPasswordPage() {
         onSubmit={otpSent ? handleResetPassword : handleRequestOTP}
         className="space-y-4"
       >
+        {infoMessage && (
+          <div className="rounded-xl border border-primary/20 bg-primary-soft px-3 py-2.5 text-sm text-accent-foreground">
+            {infoMessage}
+          </div>
+        )}
+
         <div>
           <label htmlFor="countryCode" className="mb-1.5 block text-sm font-medium text-foreground">
             Country code
@@ -223,7 +252,10 @@ export default function ForgotPasswordPage() {
           <CountryCodeSelect
             id="countryCode"
             value={formData.countryCode}
-            onChange={(countryCode) => setFormData({ ...formData, countryCode })}
+            onChange={(countryCode) => {
+              setFormData((prev) => ({ ...prev, countryCode }));
+              resetMessages();
+            }}
             disabled={otpSent || loading}
           />
         </div>
@@ -235,17 +267,16 @@ export default function ForgotPasswordPage() {
           <Input
             id="phoneNumber"
             type="tel"
-            placeholder="9999999999"
-            maxLength={10}
             inputMode="numeric"
-            autoComplete="tel"
+            placeholder="10-digit mobile number"
             value={formData.phoneNumber}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
+            onChange={(e) => {
+              setFormData((prev) => ({
+                ...prev,
                 phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10),
-              })
-            }
+              }));
+              resetMessages();
+            }}
             required
             disabled={otpSent || loading}
           />
@@ -264,7 +295,10 @@ export default function ForgotPasswordPage() {
                 placeholder="6-digit OTP"
                 value={formData.otp}
                 onChange={(e) =>
-                  setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '').slice(0, 6) })
+                  setFormData((prev) => ({
+                    ...prev,
+                    otp: e.target.value.replace(/\D/g, '').slice(0, 6),
+                  }))
                 }
                 maxLength={6}
                 required
@@ -274,8 +308,8 @@ export default function ForgotPasswordPage() {
                 <OtpTimerResend
                   secondsLeft={secondsLeft}
                   canResend={canResend}
-                  onResend={handleResendOtp}
                   resending={resendingOtp}
+                  onResend={handleResendOtp}
                 />
               </div>
             </div>
@@ -288,8 +322,7 @@ export default function ForgotPasswordPage() {
                 <Input
                   id="newPassword"
                   type={showPasswords.new ? 'text' : 'password'}
-                  placeholder="Enter new password"
-                  autoComplete="new-password"
+                  placeholder="Create a strong password"
                   value={formData.newPassword}
                   onChange={(e) => handleNewPasswordChange(e.target.value)}
                   required
@@ -308,7 +341,7 @@ export default function ForgotPasswordPage() {
             </div>
 
             {formData.newPassword && (
-              <div className="rounded-xl border border-border bg-secondary/40 p-3 space-y-1.5">
+              <div className="space-y-1.5 rounded-xl border border-border bg-secondary/40 p-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Requirements
                 </p>
@@ -321,18 +354,20 @@ export default function ForgotPasswordPage() {
             )}
 
             <div>
-              <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-medium text-foreground">
+              <label
+                htmlFor="confirmPassword"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
                 Confirm password
               </label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
                   type={showPasswords.confirm ? 'text' : 'password'}
-                  placeholder="Confirm new password"
-                  autoComplete="new-password"
+                  placeholder="Re-enter new password"
                   value={formData.confirmPassword}
                   onChange={(e) => {
-                    setFormData({ ...formData, confirmPassword: e.target.value });
+                    setFormData((prev) => ({ ...prev, confirmPassword: e.target.value }));
                     resetMessages();
                   }}
                   required
@@ -341,15 +376,21 @@ export default function ForgotPasswordPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))}
+                  onClick={() =>
+                    setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))
+                  }
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   aria-label={showPasswords.confirm ? 'Hide password' : 'Show password'}
                 >
-                  {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPasswords.confirm ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
               {formData.confirmPassword && !passwordsMatch && (
-                <p className="mt-2 flex items-center gap-1 text-xs text-destructive">
+                <p className="mt-1 flex items-center gap-1 text-xs text-destructive">
                   <AlertCircle className="h-3.5 w-3.5" />
                   Passwords do not match
                 </p>
@@ -358,58 +399,46 @@ export default function ForgotPasswordPage() {
           </>
         )}
 
-        {successMessage && !resetComplete && (
-          <div className="rounded-2xl bg-success-soft px-4 py-3 text-sm font-medium text-success">
-            {successMessage}
-          </div>
-        )}
-
         {error && (
-          <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-destructive">
+          <p className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {error}
-          </div>
+          </p>
+        )}
+        {successMessage && (
+          <p className="rounded-xl border border-primary/20 bg-primary-soft px-3 py-2 text-sm text-accent-foreground">
+            {successMessage}
+          </p>
         )}
 
         <Button
           type="submit"
+          className="w-full"
+          size="lg"
           disabled={
             loading ||
-            (otpSent && (!allValidationsPassed || !passwordsMatch))
+            (otpSent && (!allValidationsPassed || !passwordsMatch || formData.otp.length !== 6))
           }
-          className="mt-2 w-full"
-          size="lg"
         >
           {loading ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Please wait…
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {otpSent ? 'Resetting…' : 'Sending OTP…'}
             </>
           ) : otpSent ? (
             'Reset password'
           ) : (
-            'Send OTP'
+            'Send reset OTP'
           )}
         </Button>
-
-        {otpSent && (
-          <button
-            type="button"
-            onClick={() => {
-              setOtpSent(false);
-              setFormData((prev) => ({
-                ...prev,
-                otp: '',
-                newPassword: '',
-                confirmPassword: '',
-              }));
-              resetMessages();
-            }}
-            className="w-full pt-1 text-sm font-medium text-primary hover:underline"
-          >
-            Use a different number
-          </button>
-        )}
       </form>
     </AuthShell>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<LoadingScreen fullScreen label="Loading…" />}>
+      <ForgotPasswordForm />
+    </Suspense>
   );
 }

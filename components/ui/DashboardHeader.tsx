@@ -1,14 +1,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { LogOut, RefreshCw, Settings } from 'lucide-react';
+import { LayoutGrid, LogOut, RefreshCw, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
-import {
-  AppPageHeader,
-  headerActionBtnClass,
-  headerActionBtnDangerClass,
-} from '@/components/ui/AppPageHeader';
+import { AppPageHeader } from '@/components/ui/AppPageHeader';
+import { HeaderIconButton, HeaderIconLink } from '@/components/ui/HeaderIconAction';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
 
@@ -78,38 +75,32 @@ export function DashboardHeader({
           {extraActions}
 
           {canSwitchProfile ? (
-            <button
-              type="button"
+            <HeaderIconButton
+              icon={<RefreshCw className="h-4 w-4" />}
+              caption="Switch"
               onClick={handleSwitchProfile}
-              className={cn(
-                headerActionBtnClass,
-                'sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2'
-              )}
-              aria-label="Switch profile"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span className="hidden text-xs font-medium sm:inline">Switch</span>
-            </button>
+            />
           ) : null}
 
-          <button
-            type="button"
+          <HeaderIconLink
+            href="/modules"
+            icon={<LayoutGrid className="h-[18px] w-[18px]" />}
+            caption="Modules"
+          />
+
+          <HeaderIconButton
+            icon={<Settings className="h-[18px] w-[18px]" />}
+            caption="Settings"
             onClick={() => router.push('/settings')}
-            className={headerActionBtnClass}
-            aria-label="Settings"
-          >
-            <Settings className="h-[18px] w-[18px]" />
-          </button>
+          />
 
           {onLogout ? (
-            <button
-              type="button"
+            <HeaderIconButton
+              icon={<LogOut className="h-[18px] w-[18px]" />}
+              caption="Log out"
+              danger
               onClick={onLogout}
-              className={headerActionBtnDangerClass}
-              aria-label="Log out"
-            >
-              <LogOut className="h-[18px] w-[18px]" />
-            </button>
+            />
           ) : null}
         </>
       }

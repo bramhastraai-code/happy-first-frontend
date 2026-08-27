@@ -1,7 +1,8 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { Loader2, Plus } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/ui/LoadingScreen';
@@ -20,8 +21,24 @@ import { useFeedRealtime } from '@/lib/hooks/useFeedRealtime';
 import { Button } from '@/components/ui/button';
 
 export default function FeedPage() {
+  return (
+    <Suspense
+      fallback={
+        <MainLayout>
+          <LoadingScreen fullScreen label="Loading feed…" />
+        </MainLayout>
+      }
+    >
+      <FeedPageContent />
+    </Suspense>
+  );
+}
+
+function FeedPageContent() {
   const { accessToken, isHydrated, selectedProfile, user } = useAuthStore();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const deepLinkPostId = searchParams.get('post');
   const [activePost, setActivePost] = useState<FeedPost | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
   const [messagesOpen, setMessagesOpen] = useState(false);
@@ -110,6 +127,13 @@ export default function FeedPage() {
     () => feedQuery.data?.pages.flatMap((page) => page.posts) ?? [],
     [feedQuery.data]
   );
+
+  useEffect(() => {
+    if (!deepLinkPostId || !posts.length) return;
+    const found = posts.find((post) => post.id === deepLinkPostId);
+    if (found) setActivePost(found);
+  }, [deepLinkPostId, posts]);
+
   const stories = storiesQuery.data ?? [];
   const ownStory = useMemo(() => {
     const found =
@@ -258,8 +282,8 @@ export default function FeedPage() {
                     post.author.profileId === selectedProfile?._id ||
                     post.author.userId === user?._id
                   }
-                  onEdit={async (target, caption) => {
-                    const res = await feedAPI.updatePost(target.id, caption);
+                  onEdit={async (target, caption, extras) => {
+                    const res = await feedAPI.updatePost(target.id, caption, extras);
                     const updated = res.data.data.post;
                     queryClient.setQueryData<{
                       pages: { posts: FeedPost[]; nextCursor: string | null }[];
@@ -271,17 +295,13 @@ export default function FeedPage() {
                         pages: old.pages.map((page) => ({
                           ...page,
                           posts: page.posts.map((item) =>
-                            item.id === updated.id
-                              ? { ...item, caption: updated.caption }
-                              : item
+                            item.id === updated.id ? { ...item, ...updated } : item
                           ),
                         })),
                       };
                     });
                     if (activePost?.id === updated.id) {
-                      setActivePost((prev) =>
-                        prev ? { ...prev, caption: updated.caption } : prev
-                      );
+                      setActivePost((prev) => (prev ? { ...prev, ...updated } : prev));
                     }
                   }}
                   onDelete={async (target) => {

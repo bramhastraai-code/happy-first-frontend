@@ -13,8 +13,10 @@ import { Button } from '@/components/ui/button';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import CompactDatePicker from '@/components/ui/CompactDatePicker';
 import TaskCategorySection from '@/components/tasks/TaskCategorySection';
+import CommunityActivitiesSection from '@/components/tasks/CommunityActivitiesSection';
 import { Calendar, Clock, AlertCircle, Loader2, Eye } from 'lucide-react';
 import { activityAPI, type Activity as ActivityType } from '@/lib/api/activity';
+import { communityAPI, type MyCommunityActivity } from '@/lib/api/community';
 import { DateTime } from 'luxon';
 import { cn } from '@/lib/utils';
 import { resolveActivityId } from '@/lib/utils/activityId';
@@ -35,7 +37,10 @@ type PageMode = 'submit' | 'view' | 'closed' | 'loading';
 function formatSubmittedValue(activity: DailySummary['activities'][number]) {
   const unit = String(activity.unit || '').toLowerCase();
   const isWeeklyDays = activity.cadance === 'weekly' && unit === 'days';
-  if (isWeeklyDays) {
+  if (activity.status === 'pending') {
+    return 'Not logged';
+  }
+  if (isWeeklyDays || activity.status === 'not_done') {
     return activity.achieved > 0 ? 'Done' : 'Not Done';
   }
   return `${activity.achieved} ${activity.unit}`;
@@ -99,6 +104,7 @@ function PreviousLogPageContent() {
   const [showCongrats, setShowCongrats] = useState(false);
   const [actlist, setActlist] = useState<ActivityType[]>([]);
   const [pickerCalendarDays, setPickerCalendarDays] = useState<CalendarDay[]>([]);
+  const [communityActivities, setCommunityActivities] = useState<MyCommunityActivity[]>([]);
 
   const dateIsLoggable = isLoggableDate(selectedDate, zone);
   const selectedIsToday = Boolean(selectedDate && today && selectedDate === today);
@@ -117,10 +123,15 @@ function PreviousLogPageContent() {
     return fallback;
   };
 
+  const hasCommunityToLog = communityActivities.some((row) => !row.TodayLogged);
+
   const mode: PageMode = useMemo(() => {
-    if (!selectedDate || checkingLog || (loading && !weeklyPlan && !daySummary)) return 'loading';
+    if (!selectedDate || checkingLog || (loading && !weeklyPlan && !daySummary && !communityActivities.length))
+      return 'loading';
+    if (logAlreadyExists && daySummary && !hasCommunityToLog) return 'view';
+    if (dateIsLoggable && (weeklyPlan || hasCommunityToLog) && !(logAlreadyExists && !hasCommunityToLog))
+      return 'submit';
     if (logAlreadyExists && daySummary) return 'view';
-    if (dateIsLoggable && weeklyPlan && !logAlreadyExists) return 'submit';
     return 'closed';
   }, [
     selectedDate,
@@ -128,8 +139,10 @@ function PreviousLogPageContent() {
     loading,
     weeklyPlan,
     daySummary,
+    communityActivities.length,
     logAlreadyExists,
     dateIsLoggable,
+    hasCommunityToLog,
   ]);
 
   useEffect(() => {
@@ -223,6 +236,7 @@ function PreviousLogPageContent() {
         setLogAlreadyExists(false);
         setDaySummary(null);
         setWeeklyPlan(null);
+        setCommunityActivities([]);
 
         let summary: DailySummary | null = null;
         try {
@@ -232,9 +246,6 @@ function PreviousLogPageContent() {
 
           if (summary?.isFullyLogged) {
             setLogAlreadyExists(true);
-            setCheckingLog(false);
-            setLoading(false);
-            return;
           }
         } catch (err: unknown) {
           const response = (err as { response?: { status?: number; data?: { message?: string } } })
@@ -244,6 +255,16 @@ function PreviousLogPageContent() {
           }
         }
 
+        let communityRows: MyCommunityActivity[] = [];
+        try {
+          const communityRes = await communityAPI.myActivities({ date: selectedDate });
+          communityRows = communityRes.data.data.activities ?? [];
+          setCommunityActivities(communityRows);
+        } catch (err) {
+          console.error('Error loading community activities:', err);
+          setCommunityActivities([]);
+        }
+
         setCheckingLog(false);
 
         if (!dateIsLoggable) {
@@ -251,44 +272,78 @@ function PreviousLogPageContent() {
           return;
         }
 
-        const response = await weeklyPlanAPI.getCurrent(selectedDate);
-        if (response.data.data) {
-          const plan = applyDaySummaryToPlan(response.data.data, summary);
-
-          if (
-            summary &&
-            plan.activities.length > 0 &&
-            plan.activities.every((activity) => activity.TodayLogged)
-          ) {
-            setLogAlreadyExists(true);
-            setWeeklyPlan(null);
-            return;
+        const communityInitialActivities: Record<string, number> = {};
+        const communityInitialCheckbox: Record<string, boolean> = {};
+        const communityInitialPending: Record<string, boolean> = {};
+        communityRows.forEach((row) => {
+          if (row.TodayLogged) return;
+          const isWeeklyDays =
+            row.cadence === 'weekly' && String(row.unit || '').toLowerCase() === 'days';
+          if (isWeeklyDays) {
+            communityInitialCheckbox[row.activityId] = false;
+            communityInitialPending[row.activityId] = true;
+          } else {
+            communityInitialActivities[row.activityId] = 0;
           }
+        });
 
-          setWeeklyPlan(plan);
+        try {
+          const response = await weeklyPlanAPI.getCurrent(selectedDate);
+          if (response.data.data) {
+            const plan = applyDaySummaryToPlan(response.data.data, summary);
 
-          const initialActivities: Record<string, number> = {};
-          const initialCheckboxActivities: Record<string, boolean> = {};
-          const initialPendingSliders: Record<string, boolean> = {};
-
-          plan.activities.forEach((activity) => {
-            const activityId = resolveActivityId(activity);
-            if (activity.TodayLogged) return;
-            if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
-              initialCheckboxActivities[activityId] = false;
-              initialPendingSliders[activityId] = true;
+            if (
+              summary &&
+              plan.activities.length > 0 &&
+              plan.activities.every((activity) => activity.TodayLogged)
+            ) {
+              setLogAlreadyExists(true);
+              setWeeklyPlan(null);
             } else {
-              initialActivities[activityId] = 0;
-            }
-          });
+              setWeeklyPlan(plan);
 
-          setActivities(initialActivities);
-          setCheckboxActivities(initialCheckboxActivities);
-          setPendingSliders(initialPendingSliders);
-        } else {
-          setWeeklyPlan(null);
-          setError(response.data.message || 'No weekly plan found for the selected date');
+              const initialActivities: Record<string, number> = { ...communityInitialActivities };
+              const initialCheckboxActivities: Record<string, boolean> = {
+                ...communityInitialCheckbox,
+              };
+              const initialPendingSliders: Record<string, boolean> = {
+                ...communityInitialPending,
+              };
+
+              plan.activities.forEach((activity) => {
+                const activityId = resolveActivityId(activity);
+                if (activity.TodayLogged) return;
+                if (activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days') {
+                  initialCheckboxActivities[activityId] = false;
+                  initialPendingSliders[activityId] = true;
+                } else {
+                  initialActivities[activityId] = 0;
+                }
+              });
+
+              setActivities(initialActivities);
+              setCheckboxActivities(initialCheckboxActivities);
+              setPendingSliders(initialPendingSliders);
+              setLoading(false);
+              setCheckingLog(false);
+              return;
+            }
+          } else {
+            setWeeklyPlan(null);
+            if (!communityRows.some((r) => !r.TodayLogged)) {
+              setError(response.data.message || 'No weekly plan found for the selected date');
+            }
+          }
+        } catch (err: unknown) {
+          console.error('Error fetching weekly plan:', err);
+          if (!communityRows.some((r) => !r.TodayLogged)) {
+            setError(extractErrorMessage(err, 'Failed to load weekly plan'));
+          }
         }
+
+        setActivities(communityInitialActivities);
+        setCheckboxActivities(communityInitialCheckbox);
+        setPendingSliders(communityInitialPending);
       } catch (err: unknown) {
         console.error('Error fetching weekly plan:', err);
         setError(extractErrorMessage(err, 'Failed to load weekly plan'));
@@ -334,14 +389,14 @@ function PreviousLogPageContent() {
       setError('No profile selected');
       return;
     }
-    if (!weeklyPlan) {
-      setError('No weekly plan found for the selected date.');
+    if (!weeklyPlan && !hasCommunityToLog) {
+      setError('No weekly plan or community activities found for the selected date.');
       return;
     }
 
     setError('');
 
-    const warnings = collectUnusualValueWarnings(weeklyPlan, activities);
+    const warnings = weeklyPlan ? collectUnusualValueWarnings(weeklyPlan, activities) : [];
 
     if (warnings.length > 0 && !showWarning) {
       setWarningActivities(warnings);
@@ -349,29 +404,61 @@ function PreviousLogPageContent() {
       return;
     }
 
-    const validation = validateLogSubmit(weeklyPlan, activities, checkboxActivities, pendingSliders);
-    if (!validation.ok) {
-      setError(validation.error);
+    const personalValidation = weeklyPlan
+      ? validateLogSubmit(weeklyPlan, activities, checkboxActivities, pendingSliders)
+      : { ok: true as const, payload: [] as Array<{ activityId: string; value: number }> };
+
+    if (weeklyPlan && !personalValidation.ok) {
+      setError(personalValidation.error);
+      return;
+    }
+
+    const communityPayload = communityActivities
+      .filter((row) => !row.TodayLogged)
+      .map((row) => {
+        const isWeeklyDays =
+          row.cadence === 'weekly' && String(row.unit || '').toLowerCase() === 'days';
+        if (isWeeklyDays) {
+          const isPending = pendingSliders[row.activityId] ?? true;
+          if (isPending) return null;
+          const value = checkboxActivities[row.activityId] ? 1 : 0;
+          return { activityId: row.activityId, value, communityOnly: true as const };
+        }
+        const value = activities[row.activityId] ?? 0;
+        return value > 0
+          ? { activityId: row.activityId, value, communityOnly: true as const }
+          : null;
+      })
+      .filter((entry): entry is { activityId: string; value: number; communityOnly: true } =>
+        Boolean(entry)
+      );
+
+    const personalPayload = personalValidation.ok ? personalValidation.payload : [];
+    if (personalPayload.length === 0 && communityPayload.length === 0) {
+      setError('Please review all activities before submitting.');
       return;
     }
 
     setLoading(true);
     try {
+      const submitData: SubmitDailyLogData = {
+        activities: [...personalPayload, ...communityPayload],
+      };
       const response = selectedIsToday
-        ? await dailyLogAPI.submit({
-            activities: validation.payload,
-          } satisfies SubmitDailyLogData)
+        ? await dailyLogAPI.submit(submitData)
         : await dailyLogAPI.submitPrevious({
             date: selectedDate,
-            activities: validation.payload,
+            activities: submitData.activities,
           });
       setEarnedPoints(extractEarnedPoints(response.data.data));
       setLoggedEntries(
-        validation.payload.map((entry) => {
-          const planAct = weeklyPlan.activities.find(
+        submitData.activities.map((entry) => {
+          const planAct = weeklyPlan?.activities.find(
             (activity) => resolveActivityId(activity) === entry.activityId
           );
           if (planAct) return formatLoggedActivityValue(planAct, entry.value);
+          const communityAct = communityActivities.find((row) => row.activityId === entry.activityId);
+          if (communityAct) return formatLoggedActivityValue(communityAct, entry.value);
           return { label: 'Activity', value: String(entry.value) };
         })
       );
@@ -598,14 +685,31 @@ function PreviousLogPageContent() {
           </div>
         )}
 
-        {showForm && weeklyPlan && (
+        {showForm && (weeklyPlan || hasCommunityToLog) && (
           <div className="space-y-4">
             <h2 className="section-title">Log activities</h2>
-            {(['body', 'mind', 'soul'] as const).map((category) => (
-              <TaskCategorySection
-                key={category}
-                category={category}
-                activities={weeklyPlan.activities}
+            {weeklyPlan
+              ? (['body', 'mind', 'soul'] as const).map((category) => (
+                  <TaskCategorySection
+                    key={category}
+                    category={category}
+                    activities={weeklyPlan.activities}
+                    actlist={actlist}
+                    isAfter6PM
+                    timeUntilMidnight=""
+                    activityValues={activities}
+                    checkboxActivities={checkboxActivities}
+                    pendingSliders={pendingSliders}
+                    onActivityChange={handleActivityChange}
+                    onCheckboxChange={handleCheckboxChange}
+                    onPendingChange={handlePendingChange}
+                    getActivityInputMax={getActivityInputMax}
+                  />
+                ))
+              : null}
+            {hasCommunityToLog ? (
+              <CommunityActivitiesSection
+                activities={communityActivities.filter((row) => !row.TodayLogged)}
                 actlist={actlist}
                 isAfter6PM
                 timeUntilMidnight=""
@@ -617,7 +721,7 @@ function PreviousLogPageContent() {
                 onPendingChange={handlePendingChange}
                 getActivityInputMax={getActivityInputMax}
               />
-            ))}
+            ) : null}
           </div>
         )}
 
@@ -628,13 +732,16 @@ function PreviousLogPageContent() {
           </div>
         )}
 
-        {showForm && weeklyPlan && (
+        {showForm && (weeklyPlan || hasCommunityToLog) && (
           <Button
             onClick={() => void handleSubmit()}
             disabled={
               loading ||
               checkingLog ||
-              !canSubmitFullDayLog(weeklyPlan, activities, checkboxActivities, pendingSliders)
+              (weeklyPlan
+                ? !canSubmitFullDayLog(weeklyPlan, activities, checkboxActivities, pendingSliders) &&
+                  !hasCommunityToLog
+                : !hasCommunityToLog)
             }
             className="w-full py-5 text-base font-semibold"
           >

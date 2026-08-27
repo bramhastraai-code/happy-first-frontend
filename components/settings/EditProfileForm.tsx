@@ -12,15 +12,62 @@ import {
   isUploadedAvatarUrl,
 } from '@/lib/utils/avatar';
 import { cn } from '@/lib/utils';
+import {
+  DEFAULT_LANDING_OPTIONS,
+  DEFAULT_MASCOT_COLOR,
+  MASCOT_COLOR_PRESETS,
+  applyMascotTheme,
+  normalizeMascotColor,
+  resolveDefaultLanding,
+  type DefaultLandingPath,
+} from '@/lib/theme/mascotTheme';
+import { HappyFirstMascot } from '@/components/ui/HappyFirstMascot';
 
 const FIELD_CLASS =
   'w-full rounded-xl border border-input bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring';
 
 interface EditProfileFormProps {
   onSaved?: () => void;
+  onCancel?: () => void;
 }
 
-export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
+function buildFormState(profile: Profile) {
+  return {
+    name: profile.name ?? '',
+    bio: profile.bio ?? '',
+    website: profile.website ?? '',
+    publicHighlight: profile.publicHighlight ?? '',
+    avatarSeed: profile.avatarSeed || profile.name || profile._id || 'happy-first',
+    avatarUrl: profile.avatarUrl || null,
+    avatarStyle:
+      profile.avatarStyle === 'uploaded'
+        ? 'uploaded'
+        : profile.avatarStyle || AVATAR_STYLE,
+    profileData: {
+      profile: {
+        health: profile.profile?.health ?? '',
+        family: profile.profile?.family ?? '',
+        profession: profile.profile?.profession ?? '',
+        schedule: profile.profile?.schedule ?? '',
+        challenges: profile.profile?.challenges ?? '',
+        goals: profile.profile?.goals ?? '',
+        likes: profile.profile?.likes ?? '',
+        personalCare: profile.profile?.personalCare ?? '',
+        dislikes: profile.profile?.dislikes ?? '',
+        medicalConditions: profile.profile?.medicalConditions ?? '',
+      },
+      preferences: {
+        tone: (profile.preferences?.tone ?? 'coach') as 'soft' | 'coach' | 'strict',
+        allowMessages: profile.preferences?.allowMessages !== false,
+        mascotName: profile.preferences?.mascotName ?? '',
+        mascotColor: normalizeMascotColor(profile.preferences?.mascotColor),
+        defaultLanding: resolveDefaultLanding(profile.preferences?.defaultLanding),
+      },
+    },
+  };
+}
+
+export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormProps) {
   const { selectedProfile, setProfiles, setSelectedProfile, setUser, user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -32,6 +79,7 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
   const [avatarSeed, setAvatarSeed] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarStyle, setAvatarStyle] = useState<string>(AVATAR_STYLE);
+  const [baseline, setBaseline] = useState<ReturnType<typeof buildFormState> | null>(null);
   const [profileData, setProfileData] = useState({
     profile: {
       health: '',
@@ -48,46 +96,60 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
     preferences: {
       tone: 'coach' as 'soft' | 'coach' | 'strict',
       allowMessages: true,
+      mascotName: '',
+      mascotColor: DEFAULT_MASCOT_COLOR,
+      defaultLanding: '/home' as DefaultLandingPath,
     },
   });
 
+  const applyFormState = (next: ReturnType<typeof buildFormState>) => {
+    setName(next.name);
+    setBio(next.bio);
+    setWebsite(next.website);
+    setPublicHighlight(next.publicHighlight);
+    setAvatarSeed(next.avatarSeed);
+    setAvatarUrl(next.avatarUrl);
+    setAvatarStyle(next.avatarStyle);
+    setProfileData(next.profileData);
+  };
+
   useEffect(() => {
     if (!selectedProfile) return;
-    setName(selectedProfile.name ?? '');
-    setBio(selectedProfile.bio ?? '');
-    setWebsite(selectedProfile.website ?? '');
-    setPublicHighlight(selectedProfile.publicHighlight ?? '');
-    setAvatarSeed(
-      selectedProfile.avatarSeed ||
-        selectedProfile.name ||
-        selectedProfile._id ||
-        'happy-first'
-    );
-    setAvatarUrl(selectedProfile.avatarUrl || null);
-    setAvatarStyle(
-      selectedProfile.avatarStyle === 'uploaded'
-        ? 'uploaded'
-        : selectedProfile.avatarStyle || AVATAR_STYLE
-    );
-    setProfileData({
-      profile: {
-        health: selectedProfile.profile?.health ?? '',
-        family: selectedProfile.profile?.family ?? '',
-        profession: selectedProfile.profile?.profession ?? '',
-        schedule: selectedProfile.profile?.schedule ?? '',
-        challenges: selectedProfile.profile?.challenges ?? '',
-        goals: selectedProfile.profile?.goals ?? '',
-        likes: selectedProfile.profile?.likes ?? '',
-        personalCare: selectedProfile.profile?.personalCare ?? '',
-        dislikes: selectedProfile.profile?.dislikes ?? '',
-        medicalConditions: selectedProfile.profile?.medicalConditions ?? '',
-      },
-      preferences: {
-        tone: selectedProfile.preferences?.tone ?? 'coach',
-        allowMessages: selectedProfile.preferences?.allowMessages !== false,
-      },
-    });
-  }, [selectedProfile]);
+    const next = buildFormState(selectedProfile);
+    setBaseline(next);
+    applyFormState(next);
+    setError('');
+    setMessage('');
+  }, [selectedProfile?._id]);
+
+  const handleCancel = () => {
+    if (loading) return;
+    if (baseline && selectedProfile) {
+      applyFormState(baseline);
+      const restored = {
+        ...selectedProfile,
+        name: baseline.name,
+        bio: baseline.bio,
+        website: baseline.website,
+        publicHighlight: baseline.publicHighlight,
+        avatarSeed: baseline.avatarSeed,
+        avatarUrl: baseline.avatarUrl,
+        avatarStyle: baseline.avatarStyle,
+      };
+      setSelectedProfile(restored);
+      setProfiles(
+        (useAuthStore.getState().profiles ?? []).map((p) =>
+          p._id === selectedProfile._id ? restored : p
+        )
+      );
+    }
+    setError('');
+    setMessage('');
+    onCancel?.();
+    if (baseline) {
+      applyMascotTheme(baseline.profileData.preferences.mascotColor);
+    }
+  };
 
   const updateProfileField = (field: keyof typeof profileData.profile, value: string) => {
     setProfileData((prev) => ({
@@ -174,6 +236,11 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
         (updated.type === 'primary' || updated.relationship === 'self')
       ) {
         setUser({ ...user, name: trimmedName });
+      }
+
+      if (updated) {
+        setBaseline(buildFormState(updated));
+        applyMascotTheme(updated.preferences?.mascotColor);
       }
 
       const coinRewards = (response.data.data as { coinRewards?: { awarded?: { reason: string; amount: number }[] } })
@@ -428,12 +495,139 @@ export default function EditProfileForm({ onSaved }: EditProfileFormProps) {
         </div>
       </div>
 
+      <div>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Mascot & app colour
+        </h3>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-3">
+            <HappyFirstMascot
+              size={56}
+              title={
+                profileData.preferences.mascotName.trim() ||
+                'Happy First mascot (name to be decided)'
+              }
+            />
+            <p className="min-w-0 text-xs text-muted-foreground">
+              Name is still to be decided — pick one below. Your mascot colour paints buttons,
+              accents, and pages for this profile.
+            </p>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">
+              Mascot name
+            </label>
+            <Input
+              value={profileData.preferences.mascotName}
+              onChange={(e) =>
+                setProfileData((prev) => ({
+                  ...prev,
+                  preferences: {
+                    ...prev.preferences,
+                    mascotName: e.target.value.slice(0, 40),
+                  },
+                }))
+              }
+              placeholder="Name to be decided"
+              maxLength={40}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">
+              Mascot colour
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {MASCOT_COLOR_PRESETS.map((preset) => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  title={preset.label}
+                  aria-label={preset.label}
+                  onClick={() => {
+                    setProfileData((prev) => ({
+                      ...prev,
+                      preferences: { ...prev.preferences, mascotColor: preset.value },
+                    }));
+                    applyMascotTheme(preset.value);
+                    setError('');
+                    setMessage('');
+                  }}
+                  className={cn(
+                    'h-9 w-9 rounded-full border-2 transition',
+                    profileData.preferences.mascotColor === preset.value
+                      ? 'border-foreground scale-110'
+                      : 'border-transparent'
+                  )}
+                  style={{ backgroundColor: preset.value }}
+                />
+              ))}
+              <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-input bg-surface px-3 text-xs text-muted-foreground">
+                Custom
+                <input
+                  type="color"
+                  value={normalizeMascotColor(profileData.preferences.mascotColor)}
+                  onChange={(e) => {
+                    const next = normalizeMascotColor(e.target.value);
+                    setProfileData((prev) => ({
+                      ...prev,
+                      preferences: { ...prev.preferences, mascotColor: next },
+                    }));
+                    applyMascotTheme(next);
+                    setError('');
+                    setMessage('');
+                  }}
+                  className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
+                />
+              </label>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">
+              Default landing after login
+            </label>
+            <select
+              value={profileData.preferences.defaultLanding}
+              onChange={(e) =>
+                setProfileData((prev) => ({
+                  ...prev,
+                  preferences: {
+                    ...prev.preferences,
+                    defaultLanding: e.target.value as DefaultLandingPath,
+                  },
+                }))
+              }
+              className={cn(FIELD_CLASS, 'h-10')}
+            >
+              {DEFAULT_LANDING_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              After you pick a profile, open this page instead of Happiness by default.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {message && <p className="text-sm text-primary">{message}</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <Button type="submit" disabled={!selectedProfile || loading} className="w-full sm:w-auto">
-        {loading ? 'Saving…' : 'Save profile'}
-      </Button>
+      <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={loading}
+          onClick={handleCancel}
+          className="w-full sm:w-auto"
+        >
+          Cancel
+        </Button>
+        <Button type="submit" disabled={!selectedProfile || loading} className="w-full sm:w-auto">
+          {loading ? 'Saving…' : 'Submit'}
+        </Button>
+      </div>
     </form>
   );
 }

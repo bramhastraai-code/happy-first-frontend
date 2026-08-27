@@ -64,6 +64,16 @@ export function textCardGradient(background: TextCardBackground): string {
 
 export const TEXT_CARD_MAX_LENGTH = 700;
 
+export function findTextCardBackground(id?: string | null) {
+  return (
+    TEXT_CARD_BACKGROUNDS.find((item) => item.id === id) || TEXT_CARD_BACKGROUNDS[0]
+  );
+}
+
+export function findTextCardFont(id?: string | null) {
+  return TEXT_CARD_FONTS.find((item) => item.id === id) || TEXT_CARD_FONTS[0];
+}
+
 /** Wrap text to fit maxWidth, breaking very long words by characters. */
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const lines: string[] = [];

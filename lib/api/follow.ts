@@ -49,6 +49,7 @@ export interface PublicProfileData {
   lastPostAt?: string | null;
   daysSinceLastPost?: number | null;
   thisWeekActivitiesTotal?: number;
+  thisWeekCompletionPercent?: number;
   totalActivitiesTotal?: number;
   xpTotal?: number;
   coinsBalance?: number;

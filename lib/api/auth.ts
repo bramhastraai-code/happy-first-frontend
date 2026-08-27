@@ -7,9 +7,13 @@ export interface RegisterData {
   name: string;
   email: string;
   city?: string;
+  area?: string;
+  country?: string;
   locationPin?: string;
   dateOfBirth?: string;
   referredBy?: string;
+  password?: string;
+  timezone?: string;
 }
 
 export interface VerifyOTPData {
@@ -76,6 +80,8 @@ export interface UpdateProfileData {
   name?: string;
   email?: string;
   city?: string;
+  area?: string;
+  country?: string;
   locationPin?: string;
   dateOfBirth?: string;
   password?: string;
@@ -117,6 +123,9 @@ export interface UpdateProfileData {
     summaryOptIn?: boolean;
     unlockedSets?: number[];
     allowMessages?: boolean;
+    mascotName?: string;
+    mascotColor?: string;
+    defaultLanding?: '/home' | '/feed' | '/community' | '/tasks' | '/settings';
   };
 }
 
@@ -165,6 +174,16 @@ export const authAPI = {
     api.post<{ data?: { otpExpiresInSeconds?: number } }>('/userAuth/forgot-password/request', data),
 
   resetPasswordWithOTP: (data: ResetPasswordData) => api.post('/userAuth/forgot-password/reset', data),
+
+  checkPhone: (data: { phoneNumber: string; countryCode: string }) =>
+    api.post<{
+      data: {
+        exists: boolean;
+        canRegister: boolean;
+        resumable?: boolean;
+        redirectTo?: string;
+      };
+    }>('/userAuth/check-phone', data),
   
   addFamilyMember: (data: AddFamilyMemberData) => api.post('/userAuth/add-family-member', data),
   

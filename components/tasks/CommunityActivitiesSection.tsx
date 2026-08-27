@@ -19,12 +19,22 @@ interface CommunityActivitiesSectionProps {
   getActivityInputMax: (activity: WeeklyPlanActivity, activityData?: ActivityType) => number;
 }
 
+function toDailyFromWeekly(weeklyTarget: number) {
+  const daily = Number(weeklyTarget) / 7;
+  if (!Number.isFinite(daily)) return 0;
+  // Keep one decimal for fractional weekly targets (e.g. Water 24.5 → 3.5/day)
+  return Math.round(daily * 100) / 100;
+}
+
 function toPlanShape(row: MyCommunityActivity): WeeklyPlanActivity {
+  const weekly = Number(row.weeklyTarget) || 0;
+  const daily = row.cadence === 'daily' ? toDailyFromWeekly(weekly) : undefined;
   return {
     activity: row.activityId,
     cadence: row.cadence,
-    targetValue: row.weeklyTarget,
-    dailyTarget: row.cadence === 'daily' ? row.weeklyTarget / 7 : undefined,
+    // Task row shows targetValue with /day or /week — use daily for daily cadence
+    targetValue: daily ?? weekly,
+    dailyTarget: daily,
     label: row.label || row.name,
     unit: row.unit || row.baseUnit || '',
     TodayLogged: Boolean(row.TodayLogged),

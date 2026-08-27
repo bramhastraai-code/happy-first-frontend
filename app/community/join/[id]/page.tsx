@@ -8,6 +8,8 @@ import { ChevronLeft, Loader2, Sparkles, Users } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
 import { communityAPI, communityTypeLabel } from '@/lib/api/community';
+import { useAuthStore } from '@/lib/store/authStore';
+import { setPendingCommunityId } from '@/lib/utils/pendingCommunity';
 import { cn } from '@/lib/utils';
 
 function apiErrorMessage(err: unknown, fallback: string) {
@@ -21,8 +23,23 @@ export default function CommunityJoinPage() {
   const communityId = params.id;
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { accessToken, isHydrated } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
   const [groupId, setGroupId] = useState('');
+
+  useEffect(() => {
+    if (!communityId) return;
+    // Remember invite so post-registration get-started can join + show community tasks
+    setPendingCommunityId(communityId);
+  }, [communityId]);
+
+  useEffect(() => {
+    if (!isHydrated || !communityId) return;
+    if (!accessToken) {
+      // Send guests to register with community invite remembered
+      router.replace(`/register?community=${encodeURIComponent(communityId)}`);
+    }
+  }, [accessToken, communityId, isHydrated, router]);
 
   const communityQuery = useQuery({
     queryKey: ['community', communityId],
@@ -76,11 +93,13 @@ export default function CommunityJoinPage() {
   const joinLabel =
     community?.myMembershipStatus === 'pending'
       ? 'Request pending'
-      : community?.type === 'private'
-        ? 'Private — ask an admin to add you'
-        : community?.type === 'public'
-          ? 'Request to join'
-          : 'Join community';
+      : community?.myMembershipStatus === 'invited'
+        ? 'Accept invitation'
+        : community?.type === 'private'
+          ? 'Private — ask an admin to add you'
+          : community?.type === 'public'
+            ? 'Request to join'
+            : 'Join community';
 
   return (
     <MainLayout>
@@ -179,6 +198,12 @@ export default function CommunityJoinPage() {
               {community.myMembershipStatus === 'pending' ? (
                 <p className="text-xs text-muted-foreground">
                   Your request is waiting for admin or moderator approval.
+                </p>
+              ) : null}
+
+              {community.myMembershipStatus === 'invited' ? (
+                <p className="text-xs text-muted-foreground">
+                  You’ve been invited — accept to become a member.
                 </p>
               ) : null}
 

@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button';
 
 interface CommunityFeedTabProps {
   communityId: string;
+  /** Discover visitors: browse only (no post / like / comment) */
+  readOnly?: boolean;
 }
 
 type FeedPages = {
@@ -21,7 +23,7 @@ type FeedPages = {
   pageParams: unknown[];
 };
 
-export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
+export function CommunityFeedTab({ communityId, readOnly = false }: CommunityFeedTabProps) {
   const { selectedProfile, user, accessToken, isHydrated } = useAuthStore();
   const queryClient = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -152,6 +154,11 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
 
   return (
     <div className="relative space-y-3">
+      {readOnly ? (
+        <p className="rounded-xl border border-border bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
+          Previewing community posts — you can view likes and comments. Join to like, comment, or share your own.
+        </p>
+      ) : null}
       <div className="flex items-center gap-2">
         <label className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -174,14 +181,16 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
             </button>
           ) : null}
         </label>
-        <Button
-          size="sm"
-          className="h-10 shrink-0 gap-1.5"
-          onClick={() => setCreateOpen(true)}
-        >
-          <Plus className="h-4 w-4" />
-          Post
-        </Button>
+        {!readOnly ? (
+          <Button
+            size="sm"
+            className="h-10 shrink-0 gap-1.5"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            Post
+          </Button>
+        ) : null}
       </div>
 
       <div
@@ -205,7 +214,10 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
               No posts found
             </p>
           ) : (
-            <FeedEmpty variant="community" onCreate={() => setCreateOpen(true)} />
+            <FeedEmpty
+              variant="community"
+              onCreate={readOnly ? undefined : () => setCreateOpen(true)}
+            />
           )
         ) : (
           posts.map((post) => (
@@ -214,51 +226,57 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
               post={post}
               liking={likingId === post.id}
               hideCommunityLabel
-              onToggleLike={handleToggleLike}
+              interactionsDisabled={readOnly}
+              onToggleLike={readOnly ? () => undefined : handleToggleLike}
               onOpenComments={setActivePost}
               isOwner={
-                post.author.profileId === selectedProfile?._id ||
-                post.author.userId === user?._id
+                !readOnly &&
+                (post.author.profileId === selectedProfile?._id ||
+                  post.author.userId === user?._id)
               }
-              onEdit={async (target, caption) => {
-                const res = await feedAPI.updatePost(target.id, caption);
-                const updated = res.data.data.post;
-                const key = isSearching ? searchKey : feedKey;
-                queryClient.setQueryData<FeedPages>(key, (old) => {
-                  if (!old?.pages) return old;
-                  return {
-                    ...old,
-                    pages: old.pages.map((page) => ({
-                      ...page,
-                      posts: page.posts.map((item) =>
-                        item.id === updated.id
-                          ? { ...item, caption: updated.caption }
-                          : item
-                      ),
-                    })),
-                  };
-                });
-                if (activePost?.id === updated.id) {
-                  setActivePost((prev) =>
-                    prev ? { ...prev, caption: updated.caption } : prev
-                  );
-                }
-              }}
-              onDelete={async (target) => {
-                await feedAPI.deletePost(target.id);
-                const key = isSearching ? searchKey : feedKey;
-                queryClient.setQueryData<FeedPages>(key, (old) => {
-                  if (!old?.pages) return old;
-                  return {
-                    ...old,
-                    pages: old.pages.map((page) => ({
-                      ...page,
-                      posts: page.posts.filter((item) => item.id !== target.id),
-                    })),
-                  };
-                });
-                if (activePost?.id === target.id) setActivePost(null);
-              }}
+              onEdit={
+                readOnly
+                  ? undefined
+                  : async (target, caption, extras) => {
+                      const res = await feedAPI.updatePost(target.id, caption, extras);
+                      const updated = res.data.data.post;
+                      const key = isSearching ? searchKey : feedKey;
+                      queryClient.setQueryData<FeedPages>(key, (old) => {
+                        if (!old?.pages) return old;
+                        return {
+                          ...old,
+                          pages: old.pages.map((page) => ({
+                            ...page,
+                            posts: page.posts.map((item) =>
+                              item.id === updated.id ? { ...item, ...updated } : item
+                            ),
+                          })),
+                        };
+                      });
+                      if (activePost?.id === updated.id) {
+                        setActivePost((prev) => (prev ? { ...prev, ...updated } : prev));
+                      }
+                    }
+              }
+              onDelete={
+                readOnly
+                  ? undefined
+                  : async (target) => {
+                      await feedAPI.deletePost(target.id);
+                      const key = isSearching ? searchKey : feedKey;
+                      queryClient.setQueryData<FeedPages>(key, (old) => {
+                        if (!old?.pages) return old;
+                        return {
+                          ...old,
+                          pages: old.pages.map((page) => ({
+                            ...page,
+                            posts: page.posts.filter((item) => item.id !== target.id),
+                          })),
+                        };
+                      });
+                      if (activePost?.id === target.id) setActivePost(null);
+                    }
+              }
             />
           ))
         )}
@@ -274,17 +292,20 @@ export function CommunityFeedTab({ communityId }: CommunityFeedTabProps) {
         <FeedCommentsSheet
           post={activePost}
           open
+          readOnly={readOnly}
           onClose={() => setActivePost(null)}
         />
       ) : null}
 
-      <FeedCreateSheet
-        open={createOpen}
-        communityId={communityId}
-        defaultKind="post"
-        onClose={() => setCreateOpen(false)}
-        onCreated={() => void feedQuery.refetch()}
-      />
+      {!readOnly ? (
+        <FeedCreateSheet
+          open={createOpen}
+          communityId={communityId}
+          defaultKind="post"
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => void feedQuery.refetch()}
+        />
+      ) : null}
     </div>
   );
 }

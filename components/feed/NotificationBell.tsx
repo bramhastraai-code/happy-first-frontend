@@ -25,6 +25,8 @@ interface NotificationBellProps {
   onOpenMessage?: (conversationId: string) => void;
   onOpenPost?: (photoId: string) => void;
   triggerClassName?: string;
+  /** Visible caption under the bell (matches header icon actions). */
+  caption?: string;
 }
 
 function HappyLikeIcon({ className, ...props }: LucideProps) {
@@ -39,6 +41,7 @@ function iconFor(type: AppNotification['type']) {
   if (type === 'community_announcement') return Megaphone;
   if (type === 'community_week_summary') return Megaphone;
   if (type === 'community_nudge') return Megaphone;
+  if (type === 'community_invite') return UserPlus;
   if (type === 'community_event' || type === 'community_event_reminder') return Megaphone;
   if (type === 'community_appreciation') return HappyLikeIcon;
   if (type === 'community_mention' || type === 'community_reply') return MessageCircle;
@@ -49,6 +52,7 @@ export function NotificationBell({
   onOpenMessage,
   onOpenPost,
   triggerClassName,
+  caption,
 }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -220,6 +224,7 @@ export function NotificationBell({
                                 (item.type === 'community_announcement' ||
                                   item.type === 'community_week_summary' ||
                                   item.type === 'community_nudge' ||
+                                  item.type === 'community_invite' ||
                                   item.type === 'community_event' ||
                                   item.type === 'community_event_reminder' ||
                                   item.type === 'community_appreciation' ||
@@ -227,7 +232,11 @@ export function NotificationBell({
                                   item.type === 'community_reply') &&
                                 item.communityId
                               ) {
-                                router.push(`/community/${item.communityId}`);
+                                router.push(
+                                  item.type === 'community_invite'
+                                    ? `/community/join/${item.communityId}`
+                                    : `/community/${item.communityId}`
+                                );
                                 setOpen(false);
                                 return;
                               }
@@ -323,25 +332,38 @@ export function NotificationBell({
         )
       : null;
 
+  const captioned =
+    'relative inline-flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-border px-1.5 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 min-w-[3.25rem] min-h-11';
+
   return (
     <div className="relative" ref={triggerRef}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          triggerClassName ||
-            'relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-foreground/80 transition-colors hover:bg-primary/10 hover:text-primary',
+          caption
+            ? captioned
+            : triggerClassName ||
+                'relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-foreground/80 transition-colors hover:bg-primary/10 hover:text-primary',
           open && 'bg-primary/10 text-primary'
         )}
-        aria-label="Notifications"
+        aria-label={caption || 'Notifications'}
+        title={caption || 'Notifications'}
         aria-expanded={open}
       >
-        <Bell className="h-[1.15rem] w-[1.15rem] stroke-[2.25]" />
-        {unread > 0 && (
-          <span className="absolute right-1 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm ring-2 ring-surface">
-            {unread > 9 ? '9+' : unread}
+        <span className="relative inline-flex h-[18px] w-[18px] items-center justify-center">
+          <Bell className="h-[1.15rem] w-[1.15rem] stroke-[2.25]" />
+          {unread > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm ring-2 ring-surface">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </span>
+        {caption ? (
+          <span className="max-w-[4.5rem] truncate text-[9px] font-semibold leading-tight sm:text-[10px]">
+            {caption}
           </span>
-        )}
+        ) : null}
       </button>
       {panel}
     </div>

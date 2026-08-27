@@ -97,7 +97,7 @@ function VerifyOTPContent() {
         setSelectedProfile(primary);
       }
 
-      router.push('/create-plan?mode=first-setup');
+      router.push('/get-started');
     } catch (err) {
       setError(
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||

@@ -170,32 +170,42 @@ export function GlobalSearch() {
     'flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-secondary';
 
   return (
-    <div ref={containerRef} className="relative">
-      <label className="relative block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onFocus={() => setOpen(true)}
-          placeholder="Search people, communities, events, tasks…"
-          className="h-11 w-full rounded-xl border border-input bg-secondary pl-10 pr-9 text-sm outline-none focus:ring-2 focus:ring-ring"
-          inputMode="search"
-          aria-label="Global search"
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => {
-              setQuery('');
-              setDebounced('');
-            }}
-            className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
-            aria-label="Clear search"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </label>
+    <div ref={containerRef} className="relative space-y-2">
+      <div className="flex items-center gap-2">
+        <label className="relative block min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onFocus={() => setOpen(true)}
+            placeholder="Search people, communities, events, tasks…"
+            className="h-11 w-full rounded-xl border border-input bg-secondary pl-10 pr-9 text-sm outline-none focus:ring-2 focus:ring-ring"
+            inputMode="search"
+            aria-label="Global search"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setDebounced('');
+              }}
+              className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </label>
+        <Link
+          href="/feed/explore"
+          className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 active:scale-[0.98]"
+          aria-label="Find people"
+        >
+          <UserSearch className="h-4 w-4" />
+          <span>People</span>
+        </Link>
+      </div>
 
       {open && (
         <div className="absolute inset-x-0 top-[calc(100%+0.5rem)] z-40 max-h-[70vh] overflow-y-auto rounded-2xl border border-border bg-surface p-2 shadow-[var(--shadow-float)]">
@@ -203,17 +213,27 @@ export function GlobalSearch() {
             <>
               <SectionHeader title="Go to" />
               <div className={cn('grid gap-1.5', searching ? 'grid-cols-1' : 'grid-cols-2')}>
-                {matchedQuickLinks.map((link) => (
-                  <Link
-                    key={link.name}
-                    href={link.href}
-                    onClick={close}
-                    className="flex items-center gap-2.5 rounded-xl border border-border/60 bg-background/40 px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary"
-                  >
-                    <link.icon className="h-4 w-4 text-primary" />
-                    {link.name}
-                  </Link>
-                ))}
+                {matchedQuickLinks.map((link) => {
+                  const isFindPeople = link.href === '/feed/explore';
+                  return (
+                    <Link
+                      key={link.name}
+                      href={link.href}
+                      onClick={close}
+                      className={cn(
+                        'flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors',
+                        isFindPeople
+                          ? 'border-primary/40 bg-primary-soft text-primary ring-1 ring-primary/20 hover:bg-primary/15'
+                          : 'border-border/60 bg-background/40 text-foreground hover:bg-secondary'
+                      )}
+                    >
+                      <link.icon
+                        className={cn('h-4 w-4', isFindPeople ? 'text-primary' : 'text-primary')}
+                      />
+                      {link.name}
+                    </Link>
+                  );
+                })}
               </div>
             </>
           )}

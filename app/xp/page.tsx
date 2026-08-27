@@ -36,6 +36,26 @@ const XP_STEPS = [
   },
 ];
 
+/** Member-facing XP earn overview (intensity details stay internal). */
+const XP_EARN_METHODS = [
+  {
+    label: 'Log plan activities',
+    detail: 'Each logged unit contributes XP based on the activity’s difficulty.',
+  },
+  {
+    label: 'Harder activities earn more',
+    detail: 'Intense activities (e.g. Run, Gym) grant more XP per unit than lighter ones.',
+  },
+  {
+    label: 'Daily XP goal',
+    detail: 'Aim for about 10 XP per day to stay on a healthy level-up pace.',
+  },
+  {
+    label: 'Consistency compounds',
+    detail: 'Regular logging across the week moves you through Beginner → Happiness Legend.',
+  },
+];
+
 export default function XpPage() {
   const router = useRouter();
   const { accessToken, user, isHydrated, sessionReady } = useAuthStore();
@@ -400,6 +420,18 @@ export default function XpPage() {
                 </li>
               ))}
             </ol>
+          </section>
+
+          <section aria-label="Ways to earn XP">
+            <h2 className="section-title mb-3">Ways to earn XP</h2>
+            <ul className="section-card divide-y divide-border">
+              {XP_EARN_METHODS.map((row) => (
+                <li key={row.label} className="px-4 py-3">
+                  <p className="text-sm font-semibold text-foreground">{row.label}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">{row.detail}</p>
+                </li>
+              ))}
+            </ul>
           </section>
         </div>
       ) : (

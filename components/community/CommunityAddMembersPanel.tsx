@@ -25,8 +25,8 @@ interface CommunityAddMembersPanelProps {
 
 export function CommunityAddMembersPanel({
   communityId,
-  title = 'Add members',
-  subtitle = 'Same activity, nearby & same level first · search by name or phone',
+  title = 'Invite members',
+  subtitle = 'Search by name or phone · invited people must accept before joining',
 }: CommunityAddMembersPanelProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -67,15 +67,10 @@ export function CommunityAddMembersPanel({
 
   const addMember = useMutation({
     mutationFn: (profileId: string) => communityAPI.addMember(communityId, { profileId }),
-    onSuccess: (response, profileId) => {
-      const member = response.data.data.member;
-      queryClient.setQueryData<CommunityMember[]>(['community-members', communityId], (old) => {
-        if (!old) return [member];
-        if (old.some((row) => row.profile.id === profileId)) return old;
-        return [...old, member];
-      });
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['community-add-people', communityId] });
       void queryClient.invalidateQueries({ queryKey: ['community-members', communityId] });
+      void queryClient.invalidateQueries({ queryKey: ['community-invited', communityId] });
       void queryClient.invalidateQueries({ queryKey: ['community-dashboard', communityId] });
       void queryClient.invalidateQueries({ queryKey: ['community', communityId] });
     },
@@ -112,11 +107,19 @@ export function CommunityAddMembersPanel({
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : results.length === 0 ? (
-        <p className="rounded-xl bg-secondary/50 px-3 py-6 text-center text-sm text-muted-foreground">
-          {debounced
-            ? `No users found for “${debounced}”`
-            : 'Everyone available is already a member'}
-        </p>
+        <div className="space-y-2 rounded-xl bg-secondary/50 px-3 py-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            {debounced
+              ? `No Happy First account matches “${debounced}”.`
+              : 'Everyone available is already a member or invited'}
+          </p>
+          {debounced ? (
+            <p className="text-xs text-muted-foreground">
+              They need to register first. Share the community invite link / QR so they can join
+              after signing up. Try full name or phone (last 10 digits).
+            </p>
+          ) : null}
+        </div>
       ) : (
         <>
           <ul
@@ -162,7 +165,7 @@ export function CommunityAddMembersPanel({
                     ) : (
                       <UserPlus className="h-3.5 w-3.5" />
                     )}
-                    {adding ? 'Adding…' : 'Add'}
+                    {adding ? 'Inviting…' : 'Invite'}
                   </Button>
                 </li>
               );

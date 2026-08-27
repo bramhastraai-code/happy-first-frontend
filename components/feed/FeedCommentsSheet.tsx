@@ -1,21 +1,26 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { DateTime } from 'luxon';
 import { Loader2, Send, X } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { feedAPI, type FeedComment, type FeedPost } from '@/lib/api/feed';
+import { followAPI } from '@/lib/api/follow';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { ReportContentDialog } from '@/components/community/ReportContentDialog';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { HappyIcon } from '@/components/ui/HappyIcon';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
+import { renderCaptionWithMentions } from '@/lib/utils/renderCaptionWithMentions';
 
 interface FeedCommentsSheetProps {
   post: FeedPost;
   open: boolean;
   onClose: () => void;
+  /** Discover / visitor mode — view comments, no compose */
+  readOnly?: boolean;
 }
 
 function updateCommentInTree(
@@ -61,12 +66,19 @@ function removeCommentsFromTree(comments: FeedComment[], deletedIds: string[]): 
     }));
 }
 
-export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProps) {
+export function FeedCommentsSheet({
+  post,
+  open,
+  onClose,
+  readOnly = false,
+}: FeedCommentsSheetProps) {
   const { selectedProfile, user } = useAuthStore();
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<FeedComment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FeedComment | null>(null);
+  const [reportTarget, setReportTarget] = useState<FeedComment | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const feedKey = ['feed', selectedProfile?._id] as const;
 
@@ -78,6 +90,48 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
     comment.author.profileId === selectedProfile?._id ||
     comment.author.userId === user?._id ||
     canModeratePost;
+
+  const followingQuery = useQuery({
+    queryKey: ['following', selectedProfile?._id, 'comment-mentions'],
+    enabled: open && !!selectedProfile?._id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const res = await followAPI.getFollowing(selectedProfile!._id, { limit: 100 });
+      return res.data.data.people || [];
+    },
+  });
+
+  const mentionSuggestions = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const q = mentionQuery.toLowerCase();
+    const me = selectedProfile?._id;
+    return (followingQuery.data || [])
+      .filter((p) => p.profileId !== me)
+      .filter((p) => !q || p.name.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [mentionQuery, followingQuery.data, selectedProfile?._id]);
+
+  const detectMention = (value: string, cursor: number) => {
+    const before = value.slice(0, cursor);
+    const match = before.match(/@([^\s@]*)$/);
+    setMentionQuery(match ? match[1] : null);
+  };
+
+  const insertMention = (name: string) => {
+    const el = inputRef.current;
+    const cursor = el?.selectionStart ?? text.length;
+    const before = text.slice(0, cursor);
+    const after = text.slice(cursor);
+    const replaced = before.replace(/@([^\s@]*)$/, `@${name} `);
+    const next = `${replaced}${after}`.slice(0, 500);
+    setText(next);
+    setMentionQuery(null);
+    requestAnimationFrame(() => {
+      const pos = replaced.length;
+      el?.setSelectionRange(pos, pos);
+      el?.focus();
+    });
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['feedComments', post.id],
@@ -247,7 +301,9 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
           >
             {comment.author.name}
           </Link>{' '}
-          <span className="text-foreground/90">{comment.text}</span>
+          <span className="text-foreground/90">
+            {renderCaptionWithMentions(comment.text)}
+          </span>
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
           <span>{DateTime.fromISO(comment.createdAt).toRelative() || 'just now'}</span>
@@ -256,20 +312,33 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
               {comment.likeCount} {comment.likeCount === 1 ? 'like' : 'likes'}
             </span>
           ) : null}
-          <button
-            type="button"
-            className="font-semibold hover:text-foreground"
-            onClick={() => startReply(comment)}
-          >
-            Reply
-          </button>
-          {canDeleteComment(comment) ? (
+          {!readOnly ? (
+            <button
+              type="button"
+              className="font-semibold hover:text-foreground"
+              onClick={() => startReply(comment)}
+            >
+              Reply
+            </button>
+          ) : null}
+          {!readOnly && canDeleteComment(comment) ? (
             <button
               type="button"
               className="font-semibold text-destructive hover:text-destructive/80"
               onClick={() => setDeleteTarget(comment)}
             >
               Delete
+            </button>
+          ) : null}
+          {!readOnly &&
+          comment.author.profileId !== selectedProfile?._id &&
+          comment.author.userId !== user?._id ? (
+            <button
+              type="button"
+              className="font-semibold hover:text-foreground"
+              onClick={() => setReportTarget(comment)}
+            >
+              Report
             </button>
           ) : null}
         </div>
@@ -281,17 +350,19 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
         ) : null}
       </div>
 
-      <button
-        type="button"
-        onClick={() => likeMutation.mutate(comment.id)}
-        className={cn(
-          'mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors',
-          comment.likedByMe ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-        )}
-        aria-label={comment.likedByMe ? 'Unlike comment' : 'Like comment'}
-      >
-        <HappyIcon className="h-3.5 w-3.5" filled={comment.likedByMe} />
-      </button>
+      {!readOnly ? (
+        <button
+          type="button"
+          onClick={() => likeMutation.mutate(comment.id)}
+          className={cn(
+            'mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors',
+            comment.likedByMe ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+          )}
+          aria-label={comment.likedByMe ? 'Unlike comment' : 'Like comment'}
+        >
+          <HappyIcon className="h-3.5 w-3.5" filled={comment.likedByMe} />
+        </button>
+      ) : null}
     </div>
   );
 
@@ -325,14 +396,14 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
             </div>
           ) : comments.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              Be the first to comment.
+              {readOnly ? 'No comments yet.' : 'Be the first to comment.'}
             </p>
           ) : (
             comments.map((comment) => renderComment(comment))
           )}
         </div>
 
-        {replyTo ? (
+        {replyTo && !readOnly ? (
           <div className="flex items-center justify-between border-t border-border bg-secondary/50 px-4 py-2 text-xs">
             <p className="min-w-0 truncate text-muted-foreground">
               Replying to <span className="font-semibold text-foreground">{replyTo.author.name}</span>
@@ -347,13 +418,19 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
           </div>
         ) : null}
 
+        {readOnly ? (
+          <p className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
+            Join this community to leave a comment.
+          </p>
+        ) : (
         <form
-          className="flex items-center gap-2 border-t border-border px-3 py-3"
+          className="relative flex items-center gap-2 border-t border-border px-3 py-3"
           onSubmit={(event) => {
             event.preventDefault();
             const value = text.trim();
             if (!value || mutation.isPending) return;
             mutation.mutate(value);
+            setMentionQuery(null);
           }}
         >
           {selectedProfile?._id ? (
@@ -377,16 +454,45 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
               className="h-9 w-9"
             />
           )}
-          <input
-            ref={inputRef}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder={
-              replyTo ? `Reply to ${replyTo.author.name}…` : 'Add a comment…'
-            }
-            maxLength={500}
-            className="h-10 flex-1 rounded-full border border-input bg-secondary px-4 text-sm outline-none focus:ring-2 focus:ring-ring"
-          />
+          <div className="relative min-w-0 flex-1">
+            <input
+              ref={inputRef}
+              value={text}
+              onChange={(event) => {
+                const value = event.target.value.slice(0, 500);
+                setText(value);
+                detectMention(value, event.target.selectionStart ?? value.length);
+              }}
+              onKeyUp={(event) => {
+                detectMention(
+                  event.currentTarget.value,
+                  event.currentTarget.selectionStart ?? event.currentTarget.value.length
+                );
+              }}
+              placeholder={
+                replyTo
+                  ? `Reply to ${replyTo.author.name}… @ to tag`
+                  : 'Add a comment… @ to tag people you follow'
+              }
+              maxLength={500}
+              className="h-10 w-full rounded-full border border-input bg-secondary px-4 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            {mentionSuggestions.length > 0 ? (
+              <ul className="absolute bottom-full left-0 right-0 z-20 mb-1 max-h-40 overflow-y-auto rounded-xl border border-border bg-surface shadow-[var(--shadow-float)]">
+                {mentionSuggestions.map((person) => (
+                  <li key={person.profileId}>
+                    <button
+                      type="button"
+                      className="flex w-full px-3 py-2 text-left text-sm hover:bg-secondary"
+                      onClick={() => insertMention(person.name)}
+                    >
+                      @{person.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
           <button
             type="submit"
             disabled={!text.trim() || mutation.isPending}
@@ -404,6 +510,7 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
             )}
           </button>
         </form>
+        )}
       </div>
 
       <ConfirmDialog
@@ -424,6 +531,13 @@ export function FeedCommentsSheet({ post, open, onClose }: FeedCommentsSheetProp
         onCancel={() => {
           if (!deleteMutation.isPending) setDeleteTarget(null);
         }}
+      />
+
+      <ReportContentDialog
+        open={Boolean(reportTarget)}
+        targetType="feed_comment"
+        targetId={reportTarget?.id || ''}
+        onClose={() => setReportTarget(null)}
       />
     </div>
   );
