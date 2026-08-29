@@ -8,14 +8,14 @@ import { cn } from '@/lib/utils';
 
 /** Matches home DashboardHeader action buttons for consistency across pages. */
 export const headerActionBtnClass =
-  'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30';
+  'inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30';
 
 /** Back chevron — no circle/border outline. */
 export const headerBackBtnClass =
-  'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30';
+  'inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30';
 
 export const headerActionBtnDangerClass =
-  'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-destructive transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/30';
+  'inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-destructive transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/30';
 
 interface AppPageHeaderProps {
   title: ReactNode;

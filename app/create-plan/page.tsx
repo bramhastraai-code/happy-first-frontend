@@ -73,14 +73,15 @@ function CreatePlanPageContent() {
   const forceFresh = searchParams.get('fresh') === '1';
   const editPlanId = searchParams.get('edit');
   const isEditMode = Boolean(editPlanId);
+  const { user, accessToken, isHydrated, sessionReady, selectedProfile, profiles, setSelectedProfile } =
+    useAuthStore();
   const weekTargetParam = searchParams.get('weekTarget');
   const defaultWeekTarget: WeekTarget = (() => {
     if (weekTargetParam === 'current' || weekTargetParam === 'next') return weekTargetParam;
-    const weekday = DateTime.local().weekday; // 1=Mon … 7=Sun
+    const zone = selectedProfile?.timezone || 'Asia/Kolkata';
+    const weekday = DateTime.now().setZone(zone).weekday; // 1=Mon … 7=Sun
     return weekday >= 1 && weekday <= 5 ? 'current' : 'next';
   })();
-  const { user, accessToken, isHydrated, sessionReady, selectedProfile, profiles, setSelectedProfile } =
-    useAuthStore();
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<SelectedActivity[]>([]);

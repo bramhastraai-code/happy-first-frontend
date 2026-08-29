@@ -33,6 +33,9 @@ export default function GuidedTour({ run, onFinish, steps: customSteps }: Guided
       disableOverlayClose
       spotlightPadding={10}
       callback={handleJoyrideCallback}
+      // Skip steps whose targets are missing (collapsed/hidden sections).
+      disableScrollParentFix
+      floaterProps={{ disableAnimation: true }}
       styles={{
         options: {
           primaryColor: '#ea580c',

@@ -3,13 +3,12 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Loader2, Plus, Search, Users } from 'lucide-react';
+import { ChevronRight, Loader2, Plus, ScanLine, Search, Users } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { CommunityTopBar } from '@/components/community/CommunityTopBar';
 import { CommunityJoinScanner } from '@/components/community/CommunityJoinScanner';
 import { Button } from '@/components/ui/button';
 import { UserMascot } from '@/components/ui/UserMascot';
-import { DiscoverPageIntro } from '@/components/community/DiscoverPageIntro';
 import { communityAPI, type Community } from '@/lib/api/community';
 import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
 import { cn } from '@/lib/utils';
@@ -139,7 +138,7 @@ export default function CommunityPage() {
 
   return (
     <MainLayout>
-      <CommunityTopBar onOpenScanner={() => setScannerOpen(true)} />
+      <CommunityTopBar />
 
       <div className="community-header mt-3 space-y-4">
         <div
@@ -257,8 +256,6 @@ export default function CommunityPage() {
 
         {activeTab === 'discover' ? (
           <div key="discover" className="space-y-4" role="tabpanel" aria-label="Discover">
-            <DiscoverPageIntro />
-
             <div className="section-card p-4">
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -379,6 +376,15 @@ export default function CommunityPage() {
           </div>
         ) : null}
       </div>
+
+      <button
+        type="button"
+        onClick={() => setScannerOpen(true)}
+        className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-4 z-40 inline-flex h-14 w-14 cursor-pointer items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-float)] transition-transform active:scale-95 sm:right-8"
+        aria-label="Scan community QR"
+      >
+        <ScanLine className="h-7 w-7" strokeWidth={2.5} />
+      </button>
 
       <CommunityJoinScanner open={scannerOpen} onClose={() => setScannerOpen(false)} />
     </MainLayout>

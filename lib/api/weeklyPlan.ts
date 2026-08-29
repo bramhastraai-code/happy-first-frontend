@@ -1,5 +1,5 @@
-import { DateTime } from 'luxon';
 import api from './axios';
+import { todayInProfileZone } from '@/lib/utils/profileTime';
 
 
 
@@ -164,7 +164,7 @@ export const weeklyPlanAPI = {
     ),
   
   getCurrent: (date? : string) => api.get<{ success: boolean; message: string; data: WeeklyPlan }>(
-    '/weeklyPlan/current',{params:{date: date ?? DateTime.local().toFormat('yyyy-MM-dd')}}
+    '/weeklyPlan/current',{params:{date: date ?? todayInProfileZone()}}
   ),
   Upcomming: () => api.get<{ success: boolean; message: string; data: WeeklyPlan | null }>(
     '/weeklyPlan/upcoming'
@@ -186,7 +186,7 @@ export const weeklyPlanAPI = {
       planChoice?: PlanChoiceState;
     }>(
       '/weeklyPlan/current',
-      { params: { date: DateTime.local().toFormat('yyyy-MM-dd') } }
+      { params: { date: todayInProfileZone() } }
     );
     return response.data.data ?? null;
   },
@@ -202,7 +202,7 @@ export const weeklyPlanAPI = {
       planChoice?: PlanChoiceState;
     }>(
       '/weeklyPlan/current',
-      { params: { date: DateTime.local().toFormat('yyyy-MM-dd') } }
+      { params: { date: todayInProfileZone() } }
     );
     return {
       plan: response.data.data ?? null,

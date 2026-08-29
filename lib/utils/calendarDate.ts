@@ -1,19 +1,30 @@
 import { DateTime } from 'luxon';
+import {
+  resolveProfileTimezone,
+  toProfileDateKey,
+} from '@/lib/utils/profileTime';
 
-/** Normalize API calendar timestamps to a local yyyy-MM-dd key. */
-export function toLocalDateKey(iso: string): string {
-  const dt = DateTime.fromISO(iso, { zone: 'local' });
-  return dt.isValid ? dt.toFormat('yyyy-MM-dd') : iso.split('T')[0];
+/** Normalize API calendar timestamps to a profile-zone yyyy-MM-dd key. */
+export function toLocalDateKey(
+  iso: string,
+  timezone?: string | null
+): string {
+  return toProfileDateKey(iso, timezone);
 }
 
 export function calendarDayMatches(
   calendarDay: { date: string; day: number },
-  dateString: string
+  dateString: string,
+  timezone?: string | null
 ): boolean {
-  if (toLocalDateKey(calendarDay.date) === dateString) return true;
-  const target = DateTime.fromISO(dateString, { zone: 'local' });
+  const zone = resolveProfileTimezone(timezone);
+  if (toProfileDateKey(calendarDay.date, zone) === dateString) return true;
+
+  const target = DateTime.fromISO(dateString, { zone });
   if (!target.isValid) return false;
-  const source = DateTime.fromISO(calendarDay.date, { zone: 'local' });
+
+  const sourceKey = toProfileDateKey(calendarDay.date, zone);
+  const source = DateTime.fromISO(sourceKey, { zone });
   return (
     source.isValid &&
     calendarDay.day === target.day &&

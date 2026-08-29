@@ -1,33 +1,46 @@
 import { DateTime } from 'luxon';
+import {
+  currentWeekStartInProfileZone,
+  nowInProfileZone,
+  previousWeekStartInProfileZone,
+  resolveProfileTimezone,
+} from '@/lib/utils/profileTime';
 
-/** Monday of the current local week as yyyy-MM-dd. */
-export function currentWeekStartISO(): string {
-  return DateTime.local().startOf('week').toFormat('yyyy-MM-dd');
+/** Monday of the current profile-zone week as yyyy-MM-dd. */
+export function currentWeekStartISO(timezone?: string | null): string {
+  return currentWeekStartInProfileZone(timezone);
 }
 
 /**
  * Latest fully completed week (previous Monday).
  * Week Analysis must never use the in-progress week.
  */
-export function latestCompletedWeekStartISO(): string {
-  return DateTime.local().startOf('week').minus({ weeks: 1 }).toFormat('yyyy-MM-dd');
+export function latestCompletedWeekStartISO(timezone?: string | null): string {
+  return previousWeekStartInProfileZone(timezone);
 }
 
 /** True when the ISO date is the current (in-progress) Monday week start. */
-export function isCurrentWeekStart(weekStart: string): boolean {
-  return weekStart === currentWeekStartISO();
+export function isCurrentWeekStart(
+  weekStart: string,
+  timezone?: string | null
+): boolean {
+  return weekStart === currentWeekStartISO(timezone);
 }
 
 /**
  * Monday-based week start as yyyy-MM-dd for historical Week Analysis.
  * Defaults to the previous completed week; clamps current/future weeks back.
  */
-export function resolveWeekStartISO(input?: string | null): string {
-  const completedDefault = latestCompletedWeekStartISO();
-  const current = currentWeekStartISO();
+export function resolveWeekStartISO(
+  input?: string | null,
+  timezone?: string | null
+): string {
+  const zone = resolveProfileTimezone(timezone);
+  const completedDefault = latestCompletedWeekStartISO(zone);
+  const current = currentWeekStartISO(zone);
 
   if (input) {
-    const parsed = DateTime.fromISO(input, { zone: 'local' });
+    const parsed = DateTime.fromISO(String(input).slice(0, 10), { zone });
     if (parsed.isValid) {
       const monday = parsed.startOf('week').toFormat('yyyy-MM-dd');
       if (monday >= current) return completedDefault;
@@ -59,21 +72,30 @@ export function formatWeekRangeShort(weekStart: string, weekEnd: string): string
 }
 
 /** Shift a Monday week-start ISO date by a number of weeks. */
-export function shiftWeekStartISO(weekStart: string, deltaWeeks: number): string {
-  return DateTime.fromISO(weekStart, { zone: 'local' })
+export function shiftWeekStartISO(
+  weekStart: string,
+  deltaWeeks: number,
+  timezone?: string | null
+): string {
+  const zone = resolveProfileTimezone(timezone);
+  return DateTime.fromISO(weekStart, { zone })
     .plus({ weeks: deltaWeeks })
     .toFormat('yyyy-MM-dd');
 }
 
 /** True when navigating forward one week still lands on a completed week. */
-export function canNavigateToNextWeek(weekStart: string): boolean {
-  const next = shiftWeekStartISO(weekStart, 1);
-  return next < currentWeekStartISO();
+export function canNavigateToNextWeek(
+  weekStart: string,
+  timezone?: string | null
+): boolean {
+  const next = shiftWeekStartISO(weekStart, 1, timezone);
+  return next < currentWeekStartISO(timezone);
 }
 
 /** Distinct calendar months (Mon–Sun week) for cross-month week trackers. */
-export function getMonthsInWeek(ref: DateTime = DateTime.local()) {
-  const weekStart = ref.startOf('week');
+export function getMonthsInWeek(ref?: DateTime, timezone?: string | null) {
+  const zone = resolveProfileTimezone(timezone);
+  const weekStart = (ref ?? nowInProfileZone(zone)).setZone(zone).startOf('week');
   const months: { month: number; year: number }[] = [];
   const seen = new Set<string>();
 

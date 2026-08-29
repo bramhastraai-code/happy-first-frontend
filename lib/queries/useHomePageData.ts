@@ -8,9 +8,15 @@ import {
   keepPreviousData,
 } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
-import { GC, queryKeys, STALE } from '@/lib/queries/keys';
+import { queryKeys, STALE } from '@/lib/queries/keys';
 import { invalidateDashboardQueries } from '@/lib/queries/invalidateDashboard';
 import { toLocalDateKey } from '@/lib/utils/calendarDate';
+import {
+  nowInProfileZone,
+  previousWeekStartInProfileZone,
+  resolveProfileTimezone,
+  todayInProfileZone,
+} from '@/lib/utils/profileTime';
 import {
   fetchCurrentPlan,
   fetchUpcomingPlan,
@@ -38,24 +44,29 @@ import { getMonthsInWeek } from '@/lib/utils/weekDate';
 
 interface UseHomePageDataOptions {
   profileId?: string;
+  /** Profile IANA timezone — never use host/UTC for score dates. */
+  timezone?: string | null;
   logDateFilter: string;
   enabled: boolean;
 }
 
 export function useHomePageData({
   profileId,
+  timezone,
   logDateFilter,
   enabled,
 }: UseHomePageDataOptions) {
   const queryClient = useQueryClient();
-  const localDate = DateTime.local().toFormat('yyyy-MM-dd');
-  const previousWeekDate = DateTime.local().startOf('week').minus({ weeks: 1 }).toFormat('yyyy-MM-dd');
-  const isMonday = DateTime.local().weekday === 1;
-  const logDate = DateTime.fromISO(logDateFilter);
-  const calendarMonth = logDate.isValid ? logDate.month : DateTime.local().month;
-  const calendarYear = logDate.isValid ? logDate.year : DateTime.local().year;
+  const zone = resolveProfileTimezone(timezone);
+  const localDate = todayInProfileZone(zone);
+  const previousWeekDate = previousWeekStartInProfileZone(zone);
+  const now = nowInProfileZone(zone);
+  const isMonday = now.weekday === 1;
+  const logDate = DateTime.fromISO(logDateFilter, { zone });
+  const calendarMonth = logDate.isValid ? logDate.month : now.month;
+  const calendarYear = logDate.isValid ? logDate.year : now.year;
 
-  const weekMonths = useMemo(() => getMonthsInWeek(DateTime.local()), [localDate]);
+  const weekMonths = useMemo(() => getMonthsInWeek(now, zone), [localDate, zone]);
 
   const [planQuery, weeklyQuery, monthlyQuery, userQuery, streaksQuery, calendarQuery] =
     useQueries({
@@ -112,7 +123,7 @@ export function useHomePageData({
     const byDate = new Map<string, CalendarDay>();
 
     const mergeDay = (day: CalendarDay) => {
-      const key = toLocalDateKey(day.date);
+      const key = toLocalDateKey(day.date, zone);
       const existing = byDate.get(key);
       if (!existing) {
         byDate.set(key, day);
@@ -136,6 +147,7 @@ export function useHomePageData({
 
     return Array.from(byDate.values());
   }, [
+    zone,
     calendarQuery.dataUpdatedAt,
     weekCalendarQueries.map((query) => query.dataUpdatedAt).join('|'),
   ]);
@@ -194,12 +206,12 @@ export function useHomePageData({
 
   const monthlyData: MonthlyDataPoint[] = useMemo(() => {
     if (!monthlyQuery.data) return [];
-    return monthlyBreakdownToPoints(monthlyQuery.data.dailyBreakdown);
-  }, [monthlyQuery.data]);
+    return monthlyBreakdownToPoints(monthlyQuery.data.dailyBreakdown, zone);
+  }, [monthlyQuery.data, zone]);
 
   const weeklyData: WeeklyDataPoint[] = useMemo(
-    () => groupDataByWeeks(monthlyData),
-    [monthlyData]
+    () => groupDataByWeeks(monthlyData, zone),
+    [monthlyData, zone]
   );
 
   const noPlanError =

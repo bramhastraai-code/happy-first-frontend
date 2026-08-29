@@ -17,7 +17,6 @@ import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { ProfilePostViewer } from '@/components/feed/ProfilePostViewer';
 import { ProfileEditSheet } from '@/components/feed/ProfileEditSheet';
-import { ProfileGuideCard } from '@/components/feed/ProfileGuideCard';
 import { followAPI } from '@/lib/api/follow';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
 import { communityAPI } from '@/lib/api/community';
@@ -25,7 +24,7 @@ import { dailyLogAPI, type WeeklySummary } from '@/lib/api/dailyLog';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
-import { DateTime } from 'luxon';
+import { todayInProfileZone } from '@/lib/utils/profileTime';
 
 function displayWebsite(url?: string | null) {
   if (!url) return '';
@@ -71,7 +70,7 @@ export default function FeedProfilePage() {
     staleTime: 0,
     refetchOnMount: 'always',
     queryFn: async () => {
-      const date = DateTime.local().toFormat('yyyy-MM-dd');
+      const date = todayInProfileZone();
       const res = await dailyLogAPI.getSummary('weekly', date);
       return res.data.data as WeeklySummary;
     },
@@ -483,15 +482,6 @@ export default function FeedProfilePage() {
                   ))}
                 </ul>
               </section>
-            ) : null}
-
-            {isMe ? (
-              <div className="mt-4 px-1">
-                <ProfileGuideCard
-                  showEditCta
-                  onEdit={() => setEditOpen(true)}
-                />
-              </div>
             ) : null}
 
             <div

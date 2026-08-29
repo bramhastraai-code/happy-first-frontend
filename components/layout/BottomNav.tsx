@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation';
 import { Home, Rss, Users, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/lib/store/authStore';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 
 /**
  * My Inspiration → Feed (social)
@@ -41,16 +43,18 @@ const navigation = [
     name: 'Profile',
     href: '/settings',
     icon: User,
+    isProfile: true,
     match: (pathname: string) =>
       pathname === '/settings' ||
       pathname.startsWith('/settings/') ||
       pathname === '/referral' ||
       pathname.startsWith('/referral/'),
   },
-];
+] as const;
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const selectedProfile = useAuthStore((s) => s.selectedProfile);
 
   return (
     <nav className="bottom-nav glass-nav fixed bottom-0 left-0 right-0 z-50 border-t border-border">
@@ -59,6 +63,7 @@ export default function BottomNav() {
           {navigation.map((item) => {
             const isActive = item.match(pathname);
             const Icon = item.icon;
+            const showAvatar = 'isProfile' in item && item.isProfile;
 
             return (
               <Link
@@ -76,7 +81,21 @@ export default function BottomNav() {
                     transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                   />
                 )}
-                <Icon className={cn('h-5 w-5', isActive && 'stroke-[2.5]')} />
+                {showAvatar ? (
+                  <ProfileAvatar
+                    name={selectedProfile?.name}
+                    avatarUrl={selectedProfile?.avatarUrl}
+                    avatarSeed={selectedProfile?.avatarSeed}
+                    avatarStyle={selectedProfile?.avatarStyle}
+                    size="sm"
+                    className={cn(
+                      '!h-6 !w-6 !text-[10px] ring-2 ring-offset-1 ring-offset-background transition',
+                      isActive ? 'ring-primary' : 'ring-transparent'
+                    )}
+                  />
+                ) : (
+                  <Icon className={cn('h-5 w-5', isActive && 'stroke-[2.5]')} />
+                )}
                 <span className="text-[10px] font-semibold sm:text-xs">{item.name}</span>
               </Link>
             );
