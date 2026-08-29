@@ -1,80 +1,123 @@
 import { Step } from 'react-joyride';
 
+/**
+ * Home (Happiness) tour — mirrors the current dashboard layout and features.
+ */
 export const homeTourSteps: Step[] = [
   {
     target: '.welcome-banner',
-    title: 'Your dashboard',
-    content: 'See your name, profile switcher, and account actions here.',
+    title: 'Your Happiness home',
+    content:
+      'Greeting, profile photo, and account actions. Open Settings for profile, family, reminders, and referrals — or switch profiles when you manage family members.',
     disableBeacon: true,
+  },
+  {
+    target: '.log-today-cta',
+    title: "Log today's activities",
+    content:
+      'Jump to Tasks to enter Mind, Body, and Soul values from your weekly plan. Submit after 6 PM to keep your streak and earn points.',
+  },
+  {
+    target: '.xp-coins-grid',
+    title: 'XP & Happy Coins',
+    content:
+      'Tap XP for your level and daily goal, or Coins for balance, history, and rewards. Logging consistently grows both.',
   },
   {
     target: '.week-tracker',
     title: 'This week',
-    content: 'Tap any day to open that date in the daily log tracker below.',
+    content:
+      'See which days you’ve logged. Tap a day to open it in the daily log tracker further down.',
   },
   {
     target: '.stats-grid',
-    title: 'Streak & score',
-    content: 'Streak and days logged sit together here, plus your weekly score.',
+    title: 'Streak & week score',
+    content:
+      'Current streak and days logged on the left; this week’s consistency score on the right. Open the streak calendar for the full heatmap.',
+  },
+  {
+    target: '.pending-activities',
+    title: 'Pending activities',
+    content:
+      'Open tasks still left from your plan — daily goals and weekly progress in one place.',
   },
   {
     target: '.weekly-performance',
     title: 'Monthly performance',
-    content: 'Week view is the default. Switch to Day for the daily line chart.',
-  },
-  {
-    target: '.pending-activities',
-    title: 'Pending tasks',
-    content: 'Activities still open today from your weekly plan.',
+    content:
+      'Week view shows consistency by week; switch to Day for a daily score line. Tap a bar to dig into that week or day.',
   },
   {
     target: '.leaderboard-section',
     title: 'Weekly Consistency Leaderboard',
-    content: 'Compare weekly % with others. Use the arrows to change week.',
+    content:
+      'Compare your weekly % with others. Change the week with the arrows to see past rankings.',
   },
   {
     target: '.log-tracker',
     title: 'Daily log tracker',
-    content: 'Use the month arrows, then tap a date to review or submit a log.',
+    content:
+      'Browse months, pick a date, review what you logged, or submit a missing day.',
+  },
+  {
+    target: '#home-social',
+    title: 'My social',
+    content:
+      'A peek at Inspiration — posts from people you follow. Open Inspiration from the bottom bar for the full feed, stories, messages, and create.',
+  },
+  {
+    target: '#home-community',
+    title: 'My community',
+    content:
+      'Communities you belong to. Open Community to discover groups, scan invite QR codes, chat, and track group goals.',
   },
   {
     target: '.bottom-nav',
-    title: 'Navigation',
+    title: 'Main navigation',
     content:
-      'Jump between Inspiration (social), Happiness (home & tasks), Community, and Profile (including referrals).',
+      'Inspiration (feed & messages) · Happiness (home & tasks) · Community (groups & QR join) · Profile (settings, family, referrals, reminders).',
   },
 ];
 
+/**
+ * Tasks tour — daily logging flow.
+ */
 export const tasksTourSteps: Step[] = [
   {
     target: '.tasks-header',
-    title: 'Daily tasks',
-    content: "Log today's activities from your weekly plan.",
+    title: "Today's log",
+    content:
+      'Log Mind, Body, and Soul activities from your active weekly plan. Edit the plan from here when you need to adjust targets.',
     disableBeacon: true,
   },
   {
     target: '.tasks-progress',
     title: "Today's progress",
-    content: "See how many activities you've completed so far today.",
+    content:
+      'See how many activities you’ve completed and how close you are to finishing today’s log.',
   },
   {
     target: '.tasks-quick-links',
-    title: 'Quick links',
-    content: "Open your upcoming plan or submit yesterday's missed log.",
+    title: 'Plan & missed days',
+    content:
+      'Open your upcoming week’s plan, or jump to previous logs to backfill a missed day.',
   },
   {
     target: '.weekly-activities',
-    title: 'Log activities',
-    content: 'Enter values for each activity, grouped by Mind, Body, and Soul.',
+    title: 'Enter activities',
+    content:
+      'Fill in each activity value. Community-only activities appear here too when you’re in a group with targets.',
   },
   {
     target: '.submit-log-button',
     title: 'Submit log',
-    content: 'Submit after 6 PM once all values are entered.',
+    content:
+      'Submit after 6 PM once values are entered. Early submit may be blocked so your day can finish first.',
   },
   {
     target: '.bottom-nav',
-    title: 'Navigation',
-    content: 'Use the bottom bar to move to other sections.',
+    title: 'Main navigation',
+    content:
+      'Inspiration · Happiness · Community · Profile — use these anytime to move around the app.',
   },
 ];

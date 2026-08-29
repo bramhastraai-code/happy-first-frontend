@@ -1,18 +1,17 @@
 'use client';
 
-import { Plus, Rss, ScanLine } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/authStore';
 import { AppPageHeader } from '@/components/ui/AppPageHeader';
-import { HeaderIconButton, HeaderIconLink } from '@/components/ui/HeaderIconAction';
+import { HeaderIconLink } from '@/components/ui/HeaderIconAction';
 import { firstNameFrom } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
 
 interface CommunityTopBarProps {
   className?: string;
-  onOpenScanner?: () => void;
 }
 
-export function CommunityTopBar({ className, onOpenScanner }: CommunityTopBarProps) {
+export function CommunityTopBar({ className }: CommunityTopBarProps) {
   const { selectedProfile, user } = useAuthStore();
   const displayName = selectedProfile?.name || user?.name || 'there';
 
@@ -32,25 +31,11 @@ export function CommunityTopBar({ className, onOpenScanner }: CommunityTopBarPro
       subtitleTone="label"
       avatarHref={profileHref}
       actions={
-        <>
-          {onOpenScanner ? (
-            <HeaderIconButton
-              icon={<ScanLine className="h-[18px] w-[18px]" />}
-              caption="Scan QR"
-              onClick={onOpenScanner}
-            />
-          ) : null}
-          <HeaderIconLink
-            href="/feed"
-            icon={<Rss className="h-[18px] w-[18px]" />}
-            caption="Feed"
-          />
-          <HeaderIconLink
-            href="/community/create"
-            icon={<Plus className="h-[18px] w-[18px]" />}
-            caption="Create"
-          />
-        </>
+        <HeaderIconLink
+          href="/community/create"
+          icon={<Plus className="h-[18px] w-[18px]" />}
+          caption="Create"
+        />
       }
     />
   );

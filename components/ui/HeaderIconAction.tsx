@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 const baseClass =
-  'inline-flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-border px-1.5 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 min-w-[3.25rem] min-h-11';
+  'inline-flex shrink-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 py-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 min-w-[3.25rem] min-h-11';
 
 const dangerClass =
-  'inline-flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-border px-1.5 py-1 text-destructive transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/30 min-w-[3.25rem] min-h-11';
+  'inline-flex shrink-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 py-1 text-destructive transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/30 min-w-[3.25rem] min-h-11';
 
 interface HeaderIconActionProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon: ReactNode;

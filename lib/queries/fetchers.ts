@@ -3,6 +3,10 @@ import { dailyLogAPI, type DailySummary, type MonthlySummary, type WeeklySummary
 import { weeklyPlanAPI, type WeeklyPlan } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import { activityAPI, type Activity } from '@/lib/api/activity';
+import {
+  resolveProfileTimezone,
+  toProfileDateKey,
+} from '@/lib/utils/profileTime';
 
 export async function fetchCurrentPlan(date: string): Promise<WeeklyPlan | null> {
   const res = await weeklyPlanAPI.getCurrent(date);
@@ -120,17 +124,27 @@ export interface WeeklyDataPoint {
   daysCount: number;
 }
 
-export function groupDataByWeeks(data: MonthlyDataPoint[]): WeeklyDataPoint[] {
+export function groupDataByWeeks(
+  data: MonthlyDataPoint[],
+  timezone?: string | null
+): WeeklyDataPoint[] {
   const weeks: Map<string, MonthlyDataPoint[]> = new Map();
 
   data.forEach((point) => {
-    const weekKey = DateTime.fromISO(point.date).startOf('week').toFormat('yyyy-MM-dd');
+    const dateKey = toProfileDateKey(point.date, timezone);
+    const weekKey = DateTime.fromISO(dateKey, {
+      zone: resolveProfileTimezone(timezone),
+    })
+      .startOf('week')
+      .toFormat('yyyy-MM-dd');
     if (!weeks.has(weekKey)) weeks.set(weekKey, []);
-    weeks.get(weekKey)!.push(point);
+    weeks.get(weekKey)!.push({ ...point, date: dateKey });
   });
 
   return Array.from(weeks.entries()).map(([weekKey, points]) => {
-    const weekStart = DateTime.fromISO(weekKey);
+    const weekStart = DateTime.fromISO(weekKey, {
+      zone: resolveProfileTimezone(timezone),
+    });
     const weekEnd = weekStart.endOf('week');
     return {
       weekLabel: `Week ${weekStart.toFormat('MMM dd')}`,
@@ -144,11 +158,18 @@ export function groupDataByWeeks(data: MonthlyDataPoint[]): WeeklyDataPoint[] {
   });
 }
 
-export function monthlyBreakdownToPoints(breakdown: MonthlySummary['dailyBreakdown']): MonthlyDataPoint[] {
-  return breakdown.map((item) => ({
-    date: item.date,
-    points: item.points,
-    day: DateTime.fromISO(item.date).day,
-    activitiesCount: item.activityCount,
-  }));
+export function monthlyBreakdownToPoints(
+  breakdown: MonthlySummary['dailyBreakdown'],
+  timezone?: string | null
+): MonthlyDataPoint[] {
+  const zone = resolveProfileTimezone(timezone);
+  return breakdown.map((item) => {
+    const dateKey = toProfileDateKey(item.date, zone);
+    return {
+      date: dateKey,
+      points: item.points,
+      day: DateTime.fromISO(dateKey, { zone }).day,
+      activitiesCount: item.activityCount,
+    };
+  });
 }

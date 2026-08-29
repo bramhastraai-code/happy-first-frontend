@@ -16,7 +16,6 @@ import {
   Users,
   ChevronRight,
   LogOut,
-  LayoutGrid,
   MessageSquare,
   PauseCircle,
   PlayCircle,
@@ -38,7 +37,6 @@ import SupportFeedbackForm from '@/components/settings/SupportFeedbackForm';
 import PushNotificationToggle from '@/components/settings/PushNotificationToggle';
 import DefaultLandingSetting from '@/components/settings/DefaultLandingSetting';
 import { DeleteAccountDialog } from '@/components/settings/DeleteAccountDialog';
-import { ProfileGuideCard } from '@/components/feed/ProfileGuideCard';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { AppQuickLinks } from '@/components/nav/AppQuickLinks';
 import { Button } from '@/components/ui/button';
@@ -354,11 +352,6 @@ export default function SettingsPage() {
         actions={
           <>
             <HeaderIconButton
-              icon={<LayoutGrid className="h-[18px] w-[18px]" />}
-              caption="Modules"
-              onClick={() => router.push('/modules')}
-            />
-            <HeaderIconButton
               icon={<LogOut className="h-[18px] w-[18px]" />}
               caption="Log out"
               danger
@@ -413,19 +406,6 @@ export default function SettingsPage() {
 
         <section aria-label="Profile">
           <h2 className="section-title mb-3">Profile</h2>
-          <div className="mb-3">
-            <ProfileGuideCard
-              showEditCta
-              onEdit={() => {
-                setOpenPanel('edit-profile');
-                requestAnimationFrame(() => {
-                  document
-                    .getElementById('edit-profile')
-                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                });
-              }}
-            />
-          </div>
           <div className="space-y-3">
             {hasFamilyMembers && (
               <div className="section-card px-4 py-3">
@@ -632,26 +612,8 @@ export default function SettingsPage() {
             </span>
             <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           </Link>
-          <Link
-            href="/modules"
-            className="mb-2 flex w-full items-center gap-3 rounded-xl border border-primary/25 bg-primary-soft/40 px-3 py-3.5 text-left transition-colors hover:border-primary/40 hover:bg-primary-soft/60"
-          >
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-              <LayoutGrid className="h-5 w-5" strokeWidth={2.25} aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold leading-snug text-foreground">
-                All modules
-              </span>
-              <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
-                Steps to use every module — Home, Tasks, Feed, Community, and more
-              </span>
-            </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-          </Link>
           <AppQuickLinks
             exclude={[
-              '/modules',
               '/home',
               '/tasks',
               '/feed',

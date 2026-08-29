@@ -21,6 +21,9 @@ import { queryKeys, STALE } from '@/lib/queries/keys';
 import { useAuthStore } from '@/lib/store/authStore';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { cn } from '@/lib/utils';
+import {
+  todayInProfileZone,
+} from '@/lib/utils/profileTime';
 
 const QUICK_LINKS = [
   { name: 'Feed', href: '/feed', icon: Rss },
@@ -123,7 +126,7 @@ export function GlobalSearch() {
     },
   });
 
-  const localDate = DateTime.local().toFormat('yyyy-MM-dd');
+  const localDate = todayInProfileZone(selectedProfile?.timezone);
   const planQuery = useQuery({
     queryKey: queryKeys.weeklyPlan.current(localDate, selectedProfile?._id),
     enabled: open && searching,
@@ -179,7 +182,11 @@ export function GlobalSearch() {
             onChange={(event) => setQuery(event.target.value)}
             onFocus={() => setOpen(true)}
             placeholder="Search people, communities, events, tasks…"
-            className="h-11 w-full rounded-xl border border-input bg-secondary pl-10 pr-9 text-sm outline-none focus:ring-2 focus:ring-ring"
+            className={cn(
+              'h-11 w-full rounded-xl border border-border bg-surface pl-10 pr-9 text-sm text-foreground shadow-sm',
+              'placeholder:text-muted-foreground outline-none',
+              'focus:border-primary/40 focus:ring-2 focus:ring-primary/20'
+            )}
             inputMode="search"
             aria-label="Global search"
           />
@@ -190,7 +197,7 @@ export function GlobalSearch() {
                 setQuery('');
                 setDebounced('');
               }}
-              className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
+              className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
               aria-label="Clear search"
             >
               <X className="h-4 w-4" />

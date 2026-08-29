@@ -31,6 +31,11 @@ import { CommunityInvitePromptCard } from '@/components/community/CommunityInvit
 import { weeklyPlanAPI, type PlanChoiceState } from '@/lib/api/weeklyPlan';
 import { resolveActivityIcon } from '@/lib/utils/activityIcon';
 import { calendarDayMatches, toLocalDateKey } from '@/lib/utils/calendarDate';
+import {
+  nowInProfileZone,
+  resolveProfileTimezone,
+  todayInProfileZone,
+} from '@/lib/utils/profileTime';
 import Link from 'next/link';
 
 export default function HomePage() {
@@ -49,6 +54,7 @@ function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, accessToken, isHydrated, sessionReady, selectedProfile, setUser } = useAuthStore();
+  const profileZone = resolveProfileTimezone(selectedProfile?.timezone);
   const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
   const [economy, setEconomy] = useState<EconomySummary | null>(null);
   const [expandedSections, setExpandedSections] = useState({
@@ -60,7 +66,8 @@ function HomePageContent() {
     leaderboard: false,
     logTracker: false,
   });
-  const [logDateFilter, setLogDateFilter] = useState<string>(DateTime.local().toFormat('yyyy-MM-dd'));
+  // Empty until mount — avoids Vercel SSR (UTC) baking the wrong calendar day into state.
+  const [logDateFilter, setLogDateFilter] = useState<string>('');
   const [runTour, setRunTour] = useState(false);
   const [showTourButton, setShowTourButton] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
@@ -69,7 +76,13 @@ function HomePageContent() {
   );
   const isProfilePaused = Boolean(selectedProfile?.pause ?? selectedProfile?.setting?.pause);
 
-  const dataEnabled = isHydrated && sessionReady && !!accessToken && !!user && !!selectedProfile?._id;
+  const dataEnabled =
+    isHydrated &&
+    sessionReady &&
+    !!accessToken &&
+    !!user &&
+    !!selectedProfile?._id &&
+    !!logDateFilter;
 
   useEffect(() => {
     if (!dataEnabled) return;
@@ -111,6 +124,7 @@ function HomePageContent() {
     invalidateDashboard,
   } = useHomePageData({
     profileId: selectedProfile?._id,
+    timezone: profileZone,
     logDateFilter,
     enabled: dataEnabled,
   });
@@ -120,9 +134,10 @@ function HomePageContent() {
 
     // Check if there's a date query parameter from calendar navigation after mount
     const dateParam = searchParams.get('date');
+    const todayKey = todayInProfileZone(profileZone);
     if (dateParam && isHydrated) {
       setLogDateFilter(dateParam);
-      setExpandedSections(prev => ({ ...prev, logTracker: true }));
+      setExpandedSections((prev) => ({ ...prev, logTracker: true }));
 
       // Scroll to log tracker after a short delay
       setTimeout(() => {
@@ -131,8 +146,10 @@ function HomePageContent() {
           logTrackerElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }, 500);
+    } else if (!logDateFilter) {
+      setLogDateFilter(todayKey);
     }
-  }, [searchParams, isHydrated]);
+  }, [searchParams, isHydrated, profileZone, logDateFilter]);
 
   useEffect(() => {
     if (!dataEnabled) return;
@@ -218,9 +235,9 @@ function HomePageContent() {
   const totalDaysLogged = streakData?.overallStreak.totalDaysLogged ?? 0;
   const trackerCalendarDays = weeklyLogData?.calendarDays || [];
 
-  // Get current week's days (Monday to Sunday)
+  // Get current week's days (Monday to Sunday) in the profile timezone
   const getCurrentWeekDays = () => {
-    const now = DateTime.local();
+    const now = nowInProfileZone(profileZone);
     const startOfWeek = now.startOf('week'); // Monday
     const days = [];
     
@@ -228,8 +245,8 @@ function HomePageContent() {
       const day = startOfWeek.plus({ days: i });
       const dateString = day.toFormat('yyyy-MM-dd');
       const calendarDay =
-        weekCalendarDays.find((d) => calendarDayMatches(d, dateString)) ??
-        trackerCalendarDays.find((d) => calendarDayMatches(d, dateString));
+        weekCalendarDays.find((d) => calendarDayMatches(d, dateString, profileZone)) ??
+        trackerCalendarDays.find((d) => calendarDayMatches(d, dateString, profileZone));
       
       days.push({
         date: dateString,
@@ -249,18 +266,21 @@ function HomePageContent() {
   const weekScoreHint = `${daysLoggedThisWeek} of 7 days`;
   const daysLoggedHint = `${daysLoggedThisWeek} this week`;
   const trackerFirstDayOffset = trackerCalendarDays.length > 0
-    ? new Date(trackerCalendarDays[0].date).getDay()
+    ? DateTime.fromISO(toLocalDateKey(trackerCalendarDays[0].date, profileZone), {
+        zone: profileZone,
+      }).weekday % 7
     : 0;
-  const todayDate = DateTime.local().toFormat('yyyy-MM-dd');
-  const calendarMonth = DateTime.fromISO(logDateFilter).isValid
-    ? DateTime.fromISO(logDateFilter).startOf('month')
-    : DateTime.local().startOf('month');
+  const todayDate = todayInProfileZone(profileZone);
+  const calendarMonth = DateTime.fromISO(logDateFilter || todayDate, { zone: profileZone }).isValid
+    ? DateTime.fromISO(logDateFilter || todayDate, { zone: profileZone }).startOf('month')
+    : nowInProfileZone(profileZone).startOf('month');
   const canPrevLogMonth =
-    calendarMonth > DateTime.local().minus({ months: 24 }).startOf('month');
-  const canNextLogMonth = calendarMonth.endOf('month') < DateTime.local().endOf('month');
+    calendarMonth > nowInProfileZone(profileZone).minus({ months: 24 }).startOf('month');
+  const canNextLogMonth =
+    calendarMonth.endOf('month') < nowInProfileZone(profileZone).endOf('month');
   const goToLogMonth = (delta: number) => {
     const target = calendarMonth.plus({ months: delta });
-    const today = DateTime.local();
+    const today = nowInProfileZone(profileZone);
     const nextDate = target.hasSame(today, 'month')
       ? today
       : delta < 0
@@ -276,7 +296,7 @@ function HomePageContent() {
     return dayChartPoints.findIndex((p) => p.date.split('T')[0] === logDateFilter);
   }, [dayChartPoints, logDateFilter]);
   const selectedDateCalendarDay = trackerCalendarDays.find((d) =>
-    calendarDayMatches(d, logDateFilter)
+    calendarDayMatches(d, logDateFilter, profileZone)
   );
   const selectedDateHasLog = selectedDateCalendarDay?.hasLog || false;
   const selectedDateIsToday = logDateFilter === todayDate;
@@ -286,7 +306,7 @@ function HomePageContent() {
       : (selectedDateIsToday ? (streakData?.overallStreak.currentStreak || 0) : 0);
 
   // Show loading only on first visit with no cached data
-  if (!isHydrated || !sessionReady || isBootstrapping) {
+  if (!isHydrated || !sessionReady || !logDateFilter || isBootstrapping) {
     return (
       <MainLayout>
         <LoadingScreen fullScreen label="Loading your dashboard…" />
@@ -307,6 +327,7 @@ function HomePageContent() {
 
       <div className="w-full space-y-5">
         <DashboardHeader
+          className="welcome-banner"
           subtitle={new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
           isPaused={isProfilePaused}
           onLogout={requestLogout}
@@ -314,7 +335,7 @@ function HomePageContent() {
 
         <GlobalSearch />
 
-        <div className="flex gap-2">
+        <div className="log-today-cta flex gap-2">
           <Button
             type="button"
             variant="outline"
@@ -322,7 +343,7 @@ function HomePageContent() {
             onClick={() => router.push('/tasks')}
           >
             <ClipboardList className="h-4 w-4" />
-            Today&apos;s tasks
+            Log today&apos;s activities
           </Button>
         </div>
 
@@ -339,8 +360,9 @@ function HomePageContent() {
 
         <CommunityInvitePromptCard />
 
-        {economy ? (
-          <div className="grid grid-cols-2 gap-3">
+        <div className="xp-coins-grid grid grid-cols-2 gap-3">
+          {economy ? (
+            <>
             <button
               type="button"
               onClick={() => router.push('/xp')}
@@ -384,24 +406,11 @@ function HomePageContent() {
                 </span>
               </span>
             </button>
-          </div>
-        ) : null}
+            </>
+          ) : null}
+        </div>
 
         <HomeMotivationCard />
-
-        <HomeSocialPreview
-          expanded={expandedSections.social}
-          onToggle={() =>
-            setExpandedSections((prev) => ({ ...prev, social: !prev.social }))
-          }
-        />
-
-        <HomeCommunityPreview
-          expanded={expandedSections.community}
-          onToggle={() =>
-            setExpandedSections((prev) => ({ ...prev, community: !prev.community }))
-          }
-        />
 
         <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           My happiness
@@ -1037,7 +1046,8 @@ function HomePageContent() {
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <h3 className="min-w-[8.5rem] text-center text-sm font-semibold text-foreground">
-                  {weeklyLogData?.monthName || DateTime.local().toFormat('LLLL')} {weeklyLogData?.year || DateTime.local().year}
+                  {weeklyLogData?.monthName || nowInProfileZone(profileZone).toFormat('LLLL')}{' '}
+                  {weeklyLogData?.year || nowInProfileZone(profileZone).year}
                 </h3>
                 <button
                   type="button"
@@ -1079,7 +1089,7 @@ function HomePageContent() {
                   ))}
 
                   {trackerCalendarDays.map((day) => {
-                    const dateOnly = toLocalDateKey(day.date);
+                    const dateOnly = toLocalDateKey(day.date, profileZone);
                     const isSelected = logDateFilter === dateOnly;
                     const baseClasses = day.isFuture
                       ? 'cursor-not-allowed border-border bg-secondary text-muted-foreground'
@@ -1304,6 +1314,20 @@ function HomePageContent() {
                 </div>
               )}
         </CollapsibleSection>
+
+        <HomeSocialPreview
+          expanded={expandedSections.social}
+          onToggle={() =>
+            setExpandedSections((prev) => ({ ...prev, social: !prev.social }))
+          }
+        />
+
+        <HomeCommunityPreview
+          expanded={expandedSections.community}
+          onToggle={() =>
+            setExpandedSections((prev) => ({ ...prev, community: !prev.community }))
+          }
+        />
       </div>
     </div>
     {LogoutConfirmDialog}

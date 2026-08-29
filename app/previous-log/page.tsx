@@ -72,7 +72,7 @@ function PreviousLogPageContent() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { accessToken, user, isHydrated, sessionReady, selectedProfile } = useAuthStore();
-  const zone = selectedProfile?.timezone || 'local';
+  const zone = selectedProfile?.timezone || 'Asia/Kolkata';
 
   const yesterday = useMemo(
     () => DateTime.now().setZone(zone).minus({ days: 1 }).toISODate() || '',

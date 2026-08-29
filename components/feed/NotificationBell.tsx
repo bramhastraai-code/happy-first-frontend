@@ -333,7 +333,7 @@ export function NotificationBell({
       : null;
 
   const captioned =
-    'relative inline-flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-border px-1.5 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 min-w-[3.25rem] min-h-11';
+    'relative inline-flex shrink-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 py-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 min-w-[3.25rem] min-h-11';
 
   return (
     <div className="relative" ref={triggerRef}>
@@ -344,8 +344,8 @@ export function NotificationBell({
           caption
             ? captioned
             : triggerClassName ||
-                'relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-foreground/80 transition-colors hover:bg-primary/10 hover:text-primary',
-          open && 'bg-primary/10 text-primary'
+                'relative inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-foreground/80 transition-colors hover:text-primary',
+          open && 'text-primary'
         )}
         aria-label={caption || 'Notifications'}
         title={caption || 'Notifications'}

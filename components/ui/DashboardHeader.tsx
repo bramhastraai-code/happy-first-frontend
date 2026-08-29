@@ -1,11 +1,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { LayoutGrid, LogOut, RefreshCw, Settings } from 'lucide-react';
+import { LogOut, RefreshCw, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import { AppPageHeader } from '@/components/ui/AppPageHeader';
-import { HeaderIconButton, HeaderIconLink } from '@/components/ui/HeaderIconAction';
+import { HeaderIconButton } from '@/components/ui/HeaderIconAction';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
 
@@ -81,12 +81,6 @@ export function DashboardHeader({
               onClick={handleSwitchProfile}
             />
           ) : null}
-
-          <HeaderIconLink
-            href="/modules"
-            icon={<LayoutGrid className="h-[18px] w-[18px]" />}
-            caption="Modules"
-          />
 
           <HeaderIconButton
             icon={<Settings className="h-[18px] w-[18px]" />}

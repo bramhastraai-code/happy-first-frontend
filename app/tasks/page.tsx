@@ -530,7 +530,7 @@ export default function TasksPage() {
           subtitleTone="label"
           meta={
             <span className="inline-flex rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary sm:text-xs">
-              Daily tasks
+              Today&apos;s log
             </span>
           }
           actions={
