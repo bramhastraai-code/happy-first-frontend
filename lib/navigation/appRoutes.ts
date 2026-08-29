@@ -3,6 +3,7 @@ import {
   Calendar,
   ClipboardList,
   Coins,
+  Compass,
   History,
   LayoutGrid,
   PlusCircle,
@@ -27,6 +28,12 @@ export function getAppQuickLinks(): AppQuickLink[] {
   const weekStart = latestCompletedWeekStartISO();
 
   return [
+    {
+      href: '/modules',
+      label: 'All modules',
+      description: 'Overview of every area in the app',
+      icon: Compass,
+    },
     {
       href: '/home',
       label: 'Dashboard',

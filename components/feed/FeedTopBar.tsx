@@ -1,13 +1,10 @@
 'use client';
 
-import Link from 'next/link';
 import { MessageCircle, Search } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/authStore';
 import { NotificationBell } from '@/components/feed/NotificationBell';
-import {
-  AppPageHeader,
-  headerActionBtnClass,
-} from '@/components/ui/AppPageHeader';
+import { AppPageHeader } from '@/components/ui/AppPageHeader';
+import { HeaderIconButton, HeaderIconLink } from '@/components/ui/HeaderIconAction';
 import { firstNameFrom } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
 
@@ -43,28 +40,21 @@ export function FeedTopBar({
       avatarHref={profileHref}
       actions={
         <>
-          <Link
+          <HeaderIconLink
             href="/feed/explore"
-            className={headerActionBtnClass}
-            aria-label="Search people and posts"
-            title="Search"
-          >
-            <Search className="h-[18px] w-[18px]" />
-          </Link>
+            icon={<Search className="h-[18px] w-[18px]" />}
+            caption="Search"
+          />
           <NotificationBell
             onOpenMessage={onOpenMessageFromNotification}
             onOpenPost={onOpenPost}
-            triggerClassName={headerActionBtnClass}
+            caption="Alerts"
           />
-          <button
-            type="button"
+          <HeaderIconButton
+            icon={<MessageCircle className="h-[18px] w-[18px]" />}
+            caption="Messages"
             onClick={onOpenMessages}
-            className={headerActionBtnClass}
-            aria-label="Messages"
-            title="Messages"
-          >
-            <MessageCircle className="h-[18px] w-[18px]" />
-          </button>
+          />
         </>
       }
     />

@@ -11,13 +11,15 @@ import { communityAPI, type MyCommunityActivity } from '@/lib/api/community';
 import MainLayout from '@/components/layout/MainLayout';
 import {
   AppPageHeader,
-  headerActionBtnClass,
 } from '@/components/ui/AppPageHeader';
+import { HeaderIconButton } from '@/components/ui/HeaderIconAction';
 import { Button } from '@/components/ui/button';
 import TaskCategorySection from '@/components/tasks/TaskCategorySection';
 import CommunityActivitiesSection from '@/components/tasks/CommunityActivitiesSection';
 import { Calendar, ChevronRight, Timer, TrendingUp, CheckCircle2, AlertCircle, Pencil, RefreshCw, PlusCircle } from 'lucide-react';
 import type { WeeklyPlan, WeeklyPlanActivity, PlanChoiceState } from '@/lib/api/weeklyPlan';
+import { WeekendPlanPromptCard } from '@/components/plan/WeekendPlanPromptCard';
+import { CommunityInvitePromptCard } from '@/components/community/CommunityInvitePromptCard';
 import { authAPI } from '@/lib/api/auth';
 import GuidedTour from '@/components/ui/GuidedTour';
 import TourStartButton from '@/components/ui/TourStartButton';
@@ -37,7 +39,6 @@ import {
 } from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
-import { cn } from '@/lib/utils';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -533,40 +534,20 @@ export default function TasksPage() {
             </span>
           }
           actions={
-            <button
-              type="button"
-              onClick={() => router.push(editPlanHref)}
-              className={cn(headerActionBtnClass, 'hidden sm:inline-flex sm:h-auto sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2')}
-              aria-label={
+            <HeaderIconButton
+              className="hidden sm:inline-flex"
+              icon={<Pencil className="h-4 w-4" />}
+              caption={
                 planChoice?.canEditCurrent
-                  ? "Edit this week's plan"
-                  : planChoice?.needsPlanChoice
-                    ? "Create this week's plan"
-                    : hasUpcomingPlan
-                      ? 'Edit upcoming plan'
-                      : 'Create upcoming plan'
-              }
-              title={
-                planChoice?.canEditCurrent
-                  ? "Edit this week's plan"
-                  : planChoice?.needsPlanChoice
-                    ? "Create this week's plan"
-                    : hasUpcomingPlan
-                      ? 'Edit upcoming plan'
-                      : 'Create upcoming plan'
-              }
-            >
-              <Pencil className="h-4 w-4" />
-              <span className="hidden text-xs font-medium lg:inline">
-                {planChoice?.canEditCurrent
                   ? 'Edit plan'
                   : planChoice?.needsPlanChoice
-                    ? 'Create plan'
+                    ? 'Create'
                     : hasUpcomingPlan
-                      ? 'Edit upcoming'
-                      : 'Create plan'}
-              </span>
-            </button>
+                      ? 'Upcoming'
+                      : 'Create'
+              }
+              onClick={() => router.push(editPlanHref)}
+            />
           }
         />
         <div className="flex flex-col gap-3">
@@ -664,6 +645,20 @@ export default function TasksPage() {
             </div>
           </div>
         )}
+
+        {planChoice?.weekendPrompt?.show ? (
+          <WeekendPlanPromptCard
+            weekendPrompt={planChoice.weekendPrompt}
+            onResolved={() => {
+              void (async () => {
+                const { planChoice: choice } = await weeklyPlanAPI.getCurrentPlanState();
+                setPlanChoice(choice);
+              })();
+            }}
+          />
+        ) : null}
+
+        <CommunityInvitePromptCard />
 
         {/* After accidental repeat/create on Monday: still allow edit before first log */}
         {!planChoice?.needsPlanChoice && planChoice?.canEditCurrent && (

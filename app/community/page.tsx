@@ -1,20 +1,22 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Loader2, Plus, Search, Users } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { CommunityTopBar } from '@/components/community/CommunityTopBar';
 import { CommunityJoinScanner } from '@/components/community/CommunityJoinScanner';
 import { Button } from '@/components/ui/button';
+import { UserMascot } from '@/components/ui/UserMascot';
+import { DiscoverPageIntro } from '@/components/community/DiscoverPageIntro';
 import { communityAPI, type Community } from '@/lib/api/community';
 import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
 import { cn } from '@/lib/utils';
 
 const CATEGORY_FILTERS = ['All', 'Body', 'Mind', 'Soul'] as const;
 
-type LandingTab = 'my-communities' | 'my-groups' | 'discover';
+type LandingTab = 'mine' | 'events' | 'discover';
 
 function categoryLabel(community: Community) {
   if (!community.categories?.length) return 'Mixed';
@@ -72,11 +74,12 @@ function CommunityListItem({ community }: { community: Community }) {
 
 export default function CommunityPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<LandingTab>('my-communities');
+  const [activeTab, setActiveTab] = useState<LandingTab>('mine');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<(typeof CATEGORY_FILTERS)[number]>('All');
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const didAutoDiscoverRef = useRef(false);
 
   const discoverQuery = useQuery({
     queryKey: ['communities', 'discover', query, category],
@@ -90,14 +93,24 @@ export default function CommunityPage() {
     },
   });
 
+  // Always load memberships so we can default to Discover when the user has none
   const mineQuery = useQuery({
     queryKey: ['communities', 'mine'],
-    enabled: activeTab === 'my-communities' || activeTab === 'my-groups',
     queryFn: async () => {
       const res = await communityAPI.mine();
       return res.data.data.communities ?? [];
     },
   });
+
+  useEffect(() => {
+    if (didAutoDiscoverRef.current) return;
+    if (mineQuery.isLoading || !mineQuery.isSuccess) return;
+    const mine = mineQuery.data ?? [];
+    if (mine.length === 0) {
+      setActiveTab('discover');
+    }
+    didAutoDiscoverRef.current = true;
+  }, [mineQuery.isLoading, mineQuery.isSuccess, mineQuery.data]);
 
   const joinMutation = useMutation({
     mutationFn: (id: string) => communityAPI.join(id),
@@ -111,15 +124,6 @@ export default function CommunityPage() {
   const communities = discoverQuery.data ?? [];
   const myCommunitiesAll = mineQuery.data ?? [];
 
-  const adminCommunities = useMemo(
-    () => myCommunitiesAll.filter((c) => c.myRole === 'admin'),
-    [myCommunitiesAll]
-  );
-  const memberGroups = useMemo(
-    () => myCommunitiesAll.filter((c) => c.myRole !== 'admin'),
-    [myCommunitiesAll]
-  );
-
   const filtered = useMemo(() => {
     if (category === 'All') return communities;
     const cat = category.toLowerCase();
@@ -128,7 +132,7 @@ export default function CommunityPage() {
     );
   }, [communities, category]);
 
-  const adminMemberTotal = adminCommunities.reduce(
+  const memberTotal = myCommunitiesAll.reduce(
     (sum, c) => sum + (c.memberCount || 0),
     0
   );
@@ -145,8 +149,8 @@ export default function CommunityPage() {
         >
           {(
             [
-              { id: 'my-communities', label: 'Communities' },
-              { id: 'my-groups', label: 'Groups' },
+              { id: 'mine', label: 'Communities' },
+              { id: 'events', label: 'Events' },
               { id: 'discover', label: 'Discover' },
             ] as const
           ).map((tab) => {
@@ -171,9 +175,9 @@ export default function CommunityPage() {
           })}
         </div>
 
-        {activeTab === 'my-communities' ? (
+        {activeTab === 'mine' ? (
           <section
-            key="my-communities"
+            key="mine"
             aria-label="Your Communities"
             className="my-communities space-y-4"
             role="tabpanel"
@@ -183,13 +187,13 @@ export default function CommunityPage() {
                 <div className="pr-4">
                   <p className="text-xs font-medium text-muted-foreground">Your Communities</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                    {mineQuery.isLoading ? '—' : adminCommunities.length}
+                    {mineQuery.isLoading ? '—' : myCommunitiesAll.length}
                   </p>
                 </div>
                 <div className="pl-4">
                   <p className="text-xs font-medium text-muted-foreground">Total members</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                    {mineQuery.isLoading ? '—' : adminMemberTotal.toLocaleString()}
+                    {mineQuery.isLoading ? '—' : memberTotal.toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -199,16 +203,16 @@ export default function CommunityPage() {
               <div className="flex justify-center py-10">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : adminCommunities.length > 0 ? (
+            ) : myCommunitiesAll.length > 0 ? (
               <ul className="section-card divide-y divide-border">
-                {adminCommunities.map((community) => (
+                {myCommunitiesAll.map((community) => (
                   <CommunityListItem key={community.id} community={community} />
                 ))}
               </ul>
             ) : (
               <div className="section-card p-6 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary">
-                  <Users className="h-6 w-6 text-muted-foreground" />
+                <div className="mx-auto mb-3 flex justify-center">
+                  <UserMascot size={72} />
                 </div>
                 <h2 className="text-base font-semibold text-foreground">No communities yet</h2>
                 <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
@@ -231,50 +235,30 @@ export default function CommunityPage() {
           </section>
         ) : null}
 
-        {activeTab === 'my-groups' ? (
+        {activeTab === 'events' ? (
           <section
-            key="my-groups"
-            aria-label="My Groups"
-            className="my-groups space-y-4"
+            key="events"
+            aria-label="Events"
+            className="space-y-4"
             role="tabpanel"
           >
-            <div className="mb-1 flex items-center justify-between px-0.5">
-              <h2 className="section-title">My Groups</h2>
-              <span className="text-xs text-muted-foreground">
-                {mineQuery.isLoading ? '' : `${memberGroups.length} joined`}
-              </span>
+            <div className="section-card p-8 text-center">
+              <div className="mx-auto mb-3 flex justify-center">
+                <UserMascot size={72} />
+              </div>
+              <h2 className="text-base font-semibold text-foreground">Events — Coming Soon</h2>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
+                Community-wide events and RSVPs are on the way. Inside a community you can still
+                use Calendar for member events today.
+              </p>
             </div>
-
-            {mineQuery.isLoading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : memberGroups.length > 0 ? (
-              <ul className="section-card divide-y divide-border">
-                {memberGroups.map((community) => (
-                  <CommunityListItem key={community.id} community={community} />
-                ))}
-              </ul>
-            ) : (
-              <div className="section-card p-6 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary">
-                  <Users className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <h2 className="text-base font-semibold text-foreground">No groups yet</h2>
-                <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
-                  Join a community from Discover to see it here.
-                </p>
-                <Button variant="outline" className="mt-4" onClick={() => setActiveTab('discover')}>
-                  Browse communities
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </Button>
-              </div>
-            )}
           </section>
         ) : null}
 
         {activeTab === 'discover' ? (
           <div key="discover" className="space-y-4" role="tabpanel" aria-label="Discover">
+            <DiscoverPageIntro />
+
             <div className="section-card p-4">
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

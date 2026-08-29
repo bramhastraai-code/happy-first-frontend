@@ -11,8 +11,9 @@ import {
   CommunityAvatarPicker,
   type CommunityAvatarSelection,
 } from '@/components/community/CommunityAvatarPicker';
+import { AboutMediaEditor } from '@/components/community/AboutMediaEditor';
 import { CommunityActivityConfigPicker } from '@/components/community/CommunityActivityConfigPicker';
-import { activityAPI } from '@/lib/api/activity';
+import { CommunityCustomActivityForm } from '@/components/community/CommunityCustomActivityForm';
 import {
   COMMUNITY_TYPE_OPTIONS,
   communityAPI,
@@ -57,10 +58,11 @@ export default function EditCommunityPage() {
   });
 
   const activitiesQuery = useQuery({
-    queryKey: ['activities', 'community-edit'],
+    queryKey: ['community-activity-picker', communityId],
+    enabled: Boolean(communityId),
     queryFn: async () => {
-      const res = await activityAPI.getList();
-      return res.data.data ?? [];
+      const res = await communityAPI.activityPicker(communityId);
+      return res.data.data.activities ?? [];
     },
   });
 
@@ -210,7 +212,6 @@ export default function EditCommunityPage() {
 
   const canSubmit =
     name.trim().length > 0 &&
-    Object.keys(selectedLevels).length > 0 &&
     !saveMutation.isPending &&
     hydrated;
 
@@ -275,6 +276,8 @@ export default function EditCommunityPage() {
         ) : null}
 
         <CommunityAvatarPicker name={name || 'Community'} value={avatar} onChange={setAvatar} />
+
+        <AboutMediaEditor communityId={communityId} />
 
         <div className="section-card space-y-4 p-4">
           <label className="block space-y-1.5">
@@ -369,6 +372,35 @@ export default function EditCommunityPage() {
           }
           targetDefaults={defaultsQuery.data}
         />
+
+        <CommunityCustomActivityForm
+          mode="create"
+          onCreate={async (draft) => {
+            const res = await communityAPI.createCustomActivity(communityId, {
+              name: draft.name,
+              baseUnit: draft.baseUnit,
+              description: draft.description,
+              category: draft.category,
+              icon: draft.icon,
+              allowedCadence: draft.allowedCadence,
+              level: draft.level,
+              defaultTarget: draft.defaultTarget ? Number(draft.defaultTarget) : null,
+            });
+            const activityId = res.data.data.activity.id;
+            setSelectedLevels((prev) => ({
+              ...prev,
+              [activityId]: res.data.data.level,
+            }));
+            void queryClient.invalidateQueries({
+              queryKey: ['community-activity-picker', communityId],
+            });
+            void queryClient.invalidateQueries({ queryKey: ['community', communityId] });
+          }}
+        />
+
+        <p className="text-xs text-muted-foreground">
+          Tip: clear all activities to make this a discussion-only community with no targets.
+        </p>
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
 

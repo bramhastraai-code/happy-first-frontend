@@ -5,11 +5,15 @@ import { useRouter } from 'next/navigation';
 import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useAuthStore, Profile } from '@/lib/store/authStore';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { User, UserPlus, Heart, Users } from 'lucide-react';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { resolveProfileAvatarUrl } from '@/lib/utils/avatar';
+import { applyMascotTheme, resolveDefaultLanding } from '@/lib/theme/mascotTheme';
+
+function landingForProfile(profile: Profile | null | undefined) {
+  return resolveDefaultLanding(profile?.preferences?.defaultLanding);
+}
 
 export default function SelectProfilePage() {
   const router = useRouter();
@@ -23,15 +27,19 @@ export default function SelectProfilePage() {
       return;
     }
     if (profiles?.length === 1) {
-      setSelectedProfile(profiles[0] || null);
-      router.push('/home');
+      const profile = profiles[0] || null;
+      setSelectedProfile(profile);
+      if (profile) applyMascotTheme(profile.preferences?.mascotColor);
+      router.push(landingForProfile(profile));
     }
   }, [user, isHydrated, sessionReady, router, setSelectedProfile, profiles]);
 
   const handleSelectProfile = (profile: Profile) => {
     setLoading(true);
     setSelectedProfile(profile);
-    setTimeout(() => router.push('/home'), 300);
+    applyMascotTheme(profile.preferences?.mascotColor);
+    const path = landingForProfile(profile);
+    setTimeout(() => router.push(path), 300);
   };
 
   const getRelationshipIcon = (relationship: string) => {

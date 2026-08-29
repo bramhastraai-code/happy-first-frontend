@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import {
   AppPageHeader,
-  headerActionBtnDangerClass,
 } from '@/components/ui/AppPageHeader';
+import { HeaderIconButton } from '@/components/ui/HeaderIconAction';
 import {
   Lock,
   User,
@@ -15,6 +16,7 @@ import {
   Users,
   ChevronRight,
   LogOut,
+  LayoutGrid,
   MessageSquare,
   PauseCircle,
   PlayCircle,
@@ -22,6 +24,8 @@ import {
   Bell,
   AlertCircle,
   Trash2,
+  Share2,
+  Home,
 } from 'lucide-react';
 import { authAPI } from '@/lib/api/auth';
 import { useLogoutConfirm } from '@/lib/hooks/useLogoutConfirm';
@@ -32,7 +36,9 @@ import EditProfileForm from '@/components/settings/EditProfileForm';
 import ChangePasswordForm from '@/components/settings/ChangePasswordForm';
 import SupportFeedbackForm from '@/components/settings/SupportFeedbackForm';
 import PushNotificationToggle from '@/components/settings/PushNotificationToggle';
+import DefaultLandingSetting from '@/components/settings/DefaultLandingSetting';
 import { DeleteAccountDialog } from '@/components/settings/DeleteAccountDialog';
+import { ProfileGuideCard } from '@/components/feed/ProfileGuideCard';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { AppQuickLinks } from '@/components/nav/AppQuickLinks';
 import { Button } from '@/components/ui/button';
@@ -45,12 +51,24 @@ import {
 } from '@/lib/utils/reminderSchedule';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
+import {
+  DEFAULT_LANDING_OPTIONS,
+  resolveDefaultLanding,
+} from '@/lib/theme/mascotTheme';
 const PAUSE_ALLOWED_DAY_INDEXES = [5, 6, 0, 1];
 const MAX_FAMILY_MEMBERS = 5;
+
+function defaultLandingSubtitle(path?: string | null) {
+  const resolved = resolveDefaultLanding(path);
+  const label =
+    DEFAULT_LANDING_OPTIONS.find((opt) => opt.value === resolved)?.label ?? 'Happiness (Home)';
+  return `Opens ${label} first`;
+}
 
 type SettingsPanel =
   | 'add-family'
   | 'edit-profile'
+  | 'default-landing'
   | 'reminders'
   | 'password'
   | 'support'
@@ -297,10 +315,12 @@ export default function SettingsPage() {
             <span className="inline-flex rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary sm:text-xs">
               Settings
             </span>
-            {selectedProfile?.createdAt ? (
+            {selectedProfile?.memberSince || selectedProfile?.createdAt ? (
               <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
                 Member since{' '}
-                {new Date(selectedProfile.createdAt).toLocaleDateString('en-US', {
+                {new Date(
+                  (selectedProfile.memberSince || selectedProfile.createdAt) as string
+                ).toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',
@@ -309,7 +329,10 @@ export default function SettingsPage() {
                 {Math.max(
                   0,
                   Math.floor(
-                    (Date.now() - new Date(selectedProfile.createdAt).getTime()) /
+                    (Date.now() -
+                      new Date(
+                        (selectedProfile.memberSince || selectedProfile.createdAt) as string
+                      ).getTime()) /
                       (24 * 60 * 60 * 1000)
                   )
                 )}{' '}
@@ -329,14 +352,19 @@ export default function SettingsPage() {
           </>
         }
         actions={
-          <button
-            type="button"
-            onClick={requestLogout}
-            className={headerActionBtnDangerClass}
-            aria-label="Log out"
-          >
-            <LogOut className="h-[18px] w-[18px]" />
-          </button>
+          <>
+            <HeaderIconButton
+              icon={<LayoutGrid className="h-[18px] w-[18px]" />}
+              caption="Modules"
+              onClick={() => router.push('/modules')}
+            />
+            <HeaderIconButton
+              icon={<LogOut className="h-[18px] w-[18px]" />}
+              caption="Log out"
+              danger
+              onClick={requestLogout}
+            />
+          </>
         }
       />
 
@@ -385,6 +413,19 @@ export default function SettingsPage() {
 
         <section aria-label="Profile">
           <h2 className="section-title mb-3">Profile</h2>
+          <div className="mb-3">
+            <ProfileGuideCard
+              showEditCta
+              onEdit={() => {
+                setOpenPanel('edit-profile');
+                requestAnimationFrame(() => {
+                  document
+                    .getElementById('edit-profile')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+              }}
+            />
+          </div>
           <div className="space-y-3">
             {hasFamilyMembers && (
               <div className="section-card px-4 py-3">
@@ -427,7 +468,23 @@ export default function SettingsPage() {
               expanded={openPanel === 'edit-profile'}
               onToggle={() => togglePanel('edit-profile')}
             >
-              <EditProfileForm />
+              <EditProfileForm
+                onSaved={() => setOpenPanel(null)}
+                onCancel={() => setOpenPanel(null)}
+              />
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              id="default-landing"
+              title="Default landing after login"
+              subtitle={defaultLandingSubtitle(
+                selectedProfile?.preferences?.defaultLanding
+              )}
+              icon={Home}
+              expanded={openPanel === 'default-landing'}
+              onToggle={() => togglePanel('default-landing')}
+            >
+              <DefaultLandingSetting />
             </CollapsibleSection>
 
             <CollapsibleSection
@@ -536,7 +593,10 @@ export default function SettingsPage() {
             expanded={openPanel === 'password'}
             onToggle={() => togglePanel('password')}
           >
-            <ChangePasswordForm />
+            <ChangePasswordForm
+              phoneNumber={userData?.phoneNumber || user?.phoneNumber}
+              countryCode={userData?.countryCode || user?.countryCode}
+            />
           </CollapsibleSection>
         </section>
 
@@ -555,8 +615,43 @@ export default function SettingsPage() {
 
         <section aria-label="App navigation">
           <h2 className="section-title mb-3">Explore app</h2>
+          <Link
+            href="/referral"
+            className="mb-2 flex w-full items-center gap-3 rounded-xl border border-border bg-surface px-3 py-3.5 text-left transition-colors hover:border-primary/25 hover:bg-accent/40"
+          >
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+              <Share2 className="h-5 w-5" strokeWidth={2.25} aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold leading-snug text-foreground">
+                Refer friends
+              </span>
+              <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
+                Share Happy First and earn coins
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          </Link>
+          <Link
+            href="/modules"
+            className="mb-2 flex w-full items-center gap-3 rounded-xl border border-primary/25 bg-primary-soft/40 px-3 py-3.5 text-left transition-colors hover:border-primary/40 hover:bg-primary-soft/60"
+          >
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+              <LayoutGrid className="h-5 w-5" strokeWidth={2.25} aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold leading-snug text-foreground">
+                All modules
+              </span>
+              <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
+                Steps to use every module — Home, Tasks, Feed, Community, and more
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+          </Link>
           <AppQuickLinks
             exclude={[
+              '/modules',
               '/home',
               '/tasks',
               '/feed',

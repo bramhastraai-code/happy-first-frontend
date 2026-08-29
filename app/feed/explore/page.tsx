@@ -434,9 +434,9 @@ export default function FeedExplorePage() {
           }
         }}
         onOpenComments={setActivePost}
-        onEdit={async (target, caption) => {
-          const res = await feedAPI.updatePost(target.id, caption);
-          patchPost(target.id, { caption: res.data.data.post.caption });
+        onEdit={async (target, caption, extras) => {
+          const res = await feedAPI.updatePost(target.id, caption, extras);
+          patchPost(target.id, res.data.data.post);
         }}
         onDelete={async (target) => {
           await feedAPI.deletePost(target.id);

@@ -143,23 +143,8 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
           'sm:mx-4 sm:rounded-3xl'
         )}
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <button
-            type="button"
-            onClick={() => !loading && onClose()}
-            className="text-sm font-medium text-muted-foreground"
-          >
-            Cancel
-          </button>
-          <p className="text-sm font-semibold text-foreground">Edit profile</p>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => void save()}
-            className="text-sm font-semibold text-primary disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Done'}
-          </button>
+        <div className="border-b border-border px-4 py-3">
+          <p className="text-center text-sm font-semibold text-foreground">Edit profile</p>
         </div>
 
         <div className="space-y-4 px-4 py-4">
@@ -233,15 +218,26 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
             </p>
           </div>
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
-          <Button
-            type="button"
-            className="w-full sm:hidden"
-            disabled={loading}
-            onClick={() => void save()}
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Save
-          </Button>
+          <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loading}
+              onClick={() => !loading && onClose()}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={loading}
+              onClick={() => void save()}
+              className="w-full sm:w-auto"
+            >
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Submit
+            </Button>
+          </div>
         </div>
       </div>
     </div>

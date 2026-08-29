@@ -5,6 +5,7 @@ export type CommunityMemberRole = 'admin' | 'moderator' | 'member';
 export type CommunityMemberStatus =
   | 'active'
   | 'pending'
+  | 'invited'
   | 'blacklisted'
   | 'removed'
   | 'left';
@@ -24,6 +25,15 @@ export interface CommunityActivityConfigItem {
   level: CommunityActivityLevel;
   weeklyTarget: number;
   unit: string;
+}
+
+export interface CommunityAboutMediaItem {
+  url: string;
+  mediaType: 'image' | 'video';
+  storage?: string | null;
+  storageKey?: string | null;
+  caption?: string;
+  createdAt?: string | null;
 }
 
 export interface Community {
@@ -51,6 +61,7 @@ export interface Community {
   avatarSeed?: string | null;
   avatarStyle?: string | null;
   icon?: string | null;
+  aboutMedia?: CommunityAboutMediaItem[];
   allowAdminWhatsApp?: boolean;
   allowMemberWhatsApp?: boolean;
   joinWhyAi?: {
@@ -76,6 +87,7 @@ export interface CommunityDiscoverOverview {
   createdOn: string;
   description: string;
   memberCount: number;
+  aboutMedia?: CommunityAboutMediaItem[];
   activitiesTracked: Array<{ id: string; name: string; unit: string }>;
   weeklyTotals: Array<{ activityId: string; name: string; unit: string; total: number }>;
   overallTotals: Array<{ activityId: string; name: string; unit: string; total: number }>;
@@ -147,10 +159,15 @@ export interface CommunityMember {
     totalXp?: number;
     xpLevel?: number;
     xpLevelTitle?: string;
+    memberSince?: string | null;
+    createdAt?: string | null;
   };
   canWhatsApp?: boolean;
   phoneNumber?: string | null;
   countryCode?: string | null;
+  /** Present for admins/mods — no community activity logged this week */
+  isInactive?: boolean;
+  canRemind?: boolean;
 }
 
 export interface CommunityGroup {
@@ -530,8 +547,13 @@ export const communityAPI = {
 
   mine: () => api.get<Envelope<{ communities: Community[] }>>('/community/mine'),
 
-  myActivities: () =>
-    api.get<Envelope<{ activities: MyCommunityActivity[] }>>('/community/my-activities'),
+  myInvites: () =>
+    api.get<Envelope<{ communities: Community[] }>>('/community/my-invites'),
+
+  myActivities: (params?: { date?: string }) =>
+    api.get<Envelope<{ activities: MyCommunityActivity[] }>>('/community/my-activities', {
+      params,
+    }),
 
   targetDefaults: () =>
     api.get<
@@ -550,6 +572,76 @@ export const communityAPI = {
       }>
     >('/community/target-defaults'),
 
+  activityPicker: (communityId?: string | null) =>
+    api.get<
+      Envelope<{
+        activities: Array<{
+          _id: string;
+          id: string;
+          name: string;
+          baseUnit: string;
+          category: string | null;
+          icon: string | null;
+          allowedCadence: Array<'daily' | 'weekly'>;
+          isCustom?: boolean;
+          communityId?: string | null;
+        }>;
+      }>
+    >('/community/activity-picker', {
+      params: communityId ? { communityId } : undefined,
+    }),
+
+  createCustomActivity: (
+    id: string,
+    payload: {
+      name: string;
+      baseUnit: string;
+      description?: string;
+      category?: string;
+      icon?: string;
+      allowedCadence?: Array<'daily' | 'weekly'>;
+      level?: CommunityActivityLevel;
+      defaultTarget?: number | null;
+    }
+  ) =>
+    api.post<
+      Envelope<{
+        activity: { id: string; _id: string; name: string; baseUnit: string };
+        level: CommunityActivityLevel;
+        weeklyTarget: number;
+      }>
+    >(`/community/${id}/custom-activities`, payload),
+
+  reportContent: (payload: {
+    targetType: 'community_message' | 'feed_comment';
+    targetId: string;
+    reason: string;
+    note?: string;
+  }) => api.post<Envelope<{ report: { id: string } }>>('/community/reports', payload),
+
+  communityReports: (id: string, params?: { status?: string }) =>
+    api.get<
+      Envelope<{
+        reports: Array<{
+          id: string;
+          targetType: string;
+          targetId: string;
+          reason: string;
+          note: string;
+          status: string;
+          createdAt: string;
+          reporter: { profileId: string; name: string };
+          preview?: string | null;
+        }>;
+      }>
+    >(`/community/${id}/reports`, { params }),
+
+  updateReport: (id: string, reportId: string, status: 'open' | 'reviewed' | 'dismissed') =>
+    api.patch<Envelope<{ report: { id: string; status: string } }>>(
+      `/community/${id}/reports/${reportId}`,
+      { status }
+    ),
+
   get: (id: string) =>
     api.get<Envelope<{ community: Community }>>(`/community/${id}`),
 
@@ -561,6 +653,16 @@ export const communityAPI = {
     description?: string;
     activityIds?: string[];
     activityConfig?: Array<{ activityId: string; level: CommunityActivityLevel }>;
+    customActivities?: Array<{
+      name: string;
+      baseUnit: string;
+      description?: string;
+      category?: string;
+      icon?: string;
+      allowedCadence?: Array<'daily' | 'weekly'>;
+      level?: CommunityActivityLevel;
+      defaultTarget?: number | null;
+    }>;
     type?: CommunityType;
     avatarUrl?: string | null;
     avatarSeed?: string | null;
@@ -636,6 +738,80 @@ export const communityAPI = {
       timeout: 60_000,
     });
   },
+
+  uploadAboutMedia: (id: string, files: File[]) => {
+    const form = new FormData();
+    files.forEach((file, index) => {
+      form.append('media', file, file.name || `about-${index}`);
+    });
+    return api.post<
+      Envelope<{ community: Community; aboutMedia: CommunityAboutMediaItem[] }>
+    >(`/community/${id}/about-media`, form, {
+      timeout: 120_000,
+    });
+  },
+
+  removeAboutMedia: (id: string, url: string) =>
+    api.delete<Envelope<{ community: Community; aboutMedia: CommunityAboutMediaItem[] }>>(
+      `/community/${id}/about-media`,
+      { data: { url } }
+    ),
+
+  remindMember: (id: string, profileId: string) =>
+    api.post<
+      Envelope<{
+        reminded: boolean;
+        coinsEarned: number;
+        alreadyAwarded?: boolean;
+        targetProfileId: string;
+        weekKey: string;
+      }>
+    >(`/community/${id}/members/${profileId}/remind`),
+
+  getBuddy: (id: string) =>
+    api.get<
+      Envelope<{
+        week: {
+          weekStart: string;
+          weekEnd: string;
+          weekKey: string;
+          label: string;
+        };
+        buddy: {
+          profileId: string;
+          userId: string;
+          name: string;
+          avatarUrl?: string | null;
+          avatarSeed?: string | null;
+          avatarStyle?: string | null;
+        } | null;
+        isBye: boolean;
+        canNudge: boolean;
+        canMessage: boolean;
+      }>
+    >(`/community/${id}/buddy`),
+
+  assignBuddies: (id: string, mode: 'auto' | 'manual' = 'auto') =>
+    api.post<
+      Envelope<{
+        week: { weekStart: string; weekEnd: string; weekKey: string; label: string };
+        pairCount: number;
+        memberCount: number;
+      }>
+    >(`/community/${id}/buddy/assign`, { mode }),
+
+  nudgeBuddy: (id: string) =>
+    api.post<
+      Envelope<{
+        nudged: boolean;
+        buddy: {
+          profileId: string;
+          userId: string;
+          name: string;
+        } | null;
+        weekKey: string;
+      }>
+    >(`/community/${id}/buddy/nudge`),
 
   remove: (id: string) =>
     api.delete<Envelope<{ deleted: boolean }>>(`/community/${id}`),
@@ -801,6 +977,18 @@ export const communityAPI = {
 
   addMember: (id: string, payload: { profileId?: string; userId?: string }) =>
     api.post<Envelope<{ member: CommunityMember }>>(`/community/${id}/members`, payload),
+
+  acceptInvite: (id: string) =>
+    api.post<Envelope<{ community: Community }>>(`/community/${id}/accept-invite`),
+
+  invitedMembers: (id: string) =>
+    api.get<Envelope<{ members: CommunityMember[] }>>(`/community/${id}/members/invited`),
+
+  sendInviteBotMessage: (id: string, profileId: string) =>
+    api.post<Envelope<{ sent: boolean; channel: string }>>(
+      `/community/${id}/members/${profileId}/invite-message`,
+      { channel: 'bot' }
+    ),
 
   removeMember: (id: string, profileId: string) =>
     api.delete<Envelope<{ removed: boolean }>>(`/community/${id}/members/${profileId}`),

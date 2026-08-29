@@ -81,6 +81,10 @@ export default function TaskActivityRow({
     activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days';
   const unitLabel = activity.unit || '';
   const cadenceSuffix = activity.cadence === 'daily' ? '/day' : '/week';
+  const displayTarget =
+    activity.cadence === 'daily'
+      ? (activity.dailyTarget ?? activity.targetValue)
+      : activity.targetValue;
   const loggedDisplay = formatAchievedValue(activity, isWeeklyDays);
 
   const renderControl = () => {
@@ -210,7 +214,13 @@ export default function TaskActivityRow({
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">{activity.label}</p>
           <p className="text-xs text-muted-foreground">
-            Target {activity.targetValue} {unitLabel}
+            Target{' '}
+            {typeof displayTarget === 'number'
+              ? Number.isInteger(displayTarget)
+                ? displayTarget.toLocaleString()
+                : displayTarget.toLocaleString(undefined, { maximumFractionDigits: 1 })
+              : displayTarget}{' '}
+            {unitLabel}
             {cadenceSuffix}
           </p>
         </div>

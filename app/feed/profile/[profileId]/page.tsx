@@ -8,6 +8,7 @@ import { ChevronLeft, Grid3X3, Loader2, MessageSquare } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { ProfilePhotoButton } from '@/components/feed/ProfilePhotoButton';
 import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
 import { Button } from '@/components/ui/button';
 import { FollowButton } from '@/components/feed/FollowButton';
@@ -16,12 +17,15 @@ import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { ProfilePostViewer } from '@/components/feed/ProfilePostViewer';
 import { ProfileEditSheet } from '@/components/feed/ProfileEditSheet';
+import { ProfileGuideCard } from '@/components/feed/ProfileGuideCard';
 import { followAPI } from '@/lib/api/follow';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
 import { communityAPI } from '@/lib/api/community';
+import { dailyLogAPI, type WeeklySummary } from '@/lib/api/dailyLog';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
+import { DateTime } from 'luxon';
 
 function displayWebsite(url?: string | null) {
   if (!url) return '';
@@ -49,11 +53,45 @@ export default function FeedProfilePage() {
   const profileQuery = useQuery({
     queryKey: ['publicProfile', profileId],
     enabled,
+    staleTime: 0,
+    refetchOnMount: 'always',
     queryFn: async () => {
       const res = await followAPI.getPublicProfile(profileId);
       return res.data.data;
     },
   });
+
+  const isOwnProfile =
+    Boolean(selectedProfile?._id) && String(selectedProfile?._id) === String(profileId);
+
+  // Own profile: also read Home’s weekly summary so “This week %” always matches Week score.
+  const ownWeekQuery = useQuery({
+    queryKey: ['profileOwnWeekScore', profileId],
+    enabled: enabled && isOwnProfile,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    queryFn: async () => {
+      const date = DateTime.local().toFormat('yyyy-MM-dd');
+      const res = await dailyLogAPI.getSummary('weekly', date);
+      return res.data.data as WeeklySummary;
+    },
+  });
+
+  const data = profileQuery.data;
+  const thisWeekPercent = (() => {
+    if (
+      isOwnProfile &&
+      ownWeekQuery.data &&
+      typeof ownWeekQuery.data.totalPoints === 'number' &&
+      !Number.isNaN(ownWeekQuery.data.totalPoints)
+    ) {
+      return Number(ownWeekQuery.data.totalPoints.toFixed(2));
+    }
+    if (data?.thisWeekCompletionPercent != null && !Number.isNaN(Number(data.thisWeekCompletionPercent))) {
+      return Number(Number(data.thisWeekCompletionPercent).toFixed(2));
+    }
+    return 0;
+  })();
 
   const postsQuery = useQuery({
     queryKey: postsKey,
@@ -64,7 +102,6 @@ export default function FeedProfilePage() {
     },
   });
 
-  const data = profileQuery.data;
   const posts = useMemo(() => {
     const raw = postsQuery.data?.posts || [];
     if (!data?.profile) return raw;
@@ -205,13 +242,10 @@ export default function FeedProfilePage() {
             {/* Instagram-style profile header */}
             <section className="px-1 pt-1">
               <div className="flex items-center gap-6 sm:gap-10">
-                <ProfileAvatar
-                  name={data.profile.name}
-                  avatarUrl={data.profile.avatarUrl}
-                  avatarSeed={data.profile.avatarSeed}
-                  avatarStyle={data.profile.avatarStyle}
-                  size="xl"
-                  className="h-[86px] w-[86px] text-2xl ring-1 ring-border sm:h-24 sm:w-24"
+                <ProfilePhotoButton
+                  profile={data.profile}
+                  canEdit={isMe}
+                  sizeClassName="h-[86px] w-[86px] text-2xl ring-1 ring-border sm:h-24 sm:w-24"
                 />
                 <div className="grid min-w-0 flex-1 grid-cols-3 gap-1 text-center">
                   <div className="py-1">
@@ -312,10 +346,22 @@ export default function FeedProfilePage() {
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {(
                   [
-                    { label: 'This week', value: data.thisWeekActivitiesTotal ?? 0 },
-                    { label: 'Activities', value: data.totalActivitiesTotal ?? 0 },
-                    { label: 'XP', value: data.xpTotal ?? 0 },
-                    { label: 'Coins', value: data.coinsBalance ?? 0 },
+                    {
+                      label: 'This week',
+                      display: `${thisWeekPercent.toFixed(2)}%`,
+                    },
+                    {
+                      label: 'Activities',
+                      display: Number(data.totalActivitiesTotal ?? 0).toLocaleString(),
+                    },
+                    {
+                      label: 'XP',
+                      display: Number(data.xpTotal ?? 0).toLocaleString(),
+                    },
+                    {
+                      label: 'Coins',
+                      display: Number(data.coinsBalance ?? 0).toLocaleString(),
+                    },
                   ] as const
                 ).map((stat) => (
                   <div
@@ -323,7 +369,7 @@ export default function FeedProfilePage() {
                     className="rounded-xl border border-border bg-secondary/40 px-3 py-2 text-center"
                   >
                     <p className="text-sm font-bold tabular-nums text-foreground">
-                      {Number(stat.value).toLocaleString()}
+                      {stat.display}
                     </p>
                     <p className="text-[11px] text-muted-foreground">{stat.label}</p>
                   </div>
@@ -439,6 +485,15 @@ export default function FeedProfilePage() {
               </section>
             ) : null}
 
+            {isMe ? (
+              <div className="mt-4 px-1">
+                <ProfileGuideCard
+                  showEditCta
+                  onEdit={() => setEditOpen(true)}
+                />
+              </div>
+            ) : null}
+
             <div
               id="profile-posts-grid"
               className="mt-4 flex items-center justify-center gap-3 border-b border-border"
@@ -529,9 +584,9 @@ export default function FeedProfilePage() {
         onToggleLike={(postId) => likeMutation.mutate(postId)}
         onToggleRepost={(postId) => repostMutation.mutate(postId)}
         onOpenComments={(post) => setActivePost(post)}
-        onEdit={async (target, caption) => {
-          const res = await feedAPI.updatePost(target.id, caption);
-          patchPost(target.id, { caption: res.data.data.post.caption });
+        onEdit={async (target, caption, extras) => {
+          const res = await feedAPI.updatePost(target.id, caption, extras);
+          patchPost(target.id, res.data.data.post);
         }}
         onDelete={async (target) => {
           await feedAPI.deletePost(target.id);

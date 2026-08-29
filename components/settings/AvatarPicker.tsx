@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import {
   Camera,
   Dices,
+  FolderOpen,
   ImageIcon,
   Loader2,
   Smile,
@@ -55,6 +56,7 @@ export function AvatarPicker({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const filesInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const previewUrl =
@@ -102,6 +104,13 @@ export function AvatarPicker({
   const handleFile = async (file: File | undefined) => {
     if (!file || !profileId) {
       setError(profileId ? 'Choose an image' : 'Save profile context missing');
+      return;
+    }
+    const looksLikeImage =
+      file.type.startsWith('image/') ||
+      /\.(jpe?g|png|webp|gif|heic|heif|bmp|avif)$/i.test(file.name);
+    if (!looksLikeImage) {
+      setError('Please choose an image from your gallery or files.');
       return;
     }
     setUploading(true);
@@ -228,10 +237,17 @@ export function AvatarPicker({
 
                     <MenuAction
                       icon={<ImageIcon className="h-5 w-5" />}
-                      label="Upload photo"
-                      description="Choose from gallery"
+                      label="Device gallery"
+                      description="Photos, albums, and camera roll"
                       disabled={uploading || !profileId}
                       onClick={() => galleryInputRef.current?.click()}
+                    />
+                    <MenuAction
+                      icon={<FolderOpen className="h-5 w-5" />}
+                      label="Browse all files"
+                      description="Files app, Downloads, and all albums"
+                      disabled={uploading || !profileId}
+                      onClick={() => filesInputRef.current?.click()}
                     />
                     <MenuAction
                       icon={<Camera className="h-5 w-5" />}
@@ -329,7 +345,18 @@ export function AvatarPicker({
                 <input
                   ref={galleryInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    void handleFile(file);
+                  }}
+                />
+                {/* No accept — opens system file manager (all albums / Files), not Google Photos only */}
+                <input
+                  ref={filesInputRef}
+                  type="file"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];

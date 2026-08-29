@@ -18,12 +18,14 @@ import {
   validateDateOfBirth,
   validatePassword,
   validatePhone,
-  validatePinCode,
 } from '@/components/auth/registerValidation';
 import { markOtpSession } from '@/lib/auth/otpSession';
+import { buildForgotPasswordHref, isExistingAccountError } from '@/lib/auth/forgotPassword';
 import { cn } from '@/lib/utils';
 import { AppSelect } from '@/components/ui/AppSelect';
 import { TIMEZONE_OPTIONS } from '@/lib/utils/timezones';
+import { COUNTRY_OPTIONS } from '@/lib/utils/countries';
+import { setPendingCommunityId } from '@/lib/utils/pendingCommunity';
 
 const labelClassName = 'mb-1.5 block text-sm font-medium text-foreground';
 
@@ -42,8 +44,9 @@ export default function RegisterForm() {
     name: '',
     email: '',
     password: '',
+    country: 'India',
     city: '',
-    locationPin: '',
+    area: '',
     dateOfBirth: '',
     referredBy: '',
     timezone: 'Asia/Kolkata',
@@ -55,6 +58,11 @@ export default function RegisterForm() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    const communityId = searchParams.get('community');
+    if (communityId) {
+      setPendingCommunityId(communityId);
+    }
+
     const refCode = searchParams.get('ref') || searchParams.get('referredBy');
     if (refCode) {
       setFormData((prev) => ({ ...prev, referredBy: refCode }));
@@ -86,7 +94,7 @@ export default function RegisterForm() {
     setFieldErrors({});
   };
 
-  const handlePhoneSubmit = (e: React.FormEvent) => {
+  const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const phoneError = validatePhone(formData.phoneNumber);
     if (phoneError) {
@@ -94,9 +102,34 @@ export default function RegisterForm() {
       setFieldErrors({ phoneNumber: phoneError });
       return;
     }
+
+    setLoading(true);
     setError('');
     setFieldErrors({});
-    setStep('details');
+
+    try {
+      const response = await authAPI.checkPhone({
+        phoneNumber: formData.phoneNumber,
+        countryCode: formData.countryCode,
+      });
+      const status = response.data.data;
+      if (status?.exists) {
+        router.replace(
+          buildForgotPasswordHref(formData.phoneNumber, formData.countryCode, {
+            fromRegister: true,
+          })
+        );
+        return;
+      }
+      setStep('details');
+    } catch (err) {
+      setError(
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          'Could not verify this number. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const validateDetails = () => {
@@ -114,10 +147,10 @@ export default function RegisterForm() {
     const dobError = validateDateOfBirth(formData.dateOfBirth);
     if (dobError) errors.dateOfBirth = dobError;
 
+    if (!formData.country.trim()) errors.country = 'Country is required';
     if (!formData.city.trim()) errors.city = 'City is required';
-
-    const pinError = validatePinCode(formData.locationPin);
-    if (pinError) errors.locationPin = pinError;
+    if (!formData.area.trim()) errors.area = 'Area is required';
+    if (!formData.timezone.trim()) errors.timezone = 'Timezone is required';
 
     return errors;
   };
@@ -146,10 +179,18 @@ export default function RegisterForm() {
         `/verify-otp?phone=${formData.phoneNumber}&country=${encodeURIComponent(formData.countryCode)}`
       );
     } catch (err) {
-      setError(
+      const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-          'Registration failed. Please try again.'
-      );
+        'Registration failed. Please try again.';
+      if (isExistingAccountError(message)) {
+        router.replace(
+          buildForgotPasswordHref(formData.phoneNumber, formData.countryCode, {
+            fromRegister: true,
+          })
+        );
+        return;
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -264,8 +305,29 @@ export default function RegisterForm() {
               </div>
             )}
 
-            <Button type="submit" className="w-full" size="lg" disabled={!phoneValid}>
-              Continue
+            <p className="text-center text-xs text-muted-foreground">
+              Already registered?{' '}
+              <Link
+                href={buildForgotPasswordHref(formData.phoneNumber, formData.countryCode)}
+                className="font-medium text-primary hover:underline"
+              >
+                Reset password
+              </Link>
+              {' · '}
+              <Link href="/login" className="font-medium text-primary hover:underline">
+                Sign in
+              </Link>
+            </p>
+
+            <Button type="submit" className="w-full" size="lg" disabled={!phoneValid || loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Checking…
+                </>
+              ) : (
+                'Continue'
+              )}
             </Button>
           </motion.form>
         ) : (
@@ -357,6 +419,30 @@ export default function RegisterForm() {
               <FieldError message={fieldErrors.dateOfBirth} />
             </div>
 
+            <div>
+              <label htmlFor="country" className={labelClassName}>
+                Country
+              </label>
+              <AppSelect
+                id="country"
+                value={formData.country}
+                onChange={(e) => {
+                  clearFieldError('country');
+                  setFormData({ ...formData, country: e.target.value });
+                }}
+                className={cn('h-12 rounded-2xl text-base md:text-sm', fieldErrorClass('country'))}
+                disabled={loading}
+                required
+              >
+                {COUNTRY_OPTIONS.map((country) => (
+                  <option key={country} value={country}>
+                    {country}
+                  </option>
+                ))}
+              </AppSelect>
+              <FieldError message={fieldErrors.country} />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="city" className={labelClassName}>
@@ -379,28 +465,24 @@ export default function RegisterForm() {
                 <FieldError message={fieldErrors.city} />
               </div>
               <div>
-                <label htmlFor="locationPin" className={labelClassName}>
-                  Pin code
+                <label htmlFor="area" className={labelClassName}>
+                  Area
                 </label>
                 <Input
-                  id="locationPin"
-                  className={fieldErrorClass('locationPin')}
+                  id="area"
+                  className={fieldErrorClass('area')}
                   type="text"
-                  inputMode="numeric"
-                  placeholder="400001"
-                  maxLength={6}
-                  value={formData.locationPin}
+                  placeholder="Andheri West"
+                  autoComplete="address-level3"
+                  value={formData.area}
                   onChange={(e) => {
-                    clearFieldError('locationPin');
-                    setFormData({
-                      ...formData,
-                      locationPin: e.target.value.replace(/\D/g, '').slice(0, 6),
-                    });
+                    clearFieldError('area');
+                    setFormData({ ...formData, area: e.target.value });
                   }}
                   required
                   disabled={loading}
                 />
-                <FieldError message={fieldErrors.locationPin} />
+                <FieldError message={fieldErrors.area} />
               </div>
             </div>
 
@@ -411,9 +493,13 @@ export default function RegisterForm() {
               <AppSelect
                 id="timezone"
                 value={formData.timezone}
-                onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                className="h-12 rounded-2xl text-base md:text-sm"
+                onChange={(e) => {
+                  clearFieldError('timezone');
+                  setFormData({ ...formData, timezone: e.target.value });
+                }}
+                className={cn('h-12 rounded-2xl text-base md:text-sm', fieldErrorClass('timezone'))}
                 disabled={loading}
+                required
               >
                 {TIMEZONE_OPTIONS.map((tz) => (
                   <option key={tz.value} value={tz.value}>
@@ -421,6 +507,7 @@ export default function RegisterForm() {
                   </option>
                 ))}
               </AppSelect>
+              <FieldError message={fieldErrors.timezone} />
             </div>
 
             <div>

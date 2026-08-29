@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { FeedPost } from '@/lib/api/feed';
+import type { FeedPostEditExtras } from '@/components/feed/FeedPostCard';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -25,8 +26,16 @@ import { HappyIcon } from '@/components/ui/HappyIcon';
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { renderCaptionWithMentions } from '@/lib/utils/renderCaptionWithMentions';
+import {
+  renderTextCardImage,
+  textCardGradient,
+  TEXT_CARD_BACKGROUNDS,
+  TEXT_CARD_FONTS,
+  TEXT_CARD_MAX_LENGTH,
+} from '@/lib/utils/textCardImage';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
+import { useOverlayHistory } from '@/lib/hooks/useOverlayHistory';
 
 interface ProfilePostViewerProps {
   posts: FeedPost[];
@@ -37,7 +46,11 @@ interface ProfilePostViewerProps {
   onToggleLike: (postId: string) => void;
   onToggleRepost?: (postId: string) => void;
   onOpenComments: (post: FeedPost) => void;
-  onEdit: (post: FeedPost, caption: string) => Promise<void>;
+  onEdit: (
+    post: FeedPost,
+    caption: string,
+    extras?: FeedPostEditExtras
+  ) => Promise<void>;
   onDelete: (post: FeedPost) => Promise<void>;
   likingId?: string | null;
   repostingId?: string | null;
@@ -110,6 +123,15 @@ function ViewerPostCard({
     setMediaIndex(0);
     setShareMenuOpen(false);
   }, [post.id]);
+
+  // Auto-advance multi-photo carousel every 3s
+  useEffect(() => {
+    if (!multi || mediaItems.length < 2) return;
+    const timer = window.setInterval(() => {
+      setMediaIndex((value) => (value + 1) % mediaItems.length);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [multi, mediaItems.length, post.id]);
 
   useEffect(() => {
     if (!menuOpen && !shareMenuOpen) return;
@@ -455,10 +477,19 @@ export function ProfilePostViewer({
   const [editPost, setEditPost] = useState<FeedPost | null>(null);
   const [deletePost, setDeletePost] = useState<FeedPost | null>(null);
   const [editCaption, setEditCaption] = useState('');
+  const [editText, setEditText] = useState('');
+  const [editBgIndex, setEditBgIndex] = useState(0);
+  const [editFontIndex, setEditFontIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const didScrollToStart = useRef(false);
+
+  useOverlayHistory({
+    open,
+    onClose,
+    key: 'profile-post-viewer',
+  });
 
   useEffect(() => {
     if (!open) {
@@ -566,10 +597,10 @@ export function ProfilePostViewer({
           <button
             type="button"
             onClick={onClose}
-            className="hidden h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground sm:inline-flex"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface text-foreground shadow-sm transition-colors hover:bg-secondary"
             aria-label="Close"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5 stroke-[2.5]" />
           </button>
         </header>
 
@@ -597,6 +628,21 @@ export function ProfilePostViewer({
                 onEditClick={() => {
                   setMenuPostId(null);
                   setEditCaption(post.caption || '');
+                  setEditText(post.textCard?.text || '');
+                  setEditBgIndex(
+                    Math.max(
+                      0,
+                      TEXT_CARD_BACKGROUNDS.findIndex(
+                        (b) => b.id === post.textCard?.backgroundId
+                      )
+                    )
+                  );
+                  setEditFontIndex(
+                    Math.max(
+                      0,
+                      TEXT_CARD_FONTS.findIndex((f) => f.id === post.textCard?.fontId)
+                    )
+                  );
                   setEditPost(post);
                 }}
                 onDeleteClick={() => {
@@ -618,14 +664,80 @@ export function ProfilePostViewer({
             aria-label="Close"
             onClick={() => !saving && setEditPost(null)}
           />
-          <div className="relative w-full max-w-md rounded-2xl border border-border bg-surface p-4 text-foreground shadow-xl">
-            <h3 className="text-base font-semibold">Edit caption</h3>
+          <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-surface p-4 text-foreground shadow-xl">
+            <h3 className="text-base font-semibold">
+              {editPost.textCard?.text ? 'Edit text post' : 'Edit caption'}
+            </h3>
+            {editPost.textCard?.text ? (
+              <div className="mt-3 space-y-3">
+                <div
+                  className="relative mx-auto flex aspect-[4/5] w-full max-w-[280px] items-center justify-center overflow-hidden rounded-2xl p-4"
+                  style={{
+                    background: textCardGradient(TEXT_CARD_BACKGROUNDS[editBgIndex]),
+                  }}
+                >
+                  <textarea
+                    value={editText}
+                    maxLength={TEXT_CARD_MAX_LENGTH}
+                    onChange={(e) => setEditText(e.target.value)}
+                    rows={Math.min(
+                      10,
+                      Math.max(2, editText.split('\n').length + Math.floor(editText.length / 26))
+                    )}
+                    className={cn(
+                      'max-h-full w-full resize-none bg-transparent text-center text-white outline-none placeholder:text-white/70',
+                      editText.length > 160 ? 'text-lg leading-snug' : 'text-2xl leading-snug',
+                      TEXT_CARD_FONTS[editFontIndex].className
+                    )}
+                    placeholder="Edit your status text…"
+                  />
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  {TEXT_CARD_BACKGROUNDS.map((background, index) => (
+                    <button
+                      key={background.id}
+                      type="button"
+                      aria-label={background.label}
+                      onClick={() => setEditBgIndex(index)}
+                      className={cn(
+                        'h-7 w-7 rounded-full transition-transform',
+                        index === editBgIndex
+                          ? 'scale-110 ring-2 ring-primary ring-offset-2 ring-offset-surface'
+                          : 'hover:scale-105'
+                      )}
+                      style={{ background: textCardGradient(background) }}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  {TEXT_CARD_FONTS.map((cardFont, index) => (
+                    <button
+                      key={cardFont.id}
+                      type="button"
+                      onClick={() => setEditFontIndex(index)}
+                      className={cn(
+                        'rounded-xl border px-3 py-1.5 text-sm transition-colors',
+                        cardFont.className,
+                        index === editFontIndex
+                          ? 'border-primary bg-primary-soft text-primary'
+                          : 'border-border bg-secondary/60 text-muted-foreground'
+                      )}
+                    >
+                      Aa
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <label className="mt-3 block text-xs font-medium text-muted-foreground">
+              Caption
+            </label>
             <textarea
               value={editCaption}
               onChange={(e) => setEditCaption(e.target.value.slice(0, 300))}
-              rows={4}
+              rows={editPost.textCard?.text ? 2 : 4}
               maxLength={300}
-              className="mt-3 w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="mt-1.5 w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
               placeholder="Write a caption…"
             />
             <p className="mt-1 text-right text-[11px] text-muted-foreground">
@@ -642,11 +754,33 @@ export function ProfilePostViewer({
               </Button>
               <Button
                 type="button"
-                disabled={saving}
+                disabled={saving || (Boolean(editPost.textCard?.text) && !editText.trim())}
                 onClick={async () => {
                   setSaving(true);
                   try {
-                    await onEdit(editPost, editCaption.trim());
+                    if (editPost.textCard?.text) {
+                      const trimmed = editText.trim();
+                      const background = TEXT_CARD_BACKGROUNDS[editBgIndex];
+                      const font = TEXT_CARD_FONTS[editFontIndex];
+                      const kind = editPost.textCard.kind === 'story' ? 'story' : 'post';
+                      const media = await renderTextCardImage({
+                        text: trimmed,
+                        background,
+                        font,
+                        kind,
+                      });
+                      await onEdit(editPost, editCaption.trim(), {
+                        textCard: {
+                          text: trimmed,
+                          backgroundId: background.id,
+                          fontId: font.id,
+                          kind,
+                        },
+                        media,
+                      });
+                    } else {
+                      await onEdit(editPost, editCaption.trim());
+                    }
                     setEditPost(null);
                   } finally {
                     setSaving(false);

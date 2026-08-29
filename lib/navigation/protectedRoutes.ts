@@ -6,6 +6,7 @@ export const PROTECTED_APP_ROUTES = [
   '/community',
   '/feed',
   '/profile-setup',
+  '/get-started',
   '/select-profile',
   '/settings',
   '/create-plan',
@@ -16,6 +17,7 @@ export const PROTECTED_APP_ROUTES = [
   '/tracker',
   '/coins',
   '/xp',
+  '/modules',
 ] as const;
 
 export const AUTH_ROUTES = ['/login', '/register', '/verify-otp'] as const;

@@ -18,10 +18,9 @@ import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
 import {
   AppPageHeader,
-  headerActionBtnClass,
-  headerActionBtnDangerClass,
   headerBackBtnClass,
 } from '@/components/ui/AppPageHeader';
+import { HeaderIconButton, HeaderIconLink } from '@/components/ui/HeaderIconAction';
 import { NotificationBell } from '@/components/feed/NotificationBell';
 import { CommunityDashboardTab } from '@/components/community/CommunityDashboardTab';
 import { CommunityChatTab } from '@/components/community/CommunityChatTab';
@@ -32,11 +31,11 @@ import { CommunityGroupsBadgesTab } from '@/components/community/CommunityGroups
 import { CommunityCalendarTab } from '@/components/community/CommunityCalendarTab';
 import { CommunityAppreciationTab } from '@/components/community/CommunityAppreciationTab';
 import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
+import { CommunityAboutMediaGallery } from '@/components/community/CommunityAboutMediaGallery';
 import { CommunityShareDialog } from '@/components/community/CommunityShareDialog';
 import { useCommunityConfirm } from '@/components/community/useCommunityConfirm';
 import { communityAPI, communityTypeLabel } from '@/lib/api/community';
 import { useAuthStore } from '@/lib/store/authStore';
-import { cn } from '@/lib/utils';
 
 function apiErrorMessage(err: unknown, fallback: string) {
   return (
@@ -296,61 +295,53 @@ export default function CommunityDetailPage() {
           }
           actions={
             <>
-              {isMember ? (
-                <NotificationBell triggerClassName={cn('relative', headerActionBtnClass)} />
-              ) : null}
+              {isMember ? <NotificationBell caption="Alerts" /> : null}
               {!isDeleted &&
               !isDisabled &&
               (isMember ||
                 community?.type === 'invite_only' ||
                 community?.type === 'public') ? (
-                <button
-                  type="button"
-                  className={headerActionBtnClass}
-                  aria-label="Share community"
+                <HeaderIconButton
+                  icon={<Share2 className="h-[18px] w-[18px]" />}
+                  caption="Share"
                   onClick={() => setShareOpen(true)}
-                >
-                  <Share2 className="h-[18px] w-[18px]" />
-                </button>
+                />
               ) : null}
               {isMember && !isDeleted && !isDisabled ? (
-                <button
-                  type="button"
-                  className={headerActionBtnDangerClass}
+                <HeaderIconButton
+                  icon={
+                    leaveBusy ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <DoorOpen className="h-[18px] w-[18px]" />
+                    )
+                  }
+                  caption="Leave"
+                  danger
                   disabled={leaveBusy}
                   onClick={requestLeave}
-                  aria-label="Leave community"
-                  title="Leave community"
-                >
-                  {leaveBusy ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <DoorOpen className="h-[18px] w-[18px]" />
-                  )}
-                </button>
+                />
               ) : null}
               {isAdmin && !isDeleted && !isDisabled ? (
                 <>
-                  <Link
+                  <HeaderIconLink
                     href={`/community/${communityId}/edit`}
-                    className={headerActionBtnClass}
-                    aria-label="Edit community"
-                  >
-                    <Pencil className="h-[18px] w-[18px]" />
-                  </Link>
-                  <button
-                    type="button"
-                    className={headerActionBtnDangerClass}
+                    icon={<Pencil className="h-[18px] w-[18px]" />}
+                    caption="Edit"
+                  />
+                  <HeaderIconButton
+                    icon={
+                      deleteMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-[18px] w-[18px]" />
+                      )
+                    }
+                    caption="Delete"
+                    danger
                     disabled={deleteMutation.isPending}
                     onClick={requestDelete}
-                    aria-label="Delete community"
-                  >
-                    {deleteMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-[18px] w-[18px]" />
-                    )}
-                  </button>
+                  />
                 </>
               ) : null}
             </>
@@ -496,6 +487,12 @@ export default function CommunityDetailPage() {
                       {overview?.memberCount ?? community.memberCount} members
                     </p>
 
+                    {(overview?.aboutMedia?.length || community.aboutMedia?.length) ? (
+                      <CommunityAboutMediaGallery
+                        items={overview?.aboutMedia || community.aboutMedia || []}
+                      />
+                    ) : null}
+
                     {(overview?.activitiesTracked?.length || community.activities?.length) ? (
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -575,6 +572,13 @@ export default function CommunityDetailPage() {
                     ) : null}
                   </div>
                 )}
+
+                {community.type !== 'private' ? (
+                  <div className="space-y-2">
+                    <h2 className="section-title px-0.5">Community feed</h2>
+                    <CommunityFeedTab communityId={communityId} readOnly />
+                  </div>
+                ) : null}
 
                 <div className="section-card space-y-3 p-5 text-center">
                   {joinError ? (

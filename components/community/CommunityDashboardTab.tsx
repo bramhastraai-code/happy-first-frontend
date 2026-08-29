@@ -9,7 +9,9 @@ import {
   ChartColumnIncreasing,
   ChevronLeft,
   ChevronRight,
+  HeartHandshake,
   Loader2,
+  MessageCircle,
   RotateCcw,
   Search,
   Settings2,
@@ -30,6 +32,7 @@ import {
   type CommunityDashboard,
   type CommunityLeaderboardRow,
 } from '@/lib/api/community';
+import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
@@ -444,6 +447,8 @@ export function CommunityDashboardTab({
   const [activityProgressOpen, setActivityProgressOpen] = useState(false);
   const [memberContributionOpen, setMemberContributionOpen] = useState(true);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [buddyMessage, setBuddyMessage] = useState<string | null>(null);
+  const [buddyChatOpen, setBuddyChatOpen] = useState(false);
 
   const weeksQuery = useQuery({
     queryKey: ['community-weeks', communityId],
@@ -466,6 +471,58 @@ export function CommunityDashboardTab({
     queryFn: async () => {
       const res = await communityAPI.weekView(communityId, { weekOffset });
       return res.data.data;
+    },
+  });
+
+  const buddyQuery = useQuery({
+    queryKey: ['community-buddy', communityId],
+    enabled: weekOffset === 0,
+    queryFn: async () => {
+      const res = await communityAPI.getBuddy(communityId);
+      return res.data.data;
+    },
+  });
+
+  const membersLoggedCount =
+    weekViewQuery.data?.snapshot?.membersLogged ??
+    weekViewQuery.data?.analytics?.participation?.membersLogged ??
+    0;
+  const overallEmpty = (weekViewQuery.data?.dashboard?.overall?.length ?? 0) === 0;
+
+  const membersFallbackQuery = useQuery({
+    queryKey: ['community-members', communityId, 'contribution-fallback'],
+    enabled: Boolean(weekViewQuery.isSuccess && overallEmpty),
+    queryFn: async () => {
+      const res = await communityAPI.members(communityId);
+      return res.data.data.members ?? [];
+    },
+  });
+
+  const nudgeBuddy = useMutation({
+    mutationFn: () => communityAPI.nudgeBuddy(communityId),
+    onSuccess: () => {
+      setBuddyMessage('Nudge sent to your buddy');
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+    onError: (error: unknown) => {
+      const msg =
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Could not nudge buddy';
+      setBuddyMessage(msg);
+    },
+  });
+
+  const reassignBuddies = useMutation({
+    mutationFn: () => communityAPI.assignBuddies(communityId, 'auto'),
+    onSuccess: () => {
+      setBuddyMessage('Buddies reshuffled for this week');
+      void queryClient.invalidateQueries({ queryKey: ['community-buddy', communityId] });
+    },
+    onError: (error: unknown) => {
+      const msg =
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Could not reassign buddies';
+      setBuddyMessage(msg);
     },
   });
 
@@ -531,15 +588,55 @@ export function CommunityDashboardTab({
         ? dashboard.overall ?? []
         : dashboard.byActivity.find((row) => row.activity.id === contributionActivityId)
             ?.ranking ?? [];
-    const visible = raw.filter((row) => {
+    let visible = raw.filter((row) => {
       const name = String(row.name || '').trim().toLowerCase();
       return name !== 'deleted profile' && name !== 'deleted user';
     });
+
+    // First day / no logs: if ranking still empty, show active members A–Z at 0.
+    if (
+      visible.length === 0 &&
+      contributionActivityId === 'overall' &&
+      (membersFallbackQuery.data?.length || 0) > 0
+    ) {
+      visible = [...(membersFallbackQuery.data || [])]
+        .map((m) => ({
+          profileId: String(m.profile?.id || ''),
+          name: m.profile?.name || 'Member',
+          role: m.role || 'member',
+          avatarUrl: m.profile?.avatarUrl ?? null,
+          avatarSeed: m.profile?.avatarSeed ?? null,
+          avatarStyle: m.profile?.avatarStyle ?? null,
+          points: 0,
+          totalValue: 0,
+          contributionPercent: 0,
+          rank: 0,
+        }))
+        .filter((row) => row.profileId)
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    }
+
+    if (membersLoggedCount === 0 && visible.length > 0) {
+      visible = [...visible].sort((a, b) =>
+        String(a.name || '').localeCompare(String(b.name || ''), undefined, {
+          sensitivity: 'base',
+        })
+      );
+    }
+
     return visible.map((row, index) => ({ ...row, rank: index + 1 }));
-  }, [dashboard, contributionActivityId]);
+  }, [
+    dashboard,
+    contributionActivityId,
+    membersFallbackQuery.data,
+    membersLoggedCount,
+  ]);
 
   const contributionSubtitle = useMemo(() => {
     if (contributionActivityId === 'overall') {
+      if (membersLoggedCount === 0) {
+        return 'No logs yet this week · members shown A–Z';
+      }
       return 'Overall share of all community activity units this week · sorted by contribution';
     }
     const activityRow = dashboard?.byActivity.find(
@@ -720,6 +817,100 @@ export function CommunityDashboardTab({
               </li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {weekOffset === 0 ? (
+        <div className="section-card overflow-hidden p-4">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+              <HeartHandshake className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">Buddy for the week</p>
+              {buddyQuery.isLoading ? (
+                <p className="mt-1 text-xs text-muted-foreground">Finding your buddy…</p>
+              ) : buddyQuery.data?.buddy ? (
+                <>
+                  <div className="mt-2 flex items-center gap-2.5">
+                    <ProfileAvatar
+                      name={buddyQuery.data.buddy.name}
+                      avatarUrl={buddyQuery.data.buddy.avatarUrl}
+                      avatarSeed={buddyQuery.data.buddy.avatarSeed}
+                      avatarStyle={buddyQuery.data.buddy.avatarStyle}
+                      size="sm"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {buddyQuery.data.buddy.name}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Motivate each other to stay consistent
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!buddyQuery.data.canMessage || !buddyQuery.data.buddy.userId}
+                      onClick={() => setBuddyChatOpen(true)}
+                    >
+                      <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
+                      Message
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!buddyQuery.data.canNudge || nudgeBuddy.isPending}
+                      onClick={() => nudgeBuddy.mutate()}
+                    >
+                      {nudgeBuddy.isPending ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : null}
+                      Nudge
+                    </Button>
+                  </div>
+                </>
+              ) : buddyQuery.data?.isBye ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  You have a bye this week (odd member count). Cheer on the community instead!
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  No buddy assigned yet. Add members or ask an admin to reshuffle.
+                </p>
+              )}
+              {isAdmin ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="mt-2 h-8 px-2 text-xs"
+                  disabled={reassignBuddies.isPending}
+                  onClick={() => {
+                    void requestConfirm({
+                      title: 'Reshuffle buddies?',
+                      description:
+                        'This re-pairs all active members for the current week. Existing pairs will change.',
+                      confirmLabel: 'Reshuffle',
+                      destructive: false,
+                      onConfirm: () => reassignBuddies.mutateAsync(),
+                    });
+                  }}
+                >
+                  {reassignBuddies.isPending ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Reshuffle pairs
+                </Button>
+              ) : null}
+              {buddyMessage ? (
+                <p className="mt-2 text-[11px] text-muted-foreground">{buddyMessage}</p>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -909,7 +1100,7 @@ export function CommunityDashboardTab({
               resetKey={`${weekOffset}:${contributionActivityId}`}
               emptyLabel={
                 contributionActivityId === 'overall'
-                  ? 'No community activity logged this week.'
+                  ? 'No active members to show yet.'
                   : 'No logs for this activity yet.'
               }
             />
@@ -1061,6 +1252,22 @@ export function CommunityDashboardTab({
       <p className="px-1 text-center text-[11px] text-muted-foreground">
         {DateTime.now().setZone('Asia/Kolkata').toFormat('ccc d LLL')} · community targets only
       </p>
+      <FeedMessagesPanel
+        open={buddyChatOpen}
+        onClose={() => setBuddyChatOpen(false)}
+        startWithUser={
+          buddyQuery.data?.buddy
+            ? {
+                userId: buddyQuery.data.buddy.userId,
+                profileId: buddyQuery.data.buddy.profileId,
+                name: buddyQuery.data.buddy.name,
+                avatarUrl: buddyQuery.data.buddy.avatarUrl,
+                avatarSeed: buddyQuery.data.buddy.avatarSeed,
+                avatarStyle: buddyQuery.data.buddy.avatarStyle,
+              }
+            : null
+        }
+      />
       {ConfirmDialogElement}
     </div>
   );

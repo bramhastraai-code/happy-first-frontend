@@ -23,6 +23,7 @@ const AUTH_PATHS = [
   '/userAuth/login-otp-verify',
   '/userAuth/resend-otp',
   '/userAuth/forgot-password',
+  '/userAuth/check-phone',
   '/userAuth/refresh',
   '/userAuth/logout',
   '/userAuth/magic-link',

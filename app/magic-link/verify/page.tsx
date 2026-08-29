@@ -6,6 +6,7 @@ import { authAPI } from '@/lib/api/auth';
 import { useAuthStore, Profile } from '@/lib/store/authStore';
 import { BRAND_NAME } from '@/lib/brand';
 import { Button } from '@/components/ui/button';
+import { applyMascotTheme, resolveDefaultLanding } from '@/lib/theme/mascotTheme';
 
 function MagicLinkVerifyContent() {
   const router = useRouter();
@@ -62,7 +63,13 @@ function MagicLinkVerifyContent() {
             const selectedProfile = profiles.find((p: Profile) => String(p._id) === String(profileId));
             if (selectedProfile) {
               setSelectedProfile(selectedProfile);
-              router.replace(redirectPath);
+              // Honour profile default landing when magic link has no explicit `to`
+              const path =
+                redirectTo
+                  ? redirectPath
+                  : resolveDefaultLanding(selectedProfile.preferences?.defaultLanding);
+              applyMascotTheme(selectedProfile.preferences?.mascotColor);
+              router.replace(path);
             } else {
               // Profile not found, go to selection page
               router.replace('/select-profile');

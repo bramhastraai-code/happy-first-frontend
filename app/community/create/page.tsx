@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ChevronLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft, Loader2, X } from 'lucide-react';
 import Link from 'next/link';
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,10 @@ import {
   type CommunityAvatarSelection,
 } from '@/components/community/CommunityAvatarPicker';
 import { CommunityActivityConfigPicker } from '@/components/community/CommunityActivityConfigPicker';
+import {
+  CommunityCustomActivityForm,
+  type CustomActivityDraft,
+} from '@/components/community/CommunityCustomActivityForm';
 import { activityAPI } from '@/lib/api/activity';
 import {
   COMMUNITY_TYPE_OPTIONS,
@@ -26,9 +30,11 @@ export default function CreateCommunityPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<CommunityType>('public');
+  const [discussionOnly, setDiscussionOnly] = useState(false);
   const [selectedLevels, setSelectedLevels] = useState<Record<string, CommunityActivityLevel>>(
     {}
   );
+  const [customDrafts, setCustomDrafts] = useState<CustomActivityDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<'all' | 'mind' | 'body' | 'soul'>('all');
   const [avatar, setAvatar] = useState<CommunityAvatarSelection>({
@@ -70,15 +76,30 @@ export default function CreateCommunityPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const activityConfig = Object.entries(selectedLevels).map(([activityId, level]) => ({
-        activityId,
-        level,
-      }));
+      const activityConfig = discussionOnly
+        ? []
+        : Object.entries(selectedLevels).map(([activityId, level]) => ({
+            activityId,
+            level,
+          }));
+      const customActivities = discussionOnly
+        ? []
+        : customDrafts.map((draft) => ({
+            name: draft.name,
+            baseUnit: draft.baseUnit,
+            description: draft.description,
+            category: draft.category,
+            icon: draft.icon,
+            allowedCadence: draft.allowedCadence,
+            level: draft.level,
+            defaultTarget: draft.defaultTarget ? Number(draft.defaultTarget) : null,
+          }));
       const res = await communityAPI.create({
         name: name.trim(),
         description: description.trim(),
         type,
         activityConfig,
+        customActivities,
         icon: avatar.pendingFile ? null : avatar.icon || null,
         avatarSeed: avatar.pendingFile ? null : avatar.icon ? null : avatar.avatarSeed,
         avatarUrl: avatar.pendingFile ? null : avatar.icon ? null : avatar.avatarUrl,
@@ -117,10 +138,7 @@ export default function CreateCommunityPage() {
     });
   };
 
-  const canSubmit =
-    name.trim().length > 0 &&
-    Object.keys(selectedLevels).length > 0 &&
-    !createMutation.isPending;
+  const canSubmit = name.trim().length > 0 && !createMutation.isPending;
 
   return (
     <MainLayout>
@@ -136,7 +154,7 @@ export default function CreateCommunityPage() {
           <div>
             <h1 className="text-lg font-bold text-foreground">Create community</h1>
             <p className="text-xs text-muted-foreground">
-              Choose type, activities, and a level for each activity
+              Discussion-only or activities with targets — your choice
             </p>
           </div>
         </div>
@@ -188,20 +206,77 @@ export default function CreateCommunityPage() {
               ))}
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDiscussionOnly((v) => !v);
+              if (!discussionOnly) {
+                setSelectedLevels({});
+                setCustomDrafts([]);
+              }
+            }}
+            className={cn(
+              'w-full rounded-xl border px-3 py-3 text-left transition-colors',
+              discussionOnly
+                ? 'border-primary bg-primary-soft'
+                : 'border-border bg-surface hover:bg-secondary/60'
+            )}
+          >
+            <p className="text-sm font-semibold text-foreground">Discussion only · no targets</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Chat and share without activity goals. You can add activities later.
+            </p>
+          </button>
         </div>
 
-        <CommunityActivityConfigPicker
-          activities={activities}
-          loading={activitiesQuery.isLoading}
-          category={category}
-          onCategoryChange={setCategory}
-          selectedLevels={selectedLevels}
-          onToggle={toggleActivity}
-          onLevelChange={(activityId, level) =>
-            setSelectedLevels((prev) => ({ ...prev, [activityId]: level }))
-          }
-          targetDefaults={defaultsQuery.data}
-        />
+        {!discussionOnly ? (
+          <>
+            <CommunityActivityConfigPicker
+              activities={activities}
+              loading={activitiesQuery.isLoading}
+              category={category}
+              onCategoryChange={setCategory}
+              selectedLevels={selectedLevels}
+              onToggle={toggleActivity}
+              onLevelChange={(activityId, level) =>
+                setSelectedLevels((prev) => ({ ...prev, [activityId]: level }))
+              }
+              targetDefaults={defaultsQuery.data}
+            />
+
+            <CommunityCustomActivityForm
+              mode="draft"
+              onDraft={(draft) => setCustomDrafts((prev) => [...prev, draft])}
+            />
+
+            {customDrafts.length > 0 ? (
+              <ul className="section-card divide-y divide-border overflow-hidden">
+                {customDrafts.map((draft) => (
+                  <li key={draft.localId} className="flex items-center gap-3 px-4 py-3">
+                    <span className="text-lg">{draft.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-foreground">{draft.name}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Custom · {draft.baseUnit} · {draft.level}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Remove custom activity"
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      onClick={() =>
+                        setCustomDrafts((prev) => prev.filter((d) => d.localId !== draft.localId))
+                      }
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
+        ) : null}
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
@@ -218,6 +293,8 @@ export default function CreateCommunityPage() {
               <Loader2 className="h-4 w-4 animate-spin" />
               Creating…
             </>
+          ) : discussionOnly ? (
+            'Create discussion community'
           ) : (
             'Create community'
           )}

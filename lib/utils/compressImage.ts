@@ -6,12 +6,17 @@ export async function compressImageForUpload(
   const maxEdge = options?.maxEdge ?? 1280;
   const quality = options?.quality ?? 0.82;
 
-  if (!file.type.startsWith('image/')) {
+  const isHeic = /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name);
+  const hasImageMime = file.type.startsWith('image/');
+  const hasImageExt = /\.(jpe?g|png|webp|gif|bmp|avif|heic|heif)$/i.test(file.name);
+
+  // Files app pickers often omit MIME type — allow by extension.
+  if (!hasImageMime && !hasImageExt) {
     throw new Error('Please choose an image file');
   }
 
   // Skip canvas for HEIC — browsers often can't decode it here.
-  if (/heic|heif/i.test(file.type) || /\.heic$/i.test(file.name)) {
+  if (isHeic) {
     return file;
   }
 

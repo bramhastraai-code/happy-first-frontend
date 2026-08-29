@@ -36,7 +36,21 @@ export interface PlanChoiceState {
   currentPlanId?: string | null;
   currentPlanStatus?: string | null;
   canEditCurrent: boolean;
+  weekendPrompt?: {
+    show: boolean;
+    weekday: number;
+    snoozed?: boolean;
+    canCreate: boolean;
+    canRepeat: boolean;
+    canPause: boolean;
+    canRemindLater: boolean;
+    previousScore?: number;
+    nextWeekStart?: string | Date;
+    nextPlanId?: string;
+  };
 }
+
+export type WeekTarget = 'current' | 'next';
 
 export interface WeeklyPlan {
   _id: string;
@@ -67,6 +81,17 @@ export interface CreateWeeklyPlanData {
   weeklyMood?: WeeklyMood;
   weight?: number;
   mood?: WeeklyMood;
+  /** Explicit week: this calendar week or next Monday week */
+  weekTarget?: WeekTarget;
+}
+
+export interface RepeatWeeklyPlanData {
+  activities?: CreateWeeklyPlanData['activities'];
+  startingWeight?: number;
+  weeklyMood?: WeeklyMood;
+  weight?: number;
+  mood?: WeeklyMood;
+  weekTarget?: WeekTarget;
 }
 
 export interface WeightMoodHistoryPoint {
@@ -80,14 +105,6 @@ export interface WeightMoodHistoryPoint {
 export interface NextWeekPreview {
   weekStart: string;
   weekEnd: string;
-}
-
-export interface RepeatWeeklyPlanData {
-  activities?: CreateWeeklyPlanData['activities'];
-  startingWeight?: number;
-  weeklyMood?: WeeklyMood;
-  weight?: number;
-  mood?: WeeklyMood;
 }
 
 export interface ActivityAnalytics {
@@ -200,6 +217,11 @@ export const weeklyPlanAPI = {
 
   pauseNextWeek: () =>
     api.post<{ success: boolean; message: string }>('/weeklyPlan/pauseNextWeek'),
+
+  snoozeWeekendPrompt: () =>
+    api.post<{ success: boolean; message: string; data: { planPromptSnoozeUntil: string } }>(
+      '/weeklyPlan/snoozeWeekendPrompt'
+    ),
 
   getWeightMoodHistory: (limit = 12) =>
     api.get<{ success: boolean; message: string; data: { points: WeightMoodHistoryPoint[] } }>(

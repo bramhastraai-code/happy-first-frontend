@@ -14,6 +14,7 @@ import { Loader2 } from 'lucide-react';
 import { OtpTimerResend } from '@/components/auth/OtpTimerResend';
 import { useOtpCountdown } from '@/lib/hooks/useOtpCountdown';
 import { markOtpSession, DEFAULT_OTP_EXPIRY_MINUTES } from '@/lib/auth/otpSession';
+import { buildForgotPasswordHref } from '@/lib/auth/forgotPassword';
 
 type LoginMethod = 'password' | 'otp' | 'magicLink';
 
@@ -312,7 +313,10 @@ export default function LoginPage() {
               <label htmlFor="password" className="text-sm font-medium text-foreground">
                 Password
               </label>
-              <Link href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
+              <Link
+                href={buildForgotPasswordHref(formData.phoneNumber, formData.countryCode)}
+                className="text-xs font-medium text-primary hover:underline"
+              >
                 Forgot password?
               </Link>
             </div>

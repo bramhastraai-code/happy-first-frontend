@@ -3,6 +3,8 @@
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { authAPI } from '@/lib/api/auth';
+import { useAuthStore } from '@/lib/store/authStore';
+import { buildForgotPasswordHref } from '@/lib/auth/forgotPassword';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
@@ -23,7 +25,18 @@ function ValidationItem({ text, isValid }: { text: string; isValid: boolean }) {
   );
 }
 
-export default function ChangePasswordForm() {
+export default function ChangePasswordForm({
+  phoneNumber,
+  countryCode,
+}: {
+  phoneNumber?: string;
+  countryCode?: string;
+} = {}) {
+  const { user } = useAuthStore();
+  const forgotPasswordHref = buildForgotPasswordHref(
+    phoneNumber || user?.phoneNumber,
+    countryCode || user?.countryCode
+  );
   const [formData, setFormData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -208,7 +221,7 @@ export default function ChangePasswordForm() {
         'current',
         'Enter current password',
         (
-          <Link href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
+          <Link href={forgotPasswordHref} className="text-xs font-medium text-primary hover:underline">
             Forgot password?
           </Link>
         )
@@ -240,6 +253,14 @@ export default function ChangePasswordForm() {
       {error && (
         <p className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {error}
+          {/incorrect|invalid|wrong|current password/i.test(error) ? (
+            <>
+              {' '}
+              <Link href={forgotPasswordHref} className="font-semibold underline">
+                Reset with OTP instead
+              </Link>
+            </>
+          ) : null}
         </p>
       )}
 
@@ -250,6 +271,13 @@ export default function ChangePasswordForm() {
       >
         {loading ? 'Updating…' : 'Update password'}
       </Button>
+
+      <p className="text-xs text-muted-foreground">
+        Forgot your current password?{' '}
+        <Link href={forgotPasswordHref} className="font-medium text-primary hover:underline">
+          Reset via WhatsApp OTP
+        </Link>
+      </p>
 
       <p className="text-[11px] text-muted-foreground">
         Use a unique password and avoid personal information in it.

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Flame, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, Coins, Sparkles, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trophy, Flame, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, Coins, Sparkles, Check, X, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
 import { economyAPI, type EconomySummary } from '@/lib/api/economy';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { ChipTabs } from '@/components/ui/ChipTabs';
@@ -22,6 +22,13 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 import ActivityChart from '@/components/charts/ActivityChart';
 import { useHomePageData } from '@/lib/queries/useHomePageData';
 import { GlobalSearch } from '@/components/home/GlobalSearch';
+import { DailyMotivationQuote } from '@/components/home/DailyMotivationQuote';
+import { HomeMotivationCard } from '@/components/home/HomeMotivationCard';
+import { HomeSocialPreview } from '@/components/home/HomeSocialPreview';
+import { HomeCommunityPreview } from '@/components/home/HomeCommunityPreview';
+import { WeekendPlanPromptCard } from '@/components/plan/WeekendPlanPromptCard';
+import { CommunityInvitePromptCard } from '@/components/community/CommunityInvitePromptCard';
+import { weeklyPlanAPI, type PlanChoiceState } from '@/lib/api/weeklyPlan';
 import { resolveActivityIcon } from '@/lib/utils/activityIcon';
 import { calendarDayMatches, toLocalDateKey } from '@/lib/utils/calendarDate';
 import Link from 'next/link';
@@ -45,6 +52,8 @@ function HomePageContent() {
   const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
   const [economy, setEconomy] = useState<EconomySummary | null>(null);
   const [expandedSections, setExpandedSections] = useState({
+    social: true,
+    community: true,
     weeklyPerformance: true,
     activityGoals: false,
     pendingActivities: false,
@@ -55,9 +64,28 @@ function HomePageContent() {
   const [runTour, setRunTour] = useState(false);
   const [showTourButton, setShowTourButton] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [weekendPrompt, setWeekendPrompt] = useState<PlanChoiceState['weekendPrompt'] | null>(
+    null
+  );
   const isProfilePaused = Boolean(selectedProfile?.pause ?? selectedProfile?.setting?.pause);
 
   const dataEnabled = isHydrated && sessionReady && !!accessToken && !!user && !!selectedProfile?._id;
+
+  useEffect(() => {
+    if (!dataEnabled) return;
+    let cancelled = false;
+    void weeklyPlanAPI
+      .getCurrentPlanState()
+      .then(({ planChoice }) => {
+        if (!cancelled) setWeekendPrompt(planChoice?.weekendPrompt ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setWeekendPrompt(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dataEnabled, selectedProfile?._id]);
 
   const {
     isBootstrapping,
@@ -275,6 +303,8 @@ function HomePageContent() {
         <TourStartButton onClick={handleStartTour} />
       )}
 
+      {isMounted ? <DailyMotivationQuote suppressed={runTour} /> : null}
+
       <div className="w-full space-y-5">
         <DashboardHeader
           subtitle={new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
@@ -283,6 +313,31 @@ function HomePageContent() {
         />
 
         <GlobalSearch />
+
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 flex-1 gap-2"
+            onClick={() => router.push('/tasks')}
+          >
+            <ClipboardList className="h-4 w-4" />
+            Today&apos;s tasks
+          </Button>
+        </div>
+
+        {weekendPrompt?.show ? (
+          <WeekendPlanPromptCard
+            weekendPrompt={weekendPrompt}
+            onResolved={() => {
+              void weeklyPlanAPI.getCurrentPlanState().then(({ planChoice }) => {
+                setWeekendPrompt(planChoice?.weekendPrompt ?? null);
+              });
+            }}
+          />
+        ) : null}
+
+        <CommunityInvitePromptCard />
 
         {economy ? (
           <div className="grid grid-cols-2 gap-3">
@@ -331,6 +386,26 @@ function HomePageContent() {
             </button>
           </div>
         ) : null}
+
+        <HomeMotivationCard />
+
+        <HomeSocialPreview
+          expanded={expandedSections.social}
+          onToggle={() =>
+            setExpandedSections((prev) => ({ ...prev, social: !prev.social }))
+          }
+        />
+
+        <HomeCommunityPreview
+          expanded={expandedSections.community}
+          onToggle={() =>
+            setExpandedSections((prev) => ({ ...prev, community: !prev.community }))
+          }
+        />
+
+        <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          My happiness
+        </p>
 
         {/* <Card className="section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft/80 to-surface">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1127,10 +1202,32 @@ function HomePageContent() {
                       <div className="w-1 h-5 bg-gradient-to-b from-orange-500 to-indigo-600 rounded-full"></div>
                       <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Activity Details</h4>
                     </div>
-                    {selectedDayLog.activities.map((activity, index) => (
+                    {selectedDayLog.activities.map((activity, index) => {
+                      const isPending = activity.status === 'pending';
+                      const isWeeklyDays =
+                        activity.cadance === 'weekly' &&
+                        String(activity.unit || '').toLowerCase() === 'days';
+                      const isDone = isWeeklyDays
+                        ? activity.achieved > 0
+                        : activity.achieved > 0;
+                      const statusLabel = isPending
+                        ? 'Not logged'
+                        : isWeeklyDays
+                          ? isDone
+                            ? 'Done'
+                            : 'Not Done'
+                          : activity.achieved <= 0
+                            ? 'Not Done'
+                            : activity.pointsEarned === 0
+                              ? 'Target Met'
+                              : 'Points Earned';
+                      return (
                       <div
                         key={index}
-                        className={`rounded-xl p-4 border-2 transition-all hover:shadow-md ${activity.achieved > 0
+                        className={`rounded-xl p-4 border-2 transition-all hover:shadow-md ${
+                          isPending
+                            ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200'
+                            : isDone
                           ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200'
                           : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200'
                           }`}
@@ -1139,7 +1236,11 @@ function HomePageContent() {
                           <div className="flex items-start gap-3 flex-1">
                             <div
                               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${
-                                activity.achieved > 0 ? 'bg-success-soft' : 'bg-secondary'
+                                isPending
+                                  ? 'bg-amber-100'
+                                  : isDone
+                                    ? 'bg-success-soft'
+                                    : 'bg-secondary'
                               }`}
                             >
                               {resolveActivityIcon(activityList, activity.activityId, activity.activity)}
@@ -1154,11 +1255,15 @@ function HomePageContent() {
                                   {activity.cadance === 'daily' ? 'Daily Goal' : 'Weekly Goal'}
                                 </span>
                                 <span className="text-xs font-medium text-gray-600">
-                                  {activity.cadance === 'daily'
-                                    ? `${activity.achieved} / ${activity.target} ${activity.unit}`
-                                    : activity.unit === 'days'
-                                      ? (activity.achieved ? `Completed` : `Not Completed`)
-                                      : `${activity.achieved} ${activity.unit}`
+                                  {isPending
+                                    ? 'Not logged yet'
+                                    : activity.cadance === 'daily'
+                                      ? `${activity.achieved} / ${activity.target} ${activity.unit}`
+                                      : isWeeklyDays
+                                        ? isDone
+                                          ? 'Completed'
+                                          : 'Not Done'
+                                        : `${activity.achieved} ${activity.unit}`
                                   }
                                 </span>
                               </div>
@@ -1171,23 +1276,22 @@ function HomePageContent() {
                                 +{activity.pointsEarned.toFixed(2)}
                               </p>
                             </div>
-                            <p className={`text-xs font-semibold uppercase tracking-wide ${activity.achieved <= 0
-                              ? 'text-gray-500'
-                              : activity.pointsEarned === 0
-                                ? 'text-amber-600'
-                                : 'text-emerald-600'
+                            <p className={`text-xs font-semibold uppercase tracking-wide ${
+                              isPending
+                                ? 'text-amber-700'
+                                : !isDone
+                                  ? 'text-gray-500'
+                                  : activity.pointsEarned === 0
+                                    ? 'text-amber-600'
+                                    : 'text-emerald-600'
                               }`}>
-                              {activity.achieved <= 0
-                                ? "Not Done"
-                                : activity.pointsEarned === 0
-                                  ? "Target Met"
-                                  : "Points Earned"
-                              }
+                              {statusLabel}
                             </p>
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ) : (

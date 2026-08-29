@@ -121,7 +121,7 @@ export function AppPageHeader({
         </div>
 
         {actions && actionsPlacement === 'end' ? (
-          <div className="profile-switcher flex max-w-[9.75rem] shrink-0 flex-wrap items-center justify-end gap-1.5 self-start sm:max-w-none">
+          <div className="profile-switcher flex max-w-[14.5rem] shrink-0 flex-wrap items-center justify-end gap-1.5 self-start sm:max-w-none">
             {actions}
           </div>
         ) : null}
