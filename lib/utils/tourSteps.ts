@@ -8,7 +8,7 @@ export const homeTourSteps: Step[] = [
     target: '.welcome-banner',
     title: 'Your Happiness home',
     content:
-      'Greeting, profile photo, and account actions. Open Settings for profile, family, reminders, and referrals — or switch profiles when you manage family members.',
+      'Greeting, profile photo, alerts, and chat. Use Alerts for notifications and Chat for messages — or switch profiles when you manage family members.',
     disableBeacon: true,
   },
   {

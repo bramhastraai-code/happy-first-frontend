@@ -33,7 +33,7 @@ export function useLogoutConfirm() {
     <ConfirmDialog
       open={open}
       title="Log out?"
-      description="You will need to sign in again to access your profile, tasks, and weekly plan."
+      description="You will need to sign in again to access your profile."
       confirmLabel="Yes, log out"
       cancelLabel="No, stay"
       loading={loading}

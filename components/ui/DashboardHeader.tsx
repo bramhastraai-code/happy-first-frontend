@@ -1,9 +1,10 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { LogOut, RefreshCw, Settings } from 'lucide-react';
+import { MessageCircle, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
+import { NotificationBell } from '@/components/feed/NotificationBell';
 import { AppPageHeader } from '@/components/ui/AppPageHeader';
 import { HeaderIconButton } from '@/components/ui/HeaderIconAction';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
@@ -13,7 +14,8 @@ interface DashboardHeaderProps {
   subtitle?: string;
   isActive?: boolean;
   isPaused?: boolean;
-  onLogout?: () => void;
+  onOpenMessages?: () => void;
+  onOpenMessageFromNotification?: (conversationId: string) => void;
   className?: string;
   extraActions?: ReactNode;
 }
@@ -22,7 +24,8 @@ export function DashboardHeader({
   subtitle,
   isActive = true,
   isPaused = false,
-  onLogout,
+  onOpenMessages,
+  onOpenMessageFromNotification,
   className,
   extraActions,
 }: DashboardHeaderProps) {
@@ -82,18 +85,16 @@ export function DashboardHeader({
             />
           ) : null}
 
-          <HeaderIconButton
-            icon={<Settings className="h-[18px] w-[18px]" />}
-            caption="Settings"
-            onClick={() => router.push('/settings')}
+          <NotificationBell
+            onOpenMessage={onOpenMessageFromNotification}
+            caption="Alerts"
           />
 
-          {onLogout ? (
+          {onOpenMessages ? (
             <HeaderIconButton
-              icon={<LogOut className="h-[18px] w-[18px]" />}
-              caption="Log out"
-              danger
-              onClick={onLogout}
+              icon={<MessageCircle className="h-[18px] w-[18px]" />}
+              caption="Chat"
+              onClick={onOpenMessages}
             />
           ) : null}
         </>

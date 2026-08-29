@@ -11,8 +11,8 @@ import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
 import Leaderboard from '@/components/leaderboard/Leaderboard';
-import { useLogoutConfirm } from '@/lib/hooks/useLogoutConfirm';
 import { DashboardHeader } from '@/components/ui/DashboardHeader';
+import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
 import { StatCard } from '@/components/ui/PageHeader';
 import { DateTime } from 'luxon';
 import GuidedTour from '@/components/ui/GuidedTour';
@@ -22,6 +22,7 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 import ActivityChart from '@/components/charts/ActivityChart';
 import { useHomePageData } from '@/lib/queries/useHomePageData';
 import { GlobalSearch } from '@/components/home/GlobalSearch';
+import { HomeCategoryCards } from '@/components/home/HomeCategoryCards';
 import { DailyMotivationQuote } from '@/components/home/DailyMotivationQuote';
 import { HomeMotivationCard } from '@/components/home/HomeMotivationCard';
 import { HomeSocialPreview } from '@/components/home/HomeSocialPreview';
@@ -74,6 +75,8 @@ function HomePageContent() {
   const [weekendPrompt, setWeekendPrompt] = useState<PlanChoiceState['weekendPrompt'] | null>(
     null
   );
+  const [messagesOpen, setMessagesOpen] = useState(false);
+  const [openConversationId, setOpenConversationId] = useState<string | null>(null);
   const isProfilePaused = Boolean(selectedProfile?.pause ?? selectedProfile?.setting?.pause);
 
   const dataEnabled =
@@ -166,8 +169,6 @@ function HomePageContent() {
       cancelled = true;
     };
   }, [dataEnabled, selectedProfile?._id]);
-
-  const { requestLogout, LogoutConfirmDialog } = useLogoutConfirm();
 
   const handleStartTour = () => {
     setRunTour(true);
@@ -330,10 +331,19 @@ function HomePageContent() {
           className="welcome-banner"
           subtitle={new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
           isPaused={isProfilePaused}
-          onLogout={requestLogout}
+          onOpenMessages={() => {
+            setOpenConversationId(null);
+            setMessagesOpen(true);
+          }}
+          onOpenMessageFromNotification={(conversationId) => {
+            setOpenConversationId(conversationId);
+            setMessagesOpen(true);
+          }}
         />
 
         <GlobalSearch />
+
+        <HomeCategoryCards weeklyPlan={weeklyPlan} activityList={activityList} />
 
         <div className="log-today-cta flex gap-2">
           <Button
@@ -1330,7 +1340,15 @@ function HomePageContent() {
         />
       </div>
     </div>
-    {LogoutConfirmDialog}
+
+    <FeedMessagesPanel
+      open={messagesOpen}
+      onClose={() => {
+        setMessagesOpen(false);
+        setOpenConversationId(null);
+      }}
+      initialConversationId={openConversationId}
+    />
     </MainLayout>
   );
 }

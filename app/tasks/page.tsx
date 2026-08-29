@@ -74,6 +74,17 @@ export default function TasksPage() {
     setIsMounted(true);
   }, []);
 
+  // Deep-link from home Body / Mind / Soul cards (#body, #mind, #soul)
+  useEffect(() => {
+    if (!weeklyPlan || typeof window === 'undefined') return;
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+    if (!['body', 'mind', 'soul'].includes(hash)) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [weeklyPlan]);
+
   // Redirect to home after showing congrats (dashboard refetches fresh score + streak)
   useEffect(() => {
     if (showCongrats) {

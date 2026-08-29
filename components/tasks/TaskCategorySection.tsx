@@ -59,7 +59,7 @@ export default function TaskCategorySection({
   if (categoryActivities.length === 0) return null;
 
   return (
-    <section className="section-card">
+    <section id={category.toLowerCase()} className="section-card scroll-mt-24">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <span className="text-base">{meta.emoji}</span>
         <h3 className="text-sm font-semibold text-foreground">{meta.label}</h3>
