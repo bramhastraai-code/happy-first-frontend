@@ -39,7 +39,7 @@ export const homeTourSteps: Step[] = [
     target: '.pending-activities',
     title: 'Pending activities',
     content:
-      'Open tasks still left from your plan — daily goals and weekly progress in one place.',
+      'Open activities still left from your plan — daily goals and weekly progress in one place.',
   },
   {
     target: '.weekly-performance',

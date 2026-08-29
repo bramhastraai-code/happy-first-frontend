@@ -54,7 +54,7 @@ export function HomeCategoryCards({
         const hint =
           total > 0
             ? `${logged}/${total} logged`
-            : 'Open tasks';
+            : 'Open activities';
 
         return (
           <Link

@@ -622,7 +622,7 @@ function HomePageContent() {
         <CollapsibleSection
           className="pending-activities"
           title="Pending activities"
-          subtitle="Today's open tasks from your plan"
+          subtitle="Today's open activities from your plan"
           icon={ListChecks}
           expanded={expandedSections.pendingActivities}
           onToggle={() => toggleSection('pendingActivities')}
