@@ -12,6 +12,19 @@ interface CommunityJoinScannerProps {
   onClose: () => void;
 }
 
+type DetectedBarcode = { rawValue?: string };
+
+type BarcodeDetectorLike = {
+  detect: (
+    source: CanvasImageSource | ImageBitmap
+  ) => Promise<DetectedBarcode[]>;
+};
+
+type BarcodeDetectorCtor = {
+  new (options?: { formats?: string[] }): BarcodeDetectorLike;
+  getSupportedFormats?: () => Promise<string[]>;
+};
+
 function cameraErrorMessage(err: unknown) {
   const raw =
     err instanceof Error
@@ -32,136 +45,291 @@ function cameraErrorMessage(err: unknown) {
   if (text.includes('secure') || text.includes('https')) {
     return 'Camera needs a secure (HTTPS) connection.';
   }
+  if (text.includes('timed out')) {
+    return 'Camera started but the video feed did not load. Try again.';
+  }
   return raw;
 }
 
-async function pickCameraId(): Promise<string | { facingMode: { ideal: string } }> {
+function getBarcodeDetectorCtor(): BarcodeDetectorCtor | null {
+  const ctor = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
+  return typeof ctor === 'function' ? ctor : null;
+}
+
+async function createQrDetector(): Promise<BarcodeDetectorLike | null> {
+  const Detector = getBarcodeDetectorCtor();
+  if (!Detector) return null;
   try {
-    const cameras = await Html5Qrcode.getCameras();
-    if (cameras.length === 0) {
-      return { facingMode: { ideal: 'environment' } };
-    }
-    const back = [...cameras]
-      .reverse()
-      .find((cam) => /back|rear|environment|world/i.test(cam.label));
-    return (back ?? cameras[cameras.length - 1]).id;
+    const formats = Detector.getSupportedFormats ? await Detector.getSupportedFormats() : ['qr_code'];
+    const qrFormats = formats.filter((format) => /qr/i.test(format));
+    return new Detector({ formats: qrFormats.length ? qrFormats : ['qr_code'] });
   } catch {
-    return { facingMode: { ideal: 'environment' } };
+    try {
+      return new Detector({ formats: ['qr_code'] });
+    } catch {
+      return null;
+    }
   }
+}
+
+async function openCameraStream(): Promise<MediaStream> {
+  const attempts: MediaStreamConstraints[] = [
+    {
+      audio: false,
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+    },
+    { audio: false, video: { facingMode: 'environment' } },
+    { audio: false, video: true },
+  ];
+  let lastErr: unknown;
+  for (const constraints of attempts) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('Camera permission denied or unavailable');
+}
+
+async function waitForVideo(video: HTMLVideoElement, signal: { cancelled: boolean }) {
+  if (video.readyState >= 2 && video.videoWidth > 0) return;
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      if (video.videoWidth <= 0) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('Camera timed out'));
+    }, 8000);
+    video.addEventListener('loadeddata', finish);
+    video.addEventListener('playing', finish);
+    video.addEventListener('loadedmetadata', finish);
+    void video.play().then(finish).catch(() => undefined);
+    if (video.readyState >= 2 && video.videoWidth > 0) finish();
+    const poll = window.setInterval(() => {
+      if (signal.cancelled) {
+        window.clearInterval(poll);
+        if (!settled) {
+          settled = true;
+          window.clearTimeout(timeout);
+          reject(new Error('cancelled'));
+        }
+        return;
+      }
+      if (video.readyState >= 2 && video.videoWidth > 0) {
+        window.clearInterval(poll);
+        finish();
+      }
+    }, 80);
+  });
+}
+
+async function decodeWithDetector(
+  detector: BarcodeDetectorLike,
+  source: CanvasImageSource | ImageBitmap
+): Promise<string | null> {
+  try {
+    const codes = await detector.detect(source);
+    const text = codes.find((code) => code.rawValue)?.rawValue;
+    return text ? String(text).trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function decodeFileWithHtml5(file: File, elementId: string): Promise<string | null> {
+  const host = document.getElementById(elementId);
+  if (!host) return null;
+  host.innerHTML = '';
+  const scanner = new Html5Qrcode(elementId, { verbose: false });
+  try {
+    const decoded = await scanner.scanFile(file, false);
+    return decoded ? String(decoded).trim() : null;
+  } catch {
+    return null;
+  } finally {
+    try {
+      scanner.clear();
+    } catch {
+      // ignore
+    }
+    host.innerHTML = '';
+  }
+}
+
+async function canvasToFile(canvas: HTMLCanvasElement): Promise<File | null> {
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((next) => resolve(next), 'image/jpeg', 0.92);
+  });
+  if (!blob) return null;
+  return new File([blob], 'frame.jpg', { type: 'image/jpeg' });
 }
 
 export function CommunityJoinScanner({ open, onClose }: CommunityJoinScannerProps) {
   const router = useRouter();
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const handledRef = useRef(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const onCloseRef = useRef(onClose);
+  const routerRef = useRef(router);
+  const handledRef = useRef(false);
+  const html5BusyRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [fileScanning, setFileScanning] = useState(false);
 
+  onCloseRef.current = onClose;
+  routerRef.current = router;
+
   useEffect(() => {
     if (!open) return;
 
-    let cancelled = false;
-    let started = false;
+    const signal = { cancelled: false };
     handledRef.current = false;
     setError(null);
     setStarting(true);
 
-    const regionId = 'community-qr-reader';
-
-    const stop = async (scanner: Html5Qrcode | null) => {
-      if (!scanner) return;
-      try {
-        if (scanner.isScanning) await scanner.stop();
-      } catch {
-        // already stopped
-      }
-      try {
-        scanner.clear();
-      } catch {
-        // ignore
-      }
+    const stopStream = (stream: MediaStream | null) => {
+      stream?.getTracks().forEach((track) => track.stop());
     };
 
-    const handleDecoded = (scanner: Html5Qrcode, decoded: string) => {
-      if (handledRef.current || cancelled) return;
+    const completeJoin = (decoded: string) => {
+      if (handledRef.current || signal.cancelled) return false;
       const communityId = parseCommunityIdFromQrText(decoded);
       if (!communityId) {
         setError('Not a community invite QR. Try a Happy First community QR.');
-        return;
+        return false;
       }
       handledRef.current = true;
-      void stop(scanner).then(() => {
-        onClose();
-        router.push(getCommunityJoinPath(communityId));
-      });
+      onCloseRef.current();
+      routerRef.current.push(getCommunityJoinPath(communityId));
+      return true;
     };
 
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        const el = document.getElementById(regionId);
-        if (!el || cancelled) return;
+    void (async () => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas) return;
 
-        const scanner = new Html5Qrcode(regionId, {
-          verbose: false,
-          useBarCodeDetectorIfSupported: true,
-        });
-        scannerRef.current = scanner;
+      let stream: MediaStream | null = null;
+      try {
+        stream = await openCameraStream();
+        if (signal.cancelled) {
+          stopStream(stream);
+          return;
+        }
 
-        const size = Math.max(
-          160,
-          Math.min(260, Math.floor(Math.min(el.clientWidth, el.clientHeight) * 0.62))
-        );
-        const config = {
-          fps: 12,
-          qrbox: { width: size, height: size },
-          disableFlip: false,
-        };
-
-        const startWith = async (camera: string | MediaTrackConstraints) => {
-          await scanner.start(
-            camera,
-            config,
-            (decoded) => handleDecoded(scanner, decoded),
-            () => undefined
-          );
-        };
+        video.srcObject = stream;
+        video.muted = true;
+        video.playsInline = true;
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        try {
+          await waitForVideo(video, signal);
+        } catch (err) {
+          if (signal.cancelled) return;
+          throw err;
+        }
+        if (signal.cancelled) return;
 
         try {
-          const camera = await pickCameraId();
-          try {
-            await startWith(camera);
-          } catch {
-            try {
-              if (scanner.isScanning) await scanner.stop();
-            } catch {
-              // reset then retry with generic rear-camera constraint
-            }
-            await startWith({ facingMode: 'environment' });
-          }
-          started = true;
-          if (cancelled) {
-            await stop(scanner);
-            return;
-          }
-          setStarting(false);
-        } catch (err) {
-          if (cancelled) return;
-          setStarting(false);
-          setError(cameraErrorMessage(err));
+          const track = stream.getVideoTracks()[0];
+          await track?.applyConstraints({
+            advanced: [{ focusMode: 'continuous' } as unknown as MediaTrackConstraintSet],
+          });
+        } catch {
+          // focus mode is optional
         }
-      })();
-    }, 80);
+
+        setStarting(false);
+
+        const detector = await createQrDetector();
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) {
+          setError('Could not start the scanner on this device.');
+          return;
+        }
+
+        const scanFrame = async () => {
+          if (signal.cancelled || handledRef.current) return;
+          if (video.readyState < 2 || video.videoWidth <= 0) return;
+
+          if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          if (detector) {
+            let source: CanvasImageSource | ImageBitmap = canvas;
+            let bitmap: ImageBitmap | null = null;
+            try {
+              bitmap = await createImageBitmap(canvas);
+              source = bitmap;
+            } catch {
+              // canvas detect still works on most browsers
+            }
+            const decoded = await decodeWithDetector(detector, source);
+            bitmap?.close();
+            if (decoded && completeJoin(decoded)) return;
+          } else if (!html5BusyRef.current) {
+            html5BusyRef.current = true;
+            try {
+              const file = await canvasToFile(canvas);
+              if (file) {
+                const decoded = await decodeFileWithHtml5(file, 'community-qr-decode');
+                if (decoded && completeJoin(decoded)) return;
+              }
+            } finally {
+              html5BusyRef.current = false;
+            }
+          }
+        };
+
+        const loop = async () => {
+          if (signal.cancelled || handledRef.current) return;
+          try {
+            await scanFrame();
+          } catch {
+            // keep trying the next frame
+          }
+          if (!signal.cancelled && !handledRef.current) {
+            window.setTimeout(() => void loop(), detector ? 80 : 220);
+          }
+        };
+
+        void loop();
+      } catch (err) {
+        if (signal.cancelled) return;
+        stopStream(stream);
+        setStarting(false);
+        setError(cameraErrorMessage(err));
+      }
+    })();
 
     return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-      const scanner = scannerRef.current;
-      scannerRef.current = null;
-      if (started || scanner) void stop(scanner);
+      signal.cancelled = true;
+      const video = videoRef.current;
+      const media = video?.srcObject;
+      if (media instanceof MediaStream) {
+        stopStream(media);
+      }
+      if (video) {
+        video.srcObject = null;
+      }
     };
-  }, [open, onClose, router]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -177,23 +345,34 @@ export function CommunityJoinScanner({ open, onClose }: CommunityJoinScannerProp
     setFileScanning(true);
     setError(null);
     try {
-      const scanner =
-        scannerRef.current ?? new Html5Qrcode('community-qr-reader', { verbose: false });
-      scannerRef.current = scanner;
-      if (scanner.isScanning) {
+      const detector = await createQrDetector();
+      let decoded: string | null = null;
+      if (detector) {
+        const bitmap = await createImageBitmap(file);
         try {
-          await scanner.stop();
-        } catch {
-          // continue with file scan
+          decoded = await decodeWithDetector(detector, bitmap);
+        } finally {
+          bitmap.close();
         }
       }
-      const decoded = await scanner.scanFile(file, false);
+      if (!decoded) {
+        decoded = await decodeFileWithHtml5(file, 'community-qr-decode');
+      }
+      if (!decoded) {
+        setError('Could not read a QR code from that image.');
+        return;
+      }
       const communityId = parseCommunityIdFromQrText(decoded);
       if (!communityId) {
         setError('Not a community invite QR. Try a Happy First community QR.');
         return;
       }
       handledRef.current = true;
+      const video = videoRef.current;
+      const media = video?.srcObject;
+      if (media instanceof MediaStream) {
+        media.getTracks().forEach((track) => track.stop());
+      }
       onClose();
       router.push(getCommunityJoinPath(communityId));
     } catch {
@@ -207,15 +386,16 @@ export function CommunityJoinScanner({ open, onClose }: CommunityJoinScannerProp
 
   return (
     <div className="fixed inset-0 z-[220] bg-black">
-      <div
-        id="community-qr-reader"
-        className={cn(
-          'absolute inset-0 overflow-hidden',
-          '[&_video]:absolute [&_video]:inset-0 [&_video]:h-full [&_video]:w-full [&_video]:object-cover',
-          '[&_img]:hidden',
-          '[&_#qr-shaded-region]:hidden'
-        )}
+      <video
+        ref={videoRef}
+        className="absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        muted
+        playsInline
+        controls={false}
       />
+      <canvas ref={canvasRef} className="hidden" />
+      <div id="community-qr-decode" className="hidden" />
 
       <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
         <div className="relative h-60 w-60 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
