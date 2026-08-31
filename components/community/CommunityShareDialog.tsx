@@ -24,7 +24,7 @@ export function CommunityShareDialog({
     [open, communityId]
   );
   const qrSrc = joinUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${encodeURIComponent(joinUrl)}`
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=16&ecc=M&data=${encodeURIComponent(joinUrl)}`
     : '';
 
   useEffect(() => {
