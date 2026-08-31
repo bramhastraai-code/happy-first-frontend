@@ -125,7 +125,7 @@ export interface UpdateProfileData {
     allowMessages?: boolean;
     mascotName?: string;
     mascotColor?: string;
-    defaultLanding?: '/home' | '/feed' | '/community' | '/tasks' | '/settings';
+    defaultLanding?: '/home' | '/feed' | '/community' | '/settings';
   };
 }
 

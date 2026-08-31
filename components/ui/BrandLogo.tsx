@@ -6,6 +6,8 @@ interface BrandLogoProps {
   href?: string;
   variant?: 'light' | 'dark';
   size?: 'sm' | 'md' | 'lg';
+  /** Instagram-style large centered wordmark for auth screens. */
+  wordmark?: boolean;
   className?: string;
 }
 
@@ -25,9 +27,19 @@ export function BrandLogo({
   href = '/',
   variant = 'dark',
   size = 'md',
+  wordmark = false,
   className,
 }: BrandLogoProps) {
-  const content = (
+  const content = wordmark ? (
+    <span
+      className={cn(
+        'block max-w-[16rem] text-center font-serif text-[1.85rem] font-semibold leading-[1.05] tracking-tight sm:text-[2.05rem]',
+        variant === 'light' ? 'text-white' : 'text-foreground'
+      )}
+    >
+      {BRAND_NAME}
+    </span>
+  ) : (
     <>
       <span
         className={cn(
@@ -49,7 +61,11 @@ export function BrandLogo({
     </>
   );
 
-  const classes = cn('inline-flex min-w-0 items-center gap-2.5', className);
+  const classes = cn(
+    'inline-flex min-w-0 items-center gap-2.5',
+    wordmark && 'justify-center text-center',
+    className
+  );
 
   if (href) {
     return (

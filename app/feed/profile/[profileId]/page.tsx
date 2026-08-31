@@ -9,7 +9,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { ProfilePhotoButton } from '@/components/feed/ProfilePhotoButton';
-import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
+import { headerBackBtnClass, pageStickyHeaderClass } from '@/components/ui/AppPageHeader';
 import { Button } from '@/components/ui/button';
 import { FollowButton } from '@/components/feed/FollowButton';
 import { FollowListSheet } from '@/components/feed/FollowListSheet';
@@ -210,7 +210,7 @@ export default function FeedProfilePage() {
   return (
     <MainLayout hideBottomNav={overlayOpen}>
       <div className="relative w-full pb-6">
-        <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
+        <div className={cn(pageStickyHeaderClass, 'mb-2 flex items-center justify-between gap-2')}>
           <button
             type="button"
             onClick={() => router.back()}
@@ -342,7 +342,7 @@ export default function FeedProfilePage() {
                 ) : null}
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-none border border-[#dbdbdb] bg-white sm:grid-cols-4">
                 {(
                   [
                     {
@@ -362,26 +362,31 @@ export default function FeedProfilePage() {
                       display: Number(data.coinsBalance ?? 0).toLocaleString(),
                     },
                   ] as const
-                ).map((stat) => (
+                ).map((stat, i) => (
                   <div
                     key={stat.label}
-                    className="rounded-xl border border-border bg-secondary/40 px-3 py-2 text-center"
+                    className={cn(
+                      'px-2 py-2.5 text-center',
+                      i % 2 === 0 && 'border-r border-[#efefef]',
+                      i < 2 && 'border-b border-[#efefef] sm:border-b-0',
+                      i < 3 && 'sm:border-r sm:border-[#efefef]'
+                    )}
                   >
-                    <p className="text-sm font-bold tabular-nums text-foreground">
+                    <p className="text-sm font-semibold tabular-nums text-foreground">
                       {stat.display}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">{stat.label}</p>
+                    <p className="mt-0.5 text-[11px] text-neutral-400">{stat.label}</p>
                   </div>
                 ))}
               </div>
               {data.daysSinceLastPost != null ? (
-                <p className="mt-2 text-xs text-muted-foreground">
+                <p className="mt-2 text-xs text-neutral-400">
                   {data.daysSinceLastPost === 0
                     ? 'Posted today'
                     : `Last post ${data.daysSinceLastPost} day${data.daysSinceLastPost === 1 ? '' : 's'} ago`}
                 </p>
               ) : (
-                <p className="mt-2 text-xs text-muted-foreground">No posts yet</p>
+                <p className="mt-2 text-xs text-neutral-400">No posts yet</p>
               )}
 
               <div className="mt-3 flex gap-2">
@@ -390,13 +395,13 @@ export default function FeedProfilePage() {
                     <button
                       type="button"
                       onClick={() => setEditOpen(true)}
-                      className="h-8 flex-1 rounded-lg border border-border bg-surface text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-secondary"
+                      className="h-8 flex-1 rounded-none border border-[#dbdbdb] bg-[#efefef] text-sm font-semibold text-foreground transition-colors hover:bg-[#dbdbdb]"
                     >
                       Edit profile
                     </button>
                     <Link
                       href="/settings"
-                      className="inline-flex h-8 flex-1 items-center justify-center rounded-lg border border-border bg-surface text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-secondary"
+                      className="inline-flex h-8 flex-1 items-center justify-center rounded-none border border-[#dbdbdb] bg-[#efefef] text-sm font-semibold text-foreground transition-colors hover:bg-[#dbdbdb]"
                     >
                       Settings
                     </Link>
@@ -409,19 +414,19 @@ export default function FeedProfilePage() {
                       followsYou={data.followsYou}
                       isMe={false}
                       verb="connect"
-                      className="h-8 flex-1 rounded-lg"
+                      className="h-8 flex-1 !rounded-none"
                     />
                     {messageTarget && (data.allowMessages ?? data.profile.allowMessages ?? true) ? (
                       <button
                         type="button"
                         onClick={() => setMessagesOpen(true)}
-                        className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-secondary"
+                        className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-none border border-[#dbdbdb] bg-[#efefef] text-sm font-semibold text-foreground transition-colors hover:bg-[#dbdbdb]"
                       >
                         <MessageSquare className="h-4 w-4" />
                         Message
                       </button>
                     ) : !isMe && messageTarget ? (
-                      <p className="flex h-8 flex-1 items-center justify-center text-xs text-muted-foreground">
+                      <p className="flex h-8 flex-1 items-center justify-center text-xs text-neutral-400">
                         Messaging is off
                       </p>
                     ) : null}
@@ -431,24 +436,21 @@ export default function FeedProfilePage() {
             </section>
 
             {(data.communities?.length ?? 0) > 0 ? (
-              <section className="mt-4 px-1">
-                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Communities they admin
+              <section className="mt-5 px-1">
+                <h2 className="mb-2 px-1 text-[13px] font-semibold text-neutral-500">
+                  {isMe ? 'Communities you admin' : 'Communities they admin'}
                 </h2>
-                <ul className="space-y-2">
+                <ul className="divide-y divide-[#efefef] overflow-hidden rounded-none border border-[#dbdbdb] bg-white">
                   {data.communities!.map((community) => (
-                    <li
-                      key={community.id}
-                      className="flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5"
-                    >
+                    <li key={community.id} className="flex items-center gap-3 px-4 py-3">
                       <Link
                         href={`/community/${community.id}`}
-                        className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground hover:underline"
+                        className="min-w-0 flex-1"
                       >
-                        {community.name}
-                        <span className="ml-2 text-[11px] font-medium text-muted-foreground">
-                          {community.memberCount} members
-                        </span>
+                        <p className="truncate text-sm text-foreground">{community.name}</p>
+                        <p className="mt-0.5 text-xs text-neutral-400">
+                          {community.memberCount} {community.memberCount === 1 ? 'member' : 'members'}
+                        </p>
                       </Link>
                       {community.viewerCanJoin ? (
                         <button
@@ -466,7 +468,7 @@ export default function FeedProfilePage() {
                               setJoiningId(null);
                             }
                           }}
-                          className="shrink-0 rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                          className="shrink-0 rounded-none bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
                         >
                           {joiningId === community.id ? 'Joining…' : 'Join'}
                         </button>

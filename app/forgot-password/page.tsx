@@ -7,13 +7,13 @@ import { authAPI } from '@/lib/api/auth';
 import { performLogout } from '@/lib/auth/session';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import AuthShell from '@/components/layout/AuthShell';
+import AuthShell, { AuthOrDivider, authButtonClass, authFieldClass } from '@/components/layout/AuthShell';
 import CountryCodeSelect from '@/components/ui/CountryCodeSelect';
 import { OtpTimerResend } from '@/components/auth/OtpTimerResend';
 import { useOtpCountdown } from '@/lib/hooks/useOtpCountdown';
 import { markOtpSession, DEFAULT_OTP_EXPIRY_MINUTES } from '@/lib/auth/otpSession';
 import { cn } from '@/lib/utils';
-import { AlertCircle, CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, Eye, EyeOff, Loader2, Lock } from 'lucide-react';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 
 function ValidationItem({ text, isValid }: { text: string; isValid: boolean }) {
@@ -197,58 +197,51 @@ function ForgotPasswordForm() {
   const passwordsMatch =
     formData.confirmPassword.length > 0 && formData.newPassword === formData.confirmPassword;
 
+  const lockIcon = (
+    <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-foreground">
+      <Lock className="h-10 w-10" strokeWidth={1.4} />
+    </div>
+  );
+
+  const backToLogin = (
+    <Link href="/login" className="font-semibold text-foreground">
+      Back to login
+    </Link>
+  );
+
   if (resetComplete) {
     return (
       <AuthShell
-        title="Password reset"
-        subtitle="You're all set to sign in again."
-        footer={
-          <>
-            Remember your password?{' '}
-            <Link href="/login" className="font-semibold text-primary hover:underline">
-              Sign in
-            </Link>
-          </>
-        }
+        hideLogo
+        icon={<CheckCircle className="h-16 w-16 text-success" strokeWidth={1.4} />}
+        title="Password updated"
+        subtitle="You can now log in with your new password."
+        footer={backToLogin}
       >
-        <div className="rounded-2xl bg-success-soft px-4 py-5 text-center">
-          <CheckCircle className="mx-auto mb-3 h-10 w-10 text-success" />
-          <p className="text-sm font-medium text-success">{successMessage}</p>
-          <Button className="mt-4 w-full" size="lg" onClick={() => router.push('/login')}>
-            Go to sign in
-          </Button>
-        </div>
+        <Button className={authButtonClass} onClick={() => router.push('/login')}>
+          Log in
+        </Button>
       </AuthShell>
     );
   }
 
   return (
     <AuthShell
-      title="Forgot password?"
-      subtitle="Verify your phone number with OTP and set a new password."
-      footer={
-        <>
-          Remember your password?{' '}
-          <Link href="/login" className="font-semibold text-primary hover:underline">
-            Sign in
-          </Link>
-        </>
-      }
+      hideLogo
+      icon={lockIcon}
+      title="Trouble logging in?"
+      subtitle="Enter your phone number and we'll send you an OTP to get back into your account."
+      footer={backToLogin}
     >
       <form
         onSubmit={otpSent ? handleResetPassword : handleRequestOTP}
-        className="space-y-4"
+        className="space-y-1.5"
       >
-        {infoMessage && (
-          <div className="rounded-xl border border-primary/20 bg-primary-soft px-3 py-2.5 text-sm text-accent-foreground">
-            {infoMessage}
-          </div>
-        )}
+        {infoMessage ? (
+          <p className="pb-1 text-center text-xs text-neutral-500">{infoMessage}</p>
+        ) : null}
 
-        <div>
-          <label htmlFor="countryCode" className="mb-1.5 block text-sm font-medium text-foreground">
-            Country code
-          </label>
+        <div className="flex gap-1.5">
           <CountryCodeSelect
             id="countryCode"
             value={formData.countryCode}
@@ -257,18 +250,16 @@ function ForgotPasswordForm() {
               resetMessages();
             }}
             disabled={otpSent || loading}
+            compact
+            dialOnly
+            className="w-[6.75rem] shrink-0"
           />
-        </div>
-
-        <div>
-          <label htmlFor="phoneNumber" className="mb-1.5 block text-sm font-medium text-foreground">
-            Phone number
-          </label>
           <Input
             id="phoneNumber"
             type="tel"
             inputMode="numeric"
-            placeholder="10-digit mobile number"
+            placeholder="Phone number"
+            aria-label="Phone number"
             value={formData.phoneNumber}
             onChange={(e) => {
               setFormData((prev) => ({
@@ -279,141 +270,120 @@ function ForgotPasswordForm() {
             }}
             required
             disabled={otpSent || loading}
+            className={authFieldClass}
           />
         </div>
 
         {otpSent && (
           <>
-            <div>
-              <label htmlFor="otp" className="mb-1.5 block text-sm font-medium text-foreground">
-                One-time password
-              </label>
+            <Input
+              id="otp"
+              type="text"
+              inputMode="numeric"
+              placeholder="6-digit code"
+              aria-label="One-time password"
+              value={formData.otp}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  otp: e.target.value.replace(/\D/g, '').slice(0, 6),
+                }))
+              }
+              maxLength={6}
+              required
+              disabled={loading}
+              className={authFieldClass}
+            />
+            <div className="pt-1">
+              <OtpTimerResend
+                secondsLeft={secondsLeft}
+                canResend={canResend}
+                resending={resendingOtp}
+                onResend={handleResendOtp}
+              />
+            </div>
+
+            <div className="relative">
               <Input
-                id="otp"
-                type="text"
-                inputMode="numeric"
-                placeholder="6-digit OTP"
-                value={formData.otp}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    otp: e.target.value.replace(/\D/g, '').slice(0, 6),
-                  }))
-                }
-                maxLength={6}
+                id="newPassword"
+                type={showPasswords.new ? 'text' : 'password'}
+                placeholder="New password"
+                aria-label="New password"
+                value={formData.newPassword}
+                onChange={(e) => handleNewPasswordChange(e.target.value)}
                 required
                 disabled={loading}
+                className={cn(authFieldClass, 'pr-10')}
               />
-              <div className="mt-3">
-                <OtpTimerResend
-                  secondsLeft={secondsLeft}
-                  canResend={canResend}
-                  resending={resendingOtp}
-                  onResend={handleResendOtp}
-                />
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowPasswords((prev) => ({ ...prev, new: !prev.new }))}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-foreground"
+                aria-label={showPasswords.new ? 'Hide password' : 'Show password'}
+              >
+                {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
 
-            <div>
-              <label htmlFor="newPassword" className="mb-1.5 block text-sm font-medium text-foreground">
-                New password
-              </label>
-              <div className="relative">
-                <Input
-                  id="newPassword"
-                  type={showPasswords.new ? 'text' : 'password'}
-                  placeholder="Create a strong password"
-                  value={formData.newPassword}
-                  onChange={(e) => handleNewPasswordChange(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPasswords((prev) => ({ ...prev, new: !prev.new }))}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label={showPasswords.new ? 'Hide password' : 'Show password'}
-                >
-                  {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
-            {formData.newPassword && (
-              <div className="space-y-1.5 rounded-xl border border-border bg-secondary/40 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Requirements
-                </p>
+            {formData.newPassword ? (
+              <div className="space-y-1 py-1">
                 <ValidationItem text="At least 8 characters" isValid={validations.minLength} />
                 <ValidationItem text="One uppercase letter" isValid={validations.hasUpperCase} />
                 <ValidationItem text="One lowercase letter" isValid={validations.hasLowerCase} />
                 <ValidationItem text="One number" isValid={validations.hasNumber} />
                 <ValidationItem text="One special character" isValid={validations.hasSpecialChar} />
               </div>
-            )}
+            ) : null}
 
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="mb-1.5 block text-sm font-medium text-foreground"
+            <div className="relative">
+              <Input
+                id="confirmPassword"
+                type={showPasswords.confirm ? 'text' : 'password'}
+                placeholder="Confirm new password"
+                aria-label="Confirm new password"
+                value={formData.confirmPassword}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, confirmPassword: e.target.value }));
+                  resetMessages();
+                }}
+                required
+                disabled={loading}
+                className={cn(authFieldClass, 'pr-10')}
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))
+                }
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-foreground"
+                aria-label={showPasswords.confirm ? 'Hide password' : 'Show password'}
               >
-                Confirm password
-              </label>
-              <div className="relative">
-                <Input
-                  id="confirmPassword"
-                  type={showPasswords.confirm ? 'text' : 'password'}
-                  placeholder="Re-enter new password"
-                  value={formData.confirmPassword}
-                  onChange={(e) => {
-                    setFormData((prev) => ({ ...prev, confirmPassword: e.target.value }));
-                    resetMessages();
-                  }}
-                  required
-                  disabled={loading}
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))
-                  }
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label={showPasswords.confirm ? 'Hide password' : 'Show password'}
-                >
-                  {showPasswords.confirm ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-              {formData.confirmPassword && !passwordsMatch && (
-                <p className="mt-1 flex items-center gap-1 text-xs text-destructive">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  Passwords do not match
-                </p>
-              )}
+                {showPasswords.confirm ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
             </div>
+            {formData.confirmPassword && !passwordsMatch ? (
+              <p className="flex items-center gap-1 text-xs text-destructive">
+                <AlertCircle className="h-3.5 w-3.5" />
+                Passwords do not match
+              </p>
+            ) : null}
           </>
         )}
 
-        {error && (
-          <p className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        {successMessage && (
-          <p className="rounded-xl border border-primary/20 bg-primary-soft px-3 py-2 text-sm text-accent-foreground">
-            {successMessage}
-          </p>
-        )}
+        {error ? (
+          <p className="pt-1 text-center text-xs font-medium text-destructive">{error}</p>
+        ) : null}
+        {successMessage ? (
+          <p className="pt-1 text-center text-xs font-medium text-success">{successMessage}</p>
+        ) : null}
 
         <Button
           type="submit"
-          className="w-full"
-          size="lg"
+          className={authButtonClass}
           disabled={
             loading ||
             (otpSent && (!allValidationsPassed || !passwordsMatch || formData.otp.length !== 6))
@@ -421,15 +391,38 @@ function ForgotPasswordForm() {
         >
           {loading ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
               {otpSent ? 'Resetting…' : 'Sending OTP…'}
             </>
           ) : otpSent ? (
             'Reset password'
           ) : (
-            'Send reset OTP'
+            'Send OTP'
           )}
         </Button>
+
+        {!otpSent ? (
+          <>
+            <AuthOrDivider />
+            <p className="text-center text-sm font-semibold">
+              <Link href="/register" className="text-foreground">
+                Create new account
+              </Link>
+            </p>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setOtpSent(false);
+              setFormData((prev) => ({ ...prev, otp: '', newPassword: '', confirmPassword: '' }));
+              resetMessages();
+            }}
+            className="w-full pt-2 text-center text-xs font-medium text-primary"
+          >
+            Use a different number
+          </button>
+        )}
       </form>
     </AuthShell>
   );

@@ -67,7 +67,7 @@ export default function DefaultLandingSetting() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        After you choose a profile, open this page first. Tap to change.
+        After you choose a profile, open this bottom-nav page first. Tap to change.
         {saving ? (
           <Loader2 className="ml-1.5 inline h-3.5 w-3.5 animate-spin align-text-bottom" />
         ) : null}
@@ -83,7 +83,7 @@ export default function DefaultLandingSetting() {
               disabled={saving}
               onClick={() => void save(opt.value)}
               className={cn(
-                'flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition',
+                'flex items-center gap-2.5 rounded-none border px-3 py-2.5 text-left transition',
                 selected
                   ? 'border-primary bg-primary-soft text-primary'
                   : 'border-border bg-surface text-foreground hover:border-primary/40',
@@ -102,7 +102,6 @@ export default function DefaultLandingSetting() {
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-medium">{opt.label}</span>
-                <span className="block text-[11px] text-muted-foreground">{opt.value}</span>
               </span>
             </button>
           );

@@ -4,7 +4,7 @@ import { Bell, BellOff, Loader2 } from 'lucide-react';
 import { usePushNotifications } from '@/lib/hooks/usePushNotifications';
 import { cn } from '@/lib/utils';
 
-export default function PushNotificationToggle() {
+export default function PushNotificationToggle({ embedded = false }: { embedded?: boolean }) {
   const { status, busy, error, subscribe, unsubscribe } = usePushNotifications();
 
   if (status === 'unsupported') return null;
@@ -20,16 +20,23 @@ export default function PushNotificationToggle() {
       : 'Disabled';
 
   return (
-    <section aria-label="Push notifications" className="section-card px-4 py-3.5 sm:px-5">
-      <div className="flex items-center gap-2.5">
-        <span
-          className={cn(
-            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-            enabled ? 'bg-primary-soft text-primary' : 'bg-secondary text-muted-foreground'
-          )}
-        >
-          {enabled ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
-        </span>
+    <section
+      aria-label="Push notifications"
+      className={cn(embedded ? 'px-4 py-3.5' : 'section-card px-4 py-3.5 sm:px-5')}
+    >
+      <div className="flex items-center gap-3">
+        {embedded ? (
+          <Bell className={cn('h-6 w-6 shrink-0', enabled ? 'text-foreground' : 'text-neutral-400')} strokeWidth={1.75} />
+        ) : (
+          <span
+            className={cn(
+              'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+              enabled ? 'bg-primary-soft text-primary' : 'bg-secondary text-muted-foreground'
+            )}
+          >
+            {enabled ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+          </span>
+        )}
         <div className="min-w-0">
           <span className="block text-sm font-semibold text-foreground">Push notifications</span>
           <span className="block text-xs text-muted-foreground">

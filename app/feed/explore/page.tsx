@@ -10,7 +10,7 @@ import { FollowButton } from '@/components/feed/FollowButton';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { ProfilePostViewer } from '@/components/feed/ProfilePostViewer';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
-import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
+import { headerBackBtnClass, pageStickyHeaderClass } from '@/components/ui/AppPageHeader';
 import { followAPI, type FollowPerson } from '@/lib/api/follow';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
@@ -256,6 +256,7 @@ export default function FeedExplorePage() {
   return (
     <MainLayout>
       <div className="space-y-4 pb-6">
+        <div className={cn(pageStickyHeaderClass, 'space-y-3')}>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -303,7 +304,8 @@ export default function FeedExplorePage() {
             >
               {item.label}
             </button>
-          ))}
+            ))}
+          </div>
         </div>
 
         {tab === 'people' ? (

@@ -56,6 +56,11 @@ function insertComment(comments: FeedComment[], comment: FeedComment): FeedComme
   });
 }
 
+function sameId(a?: string | null, b?: string | null) {
+  if (!a || !b) return false;
+  return String(a) === String(b);
+}
+
 function removeCommentsFromTree(comments: FeedComment[], deletedIds: string[]): FeedComment[] {
   const remove = new Set(deletedIds);
   return comments
@@ -72,7 +77,7 @@ export function FeedCommentsSheet({
   onClose,
   readOnly = false,
 }: FeedCommentsSheetProps) {
-  const { selectedProfile, user } = useAuthStore();
+  const { selectedProfile } = useAuthStore();
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -82,14 +87,10 @@ export function FeedCommentsSheet({
   const inputRef = useRef<HTMLInputElement>(null);
   const feedKey = ['feed', selectedProfile?._id] as const;
 
-  const canModeratePost =
-    post.author.profileId === selectedProfile?._id ||
-    post.author.userId === user?._id;
-
+  const myProfileId = selectedProfile?._id || null;
+  const canModeratePost = sameId(post.author.profileId, myProfileId);
   const canDeleteComment = (comment: FeedComment) =>
-    comment.author.profileId === selectedProfile?._id ||
-    comment.author.userId === user?._id ||
-    canModeratePost;
+    sameId(comment.author.profileId, myProfileId) || canModeratePost;
 
   const followingQuery = useQuery({
     queryKey: ['following', selectedProfile?._id, 'comment-mentions'],
@@ -331,8 +332,7 @@ export function FeedCommentsSheet({
             </button>
           ) : null}
           {!readOnly &&
-          comment.author.profileId !== selectedProfile?._id &&
-          comment.author.userId !== user?._id ? (
+          !sameId(comment.author.profileId, myProfileId) ? (
             <button
               type="button"
               className="font-semibold hover:text-foreground"

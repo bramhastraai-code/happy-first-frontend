@@ -11,11 +11,13 @@ import {
 import { restoreSession } from '@/lib/auth/sessionRestore';
 import { performLogout } from '@/lib/auth/session';
 import { useNotificationRealtime } from '@/lib/hooks/useNotificationRealtime';
+import { useFcmForegroundNotifications } from '@/lib/hooks/useFcmForegroundNotifications';
 
 const TOKEN_CHECK_INTERVAL_MS = 60_000;
 
 function NotificationRealtimeBridge() {
   useNotificationRealtime();
+  useFcmForegroundNotifications();
   return null;
 }
 

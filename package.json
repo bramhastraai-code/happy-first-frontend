@@ -21,6 +21,7 @@
     "dexie": "^4.4.4",
     "echarts": "^6.1.0",
     "emoji-picker-react": "^4.19.1",
+    "firebase": "^12.18.0",
     "framer-motion": "^12.42.0",
     "geolib": "^3.3.14",
     "html5-qrcode": "^2.3.8",

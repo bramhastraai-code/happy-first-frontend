@@ -325,7 +325,7 @@ export function AvatarPicker({
 
   return (
     <>
-      <div className={cn('rounded-2xl border border-border bg-secondary/40 p-4', className)}>
+      <div className={cn('rounded-none border border-[#dbdbdb] bg-[#fafafa] p-4', className)}>
         <div className="flex items-center gap-4">
           <button
             type="button"

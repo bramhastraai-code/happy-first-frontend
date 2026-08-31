@@ -46,6 +46,7 @@ import {
 import { getAppSocket } from '@/lib/realtime/socketClient';
 import { useAuthStore } from '@/lib/store/authStore';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
 import { cn } from '@/lib/utils';
 import { chatWallpaperStyle } from '@/components/chat/MessageBubbleTail';
 
@@ -65,6 +66,10 @@ interface CommunityChatTabProps {
   embedded?: boolean;
   /** Shown in the chat header when provided */
   communityName?: string;
+  communityIcon?: string | null;
+  communityAvatarUrl?: string | null;
+  communityAvatarSeed?: string | null;
+  communityAvatarStyle?: string | null;
   /** Back control for inbox / sheet embedding */
   onBack?: () => void;
   /** Optional close control (e.g. dismiss Feed messages sheet) */
@@ -180,6 +185,10 @@ export function CommunityChatTab({
   canModerate = false,
   embedded = false,
   communityName,
+  communityIcon,
+  communityAvatarUrl,
+  communityAvatarSeed,
+  communityAvatarStyle,
   onBack,
   onClose,
   className,
@@ -1143,11 +1152,22 @@ export function CommunityChatTab({
                 <ChevronLeft className="h-5 w-5" />
               </button>
             ) : null}
-            <div className="min-w-0 flex-1 px-1">
-              <p className="truncate text-sm font-semibold text-[#111b21]">
-                {communityName || 'Group chat'}
-              </p>
-              <p className="truncate text-[11px] text-[#667781]">Community · all chat features</p>
+            <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
+              <CommunityAvatar
+                name={communityName || 'Group chat'}
+                icon={communityIcon}
+                avatarUrl={communityAvatarUrl}
+                avatarSeed={communityAvatarSeed}
+                avatarStyle={communityAvatarStyle}
+                size="sm"
+                className="!h-9 !w-9 !rounded-xl"
+              />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-[#111b21]">
+                  {communityName || 'Group chat'}
+                </p>
+                <p className="truncate text-[11px] text-[#667781]">Community · all chat features</p>
+              </div>
             </div>
             <div className="relative">
               <button

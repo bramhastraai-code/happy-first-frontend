@@ -13,6 +13,11 @@ import {
 } from '@/lib/utils/avatar';
 import { cn } from '@/lib/utils';
 import {
+  settingsFieldClass,
+  settingsTextareaClass,
+  settingsBtnClass,
+} from '@/components/settings/settingsUi';
+import {
   DEFAULT_LANDING_OPTIONS,
   DEFAULT_MASCOT_COLOR,
   MASCOT_COLOR_PRESETS,
@@ -23,8 +28,7 @@ import {
 } from '@/lib/theme/mascotTheme';
 import { HappyFirstMascot } from '@/components/ui/HappyFirstMascot';
 
-const FIELD_CLASS =
-  'w-full rounded-xl border border-input bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring';
+const FIELD_CLASS = settingsTextareaClass;
 
 interface EditProfileFormProps {
   onSaved?: () => void;
@@ -283,6 +287,7 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
               placeholder="Your name"
               maxLength={80}
               required
+              className={settingsFieldClass}
             />
           </div>
           <div>
@@ -343,6 +348,7 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
               placeholder="https://example.com"
               maxLength={200}
               inputMode="url"
+              className={settingsFieldClass}
             />
           </div>
           <AvatarPicker
@@ -405,6 +411,7 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
                   value={profileData.profile[field]}
                   onChange={(e) => updateProfileField(field, e.target.value)}
                   placeholder={placeholder}
+                  className={settingsFieldClass}
                 />
               )}
             </div>
@@ -440,6 +447,7 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
                   value={profileData.profile[field]}
                   onChange={(e) => updateProfileField(field, e.target.value)}
                   placeholder={placeholder}
+                  className={settingsFieldClass}
                 />
               )}
             </div>
@@ -468,7 +476,7 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
             </select>
           </div>
 
-          <label className="flex items-start gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-3">
+          <label className="flex items-start gap-3 rounded-none border border-[#dbdbdb] bg-[#fafafa] px-3 py-3">
             <input
               type="checkbox"
               className="mt-0.5 h-4 w-4 accent-primary"
@@ -500,7 +508,7 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
           Mascot & app colour
         </h3>
         <div className="space-y-3">
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-3">
+          <div className="flex items-center gap-3 rounded-none border border-[#dbdbdb] bg-white px-3 py-3">
             <HappyFirstMascot
               size={56}
               title={
@@ -530,6 +538,7 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
               }
               placeholder="Name to be decided"
               maxLength={40}
+              className={settingsFieldClass}
             />
           </div>
           <div>
@@ -605,7 +614,7 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
               ))}
             </select>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              After you pick a profile, open this page instead of Happiness by default.
+              After you pick a profile, open this bottom-nav page instead of Happiness by default.
             </p>
           </div>
         </div>
@@ -620,11 +629,11 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
           variant="outline"
           disabled={loading}
           onClick={handleCancel}
-          className="w-full sm:w-auto"
+          className={cn('w-full sm:w-auto', settingsBtnClass)}
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={!selectedProfile || loading} className="w-full sm:w-auto">
+        <Button type="submit" disabled={!selectedProfile || loading} className={cn('w-full sm:w-auto', settingsBtnClass)}>
           {loading ? 'Saving…' : 'Submit'}
         </Button>
       </div>

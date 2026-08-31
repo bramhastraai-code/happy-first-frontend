@@ -20,7 +20,7 @@ import {
   AppPageHeader,
   headerBackBtnClass,
 } from '@/components/ui/AppPageHeader';
-import { HeaderIconButton, HeaderIconLink } from '@/components/ui/HeaderIconAction';
+import { HeaderIconButton, HeaderOverflowMenu, type HeaderOverflowItem } from '@/components/ui/HeaderIconAction';
 import { NotificationBell } from '@/components/feed/NotificationBell';
 import { CommunityDashboardTab } from '@/components/community/CommunityDashboardTab';
 import { CommunityChatTab } from '@/components/community/CommunityChatTab';
@@ -64,6 +64,7 @@ export default function CommunityDetailPage() {
   const { requestConfirm, ConfirmDialogElement } = useCommunityConfirm();
   const { selectedProfile } = useAuthStore();
   const [tab, setTab] = useState('dashboard');
+  const [chatOpen, setChatOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [leaveError, setLeaveError] = useState<string | null>(null);
@@ -73,10 +74,12 @@ export default function CommunityDetailPage() {
   const [leaveBusy, setLeaveBusy] = useState(false);
 
   useEffect(() => {
-    if (tab === 'chat') {
-      window.scrollTo({ top: 0, behavior: 'auto' });
-    }
-  }, [tab]);
+    if (!chatOpen) return;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [chatOpen]);
 
   const communityQuery = useQuery({
     queryKey: ['community', communityId],
@@ -227,15 +230,45 @@ export default function CommunityDetailPage() {
   const overview = discoverOverviewQuery.data;
   const createdOnLabel = formatCreatedOn(overview?.createdOn || community?.createdAt);
 
+  const overflowItems: HeaderOverflowItem[] = [];
+  if (isAdmin && !isDeleted && !isDisabled) {
+    overflowItems.push({
+      id: 'edit',
+      label: 'Edit',
+      icon: <Pencil />,
+      href: `/community/${communityId}/edit`,
+    });
+  }
+  if (isMember && !isDeleted && !isDisabled) {
+    overflowItems.push({
+      id: 'leave',
+      label: leaveBusy ? 'Leaving…' : 'Leave',
+      icon: leaveBusy ? <Loader2 className="animate-spin" /> : <DoorOpen />,
+      danger: true,
+      disabled: leaveBusy,
+      onClick: requestLeave,
+    });
+  }
+  if (isAdmin && !isDeleted && !isDisabled) {
+    overflowItems.push({
+      id: 'delete',
+      label: deleteMutation.isPending ? 'Deleting…' : 'Delete',
+      icon: deleteMutation.isPending ? <Loader2 className="animate-spin" /> : <Trash2 />,
+      danger: true,
+      disabled: deleteMutation.isPending,
+      onClick: requestDelete,
+    });
+  }
+
   return (
-    <MainLayout>
+    <MainLayout hideBottomNav={chatOpen}>
       <div className="space-y-4">
         <AppPageHeader
           showAvatar={false}
-          actionsPlacement="end"
+          actionsPlacement="stack"
           leading={
-            <div className="flex shrink-0 items-center gap-2">
-              <Link href="/community" className={headerBackBtnClass} aria-label="Back">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+              <Link href="/community" className={`${headerBackBtnClass} -ml-1.5`} aria-label="Back">
                 <ChevronLeft className="h-5 w-5" />
               </Link>
               {community ? (
@@ -245,8 +278,8 @@ export default function CommunityDetailPage() {
                   avatarUrl={community.avatarUrl}
                   avatarSeed={community.avatarSeed}
                   avatarStyle={community.avatarStyle}
-                  size="md"
-                  className="!rounded-2xl"
+                  size="sm"
+                  className="!h-10 !w-10 !rounded-2xl sm:!h-12 sm:!w-12"
                 />
               ) : null}
             </div>
@@ -263,34 +296,31 @@ export default function CommunityDetailPage() {
               <span className="text-destructive">Community not found</span>
             )
           }
-          subtitle={community ? communityTypeLabel(community.type) : 'Happy First Club'}
           meta={
             community ? (
-              <>
-                <p className="line-clamp-2 w-full text-[11px] font-normal normal-case tracking-normal text-muted-foreground sm:text-xs">
-                  {community.description ||
-                    community.activities.map((a) => a.name).join(', ') ||
-                    'Community'}
-                </p>
-                <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground">
-                  <Users className="h-3 w-3 shrink-0" />
-                  <span>
-                    {community.memberCount} members
-                    {isAdmin
-                      ? ' · Admin'
-                      : isModerator
-                        ? ' · Moderator'
-                        : isMember
-                          ? ' · Member'
-                          : isPending
-                            ? ' · Request pending'
-                            : ''}
-                    {community.pendingDisableAt
-                      ? ` · Disables ${formatCreatedOn(community.pendingDisableAt) || 'soon'}`
-                      : ''}
-                  </span>
+              <span className="inline-flex min-w-0 items-center gap-1 text-[11px] leading-snug text-muted-foreground sm:text-xs">
+                <span className="shrink-0">{communityTypeLabel(community.type)}</span>
+                <span aria-hidden className="shrink-0">
+                  ·
                 </span>
-              </>
+                <Users className="h-3 w-3 shrink-0" />
+                <span>
+                  {community.memberCount}{' '}
+                  {community.memberCount === 1 ? 'member' : 'members'}
+                  {isAdmin
+                    ? ' · Admin'
+                    : isModerator
+                      ? ' · Moderator'
+                      : isMember
+                        ? ' · Member'
+                        : isPending
+                          ? ' · Request pending'
+                          : ''}
+                  {community.pendingDisableAt
+                    ? ` · Disables ${formatCreatedOn(community.pendingDisableAt) || 'soon'}`
+                    : ''}
+                </span>
+              </span>
             ) : null
           }
           actions={
@@ -307,43 +337,7 @@ export default function CommunityDetailPage() {
                   onClick={() => setShareOpen(true)}
                 />
               ) : null}
-              {isMember && !isDeleted && !isDisabled ? (
-                <HeaderIconButton
-                  icon={
-                    leaveBusy ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <DoorOpen className="h-[18px] w-[18px]" />
-                    )
-                  }
-                  caption="Leave"
-                  danger
-                  disabled={leaveBusy}
-                  onClick={requestLeave}
-                />
-              ) : null}
-              {isAdmin && !isDeleted && !isDisabled ? (
-                <>
-                  <HeaderIconLink
-                    href={`/community/${communityId}/edit`}
-                    icon={<Pencil className="h-[18px] w-[18px]" />}
-                    caption="Edit"
-                  />
-                  <HeaderIconButton
-                    icon={
-                      deleteMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-[18px] w-[18px]" />
-                      )
-                    }
-                    caption="Delete"
-                    danger
-                    disabled={deleteMutation.isPending}
-                    onClick={requestDelete}
-                  />
-                </>
-              ) : null}
+              <HeaderOverflowMenu items={overflowItems} />
             </>
           }
         />
@@ -403,7 +397,13 @@ export default function CommunityDetailPage() {
                 { id: 'calendar', label: 'Calendar' },
               ]}
               active={tab}
-              onChange={setTab}
+              onChange={(id) => {
+                if (id === 'chat') {
+                  setChatOpen(true);
+                  return;
+                }
+                setTab(id);
+              }}
             />
 
             {tab === 'dashboard' ? (
@@ -427,12 +427,6 @@ export default function CommunityDetailPage() {
               <CommunityAnnouncementsTab
                 communityId={communityId}
                 isModerator={Boolean(isModerator || isAdmin)}
-              />
-            ) : null}
-            {tab === 'chat' ? (
-              <CommunityChatTab
-                communityId={communityId}
-                canModerate={Boolean(isAdmin || isModerator)}
               />
             ) : null}
             {tab === 'kudos' ? (
@@ -698,6 +692,29 @@ export default function CommunityDetailPage() {
           open={shareOpen}
           onClose={() => setShareOpen(false)}
         />
+      ) : null}
+      {chatOpen && community ? (
+        <div className="fixed inset-0 z-[210] flex items-end justify-center sm:items-center sm:p-4">
+          <button
+            type="button"
+            aria-label="Close chat"
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setChatOpen(false)}
+          />
+          <div className="relative flex h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-[#efeae2] shadow-[var(--shadow-float)] sm:h-[78vh] sm:rounded-3xl">
+            <CommunityChatTab
+              communityId={communityId}
+              canModerate={Boolean(isAdmin || isModerator)}
+              embedded
+              communityName={community.name}
+              communityIcon={community.icon}
+              communityAvatarUrl={community.avatarUrl}
+              communityAvatarSeed={community.avatarSeed}
+              communityAvatarStyle={community.avatarStyle}
+              onBack={() => setChatOpen(false)}
+            />
+          </div>
+        </div>
       ) : null}
       {ConfirmDialogElement}
     </MainLayout>

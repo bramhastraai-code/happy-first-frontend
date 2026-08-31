@@ -7,7 +7,7 @@ import { authAPI } from '@/lib/api/auth';
 import { useAuthStore } from '@/lib/store/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import AuthShell from '@/components/layout/AuthShell';
+import AuthShell, { authButtonClass, authFieldClass } from '@/components/layout/AuthShell';
 import CountryCodeSelect from '@/components/ui/CountryCodeSelect';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
@@ -218,7 +218,7 @@ export default function LoginPage() {
 
   const submitLabel =
     loginMethod === 'password'
-      ? 'Sign in'
+      ? 'Log in'
       : loginMethod === 'otp'
       ? otpSent
         ? 'Verify OTP'
@@ -229,18 +229,16 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      title="Welcome back"
-      subtitle="Sign in to continue your wellness streak."
       footer={
         <>
           Don&apos;t have an account?{' '}
-          <Link href="/register" className="font-semibold text-primary hover:underline">
-            Create one
+          <Link href="/register" className="font-semibold text-primary">
+            Sign up
           </Link>
         </>
       }
     >
-      <div className="mb-6 flex rounded-full bg-secondary p-1">
+      <div className="mb-4 flex gap-0 border-b border-[#dbdbdb] text-center text-xs font-semibold">
         {methods.map((method) => (
           <button
             key={method.id}
@@ -252,10 +250,10 @@ export default function LoginPage() {
               resetMessages();
             }}
             className={cn(
-              'flex-1 rounded-full py-2.5 text-sm font-semibold transition-all',
+              '-mb-px flex-1 border-b-2 py-2.5 transition-colors',
               loginMethod === method.id
-                ? 'bg-surface text-primary shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'border-foreground text-foreground'
+                : 'border-transparent text-neutral-400'
             )}
           >
             {method.label}
@@ -273,83 +271,69 @@ export default function LoginPage() {
               : handleRequestOTP
             : handleRequestMagicLink
         }
-        className="space-y-4"
+        className="space-y-1.5"
       >
-        <div>
-          <label htmlFor="countryCode" className="mb-1.5 block text-sm font-medium text-foreground">
-            Country code
-          </label>
+        <div className="flex gap-1.5">
           <CountryCodeSelect
             id="countryCode"
             value={formData.countryCode}
             onChange={(countryCode) => setFormData({ ...formData, countryCode })}
             disabled={phoneLocked || loading}
+            compact
+            dialOnly
+            className="w-[6.75rem] shrink-0"
           />
-        </div>
-
-        <div>
-          <label htmlFor="phoneNumber" className="mb-1.5 block text-sm font-medium text-foreground">
-            Phone number
-          </label>
           <Input
             id="phoneNumber"
             type="tel"
-            placeholder="9999999999"
+            placeholder="Phone number"
             maxLength={10}
             inputMode="numeric"
             autoComplete="tel"
+            aria-label="Phone number"
             value={formData.phoneNumber}
             onChange={(e) =>
               setFormData({ ...formData, phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })
             }
             required
             disabled={phoneLocked || loading}
+            className={authFieldClass}
           />
         </div>
 
         {loginMethod === 'password' && (
-          <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <label htmlFor="password" className="text-sm font-medium text-foreground">
-                Password
-              </label>
-              <Link
-                href={buildForgotPasswordHref(formData.phoneNumber, formData.countryCode)}
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                Forgot password?
-              </Link>
-            </div>
-            <Input
-              id="password"
-              type="password"
-              placeholder="Enter your password"
-              autoComplete="current-password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              required
-              disabled={loading}
-            />
-          </div>
+          <Input
+            id="password"
+            type="password"
+            placeholder="Password"
+            autoComplete="current-password"
+            aria-label="Password"
+            value={formData.password}
+            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            required
+            disabled={loading}
+            className={authFieldClass}
+          />
         )}
 
         {loginMethod === 'otp' && otpSent && (
-          <div>
-            <label htmlFor="otp" className="mb-1.5 block text-sm font-medium text-foreground">
-              One-time password
-            </label>
+          <>
             <Input
               id="otp"
               type="text"
               inputMode="numeric"
-              placeholder="6-digit OTP"
+              placeholder="6-digit code"
+              aria-label="One-time password"
               value={formData.otp}
-              onChange={(e) => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+              onChange={(e) =>
+                setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '').slice(0, 6) })
+              }
               maxLength={6}
               required
               disabled={loading}
+              className={authFieldClass}
             />
-            <div className="mt-3">
+            <div className="pt-1">
               <OtpTimerResend
                 secondsLeft={secondsLeft}
                 canResend={canResend}
@@ -357,26 +341,21 @@ export default function LoginPage() {
                 resending={resendingOtp}
               />
             </div>
-          </div>
+          </>
         )}
 
         {successMessage && (
-          <div className="rounded-2xl bg-success-soft px-4 py-3 text-sm font-medium text-success">
-            {successMessage}
-          </div>
+          <p className="pt-1 text-center text-xs font-medium text-success">{successMessage}</p>
         )}
 
         {error && (
-          <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-destructive">
-            {error}
-          </div>
+          <p className="pt-1 text-center text-xs font-medium text-destructive">{error}</p>
         )}
 
         <Button
           type="submit"
           disabled={loading || (magicLinkSent && loginMethod === 'magicLink')}
-          className="mt-2 w-full"
-          size="lg"
+          className={authButtonClass}
         >
           {loading ? (
             <>
@@ -388,6 +367,17 @@ export default function LoginPage() {
           )}
         </Button>
 
+        {loginMethod === 'password' ? (
+          <p className="pt-3 text-center">
+            <Link
+              href={buildForgotPasswordHref(formData.phoneNumber, formData.countryCode)}
+              className="text-xs text-neutral-500 hover:text-neutral-800"
+            >
+              Forgot password?
+            </Link>
+          </p>
+        ) : null}
+
         {loginMethod === 'otp' && otpSent && (
           <button
             type="button"
@@ -396,7 +386,7 @@ export default function LoginPage() {
               setFormData({ ...formData, otp: '' });
               resetMessages();
             }}
-            className="w-full pt-1 text-sm font-medium text-primary hover:underline"
+            className="w-full pt-2 text-center text-xs font-medium text-primary"
           >
             Use a different number
           </button>

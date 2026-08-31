@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { DateTime } from 'luxon';
-import { ChevronLeft, ChevronRight, Eye, Loader2, MoreVertical, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, Heart, Loader2, MoreVertical, Send, Trash2, X } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FeedStory } from '@/lib/api/feed';
 import { feedAPI } from '@/lib/api/feed';
+import { messagesAPI } from '@/lib/api/messages';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { useAuthStore } from '@/lib/store/authStore';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -35,6 +36,12 @@ export function StoryViewer({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewCount, setViewCount] = useState(0);
+  const [reply, setReply] = useState('');
+  const [replyBusy, setReplyBusy] = useState(false);
+  const [replySent, setReplySent] = useState(false);
+  const [replyError, setReplyError] = useState('');
+  const [replyFocused, setReplyFocused] = useState(false);
+  const replyInputRef = useRef<HTMLInputElement>(null);
 
   const group = stories[groupIndex];
   const isOwner =
@@ -62,6 +69,29 @@ export function StoryViewer({
   }, [group]);
 
   const current = items[itemIndex];
+  const recipientUserId = String(group?.userId || '').trim();
+  const canReply = Boolean(group) && !isOwner && Boolean(recipientUserId);
+
+  const sendReply = async (text: string) => {
+    const trimmed = text.trim();
+    if (!canReply || !recipientUserId || !trimmed || replyBusy) return;
+    setReplyBusy(true);
+    setReplyError('');
+    try {
+      const openRes = await messagesAPI.openConversation(recipientUserId, group?.profileId);
+      const conversationId = openRes.data.data.conversation.id;
+      await messagesAPI.sendMessage(conversationId, `Replied to your story: ${trimmed}`);
+      void queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      setReply('');
+      setReplySent(true);
+      replyInputRef.current?.blur();
+      window.setTimeout(() => setReplySent(false), 1800);
+    } catch {
+      setReplyError('Could not send reply. Try again.');
+    } finally {
+      setReplyBusy(false);
+    }
+  };
 
   const viewersQuery = useQuery({
     queryKey: ['storyViews', current?.id],
@@ -95,8 +125,18 @@ export function StoryViewer({
       setViewersOpen(false);
       setDeleteOpen(false);
       setViewCount(0);
+      setReply('');
+      setReplySent(false);
+      setReplyError('');
+      setReplyFocused(false);
     }
   }, [open, startIndex]);
+
+  useEffect(() => {
+    setReply('');
+    setReplyError('');
+    setReplySent(false);
+  }, [groupIndex]);
 
   useEffect(() => {
     if (!open || !current?.id) return;
@@ -130,6 +170,9 @@ export function StoryViewer({
     if (!open) return;
     document.body.style.overflow = 'hidden';
     const onKey = (event: KeyboardEvent) => {
+      const typing =
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement;
       if (event.key === 'Escape') {
         if (deleteOpen) {
           setDeleteOpen(false);
@@ -140,9 +183,12 @@ export function StoryViewer({
           return;
         }
         if (viewersOpen) setViewersOpen(false);
-        else onClose();
+        else if (typing) {
+          (event.target as HTMLElement).blur();
+        } else onClose();
+        return;
       }
-      if (deleteOpen || viewersOpen || menuOpen) return;
+      if (deleteOpen || viewersOpen || menuOpen || typing) return;
       if (event.key === 'ArrowRight') goNext();
       if (event.key === 'ArrowLeft') goPrev();
     };
@@ -152,7 +198,7 @@ export function StoryViewer({
       window.removeEventListener('keydown', onKey);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, groupIndex, itemIndex, items.length, viewersOpen, deleteOpen, menuOpen]);
+  }, [open, groupIndex, itemIndex, items.length, viewersOpen, deleteOpen, menuOpen, replyFocused]);
 
   const goNext = () => {
     setViewersOpen(false);
@@ -289,18 +335,20 @@ export function StoryViewer({
 
       <button
         type="button"
-        className="absolute inset-y-0 left-0 z-[5] w-1/3"
+        className={`absolute inset-y-0 left-0 z-[5] w-1/3 ${replyFocused ? 'pointer-events-none' : ''}`}
         onClick={goPrev}
         aria-label="Previous"
+        disabled={replyFocused}
       />
       <button
         type="button"
-        className="absolute inset-y-0 right-0 z-[5] w-1/3"
+        className={`absolute inset-y-0 right-0 z-[5] w-1/3 ${replyFocused ? 'pointer-events-none' : ''}`}
         onClick={goNext}
         aria-label="Next"
+        disabled={replyFocused}
       />
 
-      <div className="flex h-full items-center justify-center px-2 pb-16 pt-20">
+      <div className={`flex h-full items-center justify-center px-2 pt-20 ${canReply ? 'pb-28' : 'pb-16'}`}>
         {current.mediaType === 'video' ? (
           <video
             key={current.id}
@@ -322,7 +370,13 @@ export function StoryViewer({
       </div>
 
       {current.caption ? (
-        <p className="absolute inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] z-10 px-6 text-center text-sm text-white">
+        <p
+          className={`absolute inset-x-0 z-10 px-6 text-center text-sm text-white ${
+            canReply
+              ? 'bottom-[calc(6.75rem+env(safe-area-inset-bottom,0px))]'
+              : 'bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))]'
+          }`}
+        >
           {current.caption}
         </p>
       ) : null}
@@ -336,6 +390,60 @@ export function StoryViewer({
           <Eye className="h-4 w-4" />
           {viewCount} {viewCount === 1 ? 'view' : 'views'}
         </button>
+      ) : canReply ? (
+        <form
+          className="absolute inset-x-0 bottom-0 z-30 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] pt-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void sendReply(reply);
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {replySent ? (
+            <p className="mb-2 text-center text-xs font-semibold text-white/90">Sent</p>
+          ) : null}
+          {replyError ? (
+            <p className="mb-2 text-center text-xs font-medium text-red-200">{replyError}</p>
+          ) : null}
+          <div className="flex items-center gap-2">
+            <input
+              ref={replyInputRef}
+              type="text"
+              value={reply}
+              maxLength={500}
+              disabled={replyBusy}
+              placeholder={`Reply to ${group.name.split(/\s+/)[0] || group.name}…`}
+              onFocus={() => setReplyFocused(true)}
+              onBlur={() => setReplyFocused(false)}
+              onChange={(event) => {
+                setReply(event.target.value);
+                if (replyError) setReplyError('');
+              }}
+              className="min-w-0 flex-1 rounded-full border border-white/25 bg-black/35 px-4 py-2.5 text-sm text-white placeholder:text-white/55 outline-none backdrop-blur-sm focus:border-white/50"
+            />
+            <button
+              type="button"
+              disabled={replyBusy}
+              onClick={() => void sendReply('❤️')}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 disabled:opacity-50"
+              aria-label="Send heart"
+            >
+              <Heart className="h-5 w-5" />
+            </button>
+            <button
+              type="submit"
+              disabled={replyBusy || !reply.trim()}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-black hover:bg-white/90 disabled:opacity-40"
+              aria-label="Send reply"
+            >
+              {replyBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        </form>
       ) : null}
 
       <div className="pointer-events-none absolute inset-y-0 left-2 flex items-center">
