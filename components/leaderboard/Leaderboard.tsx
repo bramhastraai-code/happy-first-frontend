@@ -10,13 +10,16 @@ import ActivitySelect from '@/components/ui/ActivitySelect';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Loader2, Trophy, Medal, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resolveProfileTimezone } from '@/lib/utils/profileTime';
 
 const MAX_PAST_WEEKS = 52;
 
-function weekBounds(offset: number) {
-  const start = DateTime.now().startOf('week').plus({ weeks: offset });
+function weekBounds(offset: number, timezone?: string | null) {
+  const zone = resolveProfileTimezone(timezone);
+  const now = DateTime.now().setZone(zone);
+  const start = now.startOf('week').plus({ weeks: offset });
   const weekEnd = start.endOf('week');
-  const end = offset === 0 ? DateTime.now() : weekEnd;
+  const end = offset === 0 ? now : weekEnd;
   const sameYear = start.year === weekEnd.year;
   const rangeLabel = sameYear
     ? `${start.toFormat('d LLL')} – ${weekEnd.toFormat('d LLL yyyy')}`
@@ -44,7 +47,10 @@ export default function Leaderboard() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<string>('');
 
-  const week = useMemo(() => weekBounds(weekOffset), [weekOffset]);
+  const week = useMemo(
+    () => weekBounds(weekOffset, selectedProfile?.timezone),
+    [weekOffset, selectedProfile?.timezone]
+  );
   const asPercent = !selectedActivity;
 
   useEffect(() => {

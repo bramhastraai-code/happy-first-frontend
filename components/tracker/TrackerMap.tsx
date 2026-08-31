@@ -4,6 +4,7 @@ import polyline from '@mapbox/polyline';
 import { useEffect } from 'react';
 import { useMap } from '@vis.gl/react-google-maps';
 import MapView, { UserMarker } from './MapView';
+import { useMascotThemeColor } from '@/lib/hooks/useMascotThemeColor';
 
 function PolylineOverlay({
   path,
@@ -14,12 +15,14 @@ function PolylineOverlay({
 }) {
   const map = useMap();
 
+  const strokeColor = useMascotThemeColor();
+
   useEffect(() => {
     if (!map || path.length < 2) return;
     const line = new google.maps.Polyline({
       path,
       geodesic: true,
-      strokeColor: '#ea580c',
+      strokeColor,
       strokeOpacity: 0.9,
       strokeWeight: 5,
     });
@@ -30,7 +33,7 @@ function PolylineOverlay({
       map.fitBounds(bounds, 48);
     }
     return () => line.setMap(null);
-  }, [map, path, autoFitBounds]);
+  }, [map, path, autoFitBounds, strokeColor]);
 
   return null;
 }

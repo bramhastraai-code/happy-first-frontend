@@ -11,6 +11,8 @@ import {
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
+import { chartPalette } from '@/lib/theme/mascotTheme';
+import { useMascotThemeColor } from '@/lib/hooks/useMascotThemeColor';
 
 echarts.use([
   BarChart,
@@ -50,15 +52,12 @@ interface ActivityChartProps {
   barGroups?: ChartBarGroup[];
 }
 
-const BAR_GRADIENT = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-  { offset: 0, color: '#fb923c' },
-  { offset: 1, color: '#ea580c' },
-]);
-
-const BAR_SELECTED_GRADIENT = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-  { offset: 0, color: '#fdba74' },
-  { offset: 1, color: '#c2410c' },
-]);
+function barGradient(top: string, bottom: string) {
+  return new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+    { offset: 0, color: top },
+    { offset: 1, color: bottom },
+  ]);
+}
 
 function isDenseLineChart(variant: string, count: number) {
   return variant === 'line' && count > 10;
@@ -102,7 +101,7 @@ export default function ActivityChart({
   data,
   variant = 'bar',
   height = 220,
-  color = '#ea580c',
+  color,
   selectedIndex = -1,
   onBarClick,
   tooltipUnit = 'pts',
@@ -114,6 +113,9 @@ export default function ActivityChart({
 }: ActivityChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
+  const themeColor = useMascotThemeColor();
+  const seriesColor = color || themeColor;
+  const palette = chartPalette(seriesColor);
 
   useEffect(() => {
     if (!chartRef.current) return;
@@ -124,6 +126,8 @@ export default function ActivityChart({
 
     const dense = isDenseLineChart(variant, data.length);
     const zoom = dense && enableInsideZoom ? zoomWindow(data.length, selectedIndex) : null;
+    const fill = barGradient(palette.light, palette.primary);
+    const selectedFill = barGradient(palette.light, palette.selected);
 
     const groupedBars = variant === 'bar' && (barGroups?.length ?? 0) > 0;
     const barLabel = showBarLabels
@@ -149,7 +153,7 @@ export default function ActivityChart({
         ? data.map((d, index) => ({
             value: d.value,
             itemStyle: {
-              color: index === selectedIndex ? BAR_SELECTED_GRADIENT : BAR_GRADIENT,
+              color: index === selectedIndex ? selectedFill : fill,
               borderRadius: [8, 8, 0, 0],
               borderColor: index === selectedIndex ? '#1c1917' : 'transparent',
               borderWidth: index === selectedIndex ? 2 : 0,
@@ -169,7 +173,7 @@ export default function ActivityChart({
               symbol: showDot ? 'circle' : 'none',
               symbolSize: isSelected ? 14 : hasPoints ? 10 : 0,
               itemStyle: {
-                color: isSelected ? '#c2410c' : hasPoints ? color : 'transparent',
+                color: isSelected ? palette.selected : hasPoints ? seriesColor : 'transparent',
                 borderColor: isSelected ? '#1c1917' : '#ffffff',
                 borderWidth: isSelected ? 2 : hasPoints ? 1.5 : 0,
               },
@@ -253,7 +257,7 @@ export default function ActivityChart({
           interval: (index: number) => shouldShowAxisLabel(index, data.length, selectedIndex),
           color: (value?: string | number) => {
             const idx = data.findIndex((d) => d.label === String(value));
-            return idx === selectedIndex ? '#c2410c' : '#78716c';
+            return idx === selectedIndex ? palette.selected : '#78716c';
           },
         },
       },
@@ -297,7 +301,7 @@ export default function ActivityChart({
                   connectNulls: true,
                   symbol: 'circle',
                   showSymbol: true,
-                  lineStyle: { color, width: dense ? 2 : 3 },
+                  lineStyle: { color: seriesColor, width: dense ? 2 : 3 },
                   ...(showLineLabels
                     ? {
                         label: {
@@ -326,8 +330,8 @@ export default function ActivityChart({
                     ? undefined
                     : {
                         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                          { offset: 0, color: 'rgba(234,88,12,0.25)' },
-                          { offset: 1, color: 'rgba(234,88,12,0)' },
+                          { offset: 0, color: palette.areaTop },
+                          { offset: 1, color: palette.areaBottom },
                         ]),
                       },
                 },
@@ -359,7 +363,24 @@ export default function ActivityChart({
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, [data, variant, color, onBarClick, selectedIndex, tooltipUnit, yAxisLabelFormatter, showBarLabels, showLineLabels, enableInsideZoom, barGroups]);
+  }, [
+    data,
+    variant,
+    seriesColor,
+    palette.light,
+    palette.primary,
+    palette.selected,
+    palette.areaTop,
+    palette.areaBottom,
+    onBarClick,
+    selectedIndex,
+    tooltipUnit,
+    yAxisLabelFormatter,
+    showBarLabels,
+    showLineLabels,
+    enableInsideZoom,
+    barGroups,
+  ]);
 
   useEffect(() => {
     return () => {

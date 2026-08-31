@@ -73,7 +73,7 @@ function ProgressBar({
           'relative h-full rounded-full transition-[width] duration-700 ease-out',
           over
             ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-            : 'bg-gradient-to-r from-primary via-primary to-orange-400'
+            : 'bg-gradient-to-r from-primary via-primary to-primary-hover'
         )}
         style={{ width: `${width}%` }}
       >

@@ -32,7 +32,7 @@ export function ChatShareCardBubble({ card, mine }: ChatShareCardBubbleProps) {
         'min-w-[220px] max-w-full overflow-hidden rounded-xl border',
         mine
           ? 'border-white/20 bg-black/10 text-primary-foreground'
-          : 'border-black/5 bg-gradient-to-br from-orange-50 to-white text-[#111b21]'
+          : 'border-black/5 bg-gradient-to-br from-primary-soft to-white text-[#111b21]'
       )}
     >
       <div className="flex items-center gap-2 border-b border-black/5 px-3 py-2">

@@ -28,7 +28,7 @@ function StoryRingAvatar({
   onAddStory?: () => void;
 }) {
   return (
-    <span className="relative overflow-visible rounded-[1.35rem] bg-gradient-to-tr from-primary via-orange-400 to-amber-300 p-[2px]">
+    <span className="relative overflow-visible rounded-[1.35rem] bg-gradient-to-tr from-primary to-primary-hover p-[2px]">
       <span className="relative block overflow-hidden rounded-[1.2rem] bg-surface p-[2px]">
         <ProfileAvatar
           name={story.name}

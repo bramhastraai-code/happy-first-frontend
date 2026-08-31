@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { DateTime } from 'luxon';
 import {
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   MessageCircle,
@@ -988,19 +989,33 @@ export function FeedPostCard({
 
       {previewOpen
         ? createPortal(
-            <div className="fixed inset-0 z-[240] flex items-center justify-center bg-black/90 p-3 sm:p-6">
+            <div className="fixed inset-0 z-[240] flex items-center justify-center bg-black/90 p-3 pt-16 sm:p-6 sm:pt-16">
               <button
                 type="button"
                 aria-label="Close preview"
                 className="absolute inset-0 cursor-zoom-out"
                 onClick={() => setPreviewOpen(false)}
               />
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setPreviewOpen(false);
+                }}
+                className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+                aria-label="Back"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
               {multi && safeIndex > 0 ? (
                 <button
                   type="button"
-                  onClick={goPrev}
-                  className="absolute left-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
-                  aria-label="Previous"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    goPrev();
+                  }}
+                  className="absolute left-4 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+                  aria-label="Previous photo"
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
@@ -1008,9 +1023,12 @@ export function FeedPostCard({
               {multi && safeIndex < mediaItems.length - 1 ? (
                 <button
                   type="button"
-                  onClick={goNext}
-                  className="absolute right-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
-                  aria-label="Next"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    goNext();
+                  }}
+                  className="absolute right-4 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+                  aria-label="Next photo"
                 >
                   <ChevronRight className="h-5 w-5" />
                 </button>

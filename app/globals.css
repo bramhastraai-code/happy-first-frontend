@@ -58,9 +58,14 @@ body {
   min-height: 100dvh;
 }
 
+html.hf-tour-active,
+html.hf-tour-active body {
+  overflow-x: visible;
+}
+
 ::selection {
-  background: #fed7aa;
-  color: #7c2d12;
+  background: var(--color-primary-soft);
+  color: var(--color-accent-foreground);
 }
 
 @keyframes fade-up {
@@ -176,9 +181,5 @@ body {
 }
 
 .gradient-orange {
-  background: linear-gradient(135deg, #fff7ed 0%, #ffffff 60%);
-}
-
-.auth-container {
-  @apply mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 py-8 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] pt-[calc(2rem+env(safe-area-inset-top,0px))] sm:max-w-lg sm:px-8;
+  background: linear-gradient(135deg, var(--color-primary-soft) 0%, #ffffff 60%);
 }

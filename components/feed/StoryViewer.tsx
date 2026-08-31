@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { DateTime } from 'luxon';
-import { ChevronLeft, ChevronRight, Eye, Heart, Loader2, MoreVertical, Send, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Eye, Heart, Loader2, MoreVertical, Send, Trash2, X } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FeedStory } from '@/lib/api/feed';
 import { feedAPI } from '@/lib/api/feed';
@@ -249,7 +249,18 @@ export function StoryViewer({
         ))}
       </div>
 
-      <div className="absolute inset-x-0 top-[calc(1.5rem+env(safe-area-inset-top,0px))] z-20 flex items-center gap-2 px-4">
+      <div className="absolute inset-x-0 top-[calc(1.5rem+env(safe-area-inset-top,0px))] z-20 flex items-center gap-2 px-3">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onClose();
+          }}
+          className="relative z-30 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+          aria-label="Back"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <Link
             href={`/feed/profile/${group.profileId}`}

@@ -5,18 +5,19 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Flame, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, Coins, Sparkles, Check, X, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react';
+import { Trophy, Flame, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, Coins, Sparkles, Check, X, ChevronLeft, ChevronRight, ClipboardList, HelpCircle } from 'lucide-react';
 import { economyAPI, type EconomySummary } from '@/lib/api/economy';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
 import Leaderboard from '@/components/leaderboard/Leaderboard';
 import { DashboardHeader } from '@/components/ui/DashboardHeader';
+import { HeaderIconButton } from '@/components/ui/HeaderIconAction';
 import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
 import { StatCard } from '@/components/ui/PageHeader';
 import { DateTime } from 'luxon';
 import GuidedTour from '@/components/ui/GuidedTour';
-import TourStartButton from '@/components/ui/TourStartButton';
+import CreatePlanFab from '@/components/ui/CreatePlanFab';
 import { homeTourSteps } from '@/lib/utils/tourSteps';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import ActivityChart from '@/components/charts/ActivityChart';
@@ -70,7 +71,6 @@ function HomePageContent() {
   // Empty until mount — avoids Vercel SSR (UTC) baking the wrong calendar day into state.
   const [logDateFilter, setLogDateFilter] = useState<string>('');
   const [runTour, setRunTour] = useState(false);
-  const [showTourButton, setShowTourButton] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [weekendPrompt, setWeekendPrompt] = useState<PlanChoiceState['weekendPrompt'] | null>(
     null
@@ -171,13 +171,20 @@ function HomePageContent() {
   }, [dataEnabled, selectedProfile?._id]);
 
   const handleStartTour = () => {
-    setRunTour(true);
-    setShowTourButton(false);
+    setExpandedSections({
+      social: true,
+      community: true,
+      weeklyPerformance: true,
+      activityGoals: true,
+      pendingActivities: true,
+      leaderboard: true,
+      logTracker: true,
+    });
+    window.setTimeout(() => setRunTour(true), 160);
   };
 
   const handleTourFinish = () => {
     setRunTour(false);
-    setShowTourButton(true);
     localStorage.setItem('tourCompleted', 'true');
   };
 
@@ -214,8 +221,7 @@ function HomePageContent() {
       ? new Date(selectedProfile.createdAt).toDateString() === new Date().toDateString()
       : false;
     if (isUserCreatedToday && localStorage.getItem('tourCompleted') !== 'true') {
-      setRunTour(true);
-      setShowTourButton(false);
+      handleStartTour();
     }
   }, [isBootstrapping, selectedProfile]);
 
@@ -320,9 +326,7 @@ function HomePageContent() {
       {/* Guided Tour - Only render on client */}
       {isMounted && <GuidedTour run={runTour} onFinish={handleTourFinish} steps={homeTourSteps} />}
 
-      {isMounted && showTourButton && (
-        <TourStartButton onClick={handleStartTour} />
-      )}
+      {isMounted ? <CreatePlanFab /> : null}
 
       {isMounted ? <DailyMotivationQuote suppressed={runTour} /> : null}
 
@@ -331,6 +335,13 @@ function HomePageContent() {
           className="welcome-banner"
           subtitle={new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
           isPaused={isProfilePaused}
+          extraActions={
+            <HeaderIconButton
+              icon={<HelpCircle className="h-4 w-4" />}
+              caption="Tour"
+              onClick={handleStartTour}
+            />
+          }
           onOpenMessages={() => {
             setOpenConversationId(null);
             setMessagesOpen(true);
@@ -532,7 +543,7 @@ function HomePageContent() {
                     className={`
                       flex h-10 w-10 items-center justify-center rounded-2xl transition-colors sm:h-11 sm:w-11 md:h-12 md:w-12
                       ${day.hasLog
-                        ? 'bg-gradient-to-br from-orange-400 to-red-500 shadow-md'
+                        ? 'bg-gradient-to-br from-primary to-primary-hover shadow-md'
                         : day.isFuture
                         ? 'border-2 border-gray-200 bg-gray-100'
                         : 'border-2 border-border bg-white hover:border-primary'
@@ -564,7 +575,7 @@ function HomePageContent() {
                 aria-label={`${daysLoggedThisWeek} of 7 days logged this week`}
               >
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-orange-400 to-red-500 transition-all duration-500"
+                  className="h-full rounded-full bg-gradient-to-r from-primary to-primary-hover transition-all duration-500"
                   style={{ width: `${(daysLoggedThisWeek / 7) * 100}%` }}
                 />
               </div>
@@ -745,8 +756,8 @@ function HomePageContent() {
                       {weeklyPlan.activities.filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0).length > 0 && (
                         <div className="space-y-3 mt-6">
                           <div className="flex items-center gap-2 mb-3">
-                            <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                              <span className="text-orange-600 text-sm font-semibold">📊</span>
+                            <div className="w-8 h-8 rounded-lg bg-primary-soft flex items-center justify-center">
+                              <span className="text-primary text-sm font-semibold">📊</span>
                             </div>
                             <h2 className="text-base font-semibold text-gray-900">Weekly Activities</h2>
                           </div>
@@ -764,7 +775,7 @@ function HomePageContent() {
                               return (
                                 <div key={index} className={`${isSurprise
                                   ? 'bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50 border-l-4 border-amber-400'
-                                  : 'bg-gradient-to-br from-orange-50 to-amber-50 border-l-4 border-orange-400'
+                                  : 'bg-gradient-to-br from-primary-soft to-surface border-l-4 border-primary'
                                   } rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 relative`}>
                                   {isSurprise && (
                                     <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1">
@@ -774,7 +785,7 @@ function HomePageContent() {
                                   )}
                                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
                                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSurprise ? 'bg-amber-100' : 'bg-orange-100'
+                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSurprise ? 'bg-amber-100' : 'bg-primary-soft'
                                         }`}>
                                         <span className="text-xl">{isSurprise ? '🎁' : '○'}</span>
                                       </div>
@@ -792,7 +803,7 @@ function HomePageContent() {
                                       </div>
                                     </div>
                                     <div className="text-left sm:text-right sm:ml-3">
-                                      <p className={`text-sm font-bold ${isSurprise ? 'text-amber-700' : 'text-orange-700'}`}>
+                                      <p className={`text-sm font-bold ${isSurprise ? 'text-amber-700' : 'text-primary'}`}>
                                         {remaining}
                                       </p>
                                       <p className="text-xs text-gray-500 mt-0.5">{activityData?.unit} left</p>
@@ -807,7 +818,7 @@ function HomePageContent() {
                                       <div
                                         className={`h-full rounded-full transition-all duration-500 ${isSurprise
                                           ? 'bg-gradient-to-r from-amber-400 to-orange-400'
-                                          : 'bg-gradient-to-r from-orange-400 to-amber-500'
+                                          : 'bg-gradient-to-r from-primary to-primary-hover'
                                           }`}
                                         style={{ width: `${Math.min(progress, 100)}%` }}
                                       ></div>
@@ -1172,7 +1183,7 @@ function HomePageContent() {
                   <div className="bg-gradient-to-br bg-accent rounded-xl p-5 border border-border shadow-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-orange-500 flex items-center justify-center shadow-md">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center shadow-md">
                           <Calendar className="w-6 h-6 text-white" />
                         </div>
                         <div>
@@ -1206,7 +1217,7 @@ function HomePageContent() {
                     </div>
                     {selectedDayStreak > 0 && (
                       <div className="flex items-center gap-2.5 mt-3 pt-3 border-t border-border">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shadow-sm">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center shadow-sm">
                           <Flame className="w-4 h-4 text-white" />
                         </div>
                         <span className="text-sm font-bold text-gray-900">
@@ -1219,7 +1230,7 @@ function HomePageContent() {
                   {/* Activities List */}
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 px-1">
-                      <div className="w-1 h-5 bg-gradient-to-b from-orange-500 to-indigo-600 rounded-full"></div>
+                      <div className="w-1 h-5 bg-gradient-to-b from-primary to-primary-hover rounded-full"></div>
                       <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Activity Details</h4>
                     </div>
                     {selectedDayLog.activities.map((activity, index) => {

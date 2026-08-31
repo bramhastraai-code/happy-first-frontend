@@ -25,7 +25,7 @@ export default function CadenceSlider({ value, onChange, disabled = false }: Cad
       : disabled
       ? 'bg-gradient-to-br from-gray-300 to-gray-400'
       : value === 'daily'
-      ? 'bg-gradient-to-br from-primary to-orange-500'
+      ? 'bg-gradient-to-br from-primary to-primary-hover'
       : 'bg-gradient-to-br from-violet-500 to-purple-600';
 
   return (

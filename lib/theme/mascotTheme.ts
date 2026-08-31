@@ -74,6 +74,52 @@ export function accentForegroundHex(hex: string): string {
   return darkenHex(hex, 0.35);
 }
 
+/** Mix toward white for chart bar tops / selected highlights. */
+export function lightenHex(hex: string, amount = 0.28): string {
+  const { r, g, b } = hexToRgb(hex);
+  return rgbToHex(
+    r + (255 - r) * amount,
+    g + (255 - g) * amount,
+    b + (255 - b) * amount
+  );
+}
+
+export function hexToRgba(hex: string, alpha: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** Live primary from CSS (respects in-form colour preview before save). */
+export function getActiveMascotColor(fallback?: string | null): string {
+  if (typeof document !== 'undefined') {
+    const fromCss = getComputedStyle(document.documentElement)
+      .getPropertyValue('--color-primary')
+      .trim()
+      .toLowerCase();
+    if (/^#[0-9a-f]{6}$/.test(fromCss)) return fromCss;
+  }
+  return normalizeMascotColor(fallback);
+}
+
+export const MASCOT_THEME_EVENT = 'mascot-theme-change';
+
+function notifyMascotThemeChange() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(MASCOT_THEME_EVENT));
+}
+
+export function chartPalette(hex?: string | null) {
+  const primary = normalizeMascotColor(hex);
+  return {
+    primary,
+    light: lightenHex(primary, 0.32),
+    selected: darkenHex(primary, 0.18),
+    hover: darkenHex(primary),
+    areaTop: hexToRgba(primary, 0.25),
+    areaBottom: hexToRgba(primary, 0),
+  };
+}
+
 export function applyMascotTheme(color?: string | null) {
   if (typeof document === 'undefined') return;
   const primary = normalizeMascotColor(color);
@@ -95,6 +141,7 @@ export function applyMascotTheme(color?: string | null) {
 
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', primary);
+  notifyMascotThemeChange();
 }
 
 export function clearMascotTheme() {
@@ -114,4 +161,5 @@ export function clearMascotTheme() {
 
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', DEFAULT_MASCOT_COLOR);
+  notifyMascotThemeChange();
 }
