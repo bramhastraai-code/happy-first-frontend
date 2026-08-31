@@ -2,6 +2,8 @@
 
 import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
 import type { ReactNode } from 'react';
+import { chartPalette } from '@/lib/theme/mascotTheme';
+import { useMascotThemeColor } from '@/lib/hooks/useMascotThemeColor';
 
 const DEFAULT_CENTER = { lat: 28.6139, lng: 77.209 };
 
@@ -47,9 +49,10 @@ export default function MapView({
 }
 
 export function UserMarker({ position }: { position: { lat: number; lng: number } }) {
+  const palette = chartPalette(useMascotThemeColor());
   return (
     <AdvancedMarker position={position}>
-      <Pin background="#ea580c" borderColor="#9a3412" glyphColor="#fff" />
+      <Pin background={palette.primary} borderColor={palette.hover} glyphColor="#fff" />
     </AdvancedMarker>
   );
 }

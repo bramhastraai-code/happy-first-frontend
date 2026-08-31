@@ -10,7 +10,7 @@ export function HomeMotivationCard() {
   const quote = getDailyMotivationQuote(profileId);
 
   return (
-    <div className="section-card overflow-hidden bg-gradient-to-br from-primary-soft via-surface to-surface p-4">
+    <div className="home-motivation section-card overflow-hidden bg-gradient-to-br from-primary-soft via-surface to-surface p-4">
       <div className="flex items-start gap-3">
         <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <Quote className="h-4 w-4" />

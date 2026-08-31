@@ -693,7 +693,6 @@ export function StreakCalendarView({
                 data={moodChartData}
                 variant="line"
                 height={200}
-                color="#ea580c"
                 tooltipUnit=""
                 showLineLabels
                 enableInsideZoom={false}

@@ -62,7 +62,7 @@ export function ProfileAvatar({
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center bg-gradient-to-br from-primary to-orange-500 font-bold text-primary-foreground',
+        'inline-flex shrink-0 items-center justify-center bg-gradient-to-br from-primary to-primary-hover font-bold text-primary-foreground',
         sizeClass[size],
         roundedClass[rounded],
         className

@@ -48,7 +48,7 @@ export function HomeCategoryCards({
   }, [weeklyPlan, activityList]);
 
   return (
-    <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+    <div className="home-category-cards grid grid-cols-3 gap-2.5 sm:gap-3">
       {CATEGORIES.map((category) => {
         const { total, logged } = stats[category.id];
         const hint =

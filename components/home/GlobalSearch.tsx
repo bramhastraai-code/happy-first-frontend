@@ -173,7 +173,7 @@ export function GlobalSearch() {
     'flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-secondary';
 
   return (
-    <div ref={containerRef} className="relative space-y-2">
+    <div ref={containerRef} className="home-search relative space-y-2">
       <div className="flex items-center gap-2">
         <label className="relative block min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

@@ -98,7 +98,7 @@ function MagicLinkVerifyContent() {
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Magic Link</h1>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-orange-500 bg-clip-text text-transparent mb-8">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-hover bg-clip-text text-transparent mb-8">
             {BRAND_NAME}
           </h2>
 
@@ -178,7 +178,7 @@ export default function MagicLinkVerifyPage() {
           <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
             <div className="text-center">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Magic Link</h1>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-orange-500 bg-clip-text text-transparent mb-8">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-hover bg-clip-text text-transparent mb-8">
                 {BRAND_NAME}
               </h2>
               <div className="space-y-4">

@@ -517,8 +517,7 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
               }
             />
             <p className="min-w-0 text-xs text-muted-foreground">
-              Name is still to be decided — pick one below. Your mascot colour paints buttons,
-              accents, and pages for this profile.
+              Name is still to be decided. Pick one below.
             </p>
           </div>
           <div>

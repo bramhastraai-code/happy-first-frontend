@@ -16,13 +16,13 @@ import { HeaderIconButton } from '@/components/ui/HeaderIconAction';
 import { Button } from '@/components/ui/button';
 import TaskCategorySection from '@/components/tasks/TaskCategorySection';
 import CommunityActivitiesSection from '@/components/tasks/CommunityActivitiesSection';
-import { Calendar, ChevronRight, Timer, TrendingUp, CheckCircle2, AlertCircle, Pencil, RefreshCw, PlusCircle } from 'lucide-react';
+import { Calendar, ChevronRight, Timer, TrendingUp, CheckCircle2, AlertCircle, Pencil, RefreshCw, PlusCircle, HelpCircle } from 'lucide-react';
 import type { WeeklyPlan, WeeklyPlanActivity, PlanChoiceState } from '@/lib/api/weeklyPlan';
 import { WeekendPlanPromptCard } from '@/components/plan/WeekendPlanPromptCard';
 import { CommunityInvitePromptCard } from '@/components/community/CommunityInvitePromptCard';
 import { authAPI } from '@/lib/api/auth';
 import GuidedTour from '@/components/ui/GuidedTour';
-import TourStartButton from '@/components/ui/TourStartButton';
+import CreatePlanFab from '@/components/ui/CreatePlanFab';
 import { tasksTourSteps } from '@/lib/utils/tourSteps';
 import { activityAPI, Activity as ActivityType } from '@/lib/api/activity';
 import { DateTime } from 'luxon';
@@ -59,7 +59,6 @@ export default function TasksPage() {
   const [isAfter6PM, setIsAfter6PM] = useState(false);
   const [userData, setUserData] = useState(null);
   const [runTour, setRunTour] = useState(false);
-  const [showTourButton, setShowTourButton] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [showCongrats, setShowCongrats] = useState(false);
   const [earnedPoints, setEarnedPoints] = useState(0);
@@ -466,12 +465,10 @@ export default function TasksPage() {
 
   const handleStartTour = () => {
     setRunTour(true);
-    setShowTourButton(false);
   };
 
   const handleTourFinish = () => {
     setRunTour(false);
-    setShowTourButton(true);
   };
 
   const handleConfirmSubmit = () => {
@@ -517,10 +514,7 @@ export default function TasksPage() {
       {/* Guided Tour - Only render on client */}
       {isMounted && <GuidedTour run={runTour} onFinish={handleTourFinish} steps={tasksTourSteps} />}
 
-      {/* Tour Start Button - Only render on client */}
-      {isMounted && showTourButton && (
-        <TourStartButton onClick={handleStartTour} />
-      )}
+      {isMounted ? <CreatePlanFab /> : null}
 
       <div className="tasks-header mb-6 flex flex-col gap-3">
         <AppPageHeader
@@ -545,20 +539,27 @@ export default function TasksPage() {
             </span>
           }
           actions={
-            <HeaderIconButton
-              className="hidden sm:inline-flex"
-              icon={<Pencil className="h-4 w-4" />}
-              caption={
-                planChoice?.canEditCurrent
-                  ? 'Edit plan'
-                  : planChoice?.needsPlanChoice
-                    ? 'Create'
-                    : hasUpcomingPlan
-                      ? 'Upcoming'
-                      : 'Create'
-              }
-              onClick={() => router.push(editPlanHref)}
-            />
+            <>
+              <HeaderIconButton
+                icon={<HelpCircle className="h-4 w-4" />}
+                caption="Tour"
+                onClick={handleStartTour}
+              />
+              <HeaderIconButton
+                className="hidden sm:inline-flex"
+                icon={<Pencil className="h-4 w-4" />}
+                caption={
+                  planChoice?.canEditCurrent
+                    ? 'Edit plan'
+                    : planChoice?.needsPlanChoice
+                      ? 'Create'
+                      : hasUpcomingPlan
+                        ? 'Upcoming'
+                        : 'Create'
+                }
+                onClick={() => router.push(editPlanHref)}
+              />
+            </>
           }
         />
         <div className="flex flex-col gap-3">
