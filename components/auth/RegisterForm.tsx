@@ -9,9 +9,8 @@ import { BRAND_NAME } from '@/lib/brand';
 import { authAPI } from '@/lib/api/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import AuthShell from '@/components/layout/AuthShell';
+import AuthShell, { authButtonClass, authFieldClass } from '@/components/layout/AuthShell';
 import CountryCodeSelect from '@/components/ui/CountryCodeSelect';
-import RegisterStepper from '@/components/ui/RegisterStepper';
 import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter';
 import {
   getPasswordStrength,
@@ -27,7 +26,7 @@ import { TIMEZONE_OPTIONS } from '@/lib/utils/timezones';
 import { COUNTRY_OPTIONS } from '@/lib/utils/countries';
 import { setPendingCommunityId } from '@/lib/utils/pendingCommunity';
 
-const labelClassName = 'mb-1.5 block text-sm font-medium text-foreground';
+const labelClassName = 'sr-only';
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
@@ -201,18 +200,16 @@ export default function RegisterForm() {
 
   return (
     <AuthShell
-      title={step === 'phone' ? 'Create your account' : 'Complete your profile'}
-      subtitle={
+      title={
         step === 'phone'
-          ? `Join ${BRAND_NAME} with your WhatsApp number. We’ll send a code to verify it.`
-          : 'A few details so we can personalize your wellness journey.'
+          ? 'Sign up to start your wellness journey.'
+          : 'Complete your profile to get started.'
       }
-      headerExtra={<RegisterStepper step={step} />}
       footer={
         <>
-          Already have an account?{' '}
-          <Link href="/login" className="font-semibold text-primary hover:underline">
-            Sign in
+          Have an account?{' '}
+          <Link href="/login" className="font-semibold text-primary">
+            Log in
           </Link>
         </>
       }
@@ -226,109 +223,99 @@ export default function RegisterForm() {
             exit={{ opacity: 0, x: 12 }}
             transition={{ duration: 0.2 }}
             onSubmit={handlePhoneSubmit}
-            className="space-y-4"
+            className="space-y-1.5"
           >
-            <div>
-              <label htmlFor="countryCode" className={labelClassName}>
-                Country code
-              </label>
+            <div className="flex gap-1.5">
               <CountryCodeSelect
                 id="countryCode"
                 value={formData.countryCode}
                 onChange={(countryCode) => setFormData({ ...formData, countryCode })}
+                compact
+                dialOnly
+                className="w-[6.75rem] shrink-0"
               />
-            </div>
-
-            <div>
-              <label htmlFor="phoneNumber" className={labelClassName}>
-                Phone number
-              </label>
-              <Input
-                id="phoneNumber"
-                className={fieldErrorClass('phoneNumber')}
-                type="tel"
-                placeholder="9999999999"
-                maxLength={10}
-                inputMode="numeric"
-                autoComplete="tel"
-                autoFocus
-                value={formData.phoneNumber}
-                onChange={(e) => {
-                  clearFieldError('phoneNumber');
-                  setFormData({
-                    ...formData,
-                    phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10),
-                  });
-                }}
-                required
-              />
-              <FieldError message={fieldErrors.phoneNumber} />
-              {!fieldErrors.phoneNumber && (
-                <p className="mt-1 text-xs text-muted-foreground">10-digit mobile number</p>
-              )}
+              <div className="min-w-0 flex-1">
+                <label htmlFor="phoneNumber" className={labelClassName}>
+                  Phone number
+                </label>
+                <Input
+                  id="phoneNumber"
+                  className={cn(authFieldClass, fieldErrorClass('phoneNumber'))}
+                  type="tel"
+                  placeholder="Phone number"
+                  maxLength={10}
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  autoFocus
+                  value={formData.phoneNumber}
+                  onChange={(e) => {
+                    clearFieldError('phoneNumber');
+                    setFormData({
+                      ...formData,
+                      phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10),
+                    });
+                  }}
+                  required
+                />
+                <FieldError message={fieldErrors.phoneNumber} />
+              </div>
             </div>
 
             <div>
               <label htmlFor="referral" className={labelClassName}>
-                Referral code{' '}
-                <span className="font-normal text-muted-foreground">(optional)</span>
+                Referral code
               </label>
               {isReferralLocked && formData.referredBy ? (
-                <div className="flex items-center gap-2.5 rounded-2xl border border-success/20 bg-success-soft px-3.5 py-3">
+                <div className="flex items-center gap-2 rounded-[4px] border border-success/20 bg-success-soft px-2.5 py-2">
                   <Gift className="h-4 w-4 shrink-0 text-success" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-success">Invite applied</p>
-                    <p className="truncate text-sm font-semibold text-foreground">
-                      {formData.referredBy}
-                    </p>
-                  </div>
+                  <p className="truncate text-xs font-semibold text-foreground">
+                    Invite applied · {formData.referredBy}
+                  </p>
                 </div>
               ) : (
                 <Input
                   id="referral"
                   type="text"
-                  placeholder="Enter referral code"
+                  placeholder="Referral code (optional)"
                   value={formData.referredBy}
                   onChange={(e) =>
                     setFormData({ ...formData, referredBy: e.target.value.trim() })
                   }
+                  className={authFieldClass}
                 />
               )}
             </div>
 
             {error && (
-              <div
-                role="alert"
-                className="rounded-2xl bg-red-50 px-4 py-3 text-center text-sm font-medium text-destructive"
-              >
+              <p role="alert" className="pt-1 text-center text-xs font-medium text-destructive">
                 {error}
-              </div>
+              </p>
             )}
 
-            <p className="text-center text-xs text-muted-foreground">
-              Already registered?{' '}
-              <Link
-                href={buildForgotPasswordHref(formData.phoneNumber, formData.countryCode)}
-                className="font-medium text-primary hover:underline"
-              >
-                Reset password
-              </Link>
-              {' · '}
-              <Link href="/login" className="font-medium text-primary hover:underline">
-                Sign in
-              </Link>
-            </p>
-
-            <Button type="submit" className="w-full" size="lg" disabled={!phoneValid || loading}>
+            <Button
+              type="submit"
+              className={authButtonClass}
+              disabled={!phoneValid || loading}
+            >
               {loading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Checking…
                 </>
               ) : (
-                'Continue'
+                'Sign up'
               )}
             </Button>
+
+            <p className="pt-2 text-center text-[11px] leading-snug text-neutral-400">
+              By signing up, you agree to our terms. Already registered?{' '}
+              <Link
+                href={buildForgotPasswordHref(formData.phoneNumber, formData.countryCode)}
+                className="font-semibold text-neutral-600"
+              >
+                Reset password
+              </Link>
+            </p>
           </motion.form>
         ) : (
           <motion.form
@@ -338,19 +325,16 @@ export default function RegisterForm() {
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.2 }}
             onSubmit={handleRegister}
-            className="space-y-4"
+            className="space-y-1.5"
           >
-            <div className="flex items-center justify-between gap-3 rounded-2xl bg-secondary/70 px-3.5 py-3">
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Phone number</p>
-                <p className="truncate text-sm font-semibold text-foreground">
-                  {formData.countryCode} {formData.phoneNumber}
-                </p>
-              </div>
+            <div className="mb-2 flex items-center justify-between gap-2 text-xs text-neutral-500">
+              <p className="truncate font-medium">
+                {formData.countryCode} {formData.phoneNumber}
+              </p>
               <button
                 type="button"
                 onClick={goToPhoneStep}
-                className="shrink-0 text-sm font-semibold text-primary hover:underline"
+                className="shrink-0 font-semibold text-primary"
                 disabled={loading}
               >
                 Edit
@@ -363,9 +347,9 @@ export default function RegisterForm() {
               </label>
               <Input
                 id="name"
-                className={fieldErrorClass('name')}
+                className={cn(authFieldClass, fieldErrorClass('name'))}
                 type="text"
-                placeholder="John Doe"
+                placeholder="Full name"
                 autoComplete="name"
                 autoFocus
                 value={formData.name}
@@ -385,9 +369,9 @@ export default function RegisterForm() {
               </label>
               <Input
                 id="email"
-                className={fieldErrorClass('email')}
+                className={cn(authFieldClass, fieldErrorClass('email'))}
                 type="email"
-                placeholder="john@example.com"
+                placeholder="Email"
                 autoComplete="email"
                 value={formData.email}
                 onChange={(e) => {
@@ -406,7 +390,7 @@ export default function RegisterForm() {
               </label>
               <Input
                 id="dateOfBirth"
-                className={fieldErrorClass('dateOfBirth')}
+                className={cn(authFieldClass, fieldErrorClass('dateOfBirth'))}
                 type="date"
                 value={formData.dateOfBirth}
                 onChange={(e) => {
@@ -430,7 +414,7 @@ export default function RegisterForm() {
                   clearFieldError('country');
                   setFormData({ ...formData, country: e.target.value });
                 }}
-                className={cn('h-12 rounded-2xl text-base md:text-sm', fieldErrorClass('country'))}
+                className={cn(authFieldClass, 'pr-8', fieldErrorClass('country'))}
                 disabled={loading}
                 required
               >
@@ -443,16 +427,16 @@ export default function RegisterForm() {
               <FieldError message={fieldErrors.country} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-1.5">
               <div>
                 <label htmlFor="city" className={labelClassName}>
                   City
                 </label>
                 <Input
                   id="city"
-                  className={fieldErrorClass('city')}
+                  className={cn(authFieldClass, fieldErrorClass('city'))}
                   type="text"
-                  placeholder="Mumbai"
+                  placeholder="City"
                   autoComplete="address-level2"
                   value={formData.city}
                   onChange={(e) => {
@@ -470,9 +454,9 @@ export default function RegisterForm() {
                 </label>
                 <Input
                   id="area"
-                  className={fieldErrorClass('area')}
+                  className={cn(authFieldClass, fieldErrorClass('area'))}
                   type="text"
-                  placeholder="Andheri West"
+                  placeholder="Area"
                   autoComplete="address-level3"
                   value={formData.area}
                   onChange={(e) => {
@@ -497,7 +481,7 @@ export default function RegisterForm() {
                   clearFieldError('timezone');
                   setFormData({ ...formData, timezone: e.target.value });
                 }}
-                className={cn('h-12 rounded-2xl text-base md:text-sm', fieldErrorClass('timezone'))}
+                className={cn(authFieldClass, 'pr-8', fieldErrorClass('timezone'))}
                 disabled={loading}
                 required
               >
@@ -517,9 +501,9 @@ export default function RegisterForm() {
               <div className="relative">
                 <Input
                   id="password"
-                  className={cn('pr-11', fieldErrorClass('password'))}
+                  className={cn(authFieldClass, 'pr-11', fieldErrorClass('password'))}
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="At least 6 characters"
+                  placeholder="Password"
                   autoComplete="new-password"
                   value={formData.password}
                   onChange={(e) => {
@@ -533,7 +517,7 @@ export default function RegisterForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-foreground"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -547,38 +531,26 @@ export default function RegisterForm() {
             </div>
 
             {error && (
-              <div
-                role="alert"
-                className="rounded-2xl bg-red-50 px-4 py-3 text-center text-sm font-medium text-destructive"
-              >
+              <p role="alert" className="pt-1 text-center text-xs font-medium text-destructive">
                 {error}
-              </div>
+              </p>
             )}
 
-            <p className="text-center text-xs leading-relaxed text-muted-foreground">
-              By continuing, you agree to receive WhatsApp messages for OTP and reminders from{' '}
-              {BRAND_NAME}.
-            </p>
-
-            <Button type="submit" disabled={loading} className="w-full" size="lg">
+            <Button type="submit" disabled={loading} className={authButtonClass}>
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Creating account…
+                  Signing up…
                 </>
               ) : (
-                'Create account'
+                'Sign up'
               )}
             </Button>
 
-            <button
-              type="button"
-              onClick={goToPhoneStep}
-              className="w-full text-sm font-medium text-primary hover:underline"
-              disabled={loading}
-            >
-              Back to phone number
-            </button>
+            <p className="pt-2 text-center text-[11px] leading-snug text-neutral-400">
+              By signing up, you agree to receive WhatsApp messages for OTP and reminders from{' '}
+              {BRAND_NAME}.
+            </p>
           </motion.form>
         )}
       </AnimatePresence>

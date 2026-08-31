@@ -17,6 +17,8 @@ interface CountryCodeSelectProps {
   id?: string;
   className?: string;
   compact?: boolean;
+  /** Flag + dial code only (auth phone row). */
+  dialOnly?: boolean;
 }
 
 export default function CountryCodeSelect({
@@ -26,6 +28,7 @@ export default function CountryCodeSelect({
   id,
   className,
   compact = false,
+  dialOnly = false,
 }: CountryCodeSelectProps) {
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -103,6 +106,8 @@ export default function CountryCodeSelect({
         className={cn(
           'flex w-full items-center justify-between gap-2 rounded-2xl border border-input bg-surface px-4 text-left text-sm transition-colors',
           compact ? 'h-10 rounded-xl px-3' : 'h-12',
+          dialOnly &&
+            'h-10 rounded-none border-[#e7e5e4] bg-white px-2 shadow-none focus-visible:ring-0',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           disabled && 'cursor-not-allowed opacity-50'
         )}
@@ -111,8 +116,16 @@ export default function CountryCodeSelect({
           <span className="text-lg leading-none" aria-hidden>
             {selected.flag}
           </span>
-          <span className="truncate font-medium text-foreground">{selected.name}</span>
-          <span className="shrink-0 font-semibold text-primary">{selected.dialCode}</span>
+          {dialOnly ? (
+            <span className="shrink-0 text-xs font-semibold text-foreground">
+              {selected.dialCode}
+            </span>
+          ) : (
+            <>
+              <span className="truncate font-medium text-foreground">{selected.name}</span>
+              <span className="shrink-0 font-semibold text-primary">{selected.dialCode}</span>
+            </>
+          )}
         </span>
         <ChevronDown
           className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
@@ -120,17 +133,22 @@ export default function CountryCodeSelect({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-float)]">
-          <div className="border-b border-border p-3">
+        <div
+          className={cn(
+            'absolute z-50 mt-2 overflow-hidden rounded-none border border-[#e7e5e4] bg-white shadow-[var(--shadow-float)]',
+            dialOnly ? 'left-0 w-[min(18.5rem,calc(100vw-2rem))]' : 'w-full'
+          )}
+        >
+          <div className="border-b border-[#e7e5e4] p-2">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 ref={searchRef}
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search country or code…"
-                className="h-10 w-full rounded-xl border border-input bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-10 w-full rounded-none border border-[#e7e5e4] bg-white pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
           </div>
@@ -138,7 +156,7 @@ export default function CountryCodeSelect({
           <ul
             id={listId}
             role="listbox"
-            className="max-h-56 overflow-y-auto p-1.5"
+            className="max-h-56 overflow-y-auto"
             aria-label="Country codes"
           >
             {filtered.length === 0 ? (
@@ -152,7 +170,7 @@ export default function CountryCodeSelect({
                       type="button"
                       onClick={() => handleSelect(country)}
                       className={cn(
-                        'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors',
+                        'flex w-full items-center gap-3 rounded-none px-3 py-2.5 text-left text-sm transition-colors',
                         isSelected
                           ? 'bg-primary-soft text-foreground'
                           : 'hover:bg-secondary text-foreground'

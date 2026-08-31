@@ -13,7 +13,6 @@ import {
   Repeat2,
   Share2,
   Trash2,
-  X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { FeedPost } from '@/lib/api/feed';
@@ -594,14 +593,6 @@ export function ProfilePostViewer({
               {posts.length} {posts.length === 1 ? 'post' : 'posts'} 
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface text-foreground shadow-sm transition-colors hover:bg-secondary"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5 stroke-[2.5]" />
-          </button>
         </header>
 
         <div

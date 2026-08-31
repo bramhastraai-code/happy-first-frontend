@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Rss, Users, User } from 'lucide-react';
+import { Sparkles, Users, User, type LucideIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/store/authStore';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { HappyIcon } from '@/components/ui/HappyIcon';
 
 /**
  * My Inspiration → Feed (social)
@@ -18,14 +19,14 @@ const navigation = [
   {
     name: 'Inspiration',
     href: '/feed',
-    icon: Rss,
+    icon: Sparkles,
     match: (pathname: string) =>
       pathname === '/feed' || pathname.startsWith('/feed/'),
   },
   {
     name: 'Happiness',
     href: '/home',
-    icon: Home,
+    icon: 'happy' as const,
     match: (pathname: string) =>
       pathname === '/home' ||
       pathname.startsWith('/home/') ||
@@ -52,6 +53,26 @@ const navigation = [
   },
 ] as const;
 
+function NavGlyph({
+  icon,
+  isActive,
+}: {
+  icon: LucideIcon | 'happy';
+  isActive: boolean;
+}) {
+  if (icon === 'happy') {
+    return (
+      <HappyIcon
+        className="h-5 w-5"
+        filled={isActive}
+        strokeWidth={isActive ? 2.5 : 2}
+      />
+    );
+  }
+  const Icon = icon;
+  return <Icon className={cn('h-5 w-5', isActive && 'stroke-[2.5]')} />;
+}
+
 export default function BottomNav() {
   const pathname = usePathname();
   const selectedProfile = useAuthStore((s) => s.selectedProfile);
@@ -62,7 +83,6 @@ export default function BottomNav() {
         <div className="flex h-[4.25rem] items-center justify-around">
           {navigation.map((item) => {
             const isActive = item.match(pathname);
-            const Icon = item.icon;
             const showAvatar = 'isProfile' in item && item.isProfile;
 
             return (
@@ -94,7 +114,7 @@ export default function BottomNav() {
                     )}
                   />
                 ) : (
-                  <Icon className={cn('h-5 w-5', isActive && 'stroke-[2.5]')} />
+                  <NavGlyph icon={item.icon} isActive={isActive} />
                 )}
                 <span className="text-[10px] font-semibold sm:text-xs">{item.name}</span>
               </Link>

@@ -15,19 +15,13 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle, action, className }: PageHeaderProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35 }}
-    >
-      <AppPageHeader
-        title={title}
-        subtitle={subtitle}
-        subtitleTone="plain"
-        actions={action}
-        className={cn('mb-5', className)}
-      />
-    </motion.div>
+    <AppPageHeader
+      title={title}
+      subtitle={subtitle}
+      subtitleTone="plain"
+      actions={action}
+      className={className}
+    />
   );
 }
 

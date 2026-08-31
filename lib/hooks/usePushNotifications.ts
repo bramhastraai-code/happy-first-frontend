@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { notificationsAPI } from '@/lib/api/notifications';
 import { useAuthStore } from '@/lib/store/authStore';
+import {
+  getFcmDeviceToken,
+  getFirebaseMessaging,
+  getPushServiceWorker,
+} from '@/lib/firebase/messaging';
+import { firebaseVapidKey, isFirebaseWebConfigured } from '@/lib/firebase/config';
 
 export type PushStatus =
   | 'unsupported'
@@ -10,6 +16,8 @@ export type PushStatus =
   | 'denied'
   | 'subscribed'
   | 'unsubscribed';
+
+const FCM_TOKEN_KEY = 'hf-fcm-token';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -38,10 +46,24 @@ async function getVapidPublicKey(): Promise<string | null> {
   }
 }
 
+async function subscribeWebPush(registration: ServiceWorkerRegistration) {
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    const publicKey = await getVapidPublicKey();
+    if (!publicKey) {
+      throw new Error('Push notifications are not configured on the server.');
+    }
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+    });
+  }
+  await notificationsAPI.pushSubscribe(subscription.toJSON());
+}
+
 /**
- * Manages the browser push subscription for background (PWA) notifications.
- * Note: the service worker is disabled in development, so push only works
- * in production builds.
+ * Manages browser / PWA push so alerts still arrive when the app is in the
+ * background or closed. Prefers Firebase Cloud Messaging, with Web Push fallback.
  */
 export function usePushNotifications() {
   const { isHydrated, accessToken } = useAuthStore();
@@ -59,6 +81,11 @@ export function usePushNotifications() {
       return;
     }
     try {
+      const stored = window.localStorage.getItem(FCM_TOKEN_KEY);
+      if (stored) {
+        setStatus('subscribed');
+        return;
+      }
       const registration = await navigator.serviceWorker.getRegistration();
       const subscription = await registration?.pushManager.getSubscription();
       setStatus(subscription ? 'subscribed' : 'unsubscribed');
@@ -72,6 +99,31 @@ export function usePushNotifications() {
     void refresh();
   }, [isHydrated, accessToken, refresh]);
 
+  useEffect(() => {
+    if (!isHydrated || !accessToken) return;
+    if (!isPushSupported() || Notification.permission !== 'granted') return;
+    if (!isFirebaseWebConfigured() || !firebaseVapidKey) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getFcmDeviceToken();
+        if (!token || cancelled) return;
+        const stored = window.localStorage.getItem(FCM_TOKEN_KEY);
+        if (token === stored) return;
+        await notificationsAPI.pushSubscribeFcm(token);
+        window.localStorage.setItem(FCM_TOKEN_KEY, token);
+        setStatus('subscribed');
+      } catch {
+        // Keep existing Web Push subscription if FCM refresh fails.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isHydrated, accessToken]);
+
   const subscribe = useCallback(async () => {
     if (busy || !isPushSupported()) return;
     setBusy(true);
@@ -84,22 +136,35 @@ export function usePushNotifications() {
         return;
       }
 
-      const registration = await navigator.serviceWorker.ready;
-      let subscription = await registration.pushManager.getSubscription();
-
-      if (!subscription) {
-        const publicKey = await getVapidPublicKey();
-        if (!publicKey) {
-          setError('Push notifications are not configured on the server.');
-          return;
-        }
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
-        });
+      const registration = await getPushServiceWorker();
+      if (!registration) {
+        setError('Could not register a service worker for notifications.');
+        return;
       }
 
-      await notificationsAPI.pushSubscribe(subscription.toJSON());
+      await navigator.serviceWorker.ready.catch(() => registration);
+
+      const canUseFcm = isFirebaseWebConfigured() && Boolean(firebaseVapidKey);
+      if (canUseFcm) {
+        try {
+          if (!(await getFirebaseMessaging())) {
+            throw new Error('This browser does not support Firebase Messaging.');
+          }
+          const token = await getFcmDeviceToken();
+          if (token) {
+            await notificationsAPI.pushSubscribeFcm(token);
+            window.localStorage.setItem(FCM_TOKEN_KEY, token);
+            setStatus('subscribed');
+            return;
+          }
+        } catch (fcmError) {
+          const message =
+            fcmError instanceof Error ? fcmError.message : 'Firebase messaging failed';
+          console.warn('FCM subscribe failed, trying Web Push', message);
+        }
+      }
+
+      await subscribeWebPush(registration);
       setStatus('subscribed');
     } catch {
       setError('Could not enable push notifications. Please try again.');
@@ -115,6 +180,12 @@ export function usePushNotifications() {
     setError('');
 
     try {
+      const stored = window.localStorage.getItem(FCM_TOKEN_KEY);
+      if (stored) {
+        await notificationsAPI.pushUnsubscribeFcm(stored).catch(() => {});
+        window.localStorage.removeItem(FCM_TOKEN_KEY);
+      }
+
       const registration = await navigator.serviceWorker.getRegistration();
       const subscription = await registration?.pushManager.getSubscription();
       if (subscription) {

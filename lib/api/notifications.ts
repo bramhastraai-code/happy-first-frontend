@@ -33,6 +33,9 @@ export interface AppNotification {
     userId?: string | null;
     profileId?: string | null;
     name: string;
+    avatarUrl?: string | null;
+    avatarSeed?: string | null;
+    avatarStyle?: string | null;
   };
 }
 
@@ -50,13 +53,21 @@ export const notificationsAPI = {
   markAllRead: () => api.post<Envelope<{ unread: number }>>('/notifications/read-all'),
 
   pushPublicKey: () =>
-    api.get<Envelope<{ publicKey: string | null; enabled: boolean }>>(
+    api.get<Envelope<{ publicKey: string | null; enabled: boolean; fcmEnabled?: boolean }>>(
       '/notifications/push/public-key'
     ),
 
   pushSubscribe: (subscription: PushSubscriptionJSON) =>
     api.post<Envelope<{ id: string }>>('/notifications/push/subscribe', { subscription }),
 
+  pushSubscribeFcm: (fcmToken: string) =>
+    api.post<Envelope<{ id: string; provider?: string }>>('/notifications/push/subscribe', {
+      fcmToken,
+    }),
+
   pushUnsubscribe: (endpoint: string) =>
     api.post<Envelope<{ removed: number }>>('/notifications/push/unsubscribe', { endpoint }),
+
+  pushUnsubscribeFcm: (fcmToken: string) =>
+    api.post<Envelope<{ removed: number }>>('/notifications/push/unsubscribe', { fcmToken }),
 };

@@ -25,7 +25,7 @@ function ReminderTimeInput({
     <Input
       type="time"
       className={cn(
-        'reminder-time-input h-9 shrink-0 pl-3 text-sm',
+        'reminder-time-input h-9 shrink-0 rounded-none pl-3 text-sm shadow-none',
         invalid && 'border-destructive focus-visible:ring-destructive/30',
         className
       )}
@@ -201,7 +201,7 @@ function WeeklyReminderRow({
           disabled={!schedule.weekly.enabled}
           onChange={(e) => onUpdate({ day: Number(e.target.value) })}
           aria-label="Weekly reminder day"
-          className="h-9 w-full appearance-none rounded-lg border border-input bg-surface pl-3 pr-9 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+          className="h-9 w-full appearance-none rounded-none border border-[#dbdbdb] bg-[#fafafa] pl-3 pr-9 text-sm text-foreground outline-none focus:ring-0 disabled:opacity-50"
         >
           {WEEKDAY_OPTIONS.map((day) => (
             <option key={day.value} value={day.value}>
@@ -253,7 +253,7 @@ export default function ReminderScheduleEditor({
             {activeDailyCount} of {DAILY_REMINDER_SLOTS.length} active
           </span>
         </div>
-        <div className="divide-y divide-border rounded-xl border border-border bg-surface">
+        <div className="divide-y divide-[#efefef] rounded-none border border-[#dbdbdb] bg-white">
           {DAILY_REMINDER_UI_ORDER.map((slot) => (
             <DailyReminderRow
               key={slot}
@@ -279,7 +279,7 @@ export default function ReminderScheduleEditor({
                 : 'Off'}
           </span>
         </div>
-        <div className="rounded-xl border border-border bg-surface">
+        <div className="rounded-none border border-[#dbdbdb] bg-white">
           <WeeklyReminderRow
             schedule={schedule}
             onUpdate={(patch) => updateSlot('weekly', patch)}

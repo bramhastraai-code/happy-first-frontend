@@ -6,6 +6,7 @@ import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { settingsFieldClass, settingsBtnClass } from '@/components/settings/settingsUi';
 
 export const DELETE_PROFILE_CONFIRMATION = 'delete profile';
 
@@ -65,7 +66,7 @@ export function DeleteAccountDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-account-title"
-        className="relative w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-float)]"
+        className="relative w-full max-w-sm rounded-none border border-[#dbdbdb] bg-white p-5 shadow-[var(--shadow-float)]"
       >
         <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
           <Trash2 className="h-5 w-5" />
@@ -90,21 +91,21 @@ export function DeleteAccountDialog({
           placeholder={DELETE_PROFILE_CONFIRMATION}
           disabled={loading}
           autoComplete="off"
-          className="mt-3"
+          className={cn('mt-3', settingsFieldClass)}
           aria-label={`Type ${DELETE_PROFILE_CONFIRMATION} to confirm`}
         />
         {error ? (
           <p className="mt-2 text-sm text-destructive">{error}</p>
         ) : null}
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <Button type="button" variant="outline" disabled={loading} onClick={onCancel}>
+          <Button type="button" variant="outline" disabled={loading} onClick={onCancel} className={settingsBtnClass}>
             Cancel
           </Button>
           <Button
             type="button"
             disabled={loading || !canDelete}
             onClick={() => onConfirm(confirmation.trim())}
-            className={cn('bg-destructive text-destructive-foreground hover:bg-destructive/90')}
+            className={cn('bg-destructive text-destructive-foreground hover:bg-destructive/90', settingsBtnClass)}
           >
             {loading ? 'Deleting…' : 'Delete account'}
           </Button>

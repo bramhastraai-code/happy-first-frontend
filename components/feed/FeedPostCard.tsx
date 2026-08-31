@@ -995,14 +995,6 @@ export function FeedPostCard({
                 className="absolute inset-0 cursor-zoom-out"
                 onClick={() => setPreviewOpen(false)}
               />
-              <button
-                type="button"
-                onClick={() => setPreviewOpen(false)}
-                className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top,0px))] z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/40 bg-black/70 text-white shadow-lg backdrop-blur-sm hover:bg-black/85"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5 stroke-[2.5]" />
-              </button>
               {multi && safeIndex > 0 ? (
                 <button
                   type="button"
@@ -1017,7 +1009,7 @@ export function FeedPostCard({
                 <button
                   type="button"
                   onClick={goNext}
-                  className="absolute right-16 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 sm:right-4 sm:top-auto"
+                  className="absolute right-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
                   aria-label="Next"
                 >
                   <ChevronRight className="h-5 w-5" />

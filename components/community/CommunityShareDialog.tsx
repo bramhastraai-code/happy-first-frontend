@@ -135,15 +135,6 @@ export function CommunityShareDialog({
           </p>
         </div>
 
-        <div
-          className={cn(
-            'mt-4 break-all rounded-2xl border border-white/70 bg-white/55 px-3.5 py-2.5',
-            'text-[11px] leading-relaxed text-[#4b5563] backdrop-blur-md'
-          )}
-        >
-          {joinUrl}
-        </div>
-
         <div className="mt-4 grid grid-cols-2 gap-2.5">
           <button
             type="button"

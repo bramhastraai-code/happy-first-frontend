@@ -6,12 +6,11 @@ import { authAPI } from '@/lib/api/auth';
 import { useAuthStore } from '@/lib/store/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import AuthShell from '@/components/layout/AuthShell';
+import AuthShell, { authButtonClass, authFieldClass } from '@/components/layout/AuthShell';
 import LoadingScreen from '@/components/ui/LoadingScreen';
-import RegisterStepper from '@/components/ui/RegisterStepper';
 import { OtpTimerResend } from '@/components/auth/OtpTimerResend';
 import { useOtpCountdown } from '@/lib/hooks/useOtpCountdown';
-import { DEFAULT_OTP_EXPIRY_MINUTES } from '@/lib/auth/otpSession';
+import { cn } from '@/lib/utils';
 
 function VerifyOTPContent() {
   const router = useRouter();
@@ -137,12 +136,20 @@ function VerifyOTPContent() {
 
   return (
     <AuthShell
-      title="Verify your number"
-      subtitle={`Enter the 6-digit code sent to ${countryCode} ${phoneNumber} on WhatsApp. Valid for ${DEFAULT_OTP_EXPIRY_MINUTES} minutes.`}
-      headerExtra={<RegisterStepper step="verify" />}
+      title="Enter confirmation code"
+      subtitle={`Enter the 6-digit code sent to ${countryCode} ${phoneNumber} on WhatsApp.`}
+      footer={
+        <button
+          type="button"
+          onClick={() => router.push('/register')}
+          className="font-semibold text-foreground"
+        >
+          Back to sign up
+        </button>
+      }
     >
-      <form onSubmit={handleVerify} className="space-y-6">
-        <div className="flex justify-center gap-2 sm:gap-2.5">
+      <form onSubmit={handleVerify} className="space-y-3">
+        <div className="flex justify-center gap-1.5">
           {otp.map((digit, index) => (
             <Input
               key={index}
@@ -153,7 +160,10 @@ function VerifyOTPContent() {
               value={digit}
               onChange={(e) => handleOtpChange(index, e.target.value)}
               onKeyDown={(e) => handleKeyDown(index, e)}
-              className="h-12 w-12 shrink-0 rounded-full px-0 text-center text-xl font-semibold shadow-sm focus-visible:border-2 focus-visible:border-primary focus-visible:ring-0"
+              className={cn(
+                authFieldClass,
+                'h-11 w-9 shrink-0 px-0 text-center text-base font-semibold'
+              )}
               autoFocus={index === 0}
             />
           ))}
@@ -166,18 +176,16 @@ function VerifyOTPContent() {
           resending={resending}
         />
 
-        {successMessage && (
-          <div className="rounded-xl bg-success-soft p-3 text-center text-sm font-medium text-success">
-            {successMessage}
-          </div>
-        )}
+        {successMessage ? (
+          <p className="text-center text-xs font-medium text-success">{successMessage}</p>
+        ) : null}
 
-        {error && (
-          <div className="rounded-xl bg-red-50 p-3 text-center text-sm text-red-600">{error}</div>
-        )}
+        {error ? (
+          <p className="text-center text-xs font-medium text-destructive">{error}</p>
+        ) : null}
 
-        <Button type="submit" disabled={loading} className="w-full">
-          {loading ? 'Verifying…' : 'Verify OTP'}
+        <Button type="submit" disabled={loading} className={authButtonClass}>
+          {loading ? 'Verifying…' : 'Confirm'}
         </Button>
       </form>
     </AuthShell>

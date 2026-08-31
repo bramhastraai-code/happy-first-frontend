@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
@@ -14,7 +13,6 @@ import {
   User,
   UserPlus,
   Users,
-  ChevronRight,
   LogOut,
   MessageSquare,
   PauseCircle,
@@ -41,13 +39,17 @@ import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { AppQuickLinks } from '@/components/nav/AppQuickLinks';
 import { Button } from '@/components/ui/button';
 import {
+  SettingsGroup,
+  SettingsRow,
+  settingsBtnClass,
+} from '@/components/settings/settingsUi';
+import {
   mergeReminderSchedule,
   ReminderSchedule,
   getEnabledReminderCount,
   hasValidReminderSchedule,
   getReminderScheduleIssues,
 } from '@/lib/utils/reminderSchedule';
-import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
 import {
   DEFAULT_LANDING_OPTIONS,
@@ -59,7 +61,7 @@ const MAX_FAMILY_MEMBERS = 5;
 function defaultLandingSubtitle(path?: string | null) {
   const resolved = resolveDefaultLanding(path);
   const label =
-    DEFAULT_LANDING_OPTIONS.find((opt) => opt.value === resolved)?.label ?? 'Happiness (Home)';
+    DEFAULT_LANDING_OPTIONS.find((opt) => opt.value === resolved)?.label ?? 'Happiness';
   return `Opens ${label} first`;
 }
 
@@ -294,61 +296,9 @@ export default function SettingsPage() {
   return (
     <MainLayout>
       <AppPageHeader
-        title={
-          <>
-            {getTimeGreeting()},{' '}
-            <span className="text-primary">
-              {firstNameFrom(selectedProfile?.name || userData?.name || user?.name)}
-            </span>
-          </>
-        }
-        subtitle={new Date().toLocaleDateString('en-US', {
-          weekday: 'long',
-          month: 'short',
-          day: 'numeric',
-        })}
-        subtitleTone="label"
-        meta={
-          <>
-            <span className="inline-flex rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary sm:text-xs">
-              Settings
-            </span>
-            {selectedProfile?.memberSince || selectedProfile?.createdAt ? (
-              <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
-                Member since{' '}
-                {new Date(
-                  (selectedProfile.memberSince || selectedProfile.createdAt) as string
-                ).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-                {' · '}
-                {Math.max(
-                  0,
-                  Math.floor(
-                    (Date.now() -
-                      new Date(
-                        (selectedProfile.memberSince || selectedProfile.createdAt) as string
-                      ).getTime()) /
-                      (24 * 60 * 60 * 1000)
-                  )
-                )}{' '}
-                days
-              </span>
-            ) : null}
-            {userData?.phoneNumber ? (
-              <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
-                {userData.phoneNumber}
-              </span>
-            ) : null}
-            {userData?.email ? (
-              <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
-                {userData.email}
-              </span>
-            ) : null}
-          </>
-        }
+        title="Settings"
+        subtitle="Manage your account"
+        subtitleTone="plain"
         actions={
           <>
             <HeaderIconButton
@@ -361,27 +311,25 @@ export default function SettingsPage() {
         }
       />
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         {selectedProfile && completionPercentage < 100 && (
-          <div className="rounded-2xl border border-primary/20 bg-primary-soft p-4">
+          <div className="rounded-none border border-[#dbdbdb] bg-white p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
-                <span className="inline-flex rounded-xl bg-primary/10 p-2 text-primary">
-                  <AlertCircle className="h-5 w-5" />
-                </span>
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 <div>
                   <p className="text-sm font-semibold text-foreground">
                     Profile {completionPercentage}% complete
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Complete your lifestyle profile for better recommendations and earn 100 Happy
-                    Coins (one-time). Meaningful updates later in a quarter earn 10 more coins.
+                    Finish your lifestyle profile for better recs and 100 Happy Coins (one-time).
+                    Meaningful quarterly updates earn 10 more.
                   </p>
                 </div>
               </div>
               <Button
                 size="sm"
-                className="shrink-0"
+                className={cn('shrink-0', settingsBtnClass)}
                 onClick={() => {
                   setOpenPanel('edit-profile');
                   requestAnimationFrame(() => {
@@ -392,9 +340,9 @@ export default function SettingsPage() {
                 Complete profile
               </Button>
             </div>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
+            <div className="mt-3 h-1 overflow-hidden bg-secondary">
               <div
-                className="h-full rounded-full bg-primary transition-all duration-300"
+                className="h-full bg-primary transition-all duration-300"
                 style={{ width: `${completionPercentage}%` }}
               />
             </div>
@@ -404,169 +352,147 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <section aria-label="Profile">
-          <h2 className="section-title mb-3">Profile</h2>
-          <div className="space-y-3">
-            {hasFamilyMembers && (
-              <div className="section-card px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => router.push('/select-profile')}
-                  className="flex w-full items-center gap-3 text-left"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
-                    <Users className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground">Switch profile</p>
-                    <p className="text-xs text-muted-foreground">Change active family member</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                </button>
-              </div>
-            )}
+        <SettingsGroup label="Your account">
+          {hasFamilyMembers ? (
+            <SettingsRow
+              icon={Users}
+              title="Switch profile"
+              subtitle="Change active family member"
+              onClick={() => router.push('/select-profile')}
+            />
+          ) : null}
 
-            <CollapsibleSection
-              title="Add family member"
-              subtitle={`${familyCount} of ${MAX_FAMILY_MEMBERS} profiles used`}
-              icon={UserPlus}
-              expanded={openPanel === 'add-family'}
-              onToggle={() => togglePanel('add-family')}
-            >
-              <AddFamilyMemberForm />
-            </CollapsibleSection>
-
-            <CollapsibleSection
-              id="edit-profile"
-              title="Edit profile"
-              subtitle={
-                completionPercentage < 100
-                  ? `${completionPercentage}% complete · earn 100 coins at 100%`
-                  : 'Lifestyle, goals, and preferences'
-              }
-              icon={User}
-              expanded={openPanel === 'edit-profile'}
-              onToggle={() => togglePanel('edit-profile')}
-            >
-              <EditProfileForm
-                onSaved={() => setOpenPanel(null)}
-                onCancel={() => setOpenPanel(null)}
-              />
-            </CollapsibleSection>
-
-            <CollapsibleSection
-              id="default-landing"
-              title="Default landing after login"
-              subtitle={defaultLandingSubtitle(
-                selectedProfile?.preferences?.defaultLanding
-              )}
-              icon={Home}
-              expanded={openPanel === 'default-landing'}
-              onToggle={() => togglePanel('default-landing')}
-            >
-              <DefaultLandingSetting />
-            </CollapsibleSection>
-
-            <CollapsibleSection
-              id="reminder-schedule"
-              title="Reminder schedule"
-              badge={
-                getEnabledReminderCount(reminderSchedule) === 0
-                  ? 'None active'
-                  : `${getEnabledReminderCount(reminderSchedule)} active`
-              }
-              icon={Bell}
-              expanded={openPanel === 'reminders'}
-              onToggle={() => togglePanel('reminders')}
-              contentClassName="space-y-3"
-            >
-              <ReminderScheduleEditor schedule={reminderSchedule} onChange={setReminderSchedule} />
-              <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center">
-                <Button
-                  onClick={handleSaveReminders}
-                  disabled={
-                    !selectedProfile ||
-                    reminderSaving ||
-                    !hasValidReminderSchedule(reminderSchedule)
-                  }
-                  className="sm:w-auto"
-                >
-                  {reminderSaving ? 'Saving…' : 'Save schedule'}
-                </Button>
-                {reminderMessage && <p className="text-sm text-primary">{reminderMessage}</p>}
-                {reminderError && <p className="text-sm text-destructive">{reminderError}</p>}
-              </div>
-            </CollapsibleSection>
-          </div>
-        </section>
-
-        <PushNotificationToggle />
-
-        <section aria-label="Pause service" className="section-card px-4 py-3.5 sm:px-5">
-          <div className="flex items-center gap-2.5">
-            <span
-              className={cn(
-                'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-                isPauseEnabled ? 'bg-amber-100 text-amber-700' : 'bg-primary-soft text-primary'
-              )}
-            >
-              {isPauseEnabled ? (
-                <PauseCircle className="h-4 w-4" />
-              ) : (
-                <PlayCircle className="h-4 w-4" />
-              )}
-            </span>
-            <span className="shrink-0 text-sm font-semibold text-foreground">Pause service</span>
-            <span className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-              <span
-                className={cn(
-                  'h-2 w-2 rounded-full',
-                  isPauseEnabled ? 'bg-amber-500' : 'bg-primary'
-                )}
-                aria-hidden
-              />
-              {isPauseEnabled ? 'Paused' : 'Active'}
-            </span>
-            <button
-              type="button"
-              onClick={handlePauseToggle}
-              disabled={!selectedProfile || !canChangePauseToday || pauseLoading}
-              className={cn(
-                'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full px-0.5 transition-colors',
-                isPauseEnabled ? 'bg-amber-500' : 'bg-primary',
-                (!selectedProfile || !canChangePauseToday || pauseLoading) &&
-                  'cursor-not-allowed opacity-50'
-              )}
-              title={
-                !canChangePauseToday
-                  ? 'Can only change on Fri, Sat, Sun, or Mon'
-                  : isPauseEnabled
-                    ? 'Resume service'
-                    : 'Pause service'
-              }
-            >
-              <span
-                className={cn(
-                  'inline-flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm transition-transform',
-                  isPauseEnabled ? 'translate-x-5' : 'translate-x-0'
-                )}
-              >
-                {pauseLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                ) : isPauseEnabled ? (
-                  <PauseCircle className="h-3.5 w-3.5 text-amber-600" />
-                ) : (
-                  <PlayCircle className="h-3.5 w-3.5 text-primary" />
-                )}
-              </span>
-            </button>
-          </div>
-          {pauseError && <p className="mt-2 text-xs text-destructive">{pauseError}</p>}
-        </section>
-
-        <section aria-label="Security">
-          <h2 className="section-title mb-3">Security</h2>
           <CollapsibleSection
+            variant="list"
+            title="Add family member"
+            subtitle={`${familyCount} of ${MAX_FAMILY_MEMBERS} profiles used`}
+            icon={UserPlus}
+            expanded={openPanel === 'add-family'}
+            onToggle={() => togglePanel('add-family')}
+          >
+            <AddFamilyMemberForm />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            variant="list"
+            id="edit-profile"
+            title="Edit profile"
+            subtitle={
+              completionPercentage < 100
+                ? `${completionPercentage}% complete · earn 100 coins at 100%`
+                : 'Lifestyle, goals, and preferences'
+            }
+            icon={User}
+            expanded={openPanel === 'edit-profile'}
+            onToggle={() => togglePanel('edit-profile')}
+          >
+            <EditProfileForm
+              onSaved={() => setOpenPanel(null)}
+              onCancel={() => setOpenPanel(null)}
+            />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            variant="list"
+            id="default-landing"
+            title="Default landing after login"
+            subtitle={defaultLandingSubtitle(
+              selectedProfile?.preferences?.defaultLanding
+            )}
+            icon={Home}
+            expanded={openPanel === 'default-landing'}
+            onToggle={() => togglePanel('default-landing')}
+          >
+            <DefaultLandingSetting />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            variant="list"
+            id="reminder-schedule"
+            title="Reminder schedule"
+            badge={
+              getEnabledReminderCount(reminderSchedule) === 0
+                ? 'None active'
+                : `${getEnabledReminderCount(reminderSchedule)} active`
+            }
+            icon={Bell}
+            expanded={openPanel === 'reminders'}
+            onToggle={() => togglePanel('reminders')}
+            contentClassName="space-y-3"
+          >
+            <ReminderScheduleEditor schedule={reminderSchedule} onChange={setReminderSchedule} />
+            <div className="flex flex-col gap-2 border-t border-[#efefef] pt-4 sm:flex-row sm:items-center">
+              <Button
+                onClick={handleSaveReminders}
+                disabled={
+                  !selectedProfile ||
+                  reminderSaving ||
+                  !hasValidReminderSchedule(reminderSchedule)
+                }
+                className={cn('sm:w-auto', settingsBtnClass)}
+              >
+                {reminderSaving ? 'Saving…' : 'Save schedule'}
+              </Button>
+              {reminderMessage && <p className="text-sm text-primary">{reminderMessage}</p>}
+              {reminderError && <p className="text-sm text-destructive">{reminderError}</p>}
+            </div>
+          </CollapsibleSection>
+        </SettingsGroup>
+
+        <SettingsGroup label="How you use Happy First">
+          <PushNotificationToggle embedded />
+          <div className="px-4 py-3.5">
+            <div className="flex items-center gap-3">
+              {isPauseEnabled ? (
+                <PauseCircle className="h-6 w-6 shrink-0 text-foreground" strokeWidth={1.75} />
+              ) : (
+                <PlayCircle className="h-6 w-6 shrink-0 text-foreground" strokeWidth={1.75} />
+              )}
+              <span className="min-w-0 flex-1 text-sm text-foreground">Pause service</span>
+              <span className="shrink-0 text-xs text-neutral-400">
+                {isPauseEnabled ? 'Paused' : 'Active'}
+              </span>
+              <button
+                type="button"
+                onClick={handlePauseToggle}
+                disabled={!selectedProfile || !canChangePauseToday || pauseLoading}
+                className={cn(
+                  'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full px-0.5 transition-colors',
+                  isPauseEnabled ? 'bg-amber-500' : 'bg-primary',
+                  (!selectedProfile || !canChangePauseToday || pauseLoading) &&
+                    'cursor-not-allowed opacity-50'
+                )}
+                title={
+                  !canChangePauseToday
+                    ? 'Can only change on Fri, Sat, Sun, or Mon'
+                    : isPauseEnabled
+                      ? 'Resume service'
+                      : 'Pause service'
+                }
+              >
+                <span
+                  className={cn(
+                    'inline-flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm transition-transform',
+                    isPauseEnabled ? 'translate-x-5' : 'translate-x-0'
+                  )}
+                >
+                  {pauseLoading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                  ) : isPauseEnabled ? (
+                    <PauseCircle className="h-3.5 w-3.5 text-amber-600" />
+                  ) : (
+                    <PlayCircle className="h-3.5 w-3.5 text-primary" />
+                  )}
+                </span>
+              </button>
+            </div>
+            {pauseError ? <p className="mt-2 text-xs text-destructive">{pauseError}</p> : null}
+          </div>
+        </SettingsGroup>
+
+        <SettingsGroup label="Login and security">
+          <CollapsibleSection
+            variant="list"
             title="Change password"
             subtitle="Update your account password"
             icon={Lock}
@@ -578,11 +504,11 @@ export default function SettingsPage() {
               countryCode={userData?.countryCode || user?.countryCode}
             />
           </CollapsibleSection>
-        </section>
+        </SettingsGroup>
 
-        <section aria-label="Support">
-          <h2 className="section-title mb-3">Support</h2>
+        <SettingsGroup label="More info and support">
           <CollapsibleSection
+            variant="list"
             title="Support & feedback"
             subtitle="Send feedback or report an issue"
             icon={MessageSquare}
@@ -591,28 +517,14 @@ export default function SettingsPage() {
           >
             <SupportFeedbackForm />
           </CollapsibleSection>
-        </section>
-
-        <section aria-label="App navigation">
-          <h2 className="section-title mb-3">Explore app</h2>
-          <Link
+          <SettingsRow
+            icon={Share2}
+            title="Refer friends"
+            subtitle="Share Happy First and earn coins"
             href="/referral"
-            className="mb-2 flex w-full items-center gap-3 rounded-xl border border-border bg-surface px-3 py-3.5 text-left transition-colors hover:border-primary/25 hover:bg-accent/40"
-          >
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-              <Share2 className="h-5 w-5" strokeWidth={2.25} aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold leading-snug text-foreground">
-                Refer friends
-              </span>
-              <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
-                Share Happy First and earn coins
-              </span>
-            </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-          </Link>
+          />
           <AppQuickLinks
+            variant="list"
             exclude={[
               '/home',
               '/tasks',
@@ -623,38 +535,22 @@ export default function SettingsPage() {
               '/settings',
             ]}
           />
-          <button
-            type="button"
+          <SettingsRow
+            icon={Trash2}
+            title="Delete account"
+            subtitle="Permanently deactivate your account"
+            danger
             onClick={() => {
               setDeleteError('');
               setDeleteOpen(true);
             }}
-            className={cn(
-              'mt-2 flex w-full items-center gap-3 rounded-xl border border-border bg-surface px-3 py-3.5 text-left transition-colors',
-              'hover:border-destructive/30 hover:bg-destructive/5 active:bg-destructive/10'
-            )}
-          >
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
-              <Trash2 className="h-5 w-5" strokeWidth={2.25} aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold leading-snug text-destructive">
-                Delete account
-              </span>
-              <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
-                Permanently deactivate your account
-              </span>
-            </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-          </button>
-        </section>
+          />
+        </SettingsGroup>
 
-        <div className="rounded-2xl border border-dashed border-border px-4 py-4">
-          <p className="text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">Tip:</span> You can manage up to 5 family
-            member profiles. Each profile has its own progress and activity history.
-          </p>
-        </div>
+        <p className="px-1 text-xs text-neutral-400">
+          You can manage up to 5 family member profiles. Each profile has its own progress and
+          activity history.
+        </p>
       </div>
       {LogoutConfirmDialog}
       <DeleteAccountDialog

@@ -1,24 +1,24 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bell,
   CheckCheck,
-  Compass,
+  ChevronLeft,
+  Heart,
   Megaphone,
   MessageCircle,
   MessageSquare,
   UserPlus,
-  type LucideProps,
 } from 'lucide-react';
 import { DateTime } from 'luxon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { notificationsAPI, type AppNotification } from '@/lib/api/notifications';
 import { feedAPI } from '@/lib/api/feed';
-import { HappyIcon } from '@/components/ui/HappyIcon';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { cn } from '@/lib/utils';
 
 interface NotificationBellProps {
@@ -29,23 +29,48 @@ interface NotificationBellProps {
   caption?: string;
 }
 
-function HappyLikeIcon({ className, ...props }: LucideProps) {
-  return <HappyIcon className={className} {...(props as { strokeWidth?: number })} />;
+function iconFor(type: AppNotification['type']) {
+  if (type === 'like' || type === 'community_appreciation') return Heart;
+  if (type === 'comment' || type === 'community_mention' || type === 'community_reply') {
+    return MessageCircle;
+  }
+  if (type === 'follow' || type === 'post_collaboration' || type === 'community_invite') {
+    return UserPlus;
+  }
+  if (
+    type === 'community_announcement' ||
+    type === 'community_week_summary' ||
+    type === 'community_nudge' ||
+    type === 'community_event' ||
+    type === 'community_event_reminder'
+  ) {
+    return Megaphone;
+  }
+  if (type === 'message') return MessageSquare;
+  return Heart;
 }
 
-function iconFor(type: AppNotification['type']) {
-  if (type === 'like') return HappyLikeIcon;
-  if (type === 'comment') return MessageCircle;
-  if (type === 'follow') return UserPlus;
-  if (type === 'post_collaboration') return UserPlus;
-  if (type === 'community_announcement') return Megaphone;
-  if (type === 'community_week_summary') return Megaphone;
-  if (type === 'community_nudge') return Megaphone;
-  if (type === 'community_invite') return UserPlus;
-  if (type === 'community_event' || type === 'community_event_reminder') return Megaphone;
-  if (type === 'community_appreciation') return HappyLikeIcon;
-  if (type === 'community_mention' || type === 'community_reply') return MessageCircle;
-  return MessageSquare;
+function groupLabel(iso: string) {
+  const dt = DateTime.fromISO(iso);
+  if (!dt.isValid) return 'Earlier';
+  const now = DateTime.now();
+  if (dt.hasSame(now, 'day')) return 'Today';
+  if (dt.hasSame(now.minus({ days: 1 }), 'day')) return 'Yesterday';
+  if (dt > now.minus({ days: 7 })) return 'This week';
+  return 'Earlier';
+}
+
+function groupNotifications(items: AppNotification[]) {
+  const buckets = new Map<string, AppNotification[]>();
+  for (const item of items) {
+    const label = groupLabel(item.createdAt);
+    const list = buckets.get(label) ?? [];
+    list.push(item);
+    buckets.set(label, list);
+  }
+  return (['Today', 'Yesterday', 'This week', 'Earlier'] as const)
+    .map((label) => ({ label, items: buckets.get(label) ?? [] }))
+    .filter((group) => group.items.length > 0);
 }
 
 export function NotificationBell({
@@ -111,6 +136,11 @@ export function NotificationBell({
   useEffect(() => {
     if (!open) return;
     void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, [open, queryClient]);
 
   useEffect(() => {
@@ -131,8 +161,53 @@ export function NotificationBell({
     };
   }, [open]);
 
+  const grouped = useMemo(() => groupNotifications(notifications), [notifications]);
+
   const openActorProfile = (item: AppNotification) => {
     if (!item.readAt) markOne.mutate(item.id);
+    if (item.actor.profileId) {
+      router.push(`/feed/profile/${item.actor.profileId}`);
+      setOpen(false);
+    }
+  };
+
+  const openNotification = (item: AppNotification) => {
+    if (!item.readAt) markOne.mutate(item.id);
+    if (
+      (item.type === 'community_announcement' ||
+        item.type === 'community_week_summary' ||
+        item.type === 'community_nudge' ||
+        item.type === 'community_invite' ||
+        item.type === 'community_event' ||
+        item.type === 'community_event_reminder' ||
+        item.type === 'community_appreciation' ||
+        item.type === 'community_mention' ||
+        item.type === 'community_reply') &&
+      item.communityId
+    ) {
+      router.push(
+        item.type === 'community_invite'
+          ? `/community/join/${item.communityId}`
+          : `/community/${item.communityId}`
+      );
+      setOpen(false);
+      return;
+    }
+    if (item.type === 'message' && item.conversationId) {
+      onOpenMessage?.(item.conversationId);
+      setOpen(false);
+      return;
+    }
+    if (item.type === 'follow' && item.actor.profileId) {
+      router.push(`/feed/profile/${item.actor.profileId}`);
+      setOpen(false);
+      return;
+    }
+    if (item.photoId) {
+      onOpenPost?.(item.photoId);
+      setOpen(false);
+      return;
+    }
     if (item.actor.profileId) {
       router.push(`/feed/profile/${item.actor.profileId}`);
       setOpen(false);
@@ -146,7 +221,7 @@ export function NotificationBell({
             <button
               type="button"
               aria-label="Close notifications"
-              className="fixed inset-0 z-[119] bg-black/25 md:bg-transparent"
+              className="fixed inset-0 z-[119] bg-black/40 md:bg-black/20"
               onClick={() => setOpen(false)}
             />
             <div
@@ -154,178 +229,166 @@ export function NotificationBell({
               role="dialog"
               aria-label="Notifications"
               className={cn(
-                'fixed z-[120] flex flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--shadow-float)]',
-                'left-3 right-3 top-[calc(4.25rem+env(safe-area-inset-top,0px))] max-h-[min(70dvh,28rem)]',
-                'md:left-auto md:right-4 md:top-[calc(4.75rem+env(safe-area-inset-top,0px))] md:w-[22rem]'
+                'fixed z-[120] flex flex-col bg-background',
+                'inset-0',
+                'md:inset-auto md:right-4 md:top-[calc(4.5rem+env(safe-area-inset-top,0px))] md:h-[min(82dvh,40rem)] md:w-[24rem] md:overflow-hidden md:rounded-2xl md:shadow-[var(--shadow-float)]'
               )}
             >
-              <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
-                <p className="text-sm font-semibold text-foreground">Notifications</p>
-                <div className="flex min-w-0 shrink-0 items-center gap-2">
-                  {unread > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => markAll.mutate()}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary"
-                    >
-                      <CheckCheck className="h-3.5 w-3.5" />
-                      Read all
-                    </button>
-                  )}
-                  <Link
-                    href="/feed/explore"
-                    onClick={() => setOpen(false)}
-                    className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/15"
+              <header className="flex shrink-0 items-center gap-1 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] md:px-3 md:pt-3">
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-secondary"
+                  aria-label="Close"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+                <h2 className="min-w-0 flex-1 text-[17px] font-semibold tracking-tight text-foreground">
+                  Notifications
+                </h2>
+                {unread > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => markAll.mutate()}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-[13px] font-semibold text-primary"
                   >
-                    <Compass className="h-3.5 w-3.5" />
-                    Explore
-                  </Link>
-                </div>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto">
+                    <CheckCheck className="h-4 w-4" />
+                    Read all
+                  </button>
+                ) : null}
+              </header>
+
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[max(1rem,env(safe-area-inset-bottom))]">
                 {notifications.length === 0 ? (
-                  <div className="px-4 py-8 text-center">
-                    <p className="text-sm text-muted-foreground">No notifications yet</p>
+                  <div className="flex flex-col items-center px-6 py-16 text-center">
+                    <span className="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                      <Bell className="h-6 w-6" />
+                    </span>
+                    <p className="text-[15px] font-semibold text-foreground">
+                      No notifications yet
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Likes, comments, and follows will show up here.
+                    </p>
                     <Link
                       href="/feed/explore"
                       onClick={() => setOpen(false)}
-                      className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary"
+                      className="mt-5 text-sm font-semibold text-primary"
                     >
-                      <Compass className="h-4 w-4" />
-                      Explore people
+                      Find people to follow
                     </Link>
                   </div>
                 ) : (
-                  notifications.map((item) => {
-                    const Icon = iconFor(item.type);
-                    return (
-                      <div
-                        key={item.id}
-                        className={cn(
-                          'flex w-full gap-3 border-b border-border px-3 py-3 transition-colors hover:bg-secondary/60',
-                          !item.readAt && 'bg-primary-soft/40'
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => openActorProfile(item)}
-                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"
-                          aria-label={`View ${item.actor.name}`}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </button>
-                        <div className="min-w-0 flex-1">
-                          <button
-                            type="button"
-                            className="w-full text-left"
-                            onClick={() => {
-                              if (!item.readAt) markOne.mutate(item.id);
-                              if (
-                                (item.type === 'community_announcement' ||
-                                  item.type === 'community_week_summary' ||
-                                  item.type === 'community_nudge' ||
-                                  item.type === 'community_invite' ||
-                                  item.type === 'community_event' ||
-                                  item.type === 'community_event_reminder' ||
-                                  item.type === 'community_appreciation' ||
-                                  item.type === 'community_mention' ||
-                                  item.type === 'community_reply') &&
-                                item.communityId
-                              ) {
-                                router.push(
-                                  item.type === 'community_invite'
-                                    ? `/community/join/${item.communityId}`
-                                    : `/community/${item.communityId}`
-                                );
-                                setOpen(false);
-                                return;
-                              }
-                              if (item.type === 'message' && item.conversationId) {
-                                onOpenMessage?.(item.conversationId);
-                                setOpen(false);
-                                return;
-                              }
-                              if (item.type === 'follow' && item.actor.profileId) {
-                                router.push(`/feed/profile/${item.actor.profileId}`);
-                                setOpen(false);
-                                return;
-                              }
-                              if (item.photoId) {
-                                onOpenPost?.(item.photoId);
-                                setOpen(false);
-                                return;
-                              }
-                              if (item.actor.profileId) {
-                                router.push(`/feed/profile/${item.actor.profileId}`);
-                                setOpen(false);
-                              }
-                            }}
-                          >
-                            <p className="text-sm font-medium text-foreground">{item.title}</p>
-                            {item.body && (
-                              <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                                {item.body}
-                              </p>
+                  grouped.map((group) => (
+                    <section key={group.label}>
+                      <h3 className="px-4 pb-1 pt-3 text-[15px] font-semibold text-foreground">
+                        {group.label}
+                      </h3>
+                      {group.items.map((item) => {
+                        const Icon = iconFor(item.type);
+                        const timeLabel = DateTime.fromISO(item.createdAt).toRelative({
+                          style: 'narrow',
+                        });
+                        return (
+                          <div
+                            key={item.id}
+                            className={cn(
+                              'flex w-full items-start gap-3 px-4 py-2.5',
+                              !item.readAt && 'bg-primary/[0.04]'
                             )}
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              {DateTime.fromISO(item.createdAt).toRelative()}
-                              {item.actor.profileId ? ' · View profile' : ''}
-                            </p>
-                          </button>
-                          {item.type === 'post_collaboration' &&
-                          item.photoId &&
-                          item.title.toLowerCase().includes('invited') ? (
-                            <div className="mt-2 flex gap-2">
+                          >
+                            <button
+                              type="button"
+                              onClick={() => openActorProfile(item)}
+                              className="relative shrink-0"
+                              aria-label={`View ${item.actor.name}`}
+                            >
+                              <ProfileAvatar
+                                name={item.actor.name}
+                                avatarUrl={item.actor.avatarUrl}
+                                avatarSeed={item.actor.avatarSeed}
+                                avatarStyle={item.actor.avatarStyle}
+                                size="md"
+                                className="h-11 w-11"
+                              />
+                              <span className="absolute -bottom-0.5 -right-0.5 inline-flex h-[18px] w-[18px] items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-background">
+                                <Icon className="h-2.5 w-2.5" strokeWidth={2.75} />
+                              </span>
+                            </button>
+                            <div className="min-w-0 flex-1 py-0.5">
                               <button
                                 type="button"
-                                disabled={collabMutation.isPending}
-                                onClick={() => {
-                                  if (!item.readAt) markOne.mutate(item.id);
-                                  collabMutation.mutate({
-                                    photoId: item.photoId!,
-                                    action: 'accept',
-                                    notificationId: item.id,
-                                  });
-                                }}
-                                className="rounded-lg bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground"
+                                className="w-full text-left"
+                                onClick={() => openNotification(item)}
                               >
-                                Accept
+                                <p className="line-clamp-2 text-[13.5px] leading-snug text-foreground">
+                                  <span className="font-semibold">{item.title}</span>
+                                  {item.body ? (
+                                    <span className="font-normal text-muted-foreground">
+                                      {' '}
+                                      {item.body}
+                                    </span>
+                                  ) : null}
+                                  {timeLabel ? (
+                                    <span className="whitespace-nowrap font-normal text-muted-foreground">
+                                      {' '}
+                                      {timeLabel.replace(/\s*ago$/i, '')}
+                                    </span>
+                                  ) : null}
+                                </p>
                               </button>
-                              <button
-                                type="button"
-                                disabled={collabMutation.isPending}
-                                onClick={() => {
-                                  if (!item.readAt) markOne.mutate(item.id);
-                                  collabMutation.mutate({
-                                    photoId: item.photoId!,
-                                    action: 'decline',
-                                    notificationId: item.id,
-                                  });
-                                }}
-                                className="rounded-lg bg-secondary px-2.5 py-1 text-[11px] font-semibold text-foreground"
-                              >
-                                Decline
-                              </button>
+                              {item.type === 'post_collaboration' &&
+                              item.photoId &&
+                              item.title.toLowerCase().includes('invited') ? (
+                                <div className="mt-2 flex gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={collabMutation.isPending}
+                                    className="rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      if (!item.readAt) markOne.mutate(item.id);
+                                      collabMutation.mutate({
+                                        photoId: item.photoId!,
+                                        action: 'accept',
+                                        notificationId: item.id,
+                                      });
+                                    }}
+                                  >
+                                    Accept
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={collabMutation.isPending}
+                                    className="rounded-lg bg-secondary px-3 py-1 text-xs font-semibold text-foreground"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      if (!item.readAt) markOne.mutate(item.id);
+                                      collabMutation.mutate({
+                                        photoId: item.photoId!,
+                                        action: 'decline',
+                                        notificationId: item.id,
+                                      });
+                                    }}
+                                  >
+                                    Decline
+                                  </button>
+                                </div>
+                              ) : null}
                             </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })
+                            {!item.readAt ? (
+                              <span
+                                className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary"
+                                aria-hidden
+                              />
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </section>
+                  ))
                 )}
               </div>
-              {notifications.length > 0 ? (
-                <div className="border-t border-border px-3 py-2.5">
-                  <Link
-                    href="/feed/explore"
-                    onClick={() => setOpen(false)}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-secondary py-2 text-xs font-semibold text-foreground hover:bg-secondary/80"
-                  >
-                    <Compass className="h-3.5 w-3.5 text-primary" />
-                    Explore more people
-                  </Link>
-                </div>
-              ) : null}
             </div>
           </>,
           document.body
@@ -354,7 +417,7 @@ export function NotificationBell({
         <span className="relative inline-flex h-[18px] w-[18px] items-center justify-center">
           <Bell className="h-[1.15rem] w-[1.15rem] stroke-[2.25]" />
           {unread > 0 && (
-            <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm ring-2 ring-surface">
+            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm ring-2 ring-surface">
               {unread > 9 ? '9+' : unread}
             </span>
           )}

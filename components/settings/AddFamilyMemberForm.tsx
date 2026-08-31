@@ -9,6 +9,7 @@ import { AppSelect } from '@/components/ui/AppSelect';
 import { UserPlus, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TIMEZONE_OPTIONS } from '@/lib/utils/timezones';
+import { settingsFieldClass, settingsBtnClass } from '@/components/settings/settingsUi';
 
 const RELATIONSHIPS = [
   { value: 'spouse', label: 'Spouse/Partner' },
@@ -113,7 +114,7 @@ export default function AddFamilyMemberForm({ onSuccess }: AddFamilyMemberFormPr
 
   if (!canAddMore) {
     return (
-      <div className="rounded-xl border border-border bg-secondary/40 px-4 py-5 text-center">
+      <div className="rounded-none border border-border bg-secondary/40 px-4 py-5 text-center">
         <AlertCircle className="mx-auto mb-2 h-8 w-8 text-primary" />
         <p className="text-sm font-semibold text-foreground">Maximum limit reached</p>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -125,7 +126,7 @@ export default function AddFamilyMemberForm({ onSuccess }: AddFamilyMemberFormPr
 
   if (success) {
     return (
-      <div className="rounded-xl border border-primary/20 bg-primary-soft px-4 py-5 text-center">
+      <div className="rounded-none border border-primary/20 bg-primary-soft px-4 py-5 text-center">
         <CheckCircle className="mx-auto mb-2 h-8 w-8 text-primary" />
         <p className="text-sm font-semibold text-foreground">{success}</p>
         <Button
@@ -157,6 +158,7 @@ export default function AddFamilyMemberForm({ onSuccess }: AddFamilyMemberFormPr
             onChange={handleInputChange}
             placeholder="Enter name"
             disabled={loading}
+            className={settingsFieldClass}
           />
         </div>
 
@@ -167,6 +169,7 @@ export default function AddFamilyMemberForm({ onSuccess }: AddFamilyMemberFormPr
             value={formData.relationship}
             onChange={handleInputChange}
             disabled={loading}
+            className={cn(settingsFieldClass, 'pr-8')}
           >
             <option value="">Select relationship</option>
             {RELATIONSHIPS.map((rel) => (
@@ -189,7 +192,7 @@ export default function AddFamilyMemberForm({ onSuccess }: AddFamilyMemberFormPr
               min={1}
               max={120}
               disabled={loading}
-              className="h-10 rounded-xl px-3 text-sm shadow-none"
+              className={cn(settingsFieldClass, 'px-3')}
             />
           </div>
           <div>
@@ -199,6 +202,7 @@ export default function AddFamilyMemberForm({ onSuccess }: AddFamilyMemberFormPr
               value={formData.timezone}
               onChange={handleInputChange}
               disabled={loading}
+              className={cn(settingsFieldClass, 'pr-8')}
             >
               {TIMEZONE_OPTIONS.map((tz) => (
                 <option key={tz.value} value={tz.value}>
@@ -219,7 +223,7 @@ export default function AddFamilyMemberForm({ onSuccess }: AddFamilyMemberFormPr
                 onClick={() => setFormData((prev) => ({ ...prev, gender: option }))}
                 disabled={loading}
                 className={cn(
-                  'rounded-xl border px-3 py-2 text-xs font-medium capitalize transition-colors',
+                  'rounded-none border px-3 py-2 text-xs font-medium capitalize transition-colors',
                   formData.gender === option
                     ? 'border-primary bg-primary-soft text-primary'
                     : 'border-border bg-surface text-muted-foreground hover:bg-accent'
@@ -233,12 +237,12 @@ export default function AddFamilyMemberForm({ onSuccess }: AddFamilyMemberFormPr
       </div>
 
       {error && (
-        <p className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <p className="border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
 
-      <Button type="submit" disabled={loading} className="w-full sm:w-auto">
+      <Button type="submit" disabled={loading} className={cn('w-full sm:w-auto', settingsBtnClass)}>
         {loading ? 'Adding…' : (
           <>
             <UserPlus className="mr-2 h-4 w-4" />

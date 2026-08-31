@@ -11,10 +11,9 @@ export const MASCOT_COLOR_PRESETS = [
 ] as const;
 
 export const DEFAULT_LANDING_OPTIONS = [
-  { value: '/home', label: 'Happiness (Home)' },
-  { value: '/feed', label: 'Inspiration (Feed)' },
+  { value: '/feed', label: 'Inspiration' },
+  { value: '/home', label: 'Happiness' },
   { value: '/community', label: 'Community' },
-  { value: '/tasks', label: 'Tasks' },
   { value: '/settings', label: 'Profile' },
 ] as const;
 
@@ -29,6 +28,8 @@ export function normalizeMascotColor(input?: string | null): string {
 
 export function resolveDefaultLanding(input?: string | null): DefaultLandingPath {
   const path = (input || '').trim();
+  // Tasks lives under Happiness, not as its own bottom-nav destination.
+  if (path === '/tasks') return '/home';
   const match = DEFAULT_LANDING_OPTIONS.find((opt) => opt.value === path);
   return match?.value ?? '/home';
 }

@@ -34,17 +34,17 @@ export function SocialPostGuidelines({ className }: { className?: string }) {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex w-full items-start gap-2 text-left"
+        className="flex w-full items-center gap-2 text-left"
         aria-expanded={open}
       >
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <Info className="h-4 w-4 shrink-0 text-primary" />
         <span className="min-w-0 flex-1">
           <span className="block text-xs font-semibold text-foreground">
             Posting guidelines
           </span>
           <span className="mt-0.5 block text-[11px] text-muted-foreground">{summary}</span>
         </span>
-        <span className="text-[11px] font-medium text-primary">
+        <span className="inline-flex min-w-[2.75rem] shrink-0 items-center justify-center text-center text-[11px] font-semibold text-primary">
           {open ? 'Hide' : 'Show'}
         </span>
       </button>

@@ -247,8 +247,8 @@ export default function CommunityPage() {
               </div>
               <h2 className="text-base font-semibold text-foreground">Events — Coming Soon</h2>
               <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-                Community-wide events and RSVPs are on the way. Inside a community you can still
-                use Calendar for member events today.
+                Events and RSVPs coming soon. Use Calendar inside a community for member events
+                today.
               </p>
             </div>
           </section>

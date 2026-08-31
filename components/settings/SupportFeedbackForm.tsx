@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/feedback';
 import { compressImageForUpload } from '@/lib/utils/compressImage';
 import { cn } from '@/lib/utils';
+import { settingsFieldClass, settingsTextareaClass, settingsBtnClass } from '@/components/settings/settingsUi';
 
 const CATEGORY_OPTIONS: { value: FeedbackCategory; label: string }[] = [
   { value: 'general', label: 'General feedback' },
@@ -21,8 +22,7 @@ const CATEGORY_OPTIONS: { value: FeedbackCategory; label: string }[] = [
   { value: 'improvement', label: 'Improvement' },
 ];
 
-const FIELD_CLASS =
-  'w-full rounded-xl border border-input bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring';
+const FIELD_CLASS = settingsTextareaClass;
 
 const MAX_SCREENSHOTS = 3;
 
@@ -141,7 +141,7 @@ export default function SupportFeedbackForm() {
 
   if (success) {
     return (
-      <div className="rounded-xl border border-primary/20 bg-primary-soft px-4 py-5 text-center">
+      <div className="rounded-none border border-primary/20 bg-primary-soft px-4 py-5 text-center">
         <CheckCircle className="mx-auto mb-2 h-8 w-8 text-primary" />
         <p className="text-sm font-semibold text-foreground">{success}</p>
         <p className="mt-1 text-xs text-muted-foreground">We typically respond within 24–48 hours.</p>
@@ -179,6 +179,7 @@ export default function SupportFeedbackForm() {
             value={formData.userName}
             onChange={(e) => handleInputChange('userName', e.target.value)}
             required
+            className={settingsFieldClass}
           />
         </div>
         <div>
@@ -191,6 +192,7 @@ export default function SupportFeedbackForm() {
             placeholder="Phone number"
             value={formData.userPhone}
             onChange={(e) => handleInputChange('userPhone', e.target.value)}
+            className={settingsFieldClass}
           />
         </div>
       </div>
@@ -260,7 +262,7 @@ export default function SupportFeedbackForm() {
         {screenshots.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {screenshots.map((item, index) => (
-              <div key={item.preview} className="relative h-16 w-16 overflow-hidden rounded-lg border border-border">
+              <div key={item.preview} className="relative h-16 w-16 overflow-hidden rounded-none border border-border">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.preview} alt="" className="h-full w-full object-cover" />
                 <button
@@ -282,12 +284,12 @@ export default function SupportFeedbackForm() {
       </div>
 
       {error && (
-        <p className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <p className="border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
 
-      <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
+      <Button type="submit" disabled={isSubmitting} className={cn('w-full sm:w-auto', settingsBtnClass)}>
         {isSubmitting ? (
           'Submitting…'
         ) : (

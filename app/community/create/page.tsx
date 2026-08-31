@@ -24,6 +24,7 @@ import {
   type CommunityType,
 } from '@/lib/api/community';
 import { cn } from '@/lib/utils';
+import { pageStickyHeaderClass } from '@/components/ui/AppPageHeader';
 
 export default function CreateCommunityPage() {
   const router = useRouter();
@@ -143,7 +144,7 @@ export default function CreateCommunityPage() {
   return (
     <MainLayout>
       <div className="space-y-4">
-        <div className="flex items-center gap-3">
+        <div className={cn(pageStickyHeaderClass, 'flex items-center gap-3')}>
           <Link
             href="/community"
             className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"

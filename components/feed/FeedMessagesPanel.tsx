@@ -751,6 +751,10 @@ export function FeedMessagesPanel({
             canModerate={canModerateCommunity}
             embedded
             communityName={activeCommunity?.name}
+            communityIcon={activeCommunity?.icon}
+            communityAvatarUrl={activeCommunity?.avatarUrl}
+            communityAvatarSeed={activeCommunity?.avatarSeed}
+            communityAvatarStyle={activeCommunity?.avatarStyle}
             onBack={() => setActiveCommunityId(null)}
             onClose={onClose}
           />

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { settingsFieldClass, settingsBtnClass } from '@/components/settings/settingsUi';
 
 function ValidationItem({ text, isValid }: { text: string; isValid: boolean }) {
   return (
@@ -180,7 +181,7 @@ export default function ChangePasswordForm({
           value={formData[name]}
           onChange={handleInputChange}
           placeholder={placeholder}
-          className="pl-9 pr-10"
+          className={cn(settingsFieldClass, 'pl-9 pr-10')}
           disabled={loading}
         />
         <button
@@ -197,7 +198,7 @@ export default function ChangePasswordForm({
 
   if (success) {
     return (
-      <div className="rounded-xl border border-primary/20 bg-primary-soft px-4 py-5 text-center">
+      <div className="rounded-none border border-primary/20 bg-primary-soft px-4 py-5 text-center">
         <CheckCircle className="mx-auto mb-2 h-8 w-8 text-primary" />
         <p className="text-sm font-semibold text-foreground">{success}</p>
         <Button
@@ -229,7 +230,7 @@ export default function ChangePasswordForm({
       {renderPasswordField('New password', 'newPassword', 'new', 'Enter new password')}
 
       {formData.newPassword && (
-        <div className="rounded-xl border border-border bg-secondary/40 p-3 space-y-1.5">
+        <div className="space-y-1.5 rounded-none border border-[#dbdbdb] bg-[#fafafa] p-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Requirements
           </p>
@@ -251,7 +252,7 @@ export default function ChangePasswordForm({
       )}
 
       {error && (
-        <p className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <p className="border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {error}
           {/incorrect|invalid|wrong|current password/i.test(error) ? (
             <>
@@ -267,7 +268,7 @@ export default function ChangePasswordForm({
       <Button
         type="submit"
         disabled={loading || !allValidationsPassed || !passwordsMatch}
-        className="w-full sm:w-auto"
+        className={cn('w-full sm:w-auto', settingsBtnClass)}
       >
         {loading ? 'Updating…' : 'Update password'}
       </Button>

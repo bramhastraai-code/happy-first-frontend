@@ -13,13 +13,13 @@ export function parseCommunityIdFromQrText(raw: string): string | null {
 
   try {
     const url = new URL(text);
-    const match = url.pathname.match(/\/community\/(?:join\/)?([a-f0-9]{24})/i);
+    const match = url.pathname.match(/\/community\/(?:join\/)?([a-f0-9]{24})\/?/i);
     if (match?.[1]) return match[1];
   } catch {
     // not a full URL — try path or bare id
   }
 
-  const pathMatch = text.match(/\/community\/(?:join\/)?([a-f0-9]{24})/i);
+  const pathMatch = text.match(/\/community\/(?:join\/)?([a-f0-9]{24})\/?/i);
   if (pathMatch?.[1]) return pathMatch[1];
 
   if (/^[a-f0-9]{24}$/i.test(text)) return text;
