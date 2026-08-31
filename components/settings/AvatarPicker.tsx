@@ -38,9 +38,14 @@ interface AvatarPickerProps {
   avatarUrl?: string | null;
   onChange: (next: AvatarSelection) => void;
   className?: string;
+  /**
+   * `card` — preview row that opens a modal (settings).
+   * `embedded` — menu/gallery inline (already inside another sheet; no second modal).
+   */
+  mode?: 'card' | 'embedded';
 }
 
-type ModalView = 'menu' | 'gallery';
+type PanelView = 'menu' | 'gallery';
 
 export function AvatarPicker({
   name,
@@ -49,9 +54,10 @@ export function AvatarPicker({
   avatarUrl,
   onChange,
   className,
+  mode = 'card',
 }: AvatarPickerProps) {
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<ModalView>('menu');
+  const [view, setView] = useState<PanelView>('menu');
   const [mounted, setMounted] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,11 +74,12 @@ export function AvatarPicker({
     }) || buildDiceBearAvatarUrl(seed || name || 'happy-first', AVATAR_STYLE, 160);
 
   const hasUploaded = isUploadedAvatarUrl(avatarUrl);
+  const isEmbedded = mode === 'embedded';
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || isEmbedded) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !uploading) closeModal();
     };
@@ -82,7 +89,7 @@ export function AvatarPicker({
       document.body.style.overflow = '';
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [open, uploading]);
+  }, [open, uploading, isEmbedded]);
 
   const closeModal = () => {
     if (uploading) return;
@@ -98,7 +105,7 @@ export function AvatarPicker({
       url: buildDiceBearAvatarUrl(safeSeed, AVATAR_STYLE),
       style: AVATAR_STYLE,
     });
-    closeModal();
+    if (!isEmbedded) closeModal();
   };
 
   const handleFile = async (file: File | undefined) => {
@@ -124,7 +131,7 @@ export function AvatarPicker({
         url: profile.avatarUrl || null,
         style: 'uploaded',
       });
-      closeModal();
+      if (!isEmbedded) closeModal();
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
@@ -139,6 +146,182 @@ export function AvatarPicker({
     const fallback = name.trim() || seed || 'happy-first';
     applyGenerated(fallback);
   };
+
+  const fileInputs = (
+    <>
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          void handleFile(file);
+        }}
+      />
+      {/* No accept — opens system file manager (all albums / Files), not Google Photos only */}
+      <input
+        ref={filesInputRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          void handleFile(file);
+        }}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          void handleFile(file);
+        }}
+      />
+    </>
+  );
+
+  const panelBody =
+    view === 'menu' ? (
+      <div className="space-y-1 p-2 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+        <div className="flex justify-center py-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={previewUrl}
+            alt=""
+            className="h-28 w-28 rounded-full border border-border object-cover"
+          />
+        </div>
+
+        <MenuAction
+          icon={<ImageIcon className="h-5 w-5" />}
+          label="Device gallery"
+          description="Photos, albums, and camera roll"
+          disabled={uploading || !profileId}
+          onClick={() => galleryInputRef.current?.click()}
+        />
+        <MenuAction
+          icon={<FolderOpen className="h-5 w-5" />}
+          label="Browse all files"
+          description="Files app, Downloads, and all albums"
+          disabled={uploading || !profileId}
+          onClick={() => filesInputRef.current?.click()}
+        />
+        <MenuAction
+          icon={<Camera className="h-5 w-5" />}
+          label="Take photo"
+          description="Use camera"
+          disabled={uploading || !profileId}
+          onClick={() => cameraInputRef.current?.click()}
+        />
+        <MenuAction
+          icon={<Smile className="h-5 w-5" />}
+          label="Choose avatar"
+          description="Browse avatar gallery"
+          disabled={uploading}
+          onClick={() => setView('gallery')}
+        />
+        <MenuAction
+          icon={<Dices className="h-5 w-5" />}
+          label="Random avatar"
+          description="Generate a new look"
+          disabled={uploading}
+          onClick={() => applyGenerated(randomAvatarSeed())}
+        />
+        {hasUploaded ? (
+          <MenuAction
+            icon={<Trash2 className="h-5 w-5 text-destructive" />}
+            label="Remove photo"
+            description="Switch back to an avatar"
+            disabled={uploading}
+            destructive
+            onClick={removePhoto}
+          />
+        ) : null}
+
+        {uploading ? (
+          <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Uploading…
+          </div>
+        ) : null}
+        {error ? (
+          <p className="px-3 py-2 text-center text-xs text-destructive">{error}</p>
+        ) : null}
+        {!profileId ? (
+          <p className="px-3 py-2 text-center text-xs text-muted-foreground">
+            Select a profile to upload a photo.
+          </p>
+        ) : null}
+      </div>
+    ) : (
+      <div className="flex flex-col overflow-hidden pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setView('menu')}
+            disabled={uploading}
+          >
+            Back
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => applyGenerated(randomAvatarSeed())}
+          >
+            <Dices className="h-3.5 w-3.5" />
+            Random
+          </Button>
+        </div>
+        <div className="grid max-h-[50vh] grid-cols-4 gap-3 overflow-y-auto p-4 sm:grid-cols-5">
+          {AVATAR_GALLERY_SEEDS.map((item) => {
+            const url = buildDiceBearAvatarUrl(item, AVATAR_STYLE, 96);
+            const selected = !hasUploaded && seed === item;
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => applyGenerated(item)}
+                className={cn(
+                  'flex flex-col items-center gap-1.5 rounded-2xl p-1.5 transition-colors',
+                  selected
+                    ? 'bg-primary-soft ring-2 ring-primary'
+                    : 'hover:bg-secondary'
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={item}
+                  className="h-14 w-14 rounded-full border border-border bg-secondary object-cover"
+                />
+                <span className="truncate text-[10px] font-medium capitalize text-muted-foreground">
+                  {item}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+
+  if (isEmbedded) {
+    return (
+      <div className={cn('overflow-hidden', className)}>
+        {panelBody}
+        {fileInputs}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -187,7 +370,7 @@ export function AvatarPicker({
 
       {mounted && open
         ? createPortal(
-            <div className="fixed inset-0 z-[220] flex items-end justify-center sm:items-center sm:p-4">
+            <div className="fixed inset-0 z-[260] flex items-end justify-center sm:items-center sm:p-4">
               <button
                 type="button"
                 aria-label="Close"
@@ -224,158 +407,8 @@ export function AvatarPicker({
                   </button>
                 </div>
 
-                {view === 'menu' ? (
-                  <div className="space-y-1 p-2 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
-                    <div className="flex justify-center py-4">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={previewUrl}
-                        alt=""
-                        className="h-28 w-28 rounded-full border border-border object-cover"
-                      />
-                    </div>
-
-                    <MenuAction
-                      icon={<ImageIcon className="h-5 w-5" />}
-                      label="Device gallery"
-                      description="Photos, albums, and camera roll"
-                      disabled={uploading || !profileId}
-                      onClick={() => galleryInputRef.current?.click()}
-                    />
-                    <MenuAction
-                      icon={<FolderOpen className="h-5 w-5" />}
-                      label="Browse all files"
-                      description="Files app, Downloads, and all albums"
-                      disabled={uploading || !profileId}
-                      onClick={() => filesInputRef.current?.click()}
-                    />
-                    <MenuAction
-                      icon={<Camera className="h-5 w-5" />}
-                      label="Take photo"
-                      description="Use camera"
-                      disabled={uploading || !profileId}
-                      onClick={() => cameraInputRef.current?.click()}
-                    />
-                    <MenuAction
-                      icon={<Smile className="h-5 w-5" />}
-                      label="Choose avatar"
-                      description="Browse avatar gallery"
-                      disabled={uploading}
-                      onClick={() => setView('gallery')}
-                    />
-                    <MenuAction
-                      icon={<Dices className="h-5 w-5" />}
-                      label="Random avatar"
-                      description="Generate a new look"
-                      disabled={uploading}
-                      onClick={() => applyGenerated(randomAvatarSeed())}
-                    />
-                    {hasUploaded ? (
-                      <MenuAction
-                        icon={<Trash2 className="h-5 w-5 text-destructive" />}
-                        label="Remove photo"
-                        description="Switch back to an avatar"
-                        disabled={uploading}
-                        destructive
-                        onClick={removePhoto}
-                      />
-                    ) : null}
-
-                    {uploading ? (
-                      <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Uploading…
-                      </div>
-                    ) : null}
-                    {error ? (
-                      <p className="px-3 py-2 text-center text-xs text-destructive">{error}</p>
-                    ) : null}
-                    {!profileId ? (
-                      <p className="px-3 py-2 text-center text-xs text-muted-foreground">
-                        Select a profile to upload a photo.
-                      </p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="flex flex-col overflow-hidden pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
-                    <div className="flex items-center justify-end border-b border-border px-3 py-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={() => applyGenerated(randomAvatarSeed())}
-                      >
-                        <Dices className="h-3.5 w-3.5" />
-                        Random
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-4 gap-3 overflow-y-auto p-4 sm:grid-cols-5">
-                      {AVATAR_GALLERY_SEEDS.map((item) => {
-                        const url = buildDiceBearAvatarUrl(item, AVATAR_STYLE, 96);
-                        const selected = !hasUploaded && seed === item;
-                        return (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() => applyGenerated(item)}
-                            className={cn(
-                              'flex flex-col items-center gap-1.5 rounded-2xl p-1.5 transition-colors',
-                              selected
-                                ? 'bg-primary-soft ring-2 ring-primary'
-                                : 'hover:bg-secondary'
-                            )}
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={url}
-                              alt={item}
-                              className="h-14 w-14 rounded-full border border-border bg-secondary object-cover"
-                            />
-                            <span className="truncate text-[10px] font-medium capitalize text-muted-foreground">
-                              {item}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <input
-                  ref={galleryInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    void handleFile(file);
-                  }}
-                />
-                {/* No accept — opens system file manager (all albums / Files), not Google Photos only */}
-                <input
-                  ref={filesInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    void handleFile(file);
-                  }}
-                />
-                <input
-                  ref={cameraInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="user"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    void handleFile(file);
-                  }}
-                />
+                {panelBody}
+                {fileInputs}
               </div>
             </div>,
             document.body

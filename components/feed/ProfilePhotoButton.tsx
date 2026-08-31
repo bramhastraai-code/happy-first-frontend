@@ -34,7 +34,7 @@ interface ProfilePhotoButtonProps {
 }
 
 /**
- * Tap avatar → large preview. Own profile also gets Change photo (AvatarPicker).
+ * Tap avatar → large preview. Own profile also gets Change photo (inline AvatarPicker).
  */
 export function ProfilePhotoButton({
   profile,
@@ -49,10 +49,17 @@ export function ProfilePhotoButton({
   const [mounted, setMounted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  /** Local preview after a successful change (page query may lag). */
+  const [localAvatar, setLocalAvatar] = useState<AvatarFields | null>(null);
 
-  const previewUrl = resolveProfileAvatarUrl(profile);
+  const displayProfile = localAvatar ?? profile;
+  const previewUrl = resolveProfileAvatarUrl(displayProfile);
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    setLocalAvatar(null);
+  }, [profile.avatarUrl, profile.avatarSeed, profile.avatarStyle]);
 
   useOverlayHistory({
     open,
@@ -68,6 +75,15 @@ export function ProfilePhotoButton({
     setOpen(false);
     setEditing(false);
     setError('');
+  };
+
+  const syncStore = (patched: Profile) => {
+    setSelectedProfile(patched);
+    setProfiles(
+      (useAuthStore.getState().profiles ?? []).map((p) =>
+        p._id === patched._id ? patched : p
+      )
+    );
   };
 
   const handleAvatarChange = async (next: {
@@ -86,17 +102,43 @@ export function ProfilePhotoButton({
       const avatarUrl = uploaded
         ? next.url
         : buildDiceBearAvatarUrl(seed || selectedProfile.name, AVATAR_STYLE);
+      const avatarStyle = uploaded ? 'uploaded' : AVATAR_STYLE;
 
-      const response = await authAPI.updateProfile({
-        avatarSeed: seed,
-        avatarStyle: uploaded ? 'uploaded' : AVATAR_STYLE,
-        avatarUrl,
+      let patched: Profile;
+
+      if (uploaded) {
+        // uploadAvatar already persisted — sync local store from the returned URL
+        patched = {
+          ...selectedProfile,
+          avatarSeed: null,
+          avatarStyle,
+          avatarUrl,
+        };
+        syncStore(patched);
+      } else {
+        const response = await authAPI.updateProfile({
+          avatarSeed: seed,
+          avatarStyle,
+          avatarUrl,
+        });
+        const updatedProfiles = response.data.data.profiles as Profile[];
+        setProfiles(updatedProfiles);
+        patched =
+          updatedProfiles.find((p) => p._id === selectedProfile._id) || {
+            ...selectedProfile,
+            avatarSeed: seed,
+            avatarStyle,
+            avatarUrl,
+          };
+        setSelectedProfile(patched);
+      }
+
+      setLocalAvatar({
+        name: patched.name,
+        avatarUrl: patched.avatarUrl,
+        avatarSeed: patched.avatarSeed,
+        avatarStyle: patched.avatarStyle,
       });
-      const updatedProfiles = response.data.data.profiles as Profile[];
-      setProfiles(updatedProfiles);
-      const updated =
-        updatedProfiles.find((p) => p._id === selectedProfile._id) || null;
-      setSelectedProfile(updated);
       setEditing(false);
       void queryClient.invalidateQueries({ queryKey: ['publicProfile'] });
     } catch (err: unknown) {
@@ -113,14 +155,17 @@ export function ProfilePhotoButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={cn('relative shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', className)}
+        className={cn(
+          'relative shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          className
+        )}
         aria-label={canEdit ? 'View or change profile photo' : 'View profile photo'}
       >
         <ProfileAvatar
-          name={profile.name}
-          avatarUrl={profile.avatarUrl}
-          avatarSeed={profile.avatarSeed}
-          avatarStyle={profile.avatarStyle}
+          name={displayProfile.name}
+          avatarUrl={displayProfile.avatarUrl}
+          avatarSeed={displayProfile.avatarSeed}
+          avatarStyle={displayProfile.avatarStyle}
           size="xl"
           className={sizeClassName}
         />
@@ -140,13 +185,13 @@ export function ProfilePhotoButton({
                 className="absolute inset-0 bg-black/70"
                 onClick={close}
               />
-              <div className="relative z-[1] flex w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-[var(--shadow-float)] sm:rounded-3xl">
-                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="relative z-[1] flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-[var(--shadow-float)] sm:rounded-3xl">
+                <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
                   <div>
                     <p className="text-sm font-semibold text-foreground">
                       {editing ? 'Change photo' : 'Profile photo'}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">{profile.name}</p>
+                    <p className="text-[11px] text-muted-foreground">{displayProfile.name}</p>
                   </div>
                   <button
                     type="button"
@@ -159,32 +204,39 @@ export function ProfilePhotoButton({
                 </div>
 
                 {editing && canEdit ? (
-                  <div className="space-y-3 overflow-y-auto p-4">
+                  <div className="min-h-0 flex-1 overflow-y-auto">
                     <AvatarPicker
-                      name={selectedProfile?.name || profile.name}
+                      mode="embedded"
+                      name={selectedProfile?.name || displayProfile.name}
                       profileId={selectedProfile?._id}
                       seed={
                         selectedProfile?.avatarSeed ||
-                        profile.avatarSeed ||
-                        profile.name ||
+                        displayProfile.avatarSeed ||
+                        displayProfile.name ||
                         'happy-first'
                       }
-                      avatarUrl={selectedProfile?.avatarUrl ?? profile.avatarUrl}
+                      avatarUrl={selectedProfile?.avatarUrl ?? displayProfile.avatarUrl}
                       onChange={(next) => void handleAvatarChange(next)}
                     />
                     {saving ? (
-                      <p className="text-xs text-muted-foreground">Saving…</p>
+                      <p className="px-4 pb-2 text-center text-xs text-muted-foreground">
+                        Saving…
+                      </p>
                     ) : null}
-                    {error ? <p className="text-xs text-destructive">{error}</p> : null}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setEditing(false)}
-                      disabled={saving}
-                    >
-                      Back to preview
-                    </Button>
+                    {error ? (
+                      <p className="px-4 pb-2 text-center text-xs text-destructive">{error}</p>
+                    ) : null}
+                    <div className="border-t border-border p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setEditing(false)}
+                        disabled={saving}
+                      >
+                        Back to preview
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-4 px-4 py-6">
@@ -192,16 +244,23 @@ export function ProfilePhotoButton({
                     <img
                       src={
                         previewUrl ||
-                        buildDiceBearAvatarUrl(profile.name || 'happy-first', AVATAR_STYLE, 320)
+                        buildDiceBearAvatarUrl(
+                          displayProfile.name || 'happy-first',
+                          AVATAR_STYLE,
+                          320
+                        )
                       }
-                      alt={profile.name}
+                      alt={displayProfile.name}
                       className="h-56 w-56 rounded-full border border-border object-cover shadow-md sm:h-64 sm:w-64"
                     />
                     {canEdit ? (
                       <Button
                         type="button"
                         className="w-full gap-2"
-                        onClick={() => setEditing(true)}
+                        onClick={() => {
+                          setError('');
+                          setEditing(true);
+                        }}
                       >
                         <Camera className="h-4 w-4" />
                         Change profile photo
