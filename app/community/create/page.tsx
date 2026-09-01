@@ -23,6 +23,7 @@ import {
   type CommunityActivityLevel,
   type CommunityType,
 } from '@/lib/api/community';
+import { parseLevelTargetsPayload } from '@/lib/community/unitTargetDefaults';
 import { cn } from '@/lib/utils';
 import { pageStickyHeaderClass } from '@/components/ui/AppPageHeader';
 
@@ -94,6 +95,7 @@ export default function CreateCommunityPage() {
             allowedCadence: draft.allowedCadence,
             level: draft.level,
             defaultTarget: draft.defaultTarget ? Number(draft.defaultTarget) : null,
+            levelTargets: parseLevelTargetsPayload(draft.levelTargets, draft.baseUnit),
           }));
       const res = await communityAPI.create({
         name: name.trim(),
@@ -129,6 +131,7 @@ export default function CreateCommunityPage() {
   });
 
   const toggleActivity = (id: string) => {
+    setDiscussionOnly(false);
     setSelectedLevels((prev) => {
       if (prev[id]) {
         const next = { ...prev };
@@ -207,45 +210,31 @@ export default function CreateCommunityPage() {
               ))}
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setDiscussionOnly((v) => !v);
-              if (!discussionOnly) {
-                setSelectedLevels({});
-                setCustomDrafts([]);
-              }
-            }}
-            className={cn(
-              'w-full rounded-xl border px-3 py-3 text-left transition-colors',
-              discussionOnly
-                ? 'border-primary bg-primary-soft'
-                : 'border-border bg-surface hover:bg-secondary/60'
-            )}
-          >
-            <p className="text-sm font-semibold text-foreground">Discussion only · no targets</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Chat and share without activity goals. You can add activities later.
-            </p>
-          </button>
         </div>
+
+        <CommunityActivityConfigPicker
+          activities={activities}
+          loading={activitiesQuery.isLoading}
+          category={category}
+          onCategoryChange={setCategory}
+          selectedLevels={selectedLevels}
+          onToggle={toggleActivity}
+          onLevelChange={(activityId, level) =>
+            setSelectedLevels((prev) => ({ ...prev, [activityId]: level }))
+          }
+          targetDefaults={defaultsQuery.data}
+          discussionOnly={discussionOnly}
+          onDiscussionOnlyChange={(next) => {
+            setDiscussionOnly(next);
+            if (next) {
+              setSelectedLevels({});
+              setCustomDrafts([]);
+            }
+          }}
+        />
 
         {!discussionOnly ? (
           <>
-            <CommunityActivityConfigPicker
-              activities={activities}
-              loading={activitiesQuery.isLoading}
-              category={category}
-              onCategoryChange={setCategory}
-              selectedLevels={selectedLevels}
-              onToggle={toggleActivity}
-              onLevelChange={(activityId, level) =>
-                setSelectedLevels((prev) => ({ ...prev, [activityId]: level }))
-              }
-              targetDefaults={defaultsQuery.data}
-            />
-
             <CommunityCustomActivityForm
               mode="draft"
               onDraft={(draft) => setCustomDrafts((prev) => [...prev, draft])}
@@ -260,6 +249,9 @@ export default function CreateCommunityPage() {
                       <p className="truncate text-sm font-semibold text-foreground">{draft.name}</p>
                       <p className="text-[11px] text-muted-foreground">
                         Custom · {draft.baseUnit} · {draft.level}
+                        {draft.levelTargets
+                          ? ` · targets B${draft.levelTargets.beginner}/A${draft.levelTargets.active}/C${draft.levelTargets.champion}`
+                          : ''}
                       </p>
                     </div>
                     <button

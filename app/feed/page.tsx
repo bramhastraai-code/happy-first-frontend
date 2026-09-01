@@ -19,6 +19,10 @@ import { feedAPI, type FeedPost } from '@/lib/api/feed';
 import { useAuthStore } from '@/lib/store/authStore';
 import { useFeedRealtime } from '@/lib/hooks/useFeedRealtime';
 import { Button } from '@/components/ui/button';
+import GuidedTour from '@/components/ui/GuidedTour';
+import TourStartButton from '@/components/ui/TourStartButton';
+import { usePageTour } from '@/lib/hooks/usePageTour';
+import { feedTourSteps } from '@/lib/utils/tourSteps';
 
 export default function FeedPage() {
   return (
@@ -55,6 +59,7 @@ function FeedPageContent() {
     avatarStyle?: string | null;
   } | null>(null);
   const [openConversationId, setOpenConversationId] = useState<string | null>(null);
+  const { runTour, isMounted, handleStartTour, handleTourFinish } = usePageTour('tourCompleted:feed');
 
   const enabled = isHydrated && !!accessToken && !!selectedProfile?._id;
   useFeedRealtime(enabled, selectedProfile?._id);
@@ -208,8 +213,15 @@ function FeedPageContent() {
 
   return (
     <MainLayout>
+      {isMounted ? (
+        <>
+          <GuidedTour run={runTour} onFinish={handleTourFinish} steps={feedTourSteps} />
+          <TourStartButton onClick={handleStartTour} />
+        </>
+      ) : null}
       <div className="feed-page relative w-full pb-4">
-        <FeedTopBar
+        <div className="feed-header">
+          <FeedTopBar
           onOpenMessages={() => {
             setMessageTarget(null);
             setOpenConversationId(null);
@@ -225,6 +237,7 @@ function FeedPageContent() {
             if (post) setActivePost(post);
           }}
         />
+        </div>
 
         <div className="mt-3 overflow-visible border-b border-border/60 pb-3 sm:mt-4 sm:rounded-2xl sm:border sm:border-border sm:bg-surface sm:p-3 sm:pb-3 sm:pt-4 sm:shadow-[var(--shadow-card)]">
           <FeedStories
@@ -340,7 +353,7 @@ function FeedPageContent() {
         <button
           type="button"
           onClick={() => openCreate('post')}
-          className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-float)] transition-transform active:scale-95 sm:right-8"
+          className="feed-compose fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-float)] transition-transform active:scale-95 sm:right-8"
           aria-label="Create post"
         >
           <Plus className="h-7 w-7" strokeWidth={2.5} />

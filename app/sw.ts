@@ -39,14 +39,7 @@ try {
   const firebaseApp = initializeApp(firebaseConfig);
   const messaging = getMessaging(firebaseApp);
   onBackgroundMessage(messaging, (payload) => {
-    // Display payload already shown by FCM when `notification` is set.
-    if (payload.notification?.title) return;
-    void showPushNotification({
-      title: payload.data?.title,
-      body: payload.data?.body,
-      url: payload.data?.url,
-      notificationId: payload.data?.notificationId,
-    });
+    void showPushNotification(payload as PushPayload);
   });
 } catch {
   // Firebase is optional; Web Push `push` events still work.
@@ -64,17 +57,33 @@ interface PushPayload {
   fcmMessageId?: string;
 }
 
-function showPushNotification(payload: PushPayload) {
+function resolvePushContent(payload: PushPayload) {
   const title =
-    payload.notification?.title || payload.title || payload.data?.title || 'Happy First';
-  const body = payload.notification?.body || payload.body || payload.data?.body || '';
+    payload.notification?.title?.trim() ||
+    payload.data?.title?.trim() ||
+    payload.title?.trim() ||
+    'Happy First';
+  let body =
+    payload.notification?.body?.trim() ||
+    payload.data?.body?.trim() ||
+    payload.body?.trim() ||
+    '';
+  if (!body) {
+    body = 'Tap to open Happy First.';
+  }
   const url = payload.data?.url || payload.url || '/feed';
+  const tag = payload.data?.notificationId || payload.notificationId || undefined;
+  return { title, body, url, tag };
+}
+
+function showPushNotification(payload: PushPayload) {
+  const { title, body, url, tag } = resolvePushContent(payload);
 
   return self.registration.showNotification(title, {
     body,
     icon: '/icons/icon-192',
     badge: '/icons/icon-192',
-    tag: payload.notificationId || payload.data?.notificationId || undefined,
+    tag,
     data: { url },
   });
 }

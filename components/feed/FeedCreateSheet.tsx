@@ -493,7 +493,7 @@ export function FeedCreateSheet({
               <span className="text-sm">
                 <span className="font-medium text-foreground">Surprise activity proof</span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">
-                  After you complete this week’s surprise, post proof for +50 extra coins
+                  After you complete this week’s surprise, post proof for +5 extra coins
                 </span>
               </span>
             </label>
@@ -907,6 +907,9 @@ export function FeedCreateSheet({
                     ))}
                   </ul>
                 ) : null}
+                <p className="mt-1 text-right text-[11px] text-muted-foreground">
+                  {caption.length}/300
+                </p>
                 {collaborators.length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {collaborators.map((person) => (

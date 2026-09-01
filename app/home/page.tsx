@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Flame, Calendar, TrendingUp, Loader2, BarChart3, ListChecks, CalendarDays, Coins, Sparkles, Check, X, ChevronLeft, ChevronRight, ClipboardList, HelpCircle } from 'lucide-react';
+import { Trophy, Flame, Calendar, Loader2, BarChart3, ListChecks, CalendarDays, Coins, Sparkles, Check, X, ChevronLeft, ChevronRight, ClipboardList, HelpCircle } from 'lucide-react';
 import { economyAPI, type EconomySummary } from '@/lib/api/economy';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { ChipTabs } from '@/components/ui/ChipTabs';
@@ -24,11 +24,13 @@ import ActivityChart from '@/components/charts/ActivityChart';
 import { useHomePageData } from '@/lib/queries/useHomePageData';
 import { GlobalSearch } from '@/components/home/GlobalSearch';
 import { HomeCategoryCards } from '@/components/home/HomeCategoryCards';
+import { MissedDaysCard } from '@/components/home/MissedDaysCard';
 import { DailyMotivationQuote } from '@/components/home/DailyMotivationQuote';
 import { HomeMotivationCard } from '@/components/home/HomeMotivationCard';
 import { HomeSocialPreview } from '@/components/home/HomeSocialPreview';
 import { HomeCommunityPreview } from '@/components/home/HomeCommunityPreview';
-import { WeekendPlanPromptCard } from '@/components/plan/WeekendPlanPromptCard';
+import { HomeNoPlanHub } from '@/components/home/HomeNoPlanHub';
+import { WeekendPlanPromptModal } from '@/components/plan/WeekendPlanPromptModal';
 import { CommunityInvitePromptCard } from '@/components/community/CommunityInvitePromptCard';
 import { weeklyPlanAPI, type PlanChoiceState } from '@/lib/api/weeklyPlan';
 import { resolveActivityIcon } from '@/lib/utils/activityIcon';
@@ -38,6 +40,12 @@ import {
   resolveProfileTimezone,
   todayInProfileZone,
 } from '@/lib/utils/profileTime';
+import {
+  formatDailySummaryActivityProgress,
+  formatPlanActivityProgress,
+  progressBadgeClass,
+  progressToneClass,
+} from '@/lib/utils/activityProgress';
 import Link from 'next/link';
 
 export default function HomePage() {
@@ -109,6 +117,9 @@ function HomePageContent() {
     weeklyPlan,
     upcomingPlan,
     noPlanError,
+    hasCommunityActivities,
+    communityActivityCount,
+    hasPersonalPlan,
     summary,
     isShowingPreviousWeek,
     dailySummary,
@@ -122,6 +133,7 @@ function HomePageContent() {
     isDailyLogFetching,
     userData,
     activityList,
+    missedLogDays,
     prefetchDailySummary,
     prefetchCalendar,
     invalidateDashboard,
@@ -272,6 +284,10 @@ function HomePageContent() {
   const daysLoggedThisWeek = weekDays.filter((d) => d.hasLog).length;
   const weekScoreHint = `${daysLoggedThisWeek} of 7 days`;
   const daysLoggedHint = `${daysLoggedThisWeek} this week`;
+  const isWeekend =
+    nowInProfileZone(profileZone).weekday === 6 ||
+    nowInProfileZone(profileZone).weekday === 7;
+  const showWeekendDual = isWeekend && hasPersonalPlan && Boolean(weekendPrompt?.show);
   const trackerFirstDayOffset = trackerCalendarDays.length > 0
     ? DateTime.fromISO(toLocalDateKey(trackerCalendarDays[0].date, profileZone), {
         zone: profileZone,
@@ -312,6 +328,28 @@ function HomePageContent() {
       ? selectedDayLog.streak
       : (selectedDateIsToday ? (streakData?.overallStreak.currentStreak || 0) : 0);
 
+  const selectedDayLogByCategory = useMemo(() => {
+    if (!selectedDayLog?.activities?.length) return [];
+
+    const categoryById = new Map(
+      activityList.map((a) => [a._id, (a.category || '').toLowerCase()])
+    );
+    const categories = [
+      { id: 'body', label: 'Body', emoji: '💪' },
+      { id: 'mind', label: 'Mind', emoji: '🧠' },
+      { id: 'soul', label: 'Soul', emoji: '✨' },
+    ] as const;
+
+    return categories
+      .map((category) => ({
+        ...category,
+        activities: selectedDayLog.activities.filter(
+          (activity) => categoryById.get(activity.activityId) === category.id
+        ),
+      }))
+      .filter((group) => group.activities.length > 0);
+  }, [selectedDayLog, activityList]);
+
   // Show loading only on first visit with no cached data
   if (!isHydrated || !sessionReady || !logDateFilter || isBootstrapping) {
     return (
@@ -326,9 +364,17 @@ function HomePageContent() {
       {/* Guided Tour - Only render on client */}
       {isMounted && <GuidedTour run={runTour} onFinish={handleTourFinish} steps={homeTourSteps} />}
 
-      {isMounted ? <CreatePlanFab /> : null}
+      {isMounted ? (
+        <CreatePlanFab
+          hidden={runTour}
+          mode={hasPersonalPlan ? 'log' : 'create'}
+          weekendDual={showWeekendDual}
+        />
+      ) : null}
 
-      {isMounted ? <DailyMotivationQuote suppressed={runTour} /> : null}
+      {isMounted ? (
+        <DailyMotivationQuote suppressed={runTour || Boolean(weekendPrompt?.show)} />
+      ) : null}
 
       <div className="w-full space-y-5">
         <DashboardHeader
@@ -354,6 +400,13 @@ function HomePageContent() {
 
         <GlobalSearch />
 
+        {noPlanError ? (
+          <HomeNoPlanHub
+            hasCommunityActivities={hasCommunityActivities}
+            communityActivityCount={communityActivityCount}
+          />
+        ) : null}
+
         <HomeCategoryCards weeklyPlan={weeklyPlan} activityList={activityList} />
 
         <div className="log-today-cta flex gap-2">
@@ -368,8 +421,173 @@ function HomePageContent() {
           </Button>
         </div>
 
+        <section className="my-happiness space-y-3">
+          <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            My happiness
+          </p>
+
+          {isRefreshing && (
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              Updating dashboard…
+            </div>
+          )}
+
+          {noPlanError ? (
+            <Card className="border-2 border-amber-200 bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-xl">
+                      🗓️
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-amber-900">No Active Plan Yet</h2>
+                      <p className="mt-1 text-sm text-amber-800">
+                        You don&apos;t have a weekly plan right now. Create one to unlock tasks, track points, and stay on streak.
+                      </p>
+                      {upcomingPlan?.weekStart && (
+                        <p className="mt-2 text-xs font-medium text-amber-700">
+                          Upcoming plan starts on {DateTime.fromISO(String(upcomingPlan.weekStart)).toFormat('dd LLL yyyy')}.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => router.push('/create-plan')}
+                    className="inline-flex items-center justify-center rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700"
+                  >
+                    Create Weekly Plan
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : hasCommunityActivities ? (
+            <Card className="border border-primary/20 bg-gradient-to-br from-primary-soft/40 via-surface to-surface shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-xl">
+                      👥
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-foreground">Community Activities</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        You have {communityActivityCount} community{' '}
+                        {communityActivityCount === 1 ? 'activity' : 'activities'} to log today.
+                        These count toward your activity totals but not personal Wellth points.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="shrink-0"
+                    onClick={() => router.push('/tasks')}
+                  >
+                    Log community activities
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <Card className="week-tracker section-card app-card-hover overflow-visible">
+            <CardContent className="p-4 sm:p-5">
+              <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex shrink-0 rounded-lg bg-primary-soft p-1.5 text-primary">
+                    <Calendar className="h-4 w-4" />
+                  </span>
+                  <span className="text-sm font-semibold text-foreground">This week</span>
+                  <span className="chip shrink-0 text-[10px] text-muted-foreground">
+                    {daysLoggedThisWeek}/7 logged
+                  </span>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  {upcomingPlan?._id && (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2.5 text-[11px]"
+                    >
+                      <Link href={`/create-plan?edit=${upcomingPlan._id}`}>Edit upcoming</Link>
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
+                {weekDays.map((day, index) => (
+                  <div
+                    key={index}
+                    onClick={() => !day.isFuture && handleBarClick(day.date)}
+                    className={`
+                      flex flex-col items-center justify-center rounded-xl p-1 transition-colors sm:p-2
+                      ${day.isToday ? 'bg-primary-soft ring-2 ring-primary ring-offset-1 ring-offset-surface' : ''}
+                      ${day.isFuture ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}
+                    `}
+                  >
+                    <div className="mb-0.5 text-xs font-semibold tracking-wide text-gray-700 sm:mb-1">
+                      {day.dayName}
+                    </div>
+                    <div
+                      className={`
+                        flex h-10 w-10 items-center justify-center rounded-2xl transition-colors sm:h-11 sm:w-11 md:h-12 md:w-12
+                        ${day.hasLog
+                          ? 'bg-gradient-to-br from-primary to-primary-hover shadow-md'
+                          : day.isFuture
+                          ? 'border-2 border-gray-200 bg-gray-100'
+                          : 'border-2 border-border bg-white hover:border-primary'
+                        }
+                      `}
+                    >
+                      {day.hasLog ? (
+                        <Flame className="h-4 w-4 text-white animate-pulse sm:h-6 sm:w-6 md:h-7 md:w-7" />
+                      ) : (
+                        <Flame className="h-4 w-4 text-gray-300 sm:h-6 sm:w-6 md:h-7 md:w-7" />
+                      )}
+                    </div>
+                    <div className={`
+                      mt-0.5 text-xs font-bold tracking-tight sm:mt-1
+                      ${day.isToday ? 'text-primary' : 'text-gray-600'}
+                    `}>
+                      {day.dayNumber}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 border-t border-border pt-3">
+                <div
+                  className="h-1.5 overflow-hidden rounded-full bg-secondary"
+                  role="progressbar"
+                  aria-valuenow={daysLoggedThisWeek}
+                  aria-valuemin={0}
+                  aria-valuemax={7}
+                  aria-label={`${daysLoggedThisWeek} of 7 days logged this week`}
+                >
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-primary-hover transition-all duration-500"
+                    style={{ width: `${(daysLoggedThisWeek / 7) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="stats-grid">
+            <StatCard
+              label={isShowingPreviousWeek ? 'Previous week score' : 'Week score'}
+              value={`${stats.points.toFixed(2)}%`}
+              hint={weekScoreHint}
+              icon={Trophy}
+              accent="green"
+            />
+          </div>
+        </section>
+
         {weekendPrompt?.show ? (
-          <WeekendPlanPromptCard
+          <WeekendPlanPromptModal
             weekendPrompt={weekendPrompt}
             onResolved={() => {
               void weeklyPlanAPI.getCurrentPlanState().then(({ planChoice }) => {
@@ -380,6 +598,44 @@ function HomePageContent() {
         ) : null}
 
         <CommunityInvitePromptCard />
+
+        <button
+          type="button"
+          onClick={() => router.push('/streak-calendar')}
+          className="home-streak w-full rounded-2xl border border-border bg-surface p-3 text-left shadow-[var(--shadow-card)] transition hover:border-primary/30 sm:p-4"
+        >
+          <p className="mb-2 text-[11px] font-medium text-primary">
+            Tap to open streak calendar & activity totals
+          </p>
+          <div className="grid grid-cols-2 divide-x divide-border">
+            <div className="flex items-center gap-3 pr-3">
+              <span className="inline-flex shrink-0 rounded-xl bg-primary-soft p-2 text-primary sm:p-2.5">
+                <Flame className="h-4 w-4 sm:h-5 sm:w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-lg font-bold leading-tight tracking-tight tabular-nums sm:text-xl">
+                  {streakData?.overallStreak.currentStreak || 0} days
+                </p>
+                <p className="truncate text-xs font-medium text-foreground sm:text-sm">Current streak</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  Best: {streakData?.overallStreak.longestStreak || 0} days · target-achieved days
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 pl-3">
+              <span className="inline-flex shrink-0 rounded-xl bg-secondary p-2 text-secondary-foreground sm:p-2.5">
+                <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-lg font-bold leading-tight tracking-tight tabular-nums sm:text-xl">
+                  {totalDaysLogged}
+                </p>
+                <p className="truncate text-xs font-medium text-foreground sm:text-sm">Days logged</p>
+                <p className="truncate text-xs text-muted-foreground">{daysLoggedHint}</p>
+              </div>
+            </div>
+          </div>
+        </button>
 
         <div className="xp-coins-grid grid grid-cols-2 gap-3">
           {economy ? (
@@ -433,203 +689,6 @@ function HomePageContent() {
 
         <HomeMotivationCard />
 
-        <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          My happiness
-        </p>
-
-        {/* <Card className="section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft/80 to-surface">
-          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                <MapPin className="h-5 w-5" />
-              </span>
-              <div>
-                <h2 className="text-sm font-bold text-foreground">GPS Fitness Tracker</h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Record runs, walks, and rides with live maps and workout stats.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 sm:shrink-0">
-              <Button asChild size="sm" className="flex-1 sm:flex-none">
-                <Link href="/tracker/live">Start workout</Link>
-              </Button>
-              <Button asChild variant="outline" size="sm" className="flex-1 sm:flex-none">
-                <Link href="/tracker">Open tracker</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card> */}
-
-        {isRefreshing && (
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-            Updating dashboard…
-          </div>
-        )}
-
-        {noPlanError && (
-          <Card className="border-2 border-amber-200 bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 shadow-sm">
-            <CardContent className="p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-xl">
-                    🗓️
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-amber-900">No Active Plan Yet</h2>
-                    <p className="mt-1 text-sm text-amber-800">
-                      You don&apos;t have a weekly plan right now. Create one to unlock tasks, track points, and stay on streak.
-                    </p>
-                    {upcomingPlan?.weekStart && (
-                      <p className="mt-2 text-xs font-medium text-amber-700">
-                        Upcoming plan starts on {DateTime.fromISO(String(upcomingPlan.weekStart)).toFormat('dd LLL yyyy')}.
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => router.push('/create-plan')}
-                  className="inline-flex items-center justify-center rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700"
-                >
-                  Create Weekly Plan
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Weekly Tracker */}
-        <Card className="week-tracker section-card app-card-hover overflow-visible">
-          <CardContent className="p-4 sm:p-5">
-            <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex shrink-0 rounded-lg bg-primary-soft p-1.5 text-primary">
-                  <Calendar className="h-4 w-4" />
-                </span>
-                <span className="text-sm font-semibold text-foreground">This week</span>
-                <span className="chip shrink-0 text-[10px] text-muted-foreground">
-                  {daysLoggedThisWeek}/7 logged
-                </span>
-              </div>
-              <div className="ml-auto flex items-center gap-2">
-                {upcomingPlan?._id && (
-                    <Button
-                      asChild
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2.5 text-[11px]"
-                    >
-                      <Link href={`/create-plan?edit=${upcomingPlan._id}`}>Edit upcoming</Link>
-                    </Button>
-                  )}
-              </div>
-            </div>
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
-              {weekDays.map((day, index) => (
-                <div
-                  key={index}
-                  onClick={() => !day.isFuture && handleBarClick(day.date)}
-                  className={`
-                    flex flex-col items-center justify-center rounded-xl p-1 transition-colors sm:p-2
-                    ${day.isToday ? 'bg-primary-soft ring-2 ring-primary ring-offset-1 ring-offset-surface' : ''}
-                    ${day.isFuture ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}
-                  `}
-                >
-                  <div className="mb-0.5 text-xs font-semibold tracking-wide text-gray-700 sm:mb-1">
-                    {day.dayName}
-                  </div>
-                  <div
-                    className={`
-                      flex h-10 w-10 items-center justify-center rounded-2xl transition-colors sm:h-11 sm:w-11 md:h-12 md:w-12
-                      ${day.hasLog
-                        ? 'bg-gradient-to-br from-primary to-primary-hover shadow-md'
-                        : day.isFuture
-                        ? 'border-2 border-gray-200 bg-gray-100'
-                        : 'border-2 border-border bg-white hover:border-primary'
-                      }
-                    `}
-                  >
-                    {day.hasLog ? (
-                      <Flame className="h-4 w-4 text-white animate-pulse sm:h-6 sm:w-6 md:h-7 md:w-7" />
-                    ) : (
-                      <Flame className="h-4 w-4 text-gray-300 sm:h-6 sm:w-6 md:h-7 md:w-7" />
-                    )}
-                  </div>
-                  <div className={`
-                    mt-0.5 text-xs font-bold tracking-tight sm:mt-1
-                    ${day.isToday ? 'text-primary' : 'text-gray-600'}
-                  `}>
-                    {day.dayNumber}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 border-t border-border pt-3">
-              <div
-                className="h-1.5 overflow-hidden rounded-full bg-secondary"
-                role="progressbar"
-                aria-valuenow={daysLoggedThisWeek}
-                aria-valuemin={0}
-                aria-valuemax={7}
-                aria-label={`${daysLoggedThisWeek} of 7 days logged this week`}
-              >
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-primary to-primary-hover transition-all duration-500"
-                  style={{ width: `${(daysLoggedThisWeek / 7) * 100}%` }}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stats Grid */}
-        <div className="stats-grid grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-          <button
-            type="button"
-            onClick={() => router.push('/streak-calendar')}
-            className="h-full rounded-2xl border border-border bg-surface p-3 text-left shadow-[var(--shadow-card)] transition hover:border-primary/30 sm:p-4"
-          >
-            <div className="grid h-full grid-cols-2 divide-x divide-border">
-              <div className="flex items-center gap-3 pr-3">
-                <span className="inline-flex shrink-0 rounded-xl bg-primary-soft p-2 text-primary sm:p-2.5">
-                  <Flame className="h-4 w-4 sm:h-5 sm:w-5" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-lg font-bold leading-tight tracking-tight tabular-nums sm:text-xl">
-                    {streakData?.overallStreak.currentStreak || 0} days
-                  </p>
-                  <p className="truncate text-xs font-medium text-foreground sm:text-sm">Current streak</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    Best: {streakData?.overallStreak.longestStreak || 0} days
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 pl-3">
-                <span className="inline-flex shrink-0 rounded-xl bg-secondary p-2 text-secondary-foreground sm:p-2.5">
-                  <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-lg font-bold leading-tight tracking-tight tabular-nums sm:text-xl">
-                    {totalDaysLogged}
-                  </p>
-                  <p className="truncate text-xs font-medium text-foreground sm:text-sm">Days logged</p>
-                  <p className="truncate text-xs text-muted-foreground">{daysLoggedHint}</p>
-                </div>
-              </div>
-            </div>
-          </button>
-          <div className="h-full">
-          <StatCard
-            label={isShowingPreviousWeek ? 'Previous week score' : 'Week score'}
-            value={stats.points.toFixed(2)}
-            hint={weekScoreHint}
-            icon={Trophy}
-            accent="green"
-          />
-          </div>
-        </div>
-
         <CollapsibleSection
           className="pending-activities"
           title="Pending activities"
@@ -643,6 +702,22 @@ function HomePageContent() {
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-center">
                   <h3 className="font-semibold text-amber-900">No pending activities</h3>
                   <p className="mt-1 text-sm text-amber-800">Create a weekly plan to see pending activities.</p>
+                </div>
+              ) : hasCommunityActivities && !weeklyPlan ? (
+                <div className="rounded-xl border border-primary/20 bg-primary-soft/30 p-5 text-center">
+                  <h3 className="font-semibold text-foreground">Community activities waiting</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {communityActivityCount} {communityActivityCount === 1 ? 'activity' : 'activities'} from your communities — log on Tasks.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => router.push('/tasks')}
+                  >
+                    Go to Tasks
+                  </Button>
                 </div>
               ) : weeklyPlan ? (
                 <>
@@ -663,19 +738,15 @@ function HomePageContent() {
                             .filter(activity => activity.cadence === 'daily')
                             .map((activity, index) => {
                               const activityData = typeof activity === 'object' ? activity : null;
-                              const weekEnd = new Date(weeklyPlan.weekEnd);
-                              const today = new Date();
-                              const remainingDays = Math.max(0, Math.ceil((weekEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-                              const remaining = activity.targetValue * remainingDays - ((activity.TodayLogged) ? (activity.targetValue) : (0));
                               const isSurprise = activity?.isSurpriseActivity || false;
-                              const isCompleted = activity.TodayLogged && (activity.achieved || 0) > 0;
-                              const isPartial = activity.TodayLogged && (activity.achieved || 0) > 0 && (activity.achieved || 0) < (activity.dailyTarget || 0);
+                              const progress = formatPlanActivityProgress(activity);
+                              const isAchieved = progress.tone === 'achieved';
 
                               return (
                                 <div key={index} className={`
                                   ${isSurprise
                                     ? 'bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50 border-l-4 border-amber-400'
-                                    : isCompleted
+                                    : isAchieved
                                       ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-l-4 border-emerald-500'
                                       : activity.TodayLogged
                                         ? 'bg-gradient-to-br from-rose-50 to-red-50 border-l-4 border-rose-400'
@@ -691,59 +762,33 @@ function HomePageContent() {
                                     <div className="flex items-center gap-3 flex-1 min-w-0">
                                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSurprise
                                         ? 'bg-amber-100'
-                                        : isCompleted
+                                        : isAchieved
                                           ? 'bg-emerald-100'
                                           : activity.TodayLogged
                                             ? 'bg-rose-100'
                                             : 'bg-slate-200'
                                         }`}>
                                         <span className="text-xl">
-                                          {isSurprise ? (activity.TodayLogged ? '🎉' : '🎁') : (activity.TodayLogged ? (activity.achieved || 0) > 0 ? '✓' : '✗' : '○')}
+                                          {isSurprise ? (activity.TodayLogged ? '🎉' : '🎁') : (isAchieved ? '✓' : activity.TodayLogged ? '✗' : '○')}
                                         </span>
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <p className={`font-semibold text-sm mb-0.5 ${isSurprise ? 'text-amber-900' : 'text-gray-900'}`}>
-                                          {activityData?.label || 'Activity'}
+                                          {activityData?.label || activity.label || 'Activity'}
                                         </p>
                                         <div className="flex items-center gap-2">
                                           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white/60 text-gray-600 border border-gray-200">
                                             Daily
                                           </span>
                                           <span className="text-xs text-gray-500">•</span>
-                                          <span className="text-xs text-gray-600 font-medium">{activityData?.unit}</span>
+                                          <span className="text-xs text-gray-600 font-medium">{activityData?.unit || activity.unit}</span>
                                         </div>
                                       </div>
                                     </div>
                                     <div className="text-left sm:text-right sm:ml-3">
-                                      {activity.TodayLogged ? (
-                                        <div>
-                                          <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${(activity.achieved || 0) > 0
-                                            ? isSurprise
-                                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                            : 'bg-rose-100 text-rose-800 border border-rose-200'
-                                            }`}>
-                                            {(activity.achieved || 0) > 0
-                                              ? (activity.achieved || 0) >= (activity.dailyTarget || 0)
-                                                ? 'Completed'
-                                                : 'Partial'
-                                              : 'Incomplete'
-                                            }
-                                          </span>
-                                          {isPartial && (
-                                            <p className="text-xs text-gray-500 mt-1">
-                                              {activity.achieved}/{activity.dailyTarget}
-                                            </p>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <div>
-                                          <p className={`text-sm font-bold ${isSurprise ? 'text-amber-700' : 'text-slate-700'}`}>
-                                            {activity.targetValue}
-                                          </p>
-                                          <p className="text-xs text-gray-500 mt-0.5">{activityData?.unit}/day</p>
-                                        </div>
-                                      )}
+                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${progressBadgeClass(progress.tone)}`}>
+                                        {progress.text}
+                                      </span>
                                     </div>
                                   </div>
                                 </div>
@@ -768,9 +813,15 @@ function HomePageContent() {
                               const weekEnd = new Date(weeklyPlan.weekEnd);
                               const today = new Date();
                               const remainingDays = Math.max(0, Math.ceil((weekEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-                              const remaining = activity.targetValue - (activity.achievedUnits || 0);
                               const isSurprise = activity?.isSurpriseActivity || false;
-                              const progress = ((activity.achievedUnits || 0) / activity.targetValue) * 100;
+                              const progress = formatPlanActivityProgress(activity);
+                              const progressPercent =
+                                activity.targetValue > 0
+                                  ? Math.min(
+                                      100,
+                                      ((activity.achievedUnits || 0) / activity.targetValue) * 100
+                                    )
+                                  : 0;
 
                               return (
                                 <div key={index} className={`${isSurprise
@@ -791,28 +842,27 @@ function HomePageContent() {
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <p className={`font-semibold text-sm mb-0.5 ${isSurprise ? 'text-amber-900' : 'text-gray-900'}`}>
-                                          {activityData?.label || 'Activity'}
+                                          {activityData?.label || activity.label || 'Activity'}
                                         </p>
                                         <div className="flex items-center gap-2">
                                           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white/60 text-gray-600 border border-gray-200">
                                             Weekly
                                           </span>
                                           <span className="text-xs text-gray-500">•</span>
-                                          <span className="text-xs text-gray-600 font-medium">{activityData?.unit}</span>
+                                          <span className="text-xs text-gray-600 font-medium">{activityData?.unit || activity.unit}</span>
                                         </div>
                                       </div>
                                     </div>
                                     <div className="text-left sm:text-right sm:ml-3">
-                                      <p className={`text-sm font-bold ${isSurprise ? 'text-amber-700' : 'text-primary'}`}>
-                                        {remaining}
-                                      </p>
-                                      <p className="text-xs text-gray-500 mt-0.5">{activityData?.unit} left</p>
+                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${progressBadgeClass(progress.tone)}`}>
+                                        {progress.text}
+                                      </span>
                                     </div>
                                   </div>
                                   <div className="space-y-2">
                                     <div className="flex items-center justify-between text-xs">
                                       <span className="text-gray-600 font-medium">Progress</span>
-                                      <span className="text-gray-700 font-semibold">{Math.round(progress)}%</span>
+                                      <span className="text-gray-700 font-semibold">{Math.round(progressPercent)}%</span>
                                     </div>
                                     <div className="h-2 bg-white/80 rounded-full overflow-hidden border border-gray-200/50">
                                       <div
@@ -820,13 +870,10 @@ function HomePageContent() {
                                           ? 'bg-gradient-to-r from-amber-400 to-orange-400'
                                           : 'bg-gradient-to-r from-primary to-primary-hover'
                                           }`}
-                                        style={{ width: `${Math.min(progress, 100)}%` }}
+                                        style={{ width: `${progressPercent}%` }}
                                       ></div>
                                     </div>
-                                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
-                                      <span className="text-gray-500">
-                                        {activity.achievedUnits || 0} / {activity.targetValue} {activityData?.unit}
-                                      </span>
+                                    <div className="flex flex-wrap items-center justify-end gap-2 text-xs pt-1">
                                       <span className="text-gray-600 font-medium">
                                         {remainingDays} day{remainingDays !== 1 ? 's' : ''} left
                                       </span>
@@ -864,6 +911,7 @@ function HomePageContent() {
                             })
                             .map((activity, index) => {
                               const activityData = typeof activity === 'object' ? activity : null;
+                              const progress = formatPlanActivityProgress(activity);
 
                               return (
                                 <div key={index} className="bg-gradient-to-br from-emerald-50 to-green-50 border-l-4 border-emerald-500 rounded-lg p-4 shadow-sm">
@@ -874,20 +922,20 @@ function HomePageContent() {
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <p className="font-semibold text-sm text-gray-900 mb-0.5">
-                                          {activityData?.label || 'Activity'}
+                                          {activityData?.label || activity.label || 'Activity'}
                                         </p>
                                         <div className="flex items-center gap-2">
                                           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white/60 text-gray-600 border border-gray-200">
                                             Weekly
                                           </span>
                                           <span className="text-xs text-gray-500">•</span>
-                                          <span className="text-xs text-gray-600 font-medium">{activityData?.unit}</span>
+                                          <span className="text-xs text-gray-600 font-medium">{activityData?.unit || activity.unit}</span>
                                         </div>
                                       </div>
                                     </div>
                                     <div className="text-left sm:text-right sm:ml-3">
-                                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                        Completed
+                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${progressBadgeClass(progress.tone)}`}>
+                                        {progress.text}
                                       </span>
                                     </div>
                                   </div>
@@ -899,10 +947,7 @@ function HomePageContent() {
                                         style={{ width: '100%' }}
                                       ></div>
                                     </div>
-                                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
-                                      <span className="text-emerald-700 font-semibold">
-                                        {activity.achievedUnits || 0} / {activity.targetValue} {activityData?.unit}
-                                      </span>
+                                    <div className="flex flex-wrap items-center justify-end gap-2 text-xs pt-1">
                                       <span className="text-emerald-600 font-medium">100%</span>
                                     </div>
                                   </div>
@@ -926,7 +971,7 @@ function HomePageContent() {
         <CollapsibleSection
           className="weekly-performance"
           title="Monthly performance"
-          subtitle={viewMode === 'week' ? 'Weekly consistency scores' : 'Daily scores (today excluded)'}
+          subtitle={viewMode === 'week' ? 'Weekly consistency scores · tap a bar for missed activities' : 'Daily scores (today excluded)'}
           icon={BarChart3}
           expanded={expandedSections.weeklyPerformance}
           onToggle={() => toggleSection('weeklyPerformance')}
@@ -1054,6 +1099,8 @@ function HomePageContent() {
           onToggle={() => toggleSection('logTracker')}
           contentClassName="space-y-4"
         >
+          <MissedDaysCard data={missedLogDays} />
+
           <div className="rounded-xl border border-border bg-secondary/40 p-3 sm:p-4">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center justify-between gap-2 sm:justify-start">
@@ -1178,151 +1225,119 @@ function HomePageContent() {
                   Loading log for this date…
                 </div>
               ) : selectedDayLog ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {/* Summary Header */}
-                  <div className="bg-gradient-to-br bg-accent rounded-xl p-5 border border-border shadow-sm">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center shadow-md">
-                          <Calendar className="w-6 h-6 text-white" />
+                  <div className="rounded-xl border border-border bg-accent p-3 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary-hover shadow-sm">
+                          <Calendar className="h-4 w-4 text-white" />
                         </div>
-                        <div>
-                          <p className="font-bold text-base text-gray-900 mb-0.5">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-gray-900">
                             {new Date(selectedDayLog.date).toLocaleDateString('en-US', {
                               weekday: 'long',
                               year: 'numeric',
                               month: 'long',
-                              day: 'numeric'
+                              day: 'numeric',
                             })}
                           </p>
-                          <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-primary-soft rounded-full">
-                              <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                              <span className="text-xs font-semibold text-foreground">
-                                {selectedDayLog.activities.filter(activity => activity.achieved > 0).length} {selectedDayLog.activities.filter(activity => activity.achieved > 0).length === 1 ? 'Activity' : 'Activities'} Completed
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-baseline gap-1 justify-end mb-1">
-                          <Trophy className="w-5 h-5 text-primary" />
-                          <p className="text-3xl font-bold text-primary">
-                            {selectedDayLog.totalPoints.toFixed(2)}
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {selectedDayLog.activities.filter((activity) => activity.achieved > 0).length}{' '}
+                            {selectedDayLog.activities.filter((activity) => activity.achieved > 0).length === 1
+                              ? 'activity'
+                              : 'activities'}{' '}
+                            completed
                           </p>
                         </div>
-                        <p className="text-xs font-semibold text-accent-foreground uppercase tracking-wide">Total Points</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="flex items-baseline justify-end gap-1">
+                          <Trophy className="h-4 w-4 text-primary" />
+                          <p className="text-2xl font-bold tabular-nums text-primary">
+                            {selectedDayLog.totalPoints.toFixed(1)}%
+                          </p>
+                        </div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-accent-foreground">
+                          Earned
+                        </p>
                       </div>
                     </div>
                     {selectedDayStreak > 0 && (
-                      <div className="flex items-center gap-2.5 mt-3 pt-3 border-t border-border">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center shadow-sm">
-                          <Flame className="w-4 h-4 text-white" />
-                        </div>
-                        <span className="text-sm font-bold text-gray-900">
-                          {selectedDayStreak} Day Streak Active
+                      <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
+                        <Flame className="h-4 w-4 text-primary" />
+                        <span className="text-xs font-semibold text-gray-900">
+                          {selectedDayStreak} day streak active
                         </span>
                       </div>
                     )}
                   </div>
 
-                  {/* Activities List */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 px-1">
-                      <div className="w-1 h-5 bg-gradient-to-b from-primary to-primary-hover rounded-full"></div>
-                      <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Activity Details</h4>
-                    </div>
-                    {selectedDayLog.activities.map((activity, index) => {
-                      const isPending = activity.status === 'pending';
-                      const isWeeklyDays =
-                        activity.cadance === 'weekly' &&
-                        String(activity.unit || '').toLowerCase() === 'days';
-                      const isDone = isWeeklyDays
-                        ? activity.achieved > 0
-                        : activity.achieved > 0;
-                      const statusLabel = isPending
-                        ? 'Not logged'
-                        : isWeeklyDays
-                          ? isDone
-                            ? 'Done'
-                            : 'Not Done'
-                          : activity.achieved <= 0
-                            ? 'Not Done'
-                            : activity.pointsEarned === 0
-                              ? 'Target Met'
-                              : 'Points Earned';
-                      return (
-                      <div
-                        key={index}
-                        className={`rounded-xl p-4 border-2 transition-all hover:shadow-md ${
-                          isPending
-                            ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200'
-                            : isDone
-                          ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200'
-                          : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200'
-                          }`}
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="flex items-start gap-3 flex-1">
-                            <div
-                              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${
-                                isPending
-                                  ? 'bg-amber-100'
-                                  : isDone
-                                    ? 'bg-success-soft'
-                                    : 'bg-secondary'
-                              }`}
-                            >
-                              {resolveActivityIcon(activityList, activity.activityId, activity.activity)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-bold text-sm text-gray-900 mb-1">{activity.activity}</p>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${activity.cadance === 'daily'
-                                  ? 'bg-primary-soft text-accent-foreground border border-border'
-                                  : 'bg-purple-100 text-purple-800 border border-orange-200'
-                                  }`}>
-                                  {activity.cadance === 'daily' ? 'Daily Goal' : 'Weekly Goal'}
-                                </span>
-                                <span className="text-xs font-medium text-gray-600">
-                                  {isPending
-                                    ? 'Not logged yet'
-                                    : activity.cadance === 'daily'
-                                      ? `${activity.achieved} / ${activity.target} ${activity.unit}`
-                                      : isWeeklyDays
-                                        ? isDone
-                                          ? 'Completed'
-                                          : 'Not Done'
-                                        : `${activity.achieved} ${activity.unit}`
-                                  }
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            <div className="flex items-center gap-1 justify-end mb-1">
-                              <TrendingUp className="w-4 h-4 text-emerald-600" />
-                              <p className="text-base font-bold text-emerald-600">
-                                +{activity.pointsEarned.toFixed(2)}
-                              </p>
-                            </div>
-                            <p className={`text-xs font-semibold uppercase tracking-wide ${
-                              isPending
-                                ? 'text-amber-700'
-                                : !isDone
-                                  ? 'text-gray-500'
-                                  : activity.pointsEarned === 0
-                                    ? 'text-amber-600'
-                                    : 'text-emerald-600'
-                              }`}>
-                              {statusLabel}
-                            </p>
-                          </div>
+                  {/* Activities by Mind / Body / Soul */}
+                  <div className="space-y-2.5">
+                    {selectedDayLogByCategory.map((group) => (
+                      <div key={group.id} className="overflow-hidden rounded-xl border border-border bg-surface">
+                        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+                          <span className="text-sm" aria-hidden>
+                            {group.emoji}
+                          </span>
+                          <h4 className="text-xs font-bold uppercase tracking-wide text-gray-900">
+                            {group.label}
+                          </h4>
+                          <span className="ml-auto text-[10px] text-muted-foreground">
+                            {group.activities.length}
+                          </span>
                         </div>
+                        <ul className="divide-y divide-border">
+                          {group.activities.map((activity) => {
+                            const progress = formatDailySummaryActivityProgress(activity);
+                            const earnedPercent = activity.pointsEarned.toFixed(1);
+
+                            return (
+                              <li
+                                key={activity.activityId}
+                                className={`flex items-center gap-2 px-3 py-2 ${
+                                  progress.tone === 'not_logged'
+                                    ? 'bg-amber-50/60'
+                                    : progress.tone === 'achieved'
+                                      ? 'bg-emerald-50/40'
+                                      : 'bg-surface'
+                                }`}
+                              >
+                                <div
+                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm ${
+                                    progress.tone === 'not_logged'
+                                      ? 'bg-amber-100'
+                                      : progress.tone === 'achieved'
+                                        ? 'bg-success-soft'
+                                        : 'bg-secondary'
+                                  }`}
+                                >
+                                  {resolveActivityIcon(
+                                    activityList,
+                                    activity.activityId,
+                                    activity.activity
+                                  )}
+                                </div>
+                                <p className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
+                                  {activity.activity}
+                                </p>
+                                <div className="shrink-0 text-right">
+                                  <p className={`text-xs font-semibold ${progressToneClass(progress.tone)}`}>
+                                    {progress.text}
+                                  </p>
+                                  {activity.status !== 'pending' && (
+                                    <p className="text-[10px] font-bold tabular-nums text-primary">
+                                      {earnedPercent}%
+                                    </p>
+                                  )}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       </div>
-                      );
-                    })}
+                    ))}
                   </div>
                 </div>
               ) : (

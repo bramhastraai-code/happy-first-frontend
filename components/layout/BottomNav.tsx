@@ -10,18 +10,19 @@ import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { HappyIcon } from '@/components/ui/HappyIcon';
 
 /**
- * My Inspiration → Feed (social)
- * My Happiness → Home (+ Tasks stays under Happiness)
- * My Community → Community
- * My Profile → Settings (Referrals live inside Profile)
+ * Inspiration → Feed (not profile)
+ * Happiness → Home + Tasks
+ * Community → Community hub
+ * Profile → own feed profile (/feed/profile/:id); Settings linked from there
  */
-const navigation = [
+const baseNavigation = [
   {
     name: 'Inspiration',
     href: '/feed',
     icon: Sparkles,
     match: (pathname: string) =>
-      pathname === '/feed' || pathname.startsWith('/feed/'),
+      (pathname === '/feed' || pathname.startsWith('/feed/')) &&
+      !pathname.startsWith('/feed/profile/'),
   },
   {
     name: 'Happiness',
@@ -45,11 +46,17 @@ const navigation = [
     href: '/settings',
     icon: User,
     isProfile: true,
-    match: (pathname: string) =>
-      pathname === '/settings' ||
-      pathname.startsWith('/settings/') ||
-      pathname === '/referral' ||
-      pathname.startsWith('/referral/'),
+    match: (pathname: string, profilePath: string | null) => {
+      if (profilePath && (pathname === profilePath || pathname.startsWith(`${profilePath}/`))) {
+        return true;
+      }
+      return (
+        pathname === '/settings' ||
+        pathname.startsWith('/settings/') ||
+        pathname === '/referral' ||
+        pathname.startsWith('/referral/')
+      );
+    },
   },
 ] as const;
 
@@ -76,19 +83,24 @@ function NavGlyph({
 export default function BottomNav() {
   const pathname = usePathname();
   const selectedProfile = useAuthStore((s) => s.selectedProfile);
+  const profilePath = selectedProfile?._id
+    ? `/feed/profile/${selectedProfile._id}`
+    : null;
 
   return (
     <nav className="bottom-nav glass-nav fixed bottom-0 left-0 right-0 z-50 border-t border-border">
       <div className="mx-auto max-w-lg px-1.5 sm:max-w-3xl sm:px-2 lg:max-w-4xl">
         <div className="flex h-[4.25rem] items-center justify-around">
-          {navigation.map((item) => {
-            const isActive = item.match(pathname);
+          {baseNavigation.map((item) => {
+            const href =
+              item.name === 'Profile' && profilePath ? profilePath : item.href;
+            const isActive = item.match(pathname, profilePath);
             const showAvatar = 'isProfile' in item && item.isProfile;
 
             return (
               <Link
                 key={item.name}
-                href={item.href}
+                href={href}
                 className={cn(
                   'relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 transition-colors',
                   isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'

@@ -6,6 +6,7 @@ export interface FeedAuthor {
   name: string;
   userName?: string | null;
   isFollowing?: boolean;
+  followsYou?: boolean;
   avatarUrl?: string | null;
   avatarSeed?: string | null;
   avatarStyle?: string | null;

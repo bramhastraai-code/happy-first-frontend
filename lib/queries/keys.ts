@@ -49,11 +49,17 @@ export const queryKeys = {
       allTimeLeaderboardPage: number
     ) =>
       ['dailyLog', 'activityCalendar', profileId, activityId, month, year, leaderboardPage, allTimeLeaderboardPage] as const,
+    missedDays: (profileId?: string, withinDays = 30) =>
+      ['dailyLog', 'missedDays', profileId ?? 'none', withinDays] as const,
   },
   auth: {
     userInfo: (profileId?: string) => ['auth', 'userInfo', profileId ?? 'none'] as const,
   },
   activities: {
     list: () => ['activities', 'list'] as const,
+  },
+  community: {
+    myActivities: (profileId?: string, date?: string) =>
+      ['community', 'myActivities', profileId ?? 'none', date ?? 'today'] as const,
   },
 } as const;

@@ -18,15 +18,12 @@ import {
   settingsBtnClass,
 } from '@/components/settings/settingsUi';
 import {
-  DEFAULT_LANDING_OPTIONS,
-  DEFAULT_MASCOT_COLOR,
-  MASCOT_COLOR_PRESETS,
   applyMascotTheme,
+  DEFAULT_MASCOT_COLOR,
   normalizeMascotColor,
   resolveDefaultLanding,
   type DefaultLandingPath,
 } from '@/lib/theme/mascotTheme';
-import { HappyFirstMascot } from '@/components/ui/HappyFirstMascot';
 
 const FIELD_CLASS = settingsTextareaClass;
 
@@ -226,7 +223,13 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
         avatarStyle: uploaded ? 'uploaded' : AVATAR_STYLE,
         avatarUrl: nextAvatarUrl,
         profile: profileData.profile,
-        preferences: profileData.preferences,
+        preferences: {
+          tone: profileData.preferences.tone,
+          allowMessages: profileData.preferences.allowMessages,
+          mascotName: selectedProfile.preferences?.mascotName,
+          mascotColor: selectedProfile.preferences?.mascotColor,
+          defaultLanding: selectedProfile.preferences?.defaultLanding,
+        },
       });
       const updatedProfiles = response.data.data.profiles as Profile[];
       setProfiles(updatedProfiles);
@@ -500,122 +503,6 @@ export default function EditProfileForm({ onSaved, onCancel }: EditProfileFormPr
               </span>
             </span>
           </label>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Mascot & app colour
-        </h3>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 rounded-none border border-[#dbdbdb] bg-white px-3 py-3">
-            <HappyFirstMascot
-              size={56}
-              title={
-                profileData.preferences.mascotName.trim() ||
-                'Happy First mascot (name to be decided)'
-              }
-            />
-            <p className="min-w-0 text-xs text-muted-foreground">
-              Name is still to be decided. Pick one below.
-            </p>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">
-              Mascot name
-            </label>
-            <Input
-              value={profileData.preferences.mascotName}
-              onChange={(e) =>
-                setProfileData((prev) => ({
-                  ...prev,
-                  preferences: {
-                    ...prev.preferences,
-                    mascotName: e.target.value.slice(0, 40),
-                  },
-                }))
-              }
-              placeholder="Name to be decided"
-              maxLength={40}
-              className={settingsFieldClass}
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">
-              Mascot colour
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {MASCOT_COLOR_PRESETS.map((preset) => (
-                <button
-                  key={preset.value}
-                  type="button"
-                  title={preset.label}
-                  aria-label={preset.label}
-                  onClick={() => {
-                    setProfileData((prev) => ({
-                      ...prev,
-                      preferences: { ...prev.preferences, mascotColor: preset.value },
-                    }));
-                    applyMascotTheme(preset.value);
-                    setError('');
-                    setMessage('');
-                  }}
-                  className={cn(
-                    'h-9 w-9 rounded-full border-2 transition',
-                    profileData.preferences.mascotColor === preset.value
-                      ? 'border-foreground scale-110'
-                      : 'border-transparent'
-                  )}
-                  style={{ backgroundColor: preset.value }}
-                />
-              ))}
-              <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-input bg-surface px-3 text-xs text-muted-foreground">
-                Custom
-                <input
-                  type="color"
-                  value={normalizeMascotColor(profileData.preferences.mascotColor)}
-                  onChange={(e) => {
-                    const next = normalizeMascotColor(e.target.value);
-                    setProfileData((prev) => ({
-                      ...prev,
-                      preferences: { ...prev.preferences, mascotColor: next },
-                    }));
-                    applyMascotTheme(next);
-                    setError('');
-                    setMessage('');
-                  }}
-                  className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
-                />
-              </label>
-            </div>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">
-              Default landing after login
-            </label>
-            <select
-              value={profileData.preferences.defaultLanding}
-              onChange={(e) =>
-                setProfileData((prev) => ({
-                  ...prev,
-                  preferences: {
-                    ...prev.preferences,
-                    defaultLanding: e.target.value as DefaultLandingPath,
-                  },
-                }))
-              }
-              className={cn(FIELD_CLASS, 'h-10')}
-            >
-              {DEFAULT_LANDING_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              After you pick a profile, open this bottom-nav page instead of Happiness by default.
-            </p>
-          </div>
         </div>
       </div>
 

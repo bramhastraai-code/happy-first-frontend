@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Loader2, QrCode, Share2, X } from 'lucide-react';
 import { getCommunityJoinUrl } from '@/lib/community/share';
+import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 
 interface CommunityShareDialogProps {
@@ -18,10 +19,11 @@ export function CommunityShareDialog({
   open,
   onClose,
 }: CommunityShareDialogProps) {
+  const { selectedProfile } = useAuthStore();
   const [copied, setCopied] = useState(false);
   const joinUrl = useMemo(
-    () => (open ? getCommunityJoinUrl(communityId) : ''),
-    [open, communityId]
+    () => (open ? getCommunityJoinUrl(communityId, selectedProfile?._id) : ''),
+    [open, communityId, selectedProfile?._id]
   );
   const qrSrc = joinUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=16&ecc=M&data=${encodeURIComponent(joinUrl)}`

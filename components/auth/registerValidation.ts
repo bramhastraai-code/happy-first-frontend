@@ -15,17 +15,16 @@ export function validatePinCode(pin: string): string | null {
 }
 
 export function validateDateOfBirth(dob: string): string | null {
-  if (!dob) return 'Date of birth is required';
+  if (!dob) return 'Birthday is required';
   const birth = new Date(dob);
   const today = new Date();
-  if (birth > today) return 'Date of birth cannot be in the future';
+  if (Number.isNaN(birth.getTime())) return 'Enter a valid birthday';
+  if (birth > today) return 'Birthday cannot be in the future';
 
-  const age =
-    today.getFullYear() -
-    birth.getFullYear() -
-    (today < new Date(today.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0);
+  const ageMs = today.getTime() - birth.getTime();
+  const ageYears = ageMs / (365.25 * 24 * 60 * 60 * 1000);
+  if (ageYears < 5) return 'You must be at least 5 years old to sign up';
 
-  if (age < 13) return 'You must be at least 13 years old to register';
   return null;
 }
 

@@ -1,11 +1,11 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DateTime } from 'luxon';
 import { useAuthStore } from '@/lib/store/authStore';
 import { type Activity } from '@/lib/api/activity';
-import { weeklyPlanAPI, type CreateWeeklyPlanData, type NextWeekPreview, type WeekTarget, type WeeklyMood, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
+import { weeklyPlanAPI, type CreateWeeklyPlanData, type WeekTarget, type WeeklyMood, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { CheckCircle2, ArrowRight, ChevronLeft, RefreshCw, PlusCircle, PauseCircle, CalendarDays } from 'lucide-react';
 import CadenceSlider, { type CadenceValue } from '@/components/ui/CadenceSlider';
 import { cn } from '@/lib/utils';
-import { formatWeekRangeLabel, formatWeekRangeShort } from '@/lib/utils/weekDate';
+import { formatWeekRangeLabel, formatWeekRangeShort, resolvePlanWeekPreview } from '@/lib/utils/weekDate';
 import { getPlanTargetRange } from '@/lib/utils/activityInput';
 
 const WEEKLY_MOOD_OPTIONS: Array<{ value: WeeklyMood; label: string; emoji: string }> = [
@@ -86,6 +86,19 @@ function CreatePlanPageContent() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivities, setSelectedActivities] = useState<SelectedActivity[]>([]);
   const [weekTarget, setWeekTarget] = useState<WeekTarget>(defaultWeekTarget);
+  const profileZone = selectedProfile?.timezone;
+
+  const weekPreview = useMemo(
+    () => resolvePlanWeekPreview(weekTarget, profileZone),
+    [weekTarget, profileZone]
+  );
+
+  useEffect(() => {
+    if (weekTargetParam === 'current' || weekTargetParam === 'next') {
+      setWeekTarget(weekTargetParam);
+    }
+  }, [weekTargetParam]);
+
   const [step, setStep] = useState<'choice' | 'select' | 'configure'>(
     isOnboarding || isEditMode ? 'select' : 'choice'
   );
@@ -99,7 +112,6 @@ function CreatePlanPageContent() {
   const [targetOverlayActivity, setTargetOverlayActivity] = useState<Activity | null>(null);
   const [weight, setWeight] = useState<number>(selectedProfile?.profile?.weight || 0);
   const [weeklyMood, setWeeklyMood] = useState<WeeklyMood | ''>('');
-  const [nextWeekPreview, setNextWeekPreview] = useState<NextWeekPreview | null>(null);
   const [pauseLoading, setPauseLoading] = useState(false);
   const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false);
   const [pauseMessage, setPauseMessage] = useState('');
@@ -220,15 +232,6 @@ function CreatePlanPageContent() {
       }
 
       if (isOnboarding) return;
-
-      if (!isEditMode) {
-        try {
-          const previewRes = await weeklyPlanAPI.getNextWeekPreview();
-          setNextWeekPreview(previewRes.data.data ?? null);
-        } catch (err) {
-          console.error('Failed to load next week preview:', err);
-        }
-      }
 
       // Check if an upcoming plan already exists — send user to edit it
       try {
@@ -589,23 +592,24 @@ function CreatePlanPageContent() {
     }
   };
 
-  const weekPreviewBanner =
-    !isEditMode && nextWeekPreview ? (
-      <div className="section-card flex items-center gap-3 border-primary/25 bg-primary-soft/40 p-4">
-        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-          <CalendarDays className="h-5 w-5" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Next plan week</p>
-          <p className="text-base font-bold text-foreground">
-            {formatWeekRangeLabel(nextWeekPreview.weekStart, nextWeekPreview.weekEnd)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {formatWeekRangeShort(nextWeekPreview.weekStart, nextWeekPreview.weekEnd)}
-          </p>
-        </div>
+  const weekPreviewBanner = !isEditMode ? (
+    <div className="section-card flex items-center gap-3 border-primary/25 bg-primary-soft/40 p-4">
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+        <CalendarDays className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+          {weekTarget === 'next' ? 'Next plan week' : 'This plan week'}
+        </p>
+        <p className="text-base font-bold text-foreground">
+          {formatWeekRangeLabel(weekPreview.weekStart, weekPreview.weekEnd)}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {formatWeekRangeShort(weekPreview.weekStart, weekPreview.weekEnd)}
+        </p>
       </div>
-    ) : null;
+    </div>
+  ) : null;
 
   const moodPicker = !isEditMode ? (
     <div className="section-card p-4">
@@ -1063,6 +1067,20 @@ function CreatePlanPageContent() {
 }
 
 // Target Selection Form Component
+function resolveSuggestedPlanTarget(
+  activity: Activity,
+  tiers: number,
+  cadence: CadenceValue
+): number {
+  if (cadence === 'none') return 0;
+  const { minVal, maxVal } = getPlanTargetRange(activity, tiers, cadence);
+  const suggested = activity.defaultTarget;
+  if (typeof suggested === 'number' && suggested > 0) {
+    return Math.min(Math.max(suggested, minVal), maxVal);
+  }
+  return minVal;
+}
+
 function TargetSelectionForm({
   activity,
   tiers,
@@ -1080,18 +1098,16 @@ function TargetSelectionForm({
     activity.allowedCadence.length === 1 ? activity.allowedCadence[0] : 'none'
   );
   const { minVal, maxVal: effectiveMaxVal } = getPlanTargetRange(activity, tiers, cadence);
-  const [targetValue, setTargetValue] = useState<number>(() => {
-    const { minVal: min, maxVal: max } = getPlanTargetRange(
-      activity,
-      tiers,
-      activity.allowedCadence.length === 1 ? activity.allowedCadence[0] : 'daily'
-    );
-    const suggested = activity.defaultTarget;
-    if (typeof suggested === 'number' && suggested > 0) {
-      return Math.min(Math.max(suggested, min), max);
-    }
-    return min;
-  });
+  const initialCadence =
+    activity.allowedCadence.length === 1 ? activity.allowedCadence[0] : 'daily';
+  const [targetValue, setTargetValue] = useState<number>(() =>
+    resolveSuggestedPlanTarget(activity, tiers, initialCadence)
+  );
+
+  useEffect(() => {
+    if (cadence === 'none') return;
+    setTargetValue(resolveSuggestedPlanTarget(activity, tiers, cadence));
+  }, [activity, tiers, cadence]);
 
   const handleConfirm = () => {
     if (targetValue < minVal || targetValue > effectiveMaxVal || cadence === 'none') {

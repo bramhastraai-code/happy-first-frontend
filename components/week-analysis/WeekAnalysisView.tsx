@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -37,6 +37,80 @@ import type {
 import type { ActivityAnalytics } from '@/lib/api/weeklyPlan';
 import ActivityChart from '@/components/charts/ActivityChart';
 
+const CATEGORY_ORDER = ['body', 'mind', 'soul'] as const;
+type ActivityCategory = (typeof CATEGORY_ORDER)[number];
+
+const CATEGORY_META: Record<ActivityCategory, { label: string; emoji: string }> = {
+  body: { label: 'Body', emoji: '💪' },
+  mind: { label: 'Mind', emoji: '🧠' },
+  soul: { label: 'Soul', emoji: '✨' },
+};
+
+function buildCategoryById(activityList: { _id: string; category?: string }[]) {
+  return new Map(
+    activityList.map((activity) => [
+      activity._id,
+      ((activity.category || 'body').toLowerCase() as ActivityCategory),
+    ])
+  );
+}
+
+function groupByCategory<T extends { activityId: string }>(
+  items: T[],
+  categoryById: Map<string, ActivityCategory>
+) {
+  return CATEGORY_ORDER.map((category) => ({
+    category,
+    items: items.filter(
+      (item) => (categoryById.get(item.activityId) ?? 'body') === category
+    ),
+  })).filter((group) => group.items.length > 0);
+}
+
+function CategoryGroupGrid<T extends { activityId: string }>({
+  items,
+  categoryById,
+  renderItem,
+}: {
+  items: T[];
+  categoryById: Map<string, ActivityCategory>;
+  renderItem: (item: T) => ReactNode;
+}) {
+  const grouped = groupByCategory(items, categoryById);
+
+  if (grouped.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      {grouped.map((group) => {
+        const meta = CATEGORY_META[group.category];
+        return (
+          <div
+            key={group.category}
+            className="overflow-hidden rounded-xl border border-border bg-surface"
+          >
+            <div className="flex items-center gap-1.5 border-b border-border bg-secondary/40 px-2.5 py-1.5">
+              <span className="text-sm" aria-hidden>
+                {meta.emoji}
+              </span>
+              <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">
+                {meta.label}
+              </h3>
+            </div>
+            <div className="space-y-2 p-2">
+              {group.items.map((item) => (
+                <div key={item.activityId}>{renderItem(item)}</div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 interface WeekAnalysisViewProps {
   data: WeekAnalysisData;
   onRetry?: () => void;
@@ -64,15 +138,23 @@ function ActivityPerformanceCard({ activity }: { activity: ActivityAnalytics }) 
     activity.cadence === 'daily' ? activity.targetValue * 7 : activity.targetValue;
 
   return (
-    <article className="rounded-lg border border-border bg-surface px-2.5 py-2">
-      <div className="flex items-center gap-2">
-        <h3 className="min-w-0 truncate text-sm font-semibold text-foreground">{activity.activityLabel}</h3>
-        {activity.rank != null && activity.totalParticipants > 0 && (
-          <span className="shrink-0 rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-foreground">
-            {activity.rank} / {activity.totalParticipants}
-          </span>
-        )}
-        <p className="ml-auto shrink-0 text-sm font-bold tabular-nums text-success">
+    <article className="rounded-lg border border-border bg-background px-2.5 py-2">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold text-foreground">{activity.activityLabel}</h3>
+          {activity.rank != null && activity.totalParticipants > 0 && (
+            <p
+              className="mt-0.5 text-[10px] text-muted-foreground"
+              title="Your rank among all profiles who logged this activity this week"
+            >
+              Community rank{' '}
+              <span className="font-semibold tabular-nums text-foreground">
+                {activity.rank} of {activity.totalParticipants}
+              </span>
+            </p>
+          )}
+        </div>
+        <p className="shrink-0 text-sm font-bold tabular-nums text-success">
           {formatPoints(activity.totalPointsAchieved)}
           <span className="ml-1 text-[10px] font-medium text-muted-foreground">
             / {formatPoints(activity.pointsAllocated)}
@@ -96,70 +178,83 @@ function ActivityPerformanceCard({ activity }: { activity: ActivityAnalytics }) 
 }
 
 function DailyLossCard({ activity }: { activity: DailyActivityLoss }) {
+  const earnedPercent =
+    activity.potentialPoints > 0 ? (activity.earnedPoints / activity.potentialPoints) * 100 : 0;
+  const hasDayDetails = activity.missedDays.length > 0 || activity.partialDays.length > 0;
+
   return (
-    <article className="rounded-2xl border border-border bg-surface p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold text-foreground">{activity.activity}</h3>
-          <p className="text-xs text-muted-foreground">Daily · {activity.unit}</p>
-        </div>
-        <div className="text-right">
-          {activity.pointsLost > 0 ? (
-            <>
-              <p className="font-bold tabular-nums text-destructive">-{formatPoints(activity.pointsLost)}</p>
-              <p className="text-xs text-muted-foreground">points lost</p>
-              <p className="mt-1 text-xs tabular-nums text-success">
-                {formatPoints(activity.earnedPoints)} earned
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="font-bold tabular-nums text-success">{formatPoints(activity.earnedPoints)}</p>
-              <p className="text-xs text-muted-foreground">of {formatPoints(activity.potentialPoints)}% Points Earned</p>
-            </>
-          )}
-        </div>
+    <article className="rounded-lg border border-border bg-background px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <h3 className="min-w-0 truncate text-sm font-semibold text-foreground">{activity.activity}</h3>
+        <p className="ml-auto shrink-0 text-sm font-bold tabular-nums text-destructive">
+          -{formatPoints(activity.pointsLost)}
+        </p>
       </div>
 
-      {activity.pointsLost > 0 && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          {activity.missedDays.length} missed · {activity.partialDays.length} incomplete days
-        </p>
-      )}
+      <p className="mt-0.5 text-[11px] text-muted-foreground">
+        Daily · {activity.unit}
+        {hasDayDetails && (
+          <>
+            {' '}
+            · {activity.missedDays.length} missed · {activity.partialDays.length} incomplete
+          </>
+        )}
+      </p>
 
-      {activity.missedDays.length > 0 && (
-        <ul className="mt-3 space-y-1.5">
-          {activity.missedDays.map((day) => (
-            <li
-              key={day.date}
-              className="flex items-center justify-between rounded-lg bg-secondary px-3 py-2 text-sm"
-            >
-              <span className="flex items-center gap-2 text-foreground">
-                <XCircle className="h-3.5 w-3.5 text-destructive" />
-                {DateTime.fromISO(day.date).toFormat('EEE, MMM dd')}
-              </span>
-              <span className="font-semibold text-destructive">-{formatPoints(day.pointsLost)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="mt-1.5 flex items-center gap-2">
+        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-border">
+          <div
+            className={cn('h-full rounded-full transition-all', progressTone(earnedPercent))}
+            style={{ width: `${Math.min(earnedPercent, 100)}%` }}
+          />
+        </div>
+        <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
+          {formatPoints(activity.earnedPoints)} / {formatPoints(activity.potentialPoints)}
+        </span>
+      </div>
 
-      {activity.partialDays.length > 0 && (
-        <ul className="mt-3 space-y-1.5">
-          {activity.partialDays.map((day) => (
-            <li key={day.date} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-foreground">
+      {hasDayDetails && (
+        <details className="mt-1.5 group">
+          <summary className="cursor-pointer list-none text-[11px] font-medium text-primary [&::-webkit-details-marker]:hidden">
+            <span className="group-open:hidden">Show missed days</span>
+            <span className="hidden group-open:inline">Hide missed days</span>
+          </summary>
+          <div className="mt-1.5 space-y-1">
+            {activity.missedDays.map((day) => (
+              <div
+                key={day.date}
+                className="flex items-center justify-between rounded-md bg-secondary/70 px-2 py-1 text-[11px]"
+              >
+                <span className="flex min-w-0 items-center gap-1.5 truncate text-foreground">
+                  <XCircle className="h-3 w-3 shrink-0 text-destructive" />
                   {DateTime.fromISO(day.date).toFormat('EEE, MMM dd')}
                 </span>
-                <span className="font-semibold text-amber-700">-{formatPoints(day.pointsLost)}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-destructive">
+                  -{formatPoints(day.pointsLost)}
+                </span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {day.achieved} / {day.target} {day.unit} ({((day.achieved / day.target) * 100).toFixed(0)}%)
-              </p>
-            </li>
-          ))}
-        </ul>
+            ))}
+            {activity.partialDays.map((day) => (
+              <div
+                key={day.date}
+                className="rounded-md border border-amber-200/80 bg-amber-50/80 px-2 py-1 text-[11px]"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium text-foreground">
+                    {DateTime.fromISO(day.date).toFormat('EEE, MMM dd')}
+                  </span>
+                  <span className="shrink-0 font-semibold tabular-nums text-amber-700">
+                    -{formatPoints(day.pointsLost)}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  {day.achieved} / {day.target} {day.unit} (
+                  {day.target > 0 ? ((day.achieved / day.target) * 100).toFixed(0) : 0}%)
+                </p>
+              </div>
+            ))}
+          </div>
+        </details>
       )}
     </article>
   );
@@ -169,50 +264,33 @@ function WeeklyLossCard({ activity }: { activity: WeeklyActivityLoss }) {
   const percent = activity.target > 0 ? (activity.achieved / activity.target) * 100 : 0;
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold text-foreground">{activity.activity}</h3>
-          <p className="text-xs text-muted-foreground">
-            Weekly target · {activity.daysLogged} days logged
-          </p>
-        </div>
-        <div className="text-right">
-          {activity.pointsLost > 0 ? (
-            <>
-              <p className="font-bold tabular-nums text-destructive">-{formatPoints(activity.pointsLost)}</p>
-              <p className="text-xs text-muted-foreground">points lost</p>
-              <p className="mt-1 text-xs tabular-nums text-success">
-                {formatPoints(activity.earnedPoints)} earned
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="font-bold tabular-nums text-success">{formatPoints(activity.earnedPoints)}</p>
-              <p className="text-xs text-muted-foreground">of {formatPoints(activity.potentialPoints)}% Points Earned</p>
-            </>
-          )}
-        </div>
+    <article className="rounded-lg border border-border bg-background px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <h3 className="min-w-0 truncate text-sm font-semibold text-foreground">{activity.activity}</h3>
+        <p className="ml-auto shrink-0 text-sm font-bold tabular-nums text-destructive">
+          -{formatPoints(activity.pointsLost)}
+        </p>
       </div>
 
-      <div className="mt-4">
-        <div className="mb-2 flex justify-between text-sm">
-          <span className="text-muted-foreground">Progress</span>
-          <span className="font-medium tabular-nums">
-            {activity.achieved.toFixed(1)} / {activity.target.toFixed(1)} {activity.unit}
-          </span>
-        </div>
-        <div className="h-2 overflow-hidden rounded-full bg-border">
+      <p className="mt-0.5 text-[11px] text-muted-foreground">
+        Weekly · {activity.unit} · {activity.daysLogged} days logged
+      </p>
+
+      <div className="mt-1.5 flex items-center gap-2">
+        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-border">
           <div
-            className={cn('h-full rounded-full', progressTone(percent))}
+            className={cn('h-full rounded-full transition-all', progressTone(percent))}
             style={{ width: `${Math.min(percent, 100)}%` }}
           />
         </div>
+        <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
+          {activity.achieved.toFixed(1)} / {activity.target.toFixed(1)} {activity.unit}
+        </span>
       </div>
 
       {activity.achieved < activity.target && (
-        <p className="mt-3 flex items-center gap-2 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 shrink-0" />
+        <p className="mt-1 flex items-center gap-1.5 text-[11px] text-destructive">
+          <AlertCircle className="h-3 w-3 shrink-0" />
           {(activity.target - activity.achieved).toFixed(1)} {activity.unit} short of target
         </p>
       )}
@@ -245,7 +323,7 @@ function buildInsights(
 }
 
 export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) {
-  const { analytics, pointLosses, plan, fourWeekTrend } = data;
+  const { analytics, pointLosses, plan, fourWeekTrend, activityList } = data;
   const [expanded, setExpanded] = useState({
     performance: true,
     dailyLosses: true,
@@ -273,6 +351,7 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
     () => buildInsights(dailyActivities, weeklyActivities, pointLosses),
     [dailyActivities, weeklyActivities, pointLosses]
   );
+  const categoryById = useMemo(() => buildCategoryById(activityList), [activityList]);
 
   const toggle = (key: keyof typeof expanded) =>
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -379,14 +458,16 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
         expanded={expanded.dailyLosses}
         onToggle={() => toggle('dailyLosses')}
         className="mb-4"
-        contentClassName="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5"
+        contentClassName="space-y-2 px-3 pb-3 sm:px-4 sm:pb-4"
       >
         {dailyActivities.length === 0 ? (
           <p className="text-sm text-muted-foreground">No daily activity losses this week.</p>
         ) : (
-          dailyActivities.map((activity) => (
-            <DailyLossCard key={activity.activityId} activity={activity} />
-          ))
+          <CategoryGroupGrid
+            items={dailyActivities}
+            categoryById={categoryById}
+            renderItem={(activity) => <DailyLossCard activity={activity} />}
+          />
         )}
       </CollapsibleSection>
 
@@ -398,11 +479,13 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
           expanded={expanded.weeklyLosses}
           onToggle={() => toggle('weeklyLosses')}
           className="mb-4"
-          contentClassName="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5"
+          contentClassName="space-y-2 px-3 pb-3 sm:px-4 sm:pb-4"
         >
-          {weeklyActivities.map((activity) => (
-            <WeeklyLossCard key={activity.activityId} activity={activity} />
-          ))}
+          <CategoryGroupGrid
+            items={weeklyActivities}
+            categoryById={categoryById}
+            renderItem={(activity) => <WeeklyLossCard activity={activity} />}
+          />
         </CollapsibleSection>
       )}
 
@@ -444,7 +527,7 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
       {analytics && (
         <CollapsibleSection
           title="Activity performance"
-          subtitle={`${formatPoints(analytics.summary.totalPointsAchieved)} of ${formatPoints(analytics.summary.totalPointsAllocated)}% Points Earned`}
+          subtitle={`${formatPoints(analytics.summary.totalPointsAchieved)} of ${formatPoints(analytics.summary.totalPointsAllocated)}% Points Earned · grouped by Mind, Body, Soul`}
           icon={Trophy}
           expanded={expanded.performance}
           onToggle={() => toggle('performance')}
@@ -454,9 +537,11 @@ export function WeekAnalysisView({ data, onWeekChange }: WeekAnalysisViewProps) 
           {analytics.activities.length === 0 ? (
             <p className="text-sm text-muted-foreground">No activities in this plan.</p>
           ) : (
-            analytics.activities.map((activity) => (
-              <ActivityPerformanceCard key={activity.activityId} activity={activity} />
-            ))
+            <CategoryGroupGrid
+              items={analytics.activities}
+              categoryById={categoryById}
+              renderItem={(activity) => <ActivityPerformanceCard activity={activity} />}
+            />
           )}
         </CollapsibleSection>
       )}

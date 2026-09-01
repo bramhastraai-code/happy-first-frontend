@@ -49,6 +49,8 @@ interface CommunityActivityConfigPickerProps {
     string,
     { beginner: number; active: number; champion: number; unit?: string }
   >;
+  discussionOnly?: boolean;
+  onDiscussionOnlyChange?: (value: boolean) => void;
 }
 
 export function CommunityActivityConfigPicker({
@@ -60,8 +62,11 @@ export function CommunityActivityConfigPicker({
   onToggle,
   onLevelChange,
   targetDefaults,
+  discussionOnly = false,
+  onDiscussionOnlyChange,
 }: CommunityActivityConfigPickerProps) {
   const selectedCount = Object.keys(selectedLevels).length;
+  const showDiscussionToggle = Boolean(onDiscussionOnlyChange);
   const sortedActivities = [...activities].sort((a, b) =>
     String(a.name || '').localeCompare(String(b.name || ''), undefined, {
       sensitivity: 'base',
@@ -73,12 +78,46 @@ export function CommunityActivityConfigPicker({
       <div className="mb-3">
         <h2 className="text-sm font-semibold text-foreground">Activities & levels</h2>
         <p className="text-xs text-muted-foreground">
-          {selectedCount === 0
-            ? 'Optional — leave empty for a discussion-only community with no targets, or tap activities to add goals'
-            : `${selectedCount} selected · tap an activity to remove it`}
+          {discussionOnly
+            ? 'Discussion only — chat and share without weekly activity targets'
+            : selectedCount === 0
+              ? 'Tap activities to add weekly goals, or choose Discussion only below'
+              : `${selectedCount} selected · tap an activity to remove it`}
         </p>
       </div>
 
+      {showDiscussionToggle ? (
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => onDiscussionOnlyChange?.(false)}
+            className={cn(
+              'rounded-xl border px-3 py-2.5 text-left transition-colors',
+              !discussionOnly
+                ? 'border-primary bg-primary-soft'
+                : 'border-border bg-surface hover:bg-secondary/60'
+            )}
+          >
+            <p className="text-xs font-semibold text-foreground">Yes — with targets</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">Pick activities & levels</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => onDiscussionOnlyChange?.(true)}
+            className={cn(
+              'rounded-xl border px-3 py-2.5 text-left transition-colors',
+              discussionOnly
+                ? 'border-primary bg-primary-soft'
+                : 'border-border bg-surface hover:bg-secondary/60'
+            )}
+          >
+            <p className="text-xs font-semibold text-foreground">No — discussion only</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">No weekly targets</p>
+          </button>
+        </div>
+      ) : null}
+
+      {!discussionOnly ? (
       <div className="mb-3 flex flex-wrap gap-2">
         {(['all', 'body', 'mind', 'soul'] as const).map((item) => (
           <button
@@ -96,12 +135,13 @@ export function CommunityActivityConfigPicker({
           </button>
         ))}
       </div>
+      ) : null}
 
-      {loading ? (
+      {!discussionOnly && loading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
-      ) : (
+      ) : !discussionOnly ? (
         <ul className="max-h-[50vh] space-y-2 overflow-y-auto">
           {sortedActivities.map((activity) => {
             const active = Boolean(selectedLevels[activity._id]);
@@ -173,7 +213,7 @@ export function CommunityActivityConfigPicker({
                             </span>
                             <span className="mt-0.5 block text-[11px] font-medium text-foreground">
                               {optionTarget != null
-                                ? `${optionTarget} ${defaults?.unit || activity.baseUnit || ''}`
+                                ? `${Number(optionTarget).toLocaleString()} ${defaults?.unit || activity.baseUnit || ''}`
                                 : LEVEL_DESCRIPTIONS[option.value]}
                             </span>
                             {optionTarget != null ? (
@@ -189,7 +229,7 @@ export function CommunityActivityConfigPicker({
                       {LEVEL_DESCRIPTIONS[level]} — every member aims for{' '}
                       <span className="font-semibold text-foreground">
                         {previewTarget != null
-                          ? `${previewTarget} ${defaults?.unit || activity.baseUnit || ''}`
+                          ? `${Number(previewTarget).toLocaleString()} ${defaults?.unit || activity.baseUnit || ''}`
                           : 'an auto-set target'}
                       </span>{' '}
                       each week.
@@ -200,7 +240,7 @@ export function CommunityActivityConfigPicker({
             );
           })}
         </ul>
-      )}
+      ) : null}
     </div>
   );
 }

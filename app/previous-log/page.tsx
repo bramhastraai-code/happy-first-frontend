@@ -22,6 +22,9 @@ import { cn } from '@/lib/utils';
 import { resolveActivityId } from '@/lib/utils/activityId';
 import { getActivityInputMax } from '@/lib/utils/activityInput';
 import {
+  formatDailySummaryActivityProgress,
+} from '@/lib/utils/activityProgress';
+import {
   applyDaySummaryToPlan,
   canSubmitFullDayLog,
   collectUnusualValueWarnings,
@@ -35,15 +38,7 @@ import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 type PageMode = 'submit' | 'view' | 'closed' | 'loading';
 
 function formatSubmittedValue(activity: DailySummary['activities'][number]) {
-  const unit = String(activity.unit || '').toLowerCase();
-  const isWeeklyDays = activity.cadance === 'weekly' && unit === 'days';
-  if (activity.status === 'pending') {
-    return 'Not logged';
-  }
-  if (isWeeklyDays || activity.status === 'not_done') {
-    return activity.achieved > 0 ? 'Done' : 'Not Done';
-  }
-  return `${activity.achieved} ${activity.unit}`;
+  return formatDailySummaryActivityProgress(activity).text;
 }
 
 function isLoggableDate(dateIso: string, zone: string) {
@@ -622,7 +617,7 @@ function PreviousLogPageContent() {
                       {activity.activity}
                     </p>
                     <p className="text-xs capitalize text-muted-foreground">
-                      {activity.status} · target {activity.target} {activity.unit}
+                      {activity.cadance === 'daily' ? 'Daily goal' : 'Weekly goal'}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">

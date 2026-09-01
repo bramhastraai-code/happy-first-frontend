@@ -149,6 +149,7 @@ export interface CommunityMember {
     name: string;
     description?: string;
   } | null;
+  invitedByProfileId?: string | null;
   userId: string;
   profile: {
     id: string;
@@ -602,6 +603,7 @@ export const communityAPI = {
       allowedCadence?: Array<'daily' | 'weekly'>;
       level?: CommunityActivityLevel;
       defaultTarget?: number | null;
+      levelTargets?: Partial<Record<CommunityActivityLevel, number>>;
     }
   ) =>
     api.post<
@@ -816,7 +818,7 @@ export const communityAPI = {
   remove: (id: string) =>
     api.delete<Envelope<{ deleted: boolean }>>(`/community/${id}`),
 
-  join: (id: string, payload?: { groupId?: string }) =>
+  join: (id: string, payload?: { groupId?: string; invitedByProfileId?: string }) =>
     api.post<Envelope<{ community: Community }>>(`/community/${id}/join`, payload || {}),
 
   leave: (

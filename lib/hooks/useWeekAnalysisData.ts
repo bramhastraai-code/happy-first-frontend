@@ -1,8 +1,10 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import type { Activity } from '@/lib/api/activity';
 import { dailyLogAPI, type PointLossesData } from '@/lib/api/dailyLog';
 import { weeklyPlanAPI, type WeeklyPlan, type WeeklyPlanAnalytics } from '@/lib/api/weeklyPlan';
+import { fetchActivityList } from '@/lib/queries/fetchers';
 import { useAuthStore } from '@/lib/store/authStore';
 import {
   latestCompletedWeekStartISO,
@@ -17,6 +19,7 @@ export interface WeekAnalysisData {
   analytics: WeeklyPlanAnalytics | null;
   pointLosses: PointLossesData;
   fourWeekTrend: FourWeekTrendEntry[];
+  activityList: Activity[];
 }
 
 function normalizePointLosses(
@@ -58,9 +61,10 @@ export function useWeekAnalysisData(weekStartInput?: string | null) {
     queryKey: ['weekAnalysis', selectedProfile?._id, weekStart],
     enabled: isHydrated && !!accessToken && !!selectedProfile?._id,
     queryFn: async (): Promise<WeekAnalysisData> => {
-      const [planResponse, pointLossesResponse] = await Promise.all([
+      const [planResponse, pointLossesResponse, activityList] = await Promise.all([
         weeklyPlanAPI.getCurrent(weekStart),
         dailyLogAPI.getPointLosses(weekStart),
+        fetchActivityList(),
       ]);
 
       const plan = planResponse.data.data ?? null;
@@ -94,7 +98,7 @@ export function useWeekAnalysisData(weekStartInput?: string | null) {
         };
       });
 
-      return { weekStart, plan, analytics, pointLosses, fourWeekTrend };
+      return { weekStart, plan, analytics, pointLosses, fourWeekTrend, activityList };
     },
     meta: {
       extractErrorMessage,

@@ -383,7 +383,7 @@ export function FeedPostCard({
               ) : !hideCommunityLabel && post.communityId && post.communityName ? (
                 <span className="font-medium text-muted-foreground">
                   {' '}
-                  posted in{' '}
+                  on Community:{' '}
                   <Link
                     href={`/community/${post.communityId}`}
                     className="font-semibold text-primary hover:underline"
@@ -396,7 +396,8 @@ export function FeedPostCard({
             {!isOwner && !post.author.isFollowing ? (
               <FollowButton
                 profileId={post.author.profileId}
-                isFollowing={false}
+                isFollowing={Boolean(post.author.isFollowing)}
+                followsYou={Boolean(post.author.followsYou)}
                 size="sm"
                 className="h-7 shrink-0 px-2.5"
               />
@@ -407,7 +408,7 @@ export function FeedPostCard({
           post.communityId &&
           post.communityName ? (
             <p className="truncate text-xs text-muted-foreground">
-              posted in{' '}
+              on Community:{' '}
               <Link
                 href={`/community/${post.communityId}`}
                 className="font-medium text-primary hover:underline"

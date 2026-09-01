@@ -20,6 +20,7 @@ import {
   type CommunityActivityLevel,
   type CommunityType,
 } from '@/lib/api/community';
+import { parseLevelTargetsPayload } from '@/lib/community/unitTargetDefaults';
 import { cn } from '@/lib/utils';
 import { pageStickyHeaderClass } from '@/components/ui/AppPageHeader';
 
@@ -37,6 +38,7 @@ export default function EditCommunityPage() {
   const [selectedLevels, setSelectedLevels] = useState<Record<string, CommunityActivityLevel>>(
     {}
   );
+  const [discussionOnly, setDiscussionOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<'all' | 'mind' | 'body' | 'soul'>('all');
   const [avatar, setAvatar] = useState<CommunityAvatarSelection>({
@@ -100,10 +102,14 @@ export default function EditCommunityPage() {
       sourceConfig.forEach((row) => {
         levels[row.activityId] = row.level || 'active';
       });
-    } else {
+      setDiscussionOnly(false);
+    } else if (community.activities.length > 0) {
       community.activities.forEach((a) => {
         levels[a.id] = 'active';
       });
+      setDiscussionOnly(false);
+    } else {
+      setDiscussionOnly(true);
     }
     setSelectedLevels(levels);
     setAvatar({
@@ -131,10 +137,12 @@ export default function EditCommunityPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const activityConfig = Object.entries(selectedLevels).map(([activityId, level]) => ({
-        activityId,
-        level,
-      }));
+      const activityConfig = discussionOnly
+        ? []
+        : Object.entries(selectedLevels).map(([activityId, level]) => ({
+            activityId,
+            level,
+          }));
       const res = await communityAPI.update(communityId, {
         name: name.trim(),
         description: description.trim(),
@@ -201,6 +209,7 @@ export default function EditCommunityPage() {
   });
 
   const toggleActivity = (id: string) => {
+    setDiscussionOnly(false);
     setSelectedLevels((prev) => {
       if (prev[id]) {
         const next = { ...prev };
@@ -372,8 +381,14 @@ export default function EditCommunityPage() {
             setSelectedLevels((prev) => ({ ...prev, [activityId]: level }))
           }
           targetDefaults={defaultsQuery.data}
+          discussionOnly={discussionOnly}
+          onDiscussionOnlyChange={(next) => {
+            setDiscussionOnly(next);
+            if (next) setSelectedLevels({});
+          }}
         />
 
+        {!discussionOnly ? (
         <CommunityCustomActivityForm
           mode="create"
           onCreate={async (draft) => {
@@ -386,6 +401,7 @@ export default function EditCommunityPage() {
               allowedCadence: draft.allowedCadence,
               level: draft.level,
               defaultTarget: draft.defaultTarget ? Number(draft.defaultTarget) : null,
+              levelTargets: parseLevelTargetsPayload(draft.levelTargets, draft.baseUnit),
             });
             const activityId = res.data.data.activity.id;
             setSelectedLevels((prev) => ({
@@ -398,10 +414,7 @@ export default function EditCommunityPage() {
             void queryClient.invalidateQueries({ queryKey: ['community', communityId] });
           }}
         />
-
-        <p className="text-xs text-muted-foreground">
-          Tip: clear all activities to make this a discussion-only community with no targets.
-        </p>
+        ) : null}
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
 

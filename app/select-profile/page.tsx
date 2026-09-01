@@ -71,11 +71,35 @@ export default function SelectProfilePage() {
     }
   };
 
-  if (!isHydrated || !sessionReady || !user) {
+  if (!isHydrated || !sessionReady) {
     return <LoadingScreen fullScreen label="Loading profiles…" />;
   }
 
+  if (!user) {
+    return <LoadingScreen fullScreen label="Redirecting to login…" />;
+  }
+
   const familyMembers = profiles || [];
+
+  if (familyMembers.length === 0) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-md rounded-3xl border border-border bg-surface p-6 text-center shadow-[var(--shadow-card)]">
+          <h1 className="text-lg font-bold text-foreground">No profiles yet</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Complete setup or add a family member in Settings to continue.
+          </p>
+          <button
+            type="button"
+            className="mt-4 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+            onClick={() => router.replace('/settings')}
+          >
+            Open Settings
+          </button>
+        </div>
+      </div>
+    );
+  }
   const canAddMore = familyMembers.length < 5;
 
   return (

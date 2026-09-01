@@ -25,8 +25,12 @@ import {
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import GuidedTour from '@/components/ui/GuidedTour';
+import TourStartButton from '@/components/ui/TourStartButton';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/lib/store/authStore';
+import { usePageTour } from '@/lib/hooks/usePageTour';
+import { coinsTourSteps } from '@/lib/utils/tourSteps';
 import {
   economyAPI,
   type CoinDashboard,
@@ -186,13 +190,13 @@ const EARN_STEPS = [
 
 /** Member-facing coin earn amounts (mirrors backend coinConfig). */
 const COIN_EARN_METHODS = [
-  { label: 'On-time activity log', amount: '1 coin per activity' },
-  { label: 'Late activity log', amount: '0.5 coin per activity' },
+  { label: 'On-time daily log', amount: 'Total coins = activities logged (1 each)' },
+  { label: 'Late activity log', amount: 'Half coin per activity (shown as daily total)' },
   { label: 'Missed previous day', amount: '−50% of that day’s expected coins' },
   { label: '7-day weekly streak', amount: '+25 coins' },
   { label: 'Community hits 90% of weekly target', amount: '+50 coins' },
   { label: 'Complete weekly surprise activity', amount: '+50 coins' },
-  { label: 'Post proof after surprise complete', amount: '+50 coins (doubles surprise)' },
+  { label: 'Post proof after surprise complete', amount: '+5 coins' },
   { label: 'Successful referral', amount: '+100 coins' },
   { label: 'Profile complete (100%)', amount: '+100 coins (once)' },
   { label: 'Meaningful profile update', amount: '+10 coins / quarter' },
@@ -223,6 +227,7 @@ export default function CoinsPage() {
   const [redeeming, setRedeeming] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const { runTour, isMounted, handleStartTour, handleTourFinish } = usePageTour('tourCompleted:coins');
 
   useEffect(() => {
     if (!isHydrated || !sessionReady) return;
@@ -269,6 +274,12 @@ export default function CoinsPage() {
 
   return (
     <MainLayout>
+      {isMounted ? (
+        <>
+          <GuidedTour run={runTour} onFinish={handleTourFinish} steps={coinsTourSteps} />
+          <TourStartButton onClick={handleStartTour} />
+        </>
+      ) : null}
       <PageHeader
         title="Happy First Coins"
         subtitle="Earn by logging, inviting, and connecting"
@@ -299,7 +310,7 @@ export default function CoinsPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
-            className="section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft via-surface to-surface p-5"
+            className="coins-balance section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft via-surface to-surface p-5"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -429,7 +440,7 @@ export default function CoinsPage() {
           </section>
 
           {/* History */}
-          <section aria-label="Coin history">
+          <section aria-label="Coin history" className="coins-history">
             <h2 className="section-title mb-3">Coin history</h2>
             {data.history.length === 0 ? (
               <div className="section-card px-4 py-10 text-center">

@@ -26,6 +26,8 @@ import {
   fetchCalendar,
   fetchUserInfo,
   fetchActivityList,
+  fetchCommunityActivities,
+  fetchMissedLogDays,
   groupDataByWeeks,
   monthlyBreakdownToPoints,
   type MonthlyDataPoint,
@@ -198,6 +200,20 @@ export function useHomePageData({
     enabled,
   });
 
+  const communityActivitiesQuery = useQuery({
+    queryKey: queryKeys.community.myActivities(profileId, localDate),
+    queryFn: () => fetchCommunityActivities(localDate),
+    staleTime: STALE.dashboard,
+    enabled: enabled && planQuery.isSuccess && !planQuery.data,
+  });
+
+  const missedLogDaysQuery = useQuery({
+    queryKey: queryKeys.dailyLog.missedDays(profileId, 30),
+    queryFn: () => fetchMissedLogDays(30),
+    staleTime: STALE.daily,
+    enabled: enabled && !!profileId,
+  });
+
   const summary = needsPreviousWeek
     ? (previousWeekQuery.data ?? null)
     : (weeklyQuery.data ?? null);
@@ -214,10 +230,17 @@ export function useHomePageData({
     [monthlyData, zone]
   );
 
+  const communityActivityCount = communityActivitiesQuery.data ?? 0;
+  const hasCommunityActivities = communityActivityCount > 0;
+
   const noPlanError =
-    planQuery.isSuccess && !planQuery.data
+    planQuery.isSuccess && !planQuery.data && !hasCommunityActivities
       ? 'No active weekly plan found. Create a weekly plan to track your activity goals.'
       : '';
+
+  const hasPersonalPlan = Boolean(planQuery.data);
+  /** Log FAB on Home only when the member has their own weekly plan (not community-only). */
+  const canLogToday = hasPersonalPlan;
 
   const isBootstrapping =
     enabled &&
@@ -261,6 +284,10 @@ export function useHomePageData({
     weeklyPlan: (planQuery.data as WeeklyPlan | null | undefined) ?? null,
     upcomingPlan: (upcomingPlanQuery.data as WeeklyPlan | null | undefined) ?? null,
     noPlanError,
+    hasCommunityActivities,
+    communityActivityCount,
+    hasPersonalPlan,
+    canLogToday,
     summary,
     isShowingPreviousWeek,
     dailySummary: (todayDailyQuery.data as DailySummary | null | undefined) ?? null,
@@ -275,6 +302,7 @@ export function useHomePageData({
     isCalendarFetching: calendarQuery.isFetching,
     userData: userQuery.data ?? null,
     activityList: activityListQuery.data ?? [],
+    missedLogDays: missedLogDaysQuery.data ?? null,
     prefetchDailySummary,
     prefetchCalendar,
     invalidateDashboard,

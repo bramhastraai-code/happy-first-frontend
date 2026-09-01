@@ -208,7 +208,7 @@ export default function ReferralPage() {
                   icon: Users,
                 },
                 {
-                  label: 'Points',
+                  label: 'Referral points',
                   value: loading
                     ? '—'
                     : (referralStats.HappyPoints || 0).toLocaleString(),
@@ -315,7 +315,7 @@ export default function ReferralPage() {
 
         {!loading && activityGroups.length > 0 ? (
           <section>
-            <h2 className="section-title mb-3">Activity</h2>
+            <h2 className="section-title mb-3">Overall Referral Activity</h2>
             <div className="space-y-3">
               {activityGroups.map((group) => (
                 <div key={group.id}>

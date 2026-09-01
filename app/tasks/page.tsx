@@ -18,7 +18,7 @@ import TaskCategorySection from '@/components/tasks/TaskCategorySection';
 import CommunityActivitiesSection from '@/components/tasks/CommunityActivitiesSection';
 import { Calendar, ChevronRight, Timer, TrendingUp, CheckCircle2, AlertCircle, Pencil, RefreshCw, PlusCircle, HelpCircle } from 'lucide-react';
 import type { WeeklyPlan, WeeklyPlanActivity, PlanChoiceState } from '@/lib/api/weeklyPlan';
-import { WeekendPlanPromptCard } from '@/components/plan/WeekendPlanPromptCard';
+import { WeekendPlanPromptModal } from '@/components/plan/WeekendPlanPromptModal';
 import { CommunityInvitePromptCard } from '@/components/community/CommunityInvitePromptCard';
 import { authAPI } from '@/lib/api/auth';
 import GuidedTour from '@/components/ui/GuidedTour';
@@ -39,6 +39,7 @@ import {
 } from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
+import { DAILY_MOOD_OPTIONS, type DailyMoodValue } from '@/lib/utils/dailyMood';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -62,16 +63,28 @@ export default function TasksPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [showCongrats, setShowCongrats] = useState(false);
   const [earnedPoints, setEarnedPoints] = useState(0);
+  const [earnedCoins, setEarnedCoins] = useState(0);
   const [loggedEntries, setLoggedEntries] = useState<LogSuccessEntry[]>([]);
   const [showWarning, setShowWarning] = useState(false);
   const [warningActivities, setWarningActivities] = useState<Array<{activityId: string; label: string; value: number; target: number; percentage: number}>>([]);
   const [hasUpcomingPlan, setHasUpcomingPlan] = useState(false);
   const [editPlanHref, setEditPlanHref] = useState('/create-plan');
   const [planChoice, setPlanChoice] = useState<PlanChoiceState | null>(null);
+  const [dailyMood, setDailyMood] = useState<DailyMoodValue | ''>('');
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!selectedProfile?._id) return;
+    void dailyLogAPI
+      .getMood()
+      .then((res) => {
+        if (res.data.data?.mood) setDailyMood(res.data.data.mood);
+      })
+      .catch(() => {});
+  }, [selectedProfile?._id]);
 
   // Deep-link from home Body / Mind / Soul cards (#body, #mind, #soul)
   useEffect(() => {
@@ -156,8 +169,10 @@ export default function TasksPage() {
           setWeeklyPlan(null);
           if (choice?.needsPlanChoice) {
             setNoPlanError('');
-          } else {
+          } else if (communityRows.length === 0) {
             setNoPlanError('No active weekly plan found. Please create a weekly plan first to start logging your daily activities.');
+          } else {
+            setNoPlanError('');
           }
           // Still initialize community activity inputs when no plan
           const communityValues: Record<string, number> = {};
@@ -328,10 +343,13 @@ export default function TasksPage() {
       const submitData: SubmitDailyLogData = {
         activities: [...personalPayload, ...communityPayload],
       };
+      if (dailyMood) submitData.mood = dailyMood;
 
       const response = await dailyLogAPI.submit(submitData);
       const points = extractEarnedPoints(response.data.data);
+      const coins = Number((response.data.data as { coinsAwarded?: number })?.coinsAwarded) || 0;
       setEarnedPoints(points);
+      setEarnedCoins(coins);
       setLoggedEntries(
         submitData.activities.map((entry) => {
           const planAct = weeklyPlan?.activities.find(
@@ -506,6 +524,7 @@ export default function TasksPage() {
       {showCongrats && (
         <LogSuccessOverlay
           points={earnedPoints}
+          coins={earnedCoins}
           message="You've successfully logged your activities!"
           entries={loggedEntries}
         />
@@ -514,7 +533,9 @@ export default function TasksPage() {
       {/* Guided Tour - Only render on client */}
       {isMounted && <GuidedTour run={runTour} onFinish={handleTourFinish} steps={tasksTourSteps} />}
 
-      {isMounted ? <CreatePlanFab /> : null}
+      {isMounted && !weeklyPlan && communityActivities.length === 0 ? (
+        <CreatePlanFab mode="create" />
+      ) : null}
 
       <div className="tasks-header mb-6 flex flex-col gap-3">
         <AppPageHeader
@@ -657,18 +678,6 @@ export default function TasksPage() {
             </div>
           </div>
         )}
-
-        {planChoice?.weekendPrompt?.show ? (
-          <WeekendPlanPromptCard
-            weekendPrompt={planChoice.weekendPrompt}
-            onResolved={() => {
-              void (async () => {
-                const { planChoice: choice } = await weeklyPlanAPI.getCurrentPlanState();
-                setPlanChoice(choice);
-              })();
-            }}
-          />
-        ) : null}
 
         <CommunityInvitePromptCard />
 
@@ -871,6 +880,35 @@ export default function TasksPage() {
                 getActivityInputMax={getActivityInputMax}
               />
 
+              <div className="app-card space-y-2 p-4">
+                <p className="text-sm font-semibold text-foreground">How are you feeling today?</p>
+                <p className="text-xs text-muted-foreground">Optional — log your mood with today&apos;s activities.</p>
+                <div className="flex flex-wrap gap-2">
+                  {DAILY_MOOD_OPTIONS.map((option) => {
+                    const selected = dailyMood === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          setDailyMood((current) =>
+                            current === option.value ? '' : option.value
+                          )
+                        }
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          selected
+                            ? 'border-primary bg-primary-soft text-primary'
+                            : 'border-border bg-secondary text-foreground'
+                        }`}
+                      >
+                        <span aria-hidden>{option.emoji}</span>
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
             {/* Warning Banner for Unusual Values */}
             {showWarning && warningActivities.length > 0 && (
               <div className="app-card mb-3 border-orange-200 bg-orange-50 p-5">
@@ -939,7 +977,7 @@ export default function TasksPage() {
                   </div>
               </div>
             )}
-            {noPlanError && (
+            {noPlanError && communityActivities.length === 0 && (
             <div className="app-card border-amber-200 bg-amber-50 p-5 text-center">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 mb-3">
                   <AlertCircle className="w-6 h-6 text-amber-600" />
@@ -996,6 +1034,18 @@ export default function TasksPage() {
         </div>
         )}
       </div>
+
+      {planChoice?.weekendPrompt?.show ? (
+        <WeekendPlanPromptModal
+          weekendPrompt={planChoice.weekendPrompt}
+          onResolved={() => {
+            void (async () => {
+              const { planChoice: choice } = await weeklyPlanAPI.getCurrentPlanState();
+              setPlanChoice(choice);
+            })();
+          }}
+        />
+      ) : null}
     </MainLayout>
   );
 }

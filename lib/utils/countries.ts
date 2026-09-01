@@ -46,3 +46,53 @@ export const COUNTRY_OPTIONS = [
 ] as const;
 
 export type CountryOption = (typeof COUNTRY_OPTIONS)[number];
+
+/** Default IANA timezone when user picks a country (best-effort). */
+export const COUNTRY_TIMEZONE: Record<string, string> = {
+  India: 'Asia/Kolkata',
+  'United Arab Emirates': 'Asia/Dubai',
+  Oman: 'Asia/Muscat',
+  Bahrain: 'Asia/Dubai',
+  Qatar: 'Asia/Qatar',
+  Kuwait: 'Asia/Kuwait',
+  'Saudi Arabia': 'Asia/Riyadh',
+  'United States': 'America/New_York',
+  'United Kingdom': 'Europe/London',
+  Singapore: 'Asia/Singapore',
+  Australia: 'Australia/Sydney',
+  Canada: 'America/Toronto',
+  Nepal: 'Asia/Kathmandu',
+  Bangladesh: 'Asia/Dhaka',
+  Pakistan: 'Asia/Karachi',
+  'Sri Lanka': 'Asia/Colombo',
+  Germany: 'Europe/Berlin',
+  France: 'Europe/Paris',
+  Netherlands: 'Europe/Amsterdam',
+  Spain: 'Europe/Madrid',
+  Italy: 'Europe/Rome',
+  Japan: 'Asia/Tokyo',
+  'South Korea': 'Asia/Seoul',
+  China: 'Asia/Shanghai',
+  'Hong Kong': 'Asia/Hong_Kong',
+  Malaysia: 'Asia/Kuala_Lumpur',
+  Indonesia: 'Asia/Jakarta',
+  Thailand: 'Asia/Bangkok',
+  Philippines: 'Asia/Manila',
+  Vietnam: 'Asia/Ho_Chi_Minh',
+  'South Africa': 'Africa/Johannesburg',
+  Nigeria: 'Africa/Lagos',
+  Kenya: 'Africa/Nairobi',
+  Brazil: 'America/Sao_Paulo',
+  Mexico: 'America/Mexico_City',
+  'New Zealand': 'Pacific/Auckland',
+  Ireland: 'Europe/Dublin',
+  Switzerland: 'Europe/Zurich',
+  Sweden: 'Europe/Stockholm',
+  Norway: 'Europe/Oslo',
+  Denmark: 'Europe/Copenhagen',
+  Other: 'UTC',
+};
+
+export function timezoneForCountry(country: string): string | null {
+  return COUNTRY_TIMEZONE[country] || null;
+}

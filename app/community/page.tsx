@@ -8,10 +8,15 @@ import MainLayout from '@/components/layout/MainLayout';
 import { CommunityTopBar } from '@/components/community/CommunityTopBar';
 import { CommunityJoinScanner } from '@/components/community/CommunityJoinScanner';
 import { Button } from '@/components/ui/button';
+import GuidedTour from '@/components/ui/GuidedTour';
+import TourStartButton from '@/components/ui/TourStartButton';
 import { UserMascot } from '@/components/ui/UserMascot';
 import { communityAPI, type Community } from '@/lib/api/community';
 import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
+import { usePageTour } from '@/lib/hooks/usePageTour';
+import { communityTourSteps } from '@/lib/utils/tourSteps';
 import { cn } from '@/lib/utils';
+import { CommunityCreateFab } from '@/components/community/CommunityCreateFab';
 
 const CATEGORY_FILTERS = ['All', 'Body', 'Mind', 'Soul'] as const;
 
@@ -79,6 +84,7 @@ export default function CommunityPage() {
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const didAutoDiscoverRef = useRef(false);
+  const { runTour, isMounted, handleStartTour, handleTourFinish } = usePageTour('tourCompleted:community');
 
   const discoverQuery = useQuery({
     queryKey: ['communities', 'discover', query, category],
@@ -123,6 +129,22 @@ export default function CommunityPage() {
   const communities = discoverQuery.data ?? [];
   const myCommunitiesAll = mineQuery.data ?? [];
 
+  const myAdminCommunities = useMemo(
+    () => myCommunitiesAll.filter((c) => c.myRole === 'admin'),
+    [myCommunitiesAll]
+  );
+  const myMemberGroups = useMemo(
+    () =>
+      myCommunitiesAll.filter(
+        (c) => c.isMember && c.myRole !== 'admin' && c.myRole !== 'moderator'
+      ),
+    [myCommunitiesAll]
+  );
+  const myModeratorGroups = useMemo(
+    () => myCommunitiesAll.filter((c) => c.isMember && c.myRole === 'moderator'),
+    [myCommunitiesAll]
+  );
+
   const filtered = useMemo(() => {
     if (category === 'All') return communities;
     const cat = category.toLowerCase();
@@ -135,10 +157,51 @@ export default function CommunityPage() {
     (sum, c) => sum + (c.memberCount || 0),
     0
   );
+  const hasAnyMembership = myCommunitiesAll.length > 0;
+
+  function CommunitySection({
+    title,
+    subtitle,
+    items,
+    emptyMessage,
+  }: {
+    title: string;
+    subtitle?: string;
+    items: Community[];
+    emptyMessage?: string;
+  }) {
+    return (
+      <section className="space-y-3">
+        <div>
+          <h2 className="section-title">{title}</h2>
+          {subtitle ? <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p> : null}
+        </div>
+        {items.length > 0 ? (
+          <ul className="section-card divide-y divide-border">
+            {items.map((community) => (
+              <CommunityListItem key={community.id} community={community} />
+            ))}
+          </ul>
+        ) : emptyMessage ? (
+          <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+            {emptyMessage}
+          </p>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <MainLayout>
-      <CommunityTopBar />
+      {isMounted ? (
+        <>
+          <GuidedTour run={runTour} onFinish={handleTourFinish} steps={communityTourSteps} />
+          <TourStartButton onClick={handleStartTour} />
+        </>
+      ) : null}
+      <div className="community-page-header">
+        <CommunityTopBar />
+      </div>
 
       <div className="community-header mt-3 space-y-4">
         <div
@@ -182,15 +245,23 @@ export default function CommunityPage() {
             role="tabpanel"
           >
             <div className="app-card p-4">
-              <div className="grid grid-cols-2 divide-x divide-border">
-                <div className="pr-4">
-                  <p className="text-xs font-medium text-muted-foreground">Your Communities</p>
+              <div className="grid grid-cols-3 divide-x divide-border">
+                <div className="px-3 first:pl-0">
+                  <p className="text-xs font-medium text-muted-foreground">Admin</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                    {mineQuery.isLoading ? '—' : myCommunitiesAll.length}
+                    {mineQuery.isLoading ? '—' : myAdminCommunities.length}
                   </p>
                 </div>
-                <div className="pl-4">
-                  <p className="text-xs font-medium text-muted-foreground">Total members</p>
+                <div className="px-3">
+                  <p className="text-xs font-medium text-muted-foreground">Groups</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                    {mineQuery.isLoading
+                      ? '—'
+                      : myMemberGroups.length + myModeratorGroups.length}
+                  </p>
+                </div>
+                <div className="px-3 last:pr-0">
+                  <p className="text-xs font-medium text-muted-foreground">Members</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
                     {mineQuery.isLoading ? '—' : memberTotal.toLocaleString()}
                   </p>
@@ -202,12 +273,28 @@ export default function CommunityPage() {
               <div className="flex justify-center py-10">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : myCommunitiesAll.length > 0 ? (
-              <ul className="section-card divide-y divide-border">
-                {myCommunitiesAll.map((community) => (
-                  <CommunityListItem key={community.id} community={community} />
-                ))}
-              </ul>
+            ) : hasAnyMembership ? (
+              <div className="space-y-6">
+                <CommunitySection
+                  title="My Communities"
+                  subtitle="Where you are admin"
+                  items={myAdminCommunities}
+                  emptyMessage="You are not an admin of any community yet. Create one or ask to be promoted."
+                />
+                {myModeratorGroups.length > 0 ? (
+                  <CommunitySection
+                    title="Moderating"
+                    subtitle="Communities you help manage"
+                    items={myModeratorGroups}
+                  />
+                ) : null}
+                <CommunitySection
+                  title="My Groups"
+                  subtitle="Communities where you are a member"
+                  items={myMemberGroups}
+                  emptyMessage="No member-only groups yet — discover communities to join."
+                />
+              </div>
             ) : (
               <div className="section-card p-6 text-center">
                 <div className="mx-auto mb-3 flex justify-center">
@@ -222,7 +309,7 @@ export default function CommunityPage() {
                     Discover
                     <ChevronRight className="ml-1 h-4 w-4" />
                   </Button>
-                  <Button asChild>
+                  <Button asChild className="community-create-btn">
                     <Link href="/community/create">
                       <Plus className="h-4 w-4" />
                       Create
@@ -387,6 +474,8 @@ export default function CommunityPage() {
       </button>
 
       <CommunityJoinScanner open={scannerOpen} onClose={() => setScannerOpen(false)} />
+
+      <CommunityCreateFab />
     </MainLayout>
   );
 }

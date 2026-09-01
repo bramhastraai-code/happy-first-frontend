@@ -1,10 +1,24 @@
-export function getCommunityJoinPath(communityId: string) {
-  return `/community/join/${communityId}`;
+export function getCommunityJoinPath(communityId: string, inviterProfileId?: string | null) {
+  const base = `/community/join/${communityId}`;
+  const inviter = String(inviterProfileId || '').trim();
+  if (!inviter) return base;
+  return `${base}?invitedBy=${encodeURIComponent(inviter)}`;
 }
 
-export function getCommunityJoinUrl(communityId: string) {
-  if (typeof window === 'undefined') return getCommunityJoinPath(communityId);
-  return `${window.location.origin}${getCommunityJoinPath(communityId)}`;
+export function getCommunityJoinUrl(communityId: string, inviterProfileId?: string | null) {
+  if (typeof window === 'undefined') return getCommunityJoinPath(communityId, inviterProfileId);
+  return `${window.location.origin}${getCommunityJoinPath(communityId, inviterProfileId)}`;
+}
+
+export function parseCommunityInviterFromUrl(search: string): string | null {
+  try {
+    const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+    const raw = params.get('invitedBy') || params.get('inviter');
+    const id = String(raw || '').trim();
+    return /^[a-f0-9]{24}$/i.test(id) ? id : null;
+  } catch {
+    return null;
+  }
 }
 
 const OBJECT_ID = /[a-f0-9]{24}/i;

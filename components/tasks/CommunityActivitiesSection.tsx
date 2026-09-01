@@ -63,7 +63,8 @@ export default function CommunityActivitiesSection({
       <div className="border-b border-border px-4 py-3">
         <h3 className="text-sm font-semibold text-foreground">Community Activities</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Extra activities from your communities — do not affect your personal Wellth score
+          From your communities — counts toward activity totals, not personal Wellth points or log coins.
+          Earn +50 coins if your group hits 90%+ for the week.
         </p>
       </div>
 

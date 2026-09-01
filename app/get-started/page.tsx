@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, CheckCircle2, Loader2, Sparkles, Users } from 'lucide-react';
+import {
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  Loader2,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import LoadingScreen from '@/components/ui/LoadingScreen';
@@ -11,13 +18,16 @@ import { communityAPI, type MyCommunityActivity } from '@/lib/api/community';
 import {
   clearPendingCommunityId,
   getPendingCommunityId,
+  getPendingCommunityInviterProfileId,
 } from '@/lib/utils/pendingCommunity';
 import { cn } from '@/lib/utils';
 
+type StartPath = 'plan' | 'community' | null;
+
 /**
  * Post-registration handhold:
- * - Community invite → show community tasks + create weekly plan
- * - Regular invite → create weekly plan only
+ * - Choose community-only logging vs personal weekly plan first
+ * - Explain what to expect from the platform
  */
 export default function GetStartedPage() {
   const router = useRouter();
@@ -27,6 +37,7 @@ export default function GetStartedPage() {
   const [communityName, setCommunityName] = useState<string | null>(null);
   const [communityActivities, setCommunityActivities] = useState<MyCommunityActivity[]>([]);
   const [error, setError] = useState('');
+  const [path, setPath] = useState<StartPath>(null);
 
   useEffect(() => {
     if (!isHydrated || !sessionReady) return;
@@ -42,10 +53,13 @@ export default function GetStartedPage() {
       setError('');
       try {
         const pendingId = getPendingCommunityId();
+        const pendingInviter = getPendingCommunityInviterProfileId();
         if (pendingId && selectedProfile?._id) {
           setJoining(true);
           try {
-            const joinRes = await communityAPI.join(pendingId);
+            const joinRes = await communityAPI.join(pendingId, {
+              ...(pendingInviter ? { invitedByProfileId: pendingInviter } : {}),
+            });
             const community = joinRes.data.data.community;
             if (!cancelled) {
               setCommunityName(community?.name || 'Your community');
@@ -66,7 +80,11 @@ export default function GetStartedPage() {
         if (!cancelled) {
           const communities = mineRes?.data?.data?.communities ?? [];
           setCommunityName((prev) => prev || communities[0]?.name || null);
-          setCommunityActivities(activitiesRes?.data?.data?.activities ?? []);
+          const activities = activitiesRes?.data?.data?.activities ?? [];
+          setCommunityActivities(activities);
+          if (activities.length > 0 || communities.length > 0) {
+            setPath('community');
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -94,7 +112,7 @@ export default function GetStartedPage() {
     );
   }
 
-  const fromCommunity = communityActivities.length > 0 || Boolean(communityName);
+  const hasCommunity = communityActivities.length > 0 || Boolean(communityName);
 
   return (
     <MainLayout hideBottomNav>
@@ -102,12 +120,11 @@ export default function GetStartedPage() {
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">Welcome</p>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Let&apos;s get you started
+            How do you want to start?
           </h1>
           <p className="text-sm text-muted-foreground">
-            {fromCommunity
-              ? 'You joined via a community invite. Review community tasks below, then create your personal weekly plan.'
-              : 'Create your first weekly plan so you can start logging activities and building streaks.'}
+            Happy First is for personal goals, community logging, XP, coins, and inspiration.
+            Pick what fits you — you can always add a plan later.
           </p>
         </div>
 
@@ -117,7 +134,72 @@ export default function GetStartedPage() {
           </p>
         ) : null}
 
-        {fromCommunity ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setPath('community')}
+            className={cn(
+              'rounded-xl border px-4 py-4 text-left transition-colors',
+              path === 'community'
+                ? 'border-primary bg-primary-soft'
+                : 'border-border bg-surface hover:bg-secondary/60'
+            )}
+          >
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary-soft text-primary">
+              <Users className="h-4 w-4" />
+            </span>
+            <p className="mt-2 text-sm font-semibold text-foreground">Community logging</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Join or log group activities — no personal plan required
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPath('plan')}
+            className={cn(
+              'rounded-xl border px-4 py-4 text-left transition-colors',
+              path === 'plan'
+                ? 'border-primary bg-primary-soft'
+                : 'border-border bg-surface hover:bg-secondary/60'
+            )}
+          >
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary-soft text-primary">
+              <CalendarDays className="h-4 w-4" />
+            </span>
+            <p className="mt-2 text-sm font-semibold text-foreground">Personal weekly plan</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Pick Body, Mind & Soul activities with your own targets
+            </p>
+          </button>
+        </div>
+
+        <section className="section-card space-y-3 p-4">
+          <p className="text-sm font-semibold text-foreground">What to expect</p>
+          <ul className="space-y-2 text-xs text-muted-foreground">
+            <li className="flex gap-2">
+              <ClipboardList className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+              <span>
+                <strong className="text-foreground">Tasks</strong> — log daily values after 6 PM
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+              <span>
+                <strong className="text-foreground">Happiness home</strong> — streaks, XP, coins,
+                and motivation
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <Users className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+              <span>
+                <strong className="text-foreground">Communities</strong> — shared targets, kudos,
+                and chat
+              </span>
+            </li>
+          </ul>
+        </section>
+
+        {path === 'community' && hasCommunity ? (
           <section className="section-card space-y-3 p-4">
             <div className="flex items-center gap-2">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary-soft text-primary">
@@ -128,7 +210,7 @@ export default function GetStartedPage() {
                   {communityName ? `${communityName} tasks` : 'Community tasks'}
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  These show on Tasks once you&apos;re a member — create a weekly plan to track personal goals too.
+                  These appear on Tasks — log them whenever you are ready.
                 </p>
               </div>
             </div>
@@ -142,8 +224,8 @@ export default function GetStartedPage() {
                         {row.label || row.name}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
-                        {row.targetValue} {row.unit || row.baseUnit} · {row.cadence}
-                        {row.communityNames?.[0] ? ` · ${row.communityNames[0]}` : ''}
+                        {Number(row.targetValue).toLocaleString()} {row.unit || row.baseUnit} ·{' '}
+                        {row.cadence}
                       </p>
                     </div>
                   </li>
@@ -151,11 +233,11 @@ export default function GetStartedPage() {
               </ul>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Community membership is ready. Your community activities will appear on the Tasks tab.
+                Your community is ready — activities will appear on Tasks.
               </p>
             )}
           </section>
-        ) : (
+        ) : path === 'plan' ? (
           <section className="section-card flex items-start gap-3 p-4">
             <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
               <Sparkles className="h-4 w-4" />
@@ -163,35 +245,54 @@ export default function GetStartedPage() {
             <div>
               <h2 className="text-sm font-semibold text-foreground">Your weekly plan</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Pick at least 4 activities, set targets, and you&apos;re ready to log every day.
+                Pick at least 4 activities, set targets, and start logging. You can still join
+                communities anytime.
               </p>
             </div>
           </section>
-        )}
+        ) : null}
 
         <div className="flex flex-col gap-2">
-          <Button
-            className="h-12 w-full gap-2 text-base"
-            onClick={() => router.push('/create-plan?mode=first-setup')}
-          >
-            <CalendarDays className="h-4 w-4" />
-            Create weekly plan
-          </Button>
-          {fromCommunity ? (
+          {path === 'plan' ? (
+            <Button
+              className="h-12 w-full gap-2 text-base"
+              onClick={() => router.push('/create-plan?mode=first-setup')}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Create weekly plan
+            </Button>
+          ) : path === 'community' ? (
+            <Button className="h-12 w-full gap-2 text-base" onClick={() => router.push('/tasks')}>
+              <ClipboardList className="h-4 w-4" />
+              Go to Tasks
+            </Button>
+          ) : (
+            <p className="py-2 text-center text-sm text-muted-foreground">
+              Choose an option above to continue
+            </p>
+          )}
+          {path === 'community' ? (
             <Button
               variant="outline"
-              className="h-11 w-full"
-              onClick={() => router.push('/tasks')}
+              className="h-11 w-full gap-2"
+              onClick={() => router.push('/create-plan?mode=first-setup')}
             >
-              Go to tasks (community only for now)
+              <CalendarDays className="h-4 w-4" />
+              Add a personal plan too
+            </Button>
+          ) : path === 'plan' && hasCommunity ? (
+            <Button variant="outline" className="h-11 w-full" onClick={() => router.push('/tasks')}>
+              Log community tasks first
             </Button>
           ) : null}
           <button
             type="button"
-            className={cn('py-2 text-center text-sm font-medium text-muted-foreground hover:text-foreground')}
+            className={cn(
+              'py-2 text-center text-sm font-medium text-muted-foreground hover:text-foreground'
+            )}
             onClick={() => router.push('/home')}
           >
-            Skip for now
+            Skip for now — explore home
           </button>
         </div>
 

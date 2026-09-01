@@ -23,7 +23,7 @@ export const homeTourSteps: Step[] = [
     target: '.home-category-cards',
     title: 'Body, Mind & Soul',
     content:
-      'See today’s logged vs remaining activities in each category. Tap a card to jump into Tasks for that group.',
+      'Weekly achievement for each category — how much of your plan you have completed so far this week.',
     placement: 'bottom',
   },
   {
@@ -34,6 +34,13 @@ export const homeTourSteps: Step[] = [
     placement: 'bottom',
   },
   {
+    target: '.my-happiness',
+    title: 'My happiness',
+    content:
+      'Your daily log at a glance — this week’s days, streak progress, and week score. Tap a day to jump to that date in the log tracker.',
+    placement: 'bottom',
+  },
+  {
     target: '.create-plan-fab',
     title: 'Create a plan',
     content:
@@ -41,6 +48,13 @@ export const homeTourSteps: Step[] = [
     placement: 'top',
     isFixed: true,
     disableScrolling: true,
+  },
+  {
+    target: '.home-streak',
+    title: 'Streak',
+    content:
+      'Current streak and total days logged. Tap to open your full streak calendar.',
+    placement: 'bottom',
   },
   {
     target: '.xp-coins-grid',
@@ -55,20 +69,6 @@ export const homeTourSteps: Step[] = [
     content:
       'A short happiness line for today. The same affirmation can also appear as a once-a-day popup.',
     placement: 'bottom',
-  },
-  {
-    target: '.week-tracker',
-    title: 'This week',
-    content:
-      'Fire icons light up on days you’ve logged (in your mascot colour). Tap a day to open it in the daily log tracker below.',
-    placement: 'bottom',
-  },
-  {
-    target: '.stats-grid',
-    title: 'Streak & week score',
-    content:
-      'Current streak and days logged on the left; this week’s consistency score on the right. Open the streak calendar for the full heatmap.',
-    placement: 'top',
   },
   {
     target: '.pending-activities',
@@ -120,6 +120,113 @@ export const homeTourSteps: Step[] = [
     placement: 'top',
     isFixed: true,
     disableScrolling: true,
+  },
+];
+
+export const communityTourSteps: Step[] = [
+  {
+    target: '.community-page-header',
+    title: 'Communities',
+    content: 'Browse groups you belong to, discover new ones, and create your own.',
+    disableBeacon: true,
+    placement: 'bottom',
+  },
+  {
+    target: '.community-create-btn',
+    title: 'Create a community',
+    content: 'Set activities & levels, or choose discussion-only with No targets.',
+    placement: 'bottom',
+  },
+  {
+    target: '.bottom-nav',
+    title: 'Navigation',
+    content: 'Switch between Inspiration, Happiness, Community, and Profile anytime.',
+    placement: 'top',
+    isFixed: true,
+  },
+];
+
+export const xpTourSteps: Step[] = [
+  {
+    target: '.xp-hero',
+    title: 'Your XP standing',
+    content: 'Lifetime XP, current level, daily goal, and progress to the next level.',
+    disableBeacon: true,
+    placement: 'bottom',
+  },
+  {
+    target: '.xp-levels-section',
+    title: 'Level table',
+    content: 'All 20 levels with XP thresholds — tap any row to see members at that level.',
+    placement: 'top',
+  },
+  {
+    target: '.xp-sources-section',
+    title: 'XP sources',
+    content: 'See which activities contribute most to your lifetime XP.',
+    placement: 'top',
+  },
+];
+
+export const settingsTourSteps: Step[] = [
+  {
+    target: '.settings-header',
+    title: 'Profile & settings',
+    content: 'Manage your profile, family members, reminders, and app preferences.',
+    disableBeacon: true,
+    placement: 'bottom',
+  },
+  {
+    target: '.settings-theme-landing',
+    title: 'Theme & landing',
+    content: 'Pick mascot colour and which page opens after you log in.',
+    placement: 'top',
+  },
+  {
+    target: '.bottom-nav',
+    title: 'Main navigation',
+    content: 'Return to Happiness home or any main section from here.',
+    placement: 'top',
+    isFixed: true,
+  },
+];
+
+export const feedTourSteps: Step[] = [
+  {
+    target: '.feed-header',
+    title: 'Inspiration feed',
+    content: 'Posts from people you follow — like, comment, and share motivation.',
+    disableBeacon: true,
+    placement: 'bottom',
+  },
+  {
+    target: '.feed-compose',
+    title: 'Share a post',
+    content: 'Upload a photo or video to inspire your community.',
+    placement: 'bottom',
+  },
+  {
+    target: '.bottom-nav',
+    title: 'Navigation',
+    content: 'Use the bottom bar to move between main modules.',
+    placement: 'top',
+    isFixed: true,
+  },
+];
+
+export const coinsTourSteps: Step[] = [
+  {
+    target: '.coins-balance',
+    title: 'Happy First Coins',
+    content: 'Earn coins when you log activities — one coin per activity logged each day.',
+    disableBeacon: true,
+    placement: 'bottom',
+  },
+  {
+    target: '.coins-history',
+    title: 'Coin history',
+    content: 'Daily totals grouped by date so you can track consistency.',
+    placement: 'top',
   },
 ];
 

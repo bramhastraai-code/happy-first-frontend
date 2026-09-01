@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 function PersonRow({ person }: { person: FollowPerson }) {
   const subtitle =
     person.matchLabel ||
+    person.city ||
     (person.followsYou ? 'Follows you' : 'Tap to view profile');
 
   return (

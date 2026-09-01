@@ -41,6 +41,8 @@ interface CommunityDashboardTabProps {
   communityId: string;
   community: Community;
   isAdmin: boolean;
+  openAdminOnMount?: boolean;
+  onAdminOpenHandled?: () => void;
 }
 
 const CONTRIBUTION_PAGE_SIZE = 5;
@@ -48,7 +50,7 @@ const CONTRIBUTION_SEARCH_DEBOUNCE_MS = 280;
 
 function formatValue(value: number, unit?: string | null) {
   const n = Number(value) || 0;
-  const rounded = Number.isInteger(n) ? String(n) : n.toFixed(1);
+  const rounded = Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1);
   return unit ? `${rounded} ${unit}` : rounded;
 }
 
@@ -290,12 +292,14 @@ function MemberContributionList({
   selectedProfileId,
   emptyLabel,
   resetKey,
+  loading = false,
 }: {
   ranking: CommunityLeaderboardRow[];
   selectedProfileId?: string | null;
   emptyLabel: string;
   /** Reset page/search when week or activity filter changes */
   resetKey: string;
+  loading?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -366,7 +370,12 @@ function MemberContributionList({
         </label>
       </div>
 
-      {total === 0 ? (
+      {loading && total === 0 ? (
+        <div className="flex items-center justify-center gap-2 px-4 py-8 text-sm text-muted-foreground sm:px-5">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading members…
+        </div>
+      ) : total === 0 ? (
         <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
           {debounced ? `No members found for “${debounced}”` : emptyLabel}
         </p>
@@ -437,6 +446,8 @@ export function CommunityDashboardTab({
   communityId,
   community,
   isAdmin,
+  openAdminOnMount = false,
+  onAdminOpenHandled,
 }: CommunityDashboardTabProps) {
   const { selectedProfile } = useAuthStore();
   const queryClient = useQueryClient();
@@ -449,6 +460,12 @@ export function CommunityDashboardTab({
   const [adminOpen, setAdminOpen] = useState(false);
   const [buddyMessage, setBuddyMessage] = useState<string | null>(null);
   const [buddyChatOpen, setBuddyChatOpen] = useState(false);
+
+  useEffect(() => {
+    if (!openAdminOnMount) return;
+    setAdminOpen(true);
+    onAdminOpenHandled?.();
+  }, [openAdminOnMount, onAdminOpenHandled]);
 
   const weeksQuery = useQuery({
     queryKey: ['community-weeks', communityId],
@@ -491,7 +508,11 @@ export function CommunityDashboardTab({
 
   const membersFallbackQuery = useQuery({
     queryKey: ['community-members', communityId, 'contribution-fallback'],
-    enabled: Boolean(weekViewQuery.isSuccess && overallEmpty),
+    enabled: Boolean(
+      weekViewQuery.isSuccess &&
+        contributionActivityId === 'overall' &&
+        (overallEmpty || membersLoggedCount === 0)
+    ),
     queryFn: async () => {
       const res = await communityAPI.members(communityId);
       return res.data.data.members ?? [];
@@ -1098,6 +1119,11 @@ export function CommunityDashboardTab({
               ranking={contributionRanking}
               selectedProfileId={selectedProfile?._id}
               resetKey={`${weekOffset}:${contributionActivityId}`}
+              loading={
+                contributionActivityId === 'overall' &&
+                (membersFallbackQuery.isLoading ||
+                  (membersFallbackQuery.isFetching && contributionRanking.length === 0))
+              }
               emptyLabel={
                 contributionActivityId === 'overall'
                   ? 'No active members to show yet.'

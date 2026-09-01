@@ -4,6 +4,7 @@ import { Flame, Sparkles } from 'lucide-react';
 
 interface LogSuccessOverlayProps {
   points: number;
+  coins?: number;
   message?: string;
   entries?: Array<{ label: string; value: string }>;
 }
@@ -14,11 +15,14 @@ interface LogSuccessOverlayProps {
  */
 export default function LogSuccessOverlay({
   points,
+  coins = 0,
   message = "You've successfully logged your activities!",
   entries = [],
 }: LogSuccessOverlayProps) {
   const earned = Number(points) || 0;
+  const coinsEarned = Number(coins) || 0;
   const hasPoints = earned > 0;
+  const hasCoins = coinsEarned > 0;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden animate-fade-in">
@@ -82,6 +86,12 @@ export default function LogSuccessOverlay({
           >
             +{earned.toFixed(2)}
           </p>
+          {hasCoins ? (
+            <p className="mt-2 text-sm font-semibold text-amber-700">
+              +{coinsEarned % 1 === 0 ? coinsEarned : coinsEarned.toFixed(1)} Happy Coin
+              {coinsEarned === 1 ? '' : 's'} today
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

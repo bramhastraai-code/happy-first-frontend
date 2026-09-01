@@ -14,21 +14,37 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage((payload) => {
-  if (payload.notification?.title) return;
+function resolvePushContent(payload) {
+  const title =
+    payload.notification?.title?.trim() ||
+    payload.data?.title?.trim() ||
+    payload.title?.trim() ||
+    'Happy First';
+  let body =
+    payload.notification?.body?.trim() ||
+    payload.data?.body?.trim() ||
+    payload.body?.trim() ||
+    '';
+  if (!body) {
+    body = 'Tap to open Happy First.';
+  }
+  const url = payload.data?.url || payload.url || '/feed';
+  const tag = payload.data?.notificationId || payload.notificationId || undefined;
+  return { title, body, url, tag };
+}
 
-  const title = payload.data?.title || 'Happy First';
-  const body = payload.data?.body || '';
-  const url = payload.data?.url || '/feed';
-
+function showPushNotification(payload) {
+  const { title, body, url, tag } = resolvePushContent(payload);
   return self.registration.showNotification(title, {
     body,
     icon: '/icons/icon-192',
     badge: '/icons/icon-192',
-    tag: payload.data?.notificationId || undefined,
+    tag,
     data: { url },
   });
-});
+}
+
+messaging.onBackgroundMessage((payload) => showPushNotification(payload));
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

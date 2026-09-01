@@ -1,12 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { CustomDropdown } from '@/components/ui/CustomDropdown';
 import {
   COMMUNITY_ACTIVITY_LEVEL_OPTIONS,
   type CommunityActivityLevel,
 } from '@/lib/api/community';
+import {
+  emptyLevelTargets,
+  levelTargetsFromUnit,
+  parseLevelTargetsPayload,
+  type LevelTargetsDraft,
+} from '@/lib/community/unitTargetDefaults';
 import { cn } from '@/lib/utils';
 
 export type CustomActivityDraft = {
@@ -19,17 +26,29 @@ export type CustomActivityDraft = {
   allowedCadence: Array<'daily' | 'weekly'>;
   level: CommunityActivityLevel;
   defaultTarget: string;
+  levelTargets: LevelTargetsDraft;
 };
 
 interface CommunityCustomActivityFormProps {
-  /** When set, submits immediately via onCreate. Otherwise adds a local draft via onDraft. */
   mode?: 'draft' | 'create';
   onDraft?: (draft: CustomActivityDraft) => void;
   onCreate?: (draft: Omit<CustomActivityDraft, 'localId'>) => Promise<void>;
   className?: string;
 }
 
-const UNIT_PRESETS = ['days', 'mins', 'steps', 'km', 'sessions', 'hrs'];
+const UNIT_OPTIONS = [
+  { value: 'days', label: 'Days (Done / Not Done)' },
+  { value: 'mins', label: 'Minutes' },
+  { value: 'steps', label: 'Steps' },
+  { value: 'km', label: 'Kilometers' },
+  { value: 'sessions', label: 'Sessions' },
+  { value: 'hrs', label: 'Hours' },
+  { value: 'count', label: 'Count' },
+];
+
+function isDaysUnit(unit: string) {
+  return String(unit || '').trim().toLowerCase() === 'days';
+}
 
 export function CommunityCustomActivityForm({
   mode = 'draft',
@@ -47,7 +66,13 @@ export function CommunityCustomActivityForm({
   const [icon, setIcon] = useState('✨');
   const [cadence, setCadence] = useState<'daily' | 'weekly'>('weekly');
   const [level, setLevel] = useState<CommunityActivityLevel>('active');
-  const [defaultTarget, setDefaultTarget] = useState('');
+  const [levelTargets, setLevelTargets] = useState<LevelTargetsDraft>(emptyLevelTargets());
+
+  const daysUnit = isDaysUnit(baseUnit);
+
+  useEffect(() => {
+    setLevelTargets(levelTargetsFromUnit(baseUnit));
+  }, [baseUnit]);
 
   const reset = () => {
     setName('');
@@ -57,7 +82,7 @@ export function CommunityCustomActivityForm({
     setIcon('✨');
     setCadence('weekly');
     setLevel('active');
-    setDefaultTarget('');
+    setLevelTargets(levelTargetsFromUnit('days'));
     setError('');
   };
 
@@ -71,6 +96,7 @@ export function CommunityCustomActivityForm({
       setError('Unit is required');
       return;
     }
+    const parsedTargets = parseLevelTargetsPayload(levelTargets, baseUnit);
     const payload = {
       name: trimmed,
       baseUnit: baseUnit.trim(),
@@ -79,7 +105,8 @@ export function CommunityCustomActivityForm({
       icon: icon.trim() || '✨',
       allowedCadence: [cadence] as Array<'daily' | 'weekly'>,
       level,
-      defaultTarget,
+      defaultTarget: daysUnit ? '' : levelTargets[level] || String(parsedTargets[level]),
+      levelTargets,
     };
     setSaving(true);
     setError('');
@@ -123,7 +150,7 @@ export function CommunityCustomActivityForm({
       <div>
         <p className="text-sm font-semibold text-foreground">New way to log</p>
         <p className="text-xs text-muted-foreground">
-          Custom activity for this community only — pick a unit and weekly level
+          Set weekly targets for each level — pick which level this community starts on
         </p>
       </div>
 
@@ -141,18 +168,13 @@ export function CommunityCustomActivityForm({
       <div className="grid grid-cols-2 gap-2">
         <label className="block space-y-1">
           <span className="text-[11px] font-semibold text-muted-foreground">Unit</span>
-          <input
+          <CustomDropdown
             value={baseUnit}
-            onChange={(e) => setBaseUnit(e.target.value)}
-            list="community-custom-units"
-            placeholder="days"
-            className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            options={UNIT_OPTIONS}
+            aria-label="Activity unit"
+            onChange={setBaseUnit}
+            className="w-full"
           />
-          <datalist id="community-custom-units">
-            {UNIT_PRESETS.map((u) => (
-              <option key={u} value={u} />
-            ))}
-          </datalist>
         </label>
         <label className="block space-y-1">
           <span className="text-[11px] font-semibold text-muted-foreground">Icon</span>
@@ -163,6 +185,40 @@ export function CommunityCustomActivityForm({
             className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
         </label>
+      </div>
+
+      {daysUnit ? (
+        <p className="rounded-lg bg-secondary/80 px-3 py-2 text-[11px] text-muted-foreground">
+          Weekly <strong>days</strong> activities are logged as <strong>Done</strong> or{' '}
+          <strong>Not Done</strong> each day.
+        </p>
+      ) : null}
+
+      <div className="space-y-2 rounded-xl border border-border bg-secondary/30 p-3">
+        <p className="text-[11px] font-semibold text-muted-foreground">
+          Weekly targets per level ({baseUnit}/week)
+        </p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {COMMUNITY_ACTIVITY_LEVEL_OPTIONS.map((opt) => (
+            <label key={opt.value} className="block space-y-1">
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground">
+                {opt.label}
+              </span>
+              <input
+                value={levelTargets[opt.value]}
+                onChange={(e) =>
+                  setLevelTargets((prev) => ({
+                    ...prev,
+                    [opt.value]: e.target.value.replace(/[^\d.]/g, ''),
+                  }))
+                }
+                inputMode="decimal"
+                placeholder={String(parseLevelTargetsPayload(emptyLevelTargets(), baseUnit)[opt.value])}
+                className="h-9 w-full rounded-lg border border-input bg-white px-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+            </label>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
@@ -194,36 +250,26 @@ export function CommunityCustomActivityForm({
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        {COMMUNITY_ACTIVITY_LEVEL_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => setLevel(opt.value)}
-            className={cn(
-              'rounded-full px-2.5 py-1 text-[11px] font-semibold',
-              level === opt.value
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-muted-foreground'
-            )}
-          >
-            {opt.label}
-          </button>
-        ))}
+      <div>
+        <p className="mb-1.5 text-[11px] font-semibold text-muted-foreground">Starting level in community</p>
+        <div className="flex flex-wrap gap-1.5">
+          {COMMUNITY_ACTIVITY_LEVEL_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setLevel(opt.value)}
+              className={cn(
+                'rounded-full px-2.5 py-1 text-[11px] font-semibold',
+                level === opt.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-muted-foreground'
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
-
-      <label className="block space-y-1">
-        <span className="text-[11px] font-semibold text-muted-foreground">
-          Weekly target (optional)
-        </span>
-        <input
-          value={defaultTarget}
-          onChange={(e) => setDefaultTarget(e.target.value.replace(/[^\d.]/g, ''))}
-          inputMode="decimal"
-          placeholder="Auto from level if blank"
-          className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-        />
-      </label>
 
       <label className="block space-y-1">
         <span className="text-[11px] font-semibold text-muted-foreground">Description (optional)</span>

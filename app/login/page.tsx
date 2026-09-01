@@ -11,6 +11,7 @@ import AuthShell, { authButtonClass, authFieldClass } from '@/components/layout/
 import CountryCodeSelect from '@/components/ui/CountryCodeSelect';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
+import { AuthFieldLabel } from '@/components/auth/AuthFieldLabel';
 import { OtpTimerResend } from '@/components/auth/OtpTimerResend';
 import { useOtpCountdown } from '@/lib/hooks/useOtpCountdown';
 import { markOtpSession, DEFAULT_OTP_EXPIRY_MINUTES } from '@/lib/auth/otpSession';
@@ -229,6 +230,10 @@ export default function LoginPage() {
 
   return (
     <AuthShell
+      backHref="/"
+      backLabel="Home"
+      title="Welcome back"
+      subtitle="Log in with your phone number"
       footer={
         <>
           Don&apos;t have an account?{' '}
@@ -238,7 +243,7 @@ export default function LoginPage() {
         </>
       }
     >
-      <div className="mb-4 flex gap-0 border-b border-[#dbdbdb] text-center text-xs font-semibold">
+      <div className="mb-4 flex gap-0 rounded-xl bg-white/50 p-0.5 text-center text-xs font-semibold">
         {methods.map((method) => (
           <button
             key={method.id}
@@ -250,10 +255,10 @@ export default function LoginPage() {
               resetMessages();
             }}
             className={cn(
-              '-mb-px flex-1 border-b-2 py-2.5 transition-colors',
+              'flex-1 rounded-lg py-2.5 transition-colors',
               loginMethod === method.id
-                ? 'border-foreground text-foreground'
-                : 'border-transparent text-neutral-400'
+                ? 'bg-white text-foreground shadow-sm'
+                : 'text-neutral-500 hover:text-foreground'
             )}
           >
             {method.label}
@@ -273,7 +278,10 @@ export default function LoginPage() {
         }
         className="space-y-1.5"
       >
-        <div className="flex gap-1.5">
+        <div className="space-y-3">
+          <div>
+            <AuthFieldLabel required>Phone</AuthFieldLabel>
+            <div className="flex gap-1.5">
           <CountryCodeSelect
             id="countryCode"
             value={formData.countryCode}
@@ -300,8 +308,13 @@ export default function LoginPage() {
             className={authFieldClass}
           />
         </div>
+          </div>
 
         {loginMethod === 'password' && (
+          <div>
+            <AuthFieldLabel htmlFor="password" required>
+              Password
+            </AuthFieldLabel>
           <Input
             id="password"
             type="password"
@@ -314,9 +327,14 @@ export default function LoginPage() {
             disabled={loading}
             className={authFieldClass}
           />
+          </div>
         )}
 
         {loginMethod === 'otp' && otpSent && (
+          <div>
+            <AuthFieldLabel htmlFor="otp" required>
+              One-time code
+            </AuthFieldLabel>
           <>
             <Input
               id="otp"
@@ -342,7 +360,9 @@ export default function LoginPage() {
               />
             </div>
           </>
+          </div>
         )}
+        </div>
 
         {successMessage && (
           <p className="pt-1 text-center text-xs font-medium text-success">{successMessage}</p>

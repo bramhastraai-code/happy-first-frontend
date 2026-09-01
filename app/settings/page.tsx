@@ -22,7 +22,8 @@ import {
   AlertCircle,
   Trash2,
   Share2,
-  Home,
+  Palette,
+  HelpCircle,
 } from 'lucide-react';
 import { authAPI } from '@/lib/api/auth';
 import { useLogoutConfirm } from '@/lib/hooks/useLogoutConfirm';
@@ -33,7 +34,7 @@ import EditProfileForm from '@/components/settings/EditProfileForm';
 import ChangePasswordForm from '@/components/settings/ChangePasswordForm';
 import SupportFeedbackForm from '@/components/settings/SupportFeedbackForm';
 import PushNotificationToggle from '@/components/settings/PushNotificationToggle';
-import DefaultLandingSetting from '@/components/settings/DefaultLandingSetting';
+import ThemeLandingSetting from '@/components/settings/ThemeLandingSetting';
 import { DeleteAccountDialog } from '@/components/settings/DeleteAccountDialog';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { AppQuickLinks } from '@/components/nav/AppQuickLinks';
@@ -51,24 +52,17 @@ import {
   getReminderScheduleIssues,
 } from '@/lib/utils/reminderSchedule';
 import { cn } from '@/lib/utils';
-import {
-  DEFAULT_LANDING_OPTIONS,
-  resolveDefaultLanding,
-} from '@/lib/theme/mascotTheme';
+import GuidedTour from '@/components/ui/GuidedTour';
+import TourStartButton from '@/components/ui/TourStartButton';
+import { usePageTour } from '@/lib/hooks/usePageTour';
+import { settingsTourSteps } from '@/lib/utils/tourSteps';
 const PAUSE_ALLOWED_DAY_INDEXES = [5, 6, 0, 1];
 const MAX_FAMILY_MEMBERS = 5;
-
-function defaultLandingSubtitle(path?: string | null) {
-  const resolved = resolveDefaultLanding(path);
-  const label =
-    DEFAULT_LANDING_OPTIONS.find((opt) => opt.value === resolved)?.label ?? 'Happiness';
-  return `Opens ${label} first`;
-}
 
 type SettingsPanel =
   | 'add-family'
   | 'edit-profile'
-  | 'default-landing'
+  | 'theme-landing'
   | 'reminders'
   | 'password'
   | 'support'
@@ -104,6 +98,7 @@ export default function SettingsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const { runTour, isMounted, handleStartTour, handleTourFinish } = usePageTour('tourCompleted:settings');
 
   const currentDayIndex = new Date().getDay();
   const canChangePauseToday = PAUSE_ALLOWED_DAY_INDEXES.includes(currentDayIndex);
@@ -119,6 +114,7 @@ export default function SettingsPage() {
     const valid: Exclude<SettingsPanel, null>[] = [
       'add-family',
       'edit-profile',
+      'theme-landing',
       'reminders',
       'password',
       'support',
@@ -295,12 +291,21 @@ export default function SettingsPage() {
 
   return (
     <MainLayout>
+      {isMounted ? (
+        <GuidedTour run={runTour} onFinish={handleTourFinish} steps={settingsTourSteps} />
+      ) : null}
       <AppPageHeader
+        className="settings-header"
         title="Settings"
-        subtitle="Manage your account"
+        subtitle="Account, family, reminders, and security"
         subtitleTone="plain"
         actions={
           <>
+            <HeaderIconButton
+              icon={<HelpCircle className="h-4 w-4" />}
+              caption="Tour"
+              onClick={handleStartTour}
+            />
             <HeaderIconButton
               icon={<LogOut className="h-[18px] w-[18px]" />}
               caption="Log out"
@@ -394,16 +399,15 @@ export default function SettingsPage() {
 
           <CollapsibleSection
             variant="list"
-            id="default-landing"
-            title="Default landing after login"
-            subtitle={defaultLandingSubtitle(
-              selectedProfile?.preferences?.defaultLanding
-            )}
-            icon={Home}
-            expanded={openPanel === 'default-landing'}
-            onToggle={() => togglePanel('default-landing')}
+            className="settings-theme-landing"
+            id="theme-landing"
+            title="Theme & landing"
+            subtitle="App colour and first page after login"
+            icon={Palette}
+            expanded={openPanel === 'theme-landing'}
+            onToggle={() => togglePanel('theme-landing')}
           >
-            <DefaultLandingSetting />
+            <ThemeLandingSetting />
           </CollapsibleSection>
 
           <CollapsibleSection
@@ -520,7 +524,7 @@ export default function SettingsPage() {
           <SettingsRow
             icon={Share2}
             title="Refer friends"
-            subtitle="Share Happy First and earn coins"
+            subtitle="Share Happy First and earn rewards"
             href="/referral"
           />
           <AppQuickLinks

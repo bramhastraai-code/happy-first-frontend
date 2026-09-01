@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Contact,
   Coins,
+  DoorOpen,
   Loader2,
   MessageCircle,
   MoreHorizontal,
@@ -45,7 +46,8 @@ interface CommunityMembersTabProps {
   isAdmin: boolean;
   isModerator: boolean;
   canInvite: boolean;
-  onLeft?: () => void;
+  onRequestLeave?: () => void;
+  leaveBusy?: boolean;
 }
 
 function roleLabel(role: CommunityMemberRole) {
@@ -105,6 +107,8 @@ export function CommunityMembersTab({
   isAdmin,
   isModerator,
   canInvite,
+  onRequestLeave,
+  leaveBusy = false,
 }: CommunityMembersTabProps) {
   const { selectedProfile } = useAuthStore();
   const queryClient = useQueryClient();
@@ -513,46 +517,50 @@ export function CommunityMembersTab({
                     approveMutation.variables === request.profile.id) ||
                   (rejectMutation.isPending && rejectMutation.variables === request.profile.id);
                 return (
-                  <li key={request.id} className="flex items-center gap-3 px-4 py-3">
-                    <Link href={`/feed/profile/${request.profile.id}`} className="shrink-0">
-                      <ProfileAvatar
-                        name={request.profile.name}
-                        avatarUrl={request.profile.avatarUrl}
-                        avatarSeed={request.profile.avatarSeed}
-                        avatarStyle={request.profile.avatarStyle}
-                        size="sm"
-                      />
-                    </Link>
-                    <div className="min-w-0 flex-1">
-                      <Link
-                        href={`/feed/profile/${request.profile.id}`}
-                        className="truncate text-sm font-semibold hover:underline"
-                      >
-                        {request.profile.name}
+                  <li key={request.id} className="px-4 py-3">
+                    <div className="flex items-start gap-3">
+                      <Link href={`/feed/profile/${request.profile.id}`} className="shrink-0">
+                        <ProfileAvatar
+                          name={request.profile.name}
+                          avatarUrl={request.profile.avatarUrl}
+                          avatarSeed={request.profile.avatarSeed}
+                          avatarStyle={request.profile.avatarStyle}
+                          size="sm"
+                        />
                       </Link>
-                      <p className="text-[11px] text-muted-foreground">Pending approval</p>
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/feed/profile/${request.profile.id}`}
+                          className="truncate text-sm font-semibold hover:underline"
+                        >
+                          {request.profile.name}
+                        </Link>
+                        <p className="text-[11px] text-muted-foreground">Pending approval</p>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                    <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
                       {request.canWhatsApp ? (
                         <>
                           <Button
                             size="sm"
                             variant="outline"
+                            className="min-w-0 px-2.5"
                             onClick={() => openPersonalInviteWhatsApp(request, 'pending')}
                             title="Message on personal WhatsApp"
                           >
                             <MessageCircle className="h-3.5 w-3.5" />
-                            Chat
+                            <span className="hidden sm:inline">Chat</span>
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
+                            className="min-w-0 px-2.5"
                             disabled={botInviteMutation.isPending}
                             onClick={() => botInviteMutation.mutate(request.profile.id)}
                             title="Send via WhatsApp Bot"
                           >
                             <Bot className="h-3.5 w-3.5" />
-                            Bot
+                            <span className="hidden sm:inline">Bot</span>
                           </Button>
                         </>
                       ) : null}
@@ -574,6 +582,7 @@ export function CommunityMembersTab({
                         variant="outline"
                         disabled={busy}
                         onClick={() => rejectMutation.mutate(request.profile.id)}
+                        aria-label="Reject"
                       >
                         <X className="h-3.5 w-3.5" />
                       </Button>
@@ -599,40 +608,44 @@ export function CommunityMembersTab({
               const sendingBot =
                 botInviteMutation.isPending && botInviteMutation.variables === member.profile.id;
               return (
-                <li key={member.id} className="flex items-center gap-3 px-4 py-3">
-                  <Link href={`/feed/profile/${member.profile.id}`} className="shrink-0">
-                    <ProfileAvatar
-                      name={member.profile.name}
-                      avatarUrl={member.profile.avatarUrl}
-                      avatarSeed={member.profile.avatarSeed}
-                      avatarStyle={member.profile.avatarStyle}
-                      size="sm"
-                    />
-                  </Link>
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      href={`/feed/profile/${member.profile.id}`}
-                      className="truncate text-sm font-semibold hover:underline"
-                    >
-                      {member.profile.name}
+                <li key={member.id} className="px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <Link href={`/feed/profile/${member.profile.id}`} className="shrink-0">
+                      <ProfileAvatar
+                        name={member.profile.name}
+                        avatarUrl={member.profile.avatarUrl}
+                        avatarSeed={member.profile.avatarSeed}
+                        avatarStyle={member.profile.avatarStyle}
+                        size="sm"
+                      />
                     </Link>
-                    <p className="text-[11px] text-muted-foreground">Pending acceptance</p>
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={`/feed/profile/${member.profile.id}`}
+                        className="truncate text-sm font-semibold hover:underline"
+                      >
+                        {member.profile.name}
+                      </Link>
+                      <p className="text-[11px] text-muted-foreground">Pending acceptance</p>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 flex-wrap gap-1.5">
+                  <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
                     {member.canWhatsApp ? (
                       <>
                         <Button
                           size="sm"
                           variant="outline"
+                          className="min-w-0 px-2.5"
                           onClick={() => openPersonalInviteWhatsApp(member, 'invited')}
                           title="Message on personal WhatsApp"
                         >
                           <MessageCircle className="h-3.5 w-3.5" />
-                          Chat
+                          <span className="hidden sm:inline">Chat</span>
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
+                          className="min-w-0 px-2.5"
                           disabled={botInviteMutation.isPending}
                           onClick={() => botInviteMutation.mutate(member.profile.id)}
                           title="Send via WhatsApp Bot"
@@ -642,7 +655,7 @@ export function CommunityMembersTab({
                           ) : (
                             <Bot className="h-3.5 w-3.5" />
                           )}
-                          Bot
+                          <span className="hidden sm:inline">Bot</span>
                         </Button>
                       </>
                     ) : (
@@ -706,11 +719,12 @@ export function CommunityMembersTab({
           <ul className="divide-y divide-border">
             {members.map((member) => {
               const isMe = String(member.profile.id) === String(selectedProfile?._id);
-              const memberSinceLabel = formatJoinedDate(
-                member.profile.memberSince || member.profile.createdAt || member.joinedAt
-              );
+              const memberSinceLabel = formatJoinedDate(member.joinedAt);
               const menuOpen = menuMemberId === member.id;
-              const showMenu = !isMe;
+              const showKudos = !isMe;
+              const showWhatsAppInline = !isMe && member.canWhatsApp;
+              const showActionsMenu =
+                !isMe && (isAdmin || ((isAdmin || isModerator) && member.canRemind));
 
               return (
                 <li key={member.id} className="flex items-center gap-3 px-4 py-3">
@@ -735,64 +749,67 @@ export function CommunityMembersTab({
                     <p className="truncate text-[11px] text-muted-foreground">
                       {roleLabel(member.role)}
                       {member.group?.name ? ` · ${member.group.name}` : ''}
-                      {memberSinceLabel ? ` · Member since ${memberSinceLabel}` : ''}
-                      {member.profile.totalXp != null
-                        ? ` · ${Number(member.profile.totalXp).toLocaleString()} XP`
-                        : ''}
-                      {member.profile.xpLevelTitle
-                        ? ` · ${member.profile.xpLevelTitle}`
-                        : ''}
+                      {memberSinceLabel ? ` · In community since ${memberSinceLabel}` : ''}
                       {member.isInactive ? ' · Inactive this week' : ''}
                     </p>
                   </div>
 
-                  {showMenu ? (
+                  {showKudos || showWhatsAppInline || showActionsMenu ? (
                     <div className="flex shrink-0 items-center gap-1">
-                      <button
-                        type="button"
-                        disabled={appreciateMutation.isPending}
-                        className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-primary transition-colors hover:bg-primary-soft disabled:opacity-50"
-                        aria-label={`Send kudos to ${member.profile.name}`}
-                        title="Send kudos"
-                        onClick={() => appreciateMutation.mutate(member.profile.id)}
-                      >
-                        <span aria-hidden className="text-sm">
-                          👏
-                        </span>
-                        <span className="hidden sm:inline">Kudos</span>
-                      </button>
-                      <button
-                        type="button"
-                        ref={(el) => {
-                          if (el) menuTriggerRefs.current.set(member.id, el);
-                          else menuTriggerRefs.current.delete(member.id);
-                        }}
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                        aria-label="Member actions"
-                        aria-expanded={menuOpen}
-                        onClick={() =>
-                          setMenuMemberId((id) => (id === member.id ? null : member.id))
-                        }
-                      >
-                        <MoreHorizontal className="h-5 w-5" />
-                      </button>
+                      {showKudos ? (
+                        <button
+                          type="button"
+                          disabled={appreciateMutation.isPending}
+                          className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-primary transition-colors hover:bg-primary-soft disabled:opacity-50"
+                          aria-label={`Send kudos to ${member.profile.name}`}
+                          title="Send kudos"
+                          onClick={() => appreciateMutation.mutate(member.profile.id)}
+                        >
+                          <span aria-hidden className="text-sm">
+                            👏
+                          </span>
+                          <span className="hidden sm:inline">Kudos</span>
+                        </button>
+                      ) : null}
+                      {showWhatsAppInline ? (
+                        <button
+                          type="button"
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                          aria-label={`WhatsApp ${member.profile.name}`}
+                          onClick={() => {
+                            const digits = whatsAppDigits(member.countryCode, member.phoneNumber);
+                            if (!digits) return;
+                            const text = encodeURIComponent(
+                              `Hi ${member.profile.name}! A note from ${community.name} on Happy First.`
+                            );
+                            window.open(
+                              `https://wa.me/${digits}?text=${text}`,
+                              '_blank',
+                              'noopener,noreferrer'
+                            );
+                          }}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                      {showActionsMenu ? (
+                        <button
+                          type="button"
+                          ref={(el) => {
+                            if (el) menuTriggerRefs.current.set(member.id, el);
+                            else menuTriggerRefs.current.delete(member.id);
+                          }}
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                          aria-label="Member actions"
+                          aria-expanded={menuOpen}
+                          onClick={() =>
+                            setMenuMemberId((id) => (id === member.id ? null : member.id))
+                          }
+                        >
+                          <MoreHorizontal className="h-5 w-5" />
+                        </button>
+                      ) : null}
                     </div>
-                  ) : member.canWhatsApp && !isMe ? (
-                    <button
-                      type="button"
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                      aria-label="WhatsApp"
-                      onClick={() => {
-                        const digits = whatsAppDigits(member.countryCode, member.phoneNumber);
-                        if (!digits) return;
-                        const text = encodeURIComponent(
-                          `Hi ${member.profile.name}! A note from ${community.name} on Happy First.`
-                        );
-                        window.open(`https://wa.me/${digits}?text=${text}`, '_blank', 'noopener,noreferrer');
-                      }}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                    </button>
                   ) : null}
                 </li>
               );
@@ -863,6 +880,24 @@ export function CommunityMembersTab({
         </div>
       ) : null}
 
+      {onRequestLeave ? (
+        <div className="section-card p-4">
+          <Button
+            variant="outline"
+            className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
+            disabled={leaveBusy}
+            onClick={onRequestLeave}
+          >
+            {leaveBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <DoorOpen className="h-4 w-4" />
+            )}
+            Leave community
+          </Button>
+        </div>
+      ) : null}
+
       {typeof document !== 'undefined' && menuMemberId && menuPos
         ? createPortal(
             (() => {
@@ -896,29 +931,6 @@ export function CommunityMembersTab({
                     className="flex w-[min(16rem,calc(100vw-1.25rem))] flex-col overflow-hidden rounded-md border border-border bg-white shadow-[0_10px_40px_rgb(28_25_23/0.22)]"
                   >
                     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
-                      {member.canWhatsApp && !isMe ? (
-                        <button
-                          type="button"
-                          className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary"
-                          onClick={() => {
-                            setMenuMemberId(null);
-                            const digits = whatsAppDigits(member.countryCode, member.phoneNumber);
-                            if (!digits) return;
-                            const text = encodeURIComponent(
-                              `Hi ${member.profile.name}! A note from ${community.name} on Happy First.`
-                            );
-                            window.open(
-                              `https://wa.me/${digits}?text=${text}`,
-                              '_blank',
-                              'noopener,noreferrer'
-                            );
-                          }}
-                        >
-                          <MessageCircle className="h-4 w-4 text-primary" />
-                          WhatsApp
-                        </button>
-                      ) : null}
-
                       {(isAdmin || isModerator) && member.canRemind && !isMe ? (
                         <button
                           type="button"
@@ -938,19 +950,6 @@ export function CommunityMembersTab({
                           </span>
                         </button>
                       ) : null}
-
-                      <button
-                        type="button"
-                        disabled={appreciateMutation.isPending}
-                        className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-50"
-                        onClick={() => {
-                          setMenuMemberId(null);
-                          appreciateMutation.mutate(member.profile.id);
-                        }}
-                      >
-                        <span aria-hidden>👏</span>
-                        Send kudos
-                      </button>
 
                       {isAdmin ? (
                         <>

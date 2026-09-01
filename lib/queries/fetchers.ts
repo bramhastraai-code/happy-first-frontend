@@ -1,8 +1,9 @@
 import { DateTime } from 'luxon';
-import { dailyLogAPI, type DailySummary, type MonthlySummary, type WeeklySummary, type StreakData, type CalendarData, type ActivityCalendarData, type LeaderboardData } from '@/lib/api/dailyLog';
+import { dailyLogAPI, type DailySummary, type MonthlySummary, type WeeklySummary, type StreakData, type CalendarData, type ActivityCalendarData, type LeaderboardData, type MissedLogDaysData } from '@/lib/api/dailyLog';
 import { weeklyPlanAPI, type WeeklyPlan } from '@/lib/api/weeklyPlan';
 import { authAPI } from '@/lib/api/auth';
 import { activityAPI, type Activity } from '@/lib/api/activity';
+import { communityAPI } from '@/lib/api/community';
 import {
   resolveProfileTimezone,
   toProfileDateKey,
@@ -105,6 +106,26 @@ export async function fetchUserInfo() {
 export async function fetchActivityList(): Promise<Activity[]> {
   const res = await activityAPI.getList();
   return res.data.data ?? [];
+}
+
+export async function fetchCommunityActivities(date?: string): Promise<number> {
+  try {
+    const res = await communityAPI.myActivities(date ? { date } : undefined);
+    return res.data.data?.activities?.length ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function fetchMissedLogDays(withinDays = 30): Promise<MissedLogDaysData> {
+  const res = await dailyLogAPI.getMissedLogDays(withinDays);
+  return (
+    res.data.data ?? {
+      withinDays,
+      count: 0,
+      days: [],
+    }
+  );
 }
 
 export interface MonthlyDataPoint {

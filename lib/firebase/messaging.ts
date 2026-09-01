@@ -58,9 +58,17 @@ export async function listenForForegroundFcm(
   if (!messaging) return () => {};
 
   return onMessage(messaging, (payload) => {
-    const title =
-      payload.notification?.title || payload.data?.title || 'Happy First';
-    const body = payload.notification?.body || payload.data?.body || '';
+    let title =
+      payload.notification?.title?.trim() ||
+      payload.data?.title?.trim() ||
+      'Happy First';
+    let body =
+      payload.notification?.body?.trim() ||
+      payload.data?.body?.trim() ||
+      '';
+    if (!body) {
+      body = 'Tap to open Happy First.';
+    }
     const url = payload.data?.url || payload.fcmOptions?.link || '/feed';
     onPayload({ title, body, url });
   });

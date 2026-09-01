@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, UserMinus, UserPlus } from 'lucide-react';
 import { followAPI, type FollowActionResult } from '@/lib/api/follow';
@@ -29,22 +30,35 @@ export function FollowButton({
   verb = 'follow',
 }: FollowButtonProps) {
   const queryClient = useQueryClient();
+  const [following, setFollowing] = useState(isFollowing);
+
+  useEffect(() => {
+    setFollowing(isFollowing);
+  }, [isFollowing, profileId]);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (isFollowing) {
+      if (following) {
         const res = await followAPI.unfollow(profileId);
         return res.data.data;
       }
       const res = await followAPI.follow(profileId);
       return res.data.data;
     },
+    onMutate: () => {
+      setFollowing((value) => !value);
+    },
+    onError: () => {
+      setFollowing(isFollowing);
+    },
     onSuccess: (result) => {
+      setFollowing(result.isFollowing);
       onChanged?.(result);
       void queryClient.invalidateQueries({ queryKey: ['publicProfile', profileId] });
       void queryClient.invalidateQueries({ queryKey: ['followers'] });
       void queryClient.invalidateQueries({ queryKey: ['following'] });
       void queryClient.invalidateQueries({ queryKey: ['followSuggestions'] });
+      void queryClient.invalidateQueries({ queryKey: ['followSearch'] });
       void queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.setQueriesData<{ pages?: Array<{ posts: Array<{ author: { profileId: string; isFollowing?: boolean } }> }> }>(
         { queryKey: ['feed'] },
@@ -73,12 +87,12 @@ export function FollowButton({
 
   const label =
     verb === 'connect'
-      ? isFollowing
+      ? following
         ? 'Connected'
         : followsYou
           ? 'Connect back'
           : 'Connect'
-      : isFollowing
+      : following
         ? 'Following'
         : followsYou
           ? 'Follow back'
@@ -89,9 +103,9 @@ export function FollowButton({
       type="button"
       size={size}
       disabled={mutation.isPending}
-      variant={isFollowing ? 'outline' : 'default'}
+      variant={following ? 'outline' : 'default'}
       className={cn(
-        isFollowing ? 'border-border text-foreground' : '',
+        following ? 'border-border text-foreground' : '',
         size === 'sm' ? 'h-8 px-3 text-xs' : '',
         className
       )}
@@ -103,7 +117,7 @@ export function FollowButton({
     >
       {mutation.isPending ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      ) : isFollowing ? (
+      ) : following ? (
         <UserMinus className="h-3.5 w-3.5" />
       ) : (
         <UserPlus className="h-3.5 w-3.5" />

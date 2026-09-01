@@ -17,6 +17,7 @@ import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { ProfilePostViewer } from '@/components/feed/ProfilePostViewer';
 import { ProfileEditSheet } from '@/components/feed/ProfileEditSheet';
+import ReferralPromoCard from '@/components/profile/ReferralPromoCard';
 import { followAPI } from '@/lib/api/follow';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
 import { communityAPI } from '@/lib/api/community';
@@ -278,6 +279,9 @@ export default function FeedProfilePage() {
 
               <div className="mt-3 space-y-1">
                 <h1 className="text-sm font-semibold text-foreground">{data.profile.name}</h1>
+                {data.profile.city ? (
+                  <p className="text-xs text-muted-foreground">{data.profile.city}</p>
+                ) : null}
                 {data.followsYou && !data.isMe ? (
                   <p className="text-xs text-muted-foreground">Follows you</p>
                 ) : null}
@@ -379,11 +383,16 @@ export default function FeedProfilePage() {
                   </div>
                 ))}
               </div>
-              {data.daysSinceLastPost != null ? (
+              {(data.postsCount ?? 0) > 0 ? (
                 <p className="mt-2 text-xs text-neutral-400">
-                  {data.daysSinceLastPost === 0
-                    ? 'Posted today'
-                    : `Last post ${data.daysSinceLastPost} day${data.daysSinceLastPost === 1 ? '' : 's'} ago`}
+                  {data.postsCount} post{data.postsCount === 1 ? '' : 's'} total
+                  {data.daysSinceLastPost != null
+                    ? ` · ${
+                        data.daysSinceLastPost === 0
+                          ? 'posted today'
+                          : `last post ${data.daysSinceLastPost} day${data.daysSinceLastPost === 1 ? '' : 's'} ago`
+                      }`
+                    : null}
                 </p>
               ) : (
                 <p className="mt-2 text-xs text-neutral-400">No posts yet</p>
@@ -486,6 +495,12 @@ export default function FeedProfilePage() {
               </section>
             ) : null}
 
+            {isMe ? (
+              <div className="mt-5 px-1">
+                <ReferralPromoCard compact />
+              </div>
+            ) : null}
+
             <div
               id="profile-posts-grid"
               className="mt-4 flex items-center justify-center gap-3 border-b border-border"
@@ -495,7 +510,7 @@ export default function FeedProfilePage() {
                 className="inline-flex items-center gap-1.5 border-t border-foreground px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-foreground"
               >
                 <Grid3X3 className="h-3.5 w-3.5" />
-                View posts
+                {isMe ? 'My posts' : 'Posts'} ({data.postsCount})
               </a>
             </div>
 

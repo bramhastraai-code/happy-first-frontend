@@ -1,4 +1,5 @@
 import api from './axios';
+import type { DailyMoodValue } from '@/lib/utils/dailyMood';
 
 export interface DailyLogActivity {
   activityId: string;
@@ -11,12 +12,25 @@ export interface DailyLogActivity {
 
 export interface SubmitDailyLogData {
   activities: DailyLogActivity[];
+  mood?: DailyMoodValue;
 }
 
 export interface SubmitPreviousDailyLogData {
   date: string;
   activities: DailyLogActivity[];
 }
+
+export interface DailyMoodRecord {
+  dateKey: string;
+  mood: DailyMoodValue;
+}
+
+export interface MissedLogDaysData {
+  withinDays: number;
+  count: number;
+  days: Array<{ date: string; label: string }>;
+}
+
 
 export interface DailySummary {
   date: string;
@@ -157,6 +171,14 @@ export interface CalendarDay {
   isToday: boolean;
   isFuture: boolean;
   inPlan?: boolean;
+  dayStatus?:
+    | 'achieved'
+    | 'partial'
+    | 'missed'
+    | 'pending'
+    | 'idle'
+    | 'future'
+    | 'out-of-plan';
 }
 
 export interface ActivityCalendarDay extends CalendarDay {
@@ -222,6 +244,8 @@ export interface CalendarData {
     monthLabel: string;
     monthWeeklyAveragePercent: number;
     overallWeeklyAveragePercent: number;
+    monthEarnedPercent?: number;
+    overallEarnedPercent?: number;
     completedWeeksInMonth: number;
     completedWeeksOverall: number;
   };
@@ -262,6 +286,9 @@ export interface ActivityCalendarData {
     totalDays: number;
     daysLogged: number;
     daysNotLogged: number;
+    daysAchieved?: number;
+    daysPartial?: number;
+    daysMissed?: number;
     completionPercentage: string;
     totalValue: number;
     totalPoints: number;
@@ -287,6 +314,13 @@ export interface ActivityCalendarData {
 
 export const dailyLogAPI = {
   submit: (data: SubmitDailyLogData) => api.post('/dailyLog/web', data),
+
+  getMood: (date?: string) =>
+    api.get<{
+      success: boolean;
+      message: string;
+      data: DailyMoodRecord | null;
+    }>('/dailyLog/mood', { params: date ? { date } : {} }),
   
   submitPrevious: (data: SubmitPreviousDailyLogData) => api.post('/dailyLog/previous', data),
   
@@ -411,4 +445,11 @@ export const dailyLogAPI = {
       data: { leaderboard: LeaderboardData };
     }>(`/dailyLog/leaderboard/${profileId}`, { params });
   },
+
+  getMissedLogDays: (withinDays = 30) =>
+    api.get<{
+      success: boolean;
+      message: string;
+      data: MissedLogDaysData;
+    }>('/dailyLog/missed-days', { params: { withinDays } }),
 };

@@ -11,6 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import AuthShell, { authButtonClass, authFieldClass } from '@/components/layout/AuthShell';
 import CountryCodeSelect from '@/components/ui/CountryCodeSelect';
+import { AuthFieldLabel } from '@/components/auth/AuthFieldLabel';
+import { CountrySearchSelect } from '@/components/auth/CountrySearchSelect';
+import { TimezoneGroupedSelect } from '@/components/auth/TimezoneGroupedSelect';
 import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter';
 import {
   getPasswordStrength,
@@ -21,9 +24,8 @@ import {
 import { markOtpSession } from '@/lib/auth/otpSession';
 import { buildForgotPasswordHref, isExistingAccountError } from '@/lib/auth/forgotPassword';
 import { cn } from '@/lib/utils';
-import { AppSelect } from '@/components/ui/AppSelect';
-import { TIMEZONE_OPTIONS } from '@/lib/utils/timezones';
-import { COUNTRY_OPTIONS } from '@/lib/utils/countries';
+import { detectBrowserTimezone } from '@/lib/utils/timezones';
+import { timezoneForCountry } from '@/lib/utils/countries';
 import { setPendingCommunityId } from '@/lib/utils/pendingCommunity';
 
 const labelClassName = 'sr-only';
@@ -48,8 +50,9 @@ export default function RegisterForm() {
     area: '',
     dateOfBirth: '',
     referredBy: '',
-    timezone: 'Asia/Kolkata',
+    timezone: detectBrowserTimezone(),
   });
+  const [timezoneTouched, setTimezoneTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -58,11 +61,12 @@ export default function RegisterForm() {
 
   useEffect(() => {
     const communityId = searchParams.get('community');
+    const inviterProfileId = searchParams.get('invitedBy');
     if (communityId) {
-      setPendingCommunityId(communityId);
+      setPendingCommunityId(communityId, inviterProfileId);
     }
 
-    const refCode = searchParams.get('ref') || searchParams.get('referredBy');
+    const refCode = searchParams.get('ref');
     if (refCode) {
       setFormData((prev) => ({ ...prev, referredBy: refCode }));
       setIsReferralLocked(true);
@@ -235,9 +239,9 @@ export default function RegisterForm() {
                 className="w-[6.75rem] shrink-0"
               />
               <div className="min-w-0 flex-1">
-                <label htmlFor="phoneNumber" className={labelClassName}>
+                <AuthFieldLabel htmlFor="phoneNumber" required>
                   Phone number
-                </label>
+                </AuthFieldLabel>
                 <Input
                   id="phoneNumber"
                   className={cn(authFieldClass, fieldErrorClass('phoneNumber'))}
@@ -262,9 +266,9 @@ export default function RegisterForm() {
             </div>
 
             <div>
-              <label htmlFor="referral" className={labelClassName}>
+              <AuthFieldLabel htmlFor="referral" optional>
                 Referral code
-              </label>
+              </AuthFieldLabel>
               {isReferralLocked && formData.referredBy ? (
                 <div className="flex items-center gap-2 rounded-[4px] border border-success/20 bg-success-soft px-2.5 py-2">
                   <Gift className="h-4 w-4 shrink-0 text-success" />
@@ -342,14 +346,14 @@ export default function RegisterForm() {
             </div>
 
             <div>
-              <label htmlFor="name" className={labelClassName}>
+              <AuthFieldLabel htmlFor="name" required>
                 Full name
-              </label>
+              </AuthFieldLabel>
               <Input
                 id="name"
                 className={cn(authFieldClass, fieldErrorClass('name'))}
                 type="text"
-                placeholder="Full name"
+                placeholder="Your full name"
                 autoComplete="name"
                 autoFocus
                 value={formData.name}
@@ -364,14 +368,14 @@ export default function RegisterForm() {
             </div>
 
             <div>
-              <label htmlFor="email" className={labelClassName}>
+              <AuthFieldLabel htmlFor="email" required>
                 Email
-              </label>
+              </AuthFieldLabel>
               <Input
                 id="email"
                 className={cn(authFieldClass, fieldErrorClass('email'))}
                 type="email"
-                placeholder="Email"
+                placeholder="you@example.com"
                 autoComplete="email"
                 value={formData.email}
                 onChange={(e) => {
@@ -385,13 +389,15 @@ export default function RegisterForm() {
             </div>
 
             <div>
-              <label htmlFor="dateOfBirth" className={labelClassName}>
-                Date of birth
-              </label>
+              <AuthFieldLabel htmlFor="dateOfBirth" required>
+                Birthday
+              </AuthFieldLabel>
               <Input
                 id="dateOfBirth"
                 className={cn(authFieldClass, fieldErrorClass('dateOfBirth'))}
                 type="date"
+                aria-label="Your birthday"
+                max={new Date().toISOString().slice(0, 10)}
                 value={formData.dateOfBirth}
                 onChange={(e) => {
                   clearFieldError('dateOfBirth');
@@ -400,38 +406,40 @@ export default function RegisterForm() {
                 required
                 disabled={loading}
               />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                Used for age-appropriate recommendations. Must be 5 years or older.
+              </p>
               <FieldError message={fieldErrors.dateOfBirth} />
             </div>
 
             <div>
-              <label htmlFor="country" className={labelClassName}>
+              <AuthFieldLabel htmlFor="country" required>
                 Country
-              </label>
-              <AppSelect
+              </AuthFieldLabel>
+              <CountrySearchSelect
                 id="country"
                 value={formData.country}
-                onChange={(e) => {
+                onChange={(country) => {
                   clearFieldError('country');
-                  setFormData({ ...formData, country: e.target.value });
+                  const tz = timezoneForCountry(country);
+                  setFormData((prev) => ({
+                    ...prev,
+                    country,
+                    ...(!timezoneTouched && tz ? { timezone: tz } : {}),
+                  }));
                 }}
-                className={cn(authFieldClass, 'pr-8', fieldErrorClass('country'))}
+                className={fieldErrorClass('country')}
                 disabled={loading}
                 required
-              >
-                {COUNTRY_OPTIONS.map((country) => (
-                  <option key={country} value={country}>
-                    {country}
-                  </option>
-                ))}
-              </AppSelect>
+              />
               <FieldError message={fieldErrors.country} />
             </div>
 
             <div className="grid grid-cols-2 gap-1.5">
               <div>
-                <label htmlFor="city" className={labelClassName}>
+                <AuthFieldLabel htmlFor="city" required>
                   City
-                </label>
+                </AuthFieldLabel>
                 <Input
                   id="city"
                   className={cn(authFieldClass, fieldErrorClass('city'))}
@@ -449,9 +457,9 @@ export default function RegisterForm() {
                 <FieldError message={fieldErrors.city} />
               </div>
               <div>
-                <label htmlFor="area" className={labelClassName}>
-                  Area
-                </label>
+                <AuthFieldLabel htmlFor="area" required>
+                  Area / locality
+                </AuthFieldLabel>
                 <Input
                   id="area"
                   className={cn(authFieldClass, fieldErrorClass('area'))}
@@ -471,33 +479,28 @@ export default function RegisterForm() {
             </div>
 
             <div>
-              <label htmlFor="timezone" className={labelClassName}>
+              <AuthFieldLabel htmlFor="timezone" required>
                 Timezone
-              </label>
-              <AppSelect
+              </AuthFieldLabel>
+              <TimezoneGroupedSelect
                 id="timezone"
                 value={formData.timezone}
-                onChange={(e) => {
+                onChange={(timezone) => {
                   clearFieldError('timezone');
-                  setFormData({ ...formData, timezone: e.target.value });
+                  setTimezoneTouched(true);
+                  setFormData({ ...formData, timezone });
                 }}
-                className={cn(authFieldClass, 'pr-8', fieldErrorClass('timezone'))}
+                className={fieldErrorClass('timezone')}
                 disabled={loading}
                 required
-              >
-                {TIMEZONE_OPTIONS.map((tz) => (
-                  <option key={tz.value} value={tz.value}>
-                    {tz.label}
-                  </option>
-                ))}
-              </AppSelect>
+              />
               <FieldError message={fieldErrors.timezone} />
             </div>
 
             <div>
-              <label htmlFor="password" className={labelClassName}>
+              <AuthFieldLabel htmlFor="password" required>
                 Password
-              </label>
+              </AuthFieldLabel>
               <div className="relative">
                 <Input
                   id="password"

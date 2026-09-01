@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Quote, X } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/authStore';
 import { Button } from '@/components/ui/button';
@@ -78,7 +78,7 @@ export function DailyMotivationQuote({ suppressed = false }: DailyMotivationQuot
     }
   }, [profileId, today, suppressed]);
 
-  const dismiss = () => {
+  const dismiss = useCallback(() => {
     setOpen(false);
     if (!profileId) return;
     try {
@@ -86,7 +86,25 @@ export function DailyMotivationQuote({ suppressed = false }: DailyMotivationQuot
     } catch {
       /* ignore quota */
     }
-  };
+  }, [profileId, today]);
+
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return;
+
+    const dismissOnScroll = () => {
+      dismiss();
+    };
+
+    window.addEventListener('scroll', dismissOnScroll, { passive: true, capture: true });
+    window.addEventListener('wheel', dismissOnScroll, { passive: true, capture: true });
+    window.addEventListener('touchmove', dismissOnScroll, { passive: true, capture: true });
+
+    return () => {
+      window.removeEventListener('scroll', dismissOnScroll, { capture: true });
+      window.removeEventListener('wheel', dismissOnScroll, { capture: true });
+      window.removeEventListener('touchmove', dismissOnScroll, { capture: true });
+    };
+  }, [open, dismiss]);
 
   if (!open || suppressed) return null;
 

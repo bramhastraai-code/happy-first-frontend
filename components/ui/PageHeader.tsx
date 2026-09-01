@@ -53,8 +53,8 @@ export function StatCard({ label, value, hint, icon: Icon, trend, accent = 'oran
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-bold leading-tight tracking-tight tabular-nums sm:text-xl">{value}</p>
-          <p className="truncate text-xs font-medium text-foreground sm:text-sm">{label}</p>
+          <p className="text-lg font-bold leading-tight tracking-tight tabular-nums sm:text-xl">{value}</p>
+          <p className="text-xs font-medium text-foreground sm:text-sm">{label}</p>
           {hint && (
             <p className="truncate text-xs text-muted-foreground">{hint}</p>
           )}

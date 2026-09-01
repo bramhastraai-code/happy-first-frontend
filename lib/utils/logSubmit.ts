@@ -1,13 +1,17 @@
 import type { WeeklyPlan } from '@/lib/api/weeklyPlan';
 import { resolveActivityId } from '@/lib/utils/activityId';
+import {
+  formatDailyProgressLabel,
+  formatWeeklyProgressLabel,
+  isWeeklyDaysActivity as isWeeklyDaysUnit,
+} from '@/lib/utils/activityProgress';
 
+export function isWeeklyDaysActivity(activity: WeeklyPlan['activities'][number]) {
+  return isWeeklyDaysUnit(activity.cadence, activity.unit);
+}
 export interface LogActivityEntry {
   activityId: string;
   value: number;
-}
-
-export function isWeeklyDaysActivity(activity: WeeklyPlan['activities'][number]) {
-  return activity.cadence === 'weekly' && activity.unit.toLowerCase() === 'days';
 }
 
 export type UnusualValueWarning = {
@@ -38,7 +42,10 @@ export function collectUnusualValueWarnings(
     // Weekly numeric: 0 is normal when the weekly target was already met earlier
     if (activity.cadence === 'weekly' && value === 0) return;
 
-    const targetValue = activity.targetValue;
+    const targetValue =
+      activity.cadence === 'daily'
+        ? Number(activity.dailyTarget ?? activity.targetValue) || 0
+        : Number(activity.targetValue) || 0;
     const percentage = targetValue > 0 ? (value / targetValue) * 100 : 0;
 
     if (percentage < 10 || percentage > 200) {
@@ -241,15 +248,36 @@ export function extractEarnedPoints(responseData?: {
 export type LogSuccessEntry = { label: string; value: string };
 
 export function formatLoggedActivityValue(
-  activity: { label?: string; name?: string; unit?: string; cadence?: string },
+  activity: {
+    label?: string;
+    name?: string;
+    unit?: string;
+    cadence?: string;
+    dailyTarget?: number;
+    targetValue?: number;
+  },
   value: number
 ): LogSuccessEntry {
   const label = activity.label || activity.name || 'Activity';
   const unit = String(activity.unit || '').toLowerCase();
   const isWeeklyDays = activity.cadence === 'weekly' && unit === 'days';
+
   if (isWeeklyDays) {
-    return { label, value: value > 0 ? 'Done' : 'Not Done' };
+    const progress = formatWeeklyProgressLabel(value, 1, activity.unit, {
+      isWeeklyDays: true,
+      todayDone: value > 0,
+    });
+    return { label, value: progress.text };
   }
-  const unitLabel = activity.unit ? ` ${activity.unit}` : '';
-  return { label, value: `${value}${unitLabel}` };
+
+  if (activity.cadence === 'daily') {
+    const target = activity.dailyTarget ?? activity.targetValue ?? 0;
+    return { label, value: formatDailyProgressLabel(value, target, activity.unit).text };
+  }
+
+  if (activity.cadence === 'weekly' && !isWeeklyDays) {
+    return { label, value: value > 0 ? 'Achieved' : 'Pending' };
+  }
+
+  return { label, value: value > 0 ? 'Achieved' : 'Pending' };
 }

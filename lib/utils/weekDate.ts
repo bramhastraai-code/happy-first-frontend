@@ -110,3 +110,19 @@ export function getMonthsInWeek(ref?: DateTime, timezone?: string | null) {
 
   return months;
 }
+
+/** Plan week range for create/repeat — mirrors backend resolveExplicitWeekStart. */
+export function resolvePlanWeekPreview(
+  weekTarget: 'current' | 'next',
+  timezone?: string | null
+): { weekStart: string; weekEnd: string } {
+  const zone = resolveProfileTimezone(timezone);
+  const monday =
+    weekTarget === 'next'
+      ? nowInProfileZone(zone).startOf('week').plus({ weeks: 1 })
+      : nowInProfileZone(zone).startOf('week');
+  return {
+    weekStart: monday.toFormat('yyyy-MM-dd'),
+    weekEnd: monday.plus({ days: 6 }).endOf('day').toISO()!,
+  };
+}

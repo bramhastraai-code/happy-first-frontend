@@ -9,6 +9,7 @@ import {
   DoorOpen,
   Loader2,
   Pencil,
+  Settings2,
   Share2,
   Trash2,
   Users,
@@ -20,7 +21,7 @@ import {
   AppPageHeader,
   headerBackBtnClass,
 } from '@/components/ui/AppPageHeader';
-import { HeaderIconButton, HeaderOverflowMenu, type HeaderOverflowItem } from '@/components/ui/HeaderIconAction';
+import { HeaderIconButton, HeaderIconLink, HeaderOverflowMenu, type HeaderOverflowItem } from '@/components/ui/HeaderIconAction';
 import { NotificationBell } from '@/components/feed/NotificationBell';
 import { CommunityDashboardTab } from '@/components/community/CommunityDashboardTab';
 import { CommunityChatTab } from '@/components/community/CommunityChatTab';
@@ -64,6 +65,7 @@ export default function CommunityDetailPage() {
   const { requestConfirm, ConfirmDialogElement } = useCommunityConfirm();
   const { selectedProfile } = useAuthStore();
   const [tab, setTab] = useState('dashboard');
+  const [openAdminControls, setOpenAdminControls] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
@@ -201,10 +203,14 @@ export default function CommunityDetailPage() {
   };
 
   const requestLeave = () => {
+    const soleAdminHint =
+      isAdmin && community && community.memberCount > 1
+        ? ' If you are the only admin, you must assign a replacement or the community will be disabled next week.'
+        : '';
     requestConfirm({
       title: 'Leave this community?',
       description:
-        'You will lose access to chat and community activity until you rejoin. This cannot be undone from here.',
+        `You will lose access to chat and community activity until you rejoin.${soleAdminHint}`,
       confirmLabel: 'Leave',
       onConfirm: () => runLeave(),
     });
@@ -231,24 +237,6 @@ export default function CommunityDetailPage() {
   const createdOnLabel = formatCreatedOn(overview?.createdOn || community?.createdAt);
 
   const overflowItems: HeaderOverflowItem[] = [];
-  if (isAdmin && !isDeleted && !isDisabled) {
-    overflowItems.push({
-      id: 'edit',
-      label: 'Edit',
-      icon: <Pencil />,
-      href: `/community/${communityId}/edit`,
-    });
-  }
-  if (isMember && !isDeleted && !isDisabled) {
-    overflowItems.push({
-      id: 'leave',
-      label: leaveBusy ? 'Leaving…' : 'Leave',
-      icon: leaveBusy ? <Loader2 className="animate-spin" /> : <DoorOpen />,
-      danger: true,
-      disabled: leaveBusy,
-      onClick: requestLeave,
-    });
-  }
   if (isAdmin && !isDeleted && !isDisabled) {
     overflowItems.push({
       id: 'delete',
@@ -326,6 +314,38 @@ export default function CommunityDetailPage() {
           actions={
             <>
               {isMember ? <NotificationBell caption="Alerts" /> : null}
+              {isAdmin && !isDeleted && !isDisabled ? (
+                <>
+                  <HeaderIconLink
+                    href={`/community/${communityId}/edit`}
+                    icon={<Pencil className="h-[18px] w-[18px]" />}
+                    caption="Activities"
+                  />
+                  <HeaderIconButton
+                    icon={<Settings2 className="h-[18px] w-[18px]" />}
+                    caption="Admin"
+                    onClick={() => {
+                      setTab('dashboard');
+                      setOpenAdminControls(true);
+                    }}
+                  />
+                </>
+              ) : null}
+              {isMember && !isDeleted && !isDisabled ? (
+                <HeaderIconButton
+                  icon={
+                    leaveBusy ? (
+                      <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                    ) : (
+                      <DoorOpen className="h-[18px] w-[18px]" />
+                    )
+                  }
+                  caption={leaveBusy ? 'Leaving…' : 'Leave'}
+                  danger
+                  disabled={leaveBusy}
+                  onClick={requestLeave}
+                />
+              ) : null}
               {!isDeleted &&
               !isDisabled &&
               (isMember ||
@@ -337,7 +357,7 @@ export default function CommunityDetailPage() {
                   onClick={() => setShareOpen(true)}
                 />
               ) : null}
-              <HeaderOverflowMenu items={overflowItems} />
+              {overflowItems.length ? <HeaderOverflowMenu items={overflowItems} /> : null}
             </>
           }
         />
@@ -411,6 +431,8 @@ export default function CommunityDetailPage() {
                 communityId={communityId}
                 community={community}
                 isAdmin={Boolean(isAdmin)}
+                openAdminOnMount={openAdminControls}
+                onAdminOpenHandled={() => setOpenAdminControls(false)}
               />
             ) : null}
             {tab === 'members' ? (
@@ -420,6 +442,8 @@ export default function CommunityDetailPage() {
                 isAdmin={Boolean(isAdmin)}
                 isModerator={Boolean(isModerator || isAdmin)}
                 canInvite={Boolean(canInvite)}
+                onRequestLeave={requestLeave}
+                leaveBusy={leaveBusy}
               />
             ) : null}
             {tab === 'feed' ? <CommunityFeedTab communityId={communityId} /> : null}

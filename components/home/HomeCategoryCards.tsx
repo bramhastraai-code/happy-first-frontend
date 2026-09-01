@@ -1,11 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo } from 'react';
 import type { Activity } from '@/lib/api/activity';
-import type { WeeklyPlan } from '@/lib/api/weeklyPlan';
+import type { WeeklyPlan, WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { resolveActivityId } from '@/lib/utils/activityId';
-import { cn } from '@/lib/utils';
 
 const CATEGORIES = [
   { id: 'body', label: 'Body', emoji: '💪' },
@@ -18,15 +16,25 @@ type HomeCategoryCardsProps = {
   activityList?: Activity[];
 };
 
+function weekTargetUnits(activity: WeeklyPlanActivity): number {
+  const target = Number(activity.targetValue) || 0;
+  if (target <= 0) return 0;
+  return activity.cadence === 'daily' ? target * 7 : target;
+}
+
+function achievedUnits(activity: WeeklyPlanActivity): number {
+  return Number(activity.achievedUnits ?? activity.achieved ?? 0) || 0;
+}
+
 export function HomeCategoryCards({
   weeklyPlan = null,
   activityList = [],
 }: HomeCategoryCardsProps) {
   const stats = useMemo(() => {
-    const byCategory: Record<string, { total: number; logged: number }> = {
-      body: { total: 0, logged: 0 },
-      mind: { total: 0, logged: 0 },
-      soul: { total: 0, logged: 0 },
+    const byCategory: Record<string, { achieved: number; target: number; percent: number }> = {
+      body: { achieved: 0, target: 0, percent: 0 },
+      mind: { achieved: 0, target: 0, percent: 0 },
+      soul: { achieved: 0, target: 0, percent: 0 },
     };
 
     if (!weeklyPlan?.activities?.length) return byCategory;
@@ -34,48 +42,60 @@ export function HomeCategoryCards({
     const categoryById = new Map(
       activityList.map((a) => [a._id, (a.category || '').toLowerCase()])
     );
+    const seenIds = new Set<string>();
 
     for (const activity of weeklyPlan.activities) {
-      if (activity.cadence !== 'daily') continue;
       const id = resolveActivityId(activity);
+      if (!id || seenIds.has(id)) continue;
       const category = categoryById.get(id);
       if (!category || !byCategory[category]) continue;
-      byCategory[category].total += 1;
-      if (activity.TodayLogged) byCategory[category].logged += 1;
+      seenIds.add(id);
+
+      byCategory[category].achieved += achievedUnits(activity);
+      byCategory[category].target += weekTargetUnits(activity);
+    }
+
+    for (const key of Object.keys(byCategory)) {
+      const row = byCategory[key];
+      row.percent =
+        row.target > 0 ? Math.round((row.achieved / row.target) * 100) : 0;
     }
 
     return byCategory;
   }, [weeklyPlan, activityList]);
 
   return (
-    <div className="home-category-cards grid grid-cols-3 gap-2.5 sm:gap-3">
+    <div className="home-category-cards grid grid-cols-3 gap-2 sm:gap-2.5">
       {CATEGORIES.map((category) => {
-        const { total, logged } = stats[category.id];
-        const hint =
-          total > 0
-            ? `${logged}/${total} logged`
-            : 'Open activities';
+        const { percent } = stats[category.id];
 
         return (
-          <Link
+          <div
             key={category.id}
-            href={`/tasks#${category.id}`}
-            className={cn(
-              'section-card flex flex-col items-center gap-1.5 px-2 py-3.5 text-center transition',
-              'hover:border-primary/30 active:scale-[0.98]'
-            )}
+            className="section-card flex flex-col items-center gap-1 px-2 py-2 text-center sm:py-2.5"
           >
             <span
-              className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft text-xl"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft text-base sm:h-9 sm:w-9 sm:text-lg"
               aria-hidden
             >
               {category.emoji}
             </span>
-            <span className="text-sm font-semibold text-foreground">{category.label}</span>
-            <span className="text-[10px] font-medium text-muted-foreground sm:text-[11px]">
-              {hint}
+            <span className="text-xs font-semibold leading-none text-foreground sm:text-sm">
+              {category.label}
             </span>
-          </Link>
+            <span className="text-sm font-bold tabular-nums leading-none text-primary sm:text-base">
+              {percent}%
+            </span>
+            <div className="h-1 w-full max-w-[72px] overflow-hidden rounded-full bg-primary/15 sm:max-w-[80px]">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-primary to-primary-hover transition-[width] duration-500"
+                style={{ width: `${Math.min(percent, 100)}%` }}
+              />
+            </div>
+            <span className="text-[9px] font-medium leading-none text-muted-foreground sm:text-[10px]">
+              This week
+            </span>
+          </div>
         );
       })}
     </div>

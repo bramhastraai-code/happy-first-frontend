@@ -56,9 +56,18 @@ interface StreakCalendarViewProps {
   onLeaderboardScopeChange?: (scope: 'monthly' | 'overall') => void;
 }
 
-type DayState = 'future' | 'logged' | 'pending' | 'missed' | 'idle';
+type DayState =
+  | 'achieved'
+  | 'partial'
+  | 'missed'
+  | 'pending'
+  | 'idle'
+  | 'future'
+  | 'out-of-plan'
+  | 'logged';
 
 function getDayState(day: CalendarDay | ActivityCalendarDay): DayState {
+  if (day.dayStatus) return day.dayStatus;
   if (day.isFuture) return 'future';
   if (day.hasLog) return 'logged';
   if (day.isToday) return 'pending';
@@ -78,13 +87,15 @@ function dayCellClasses(day: CalendarDay | ActivityCalendarDay) {
     'relative aspect-square w-full rounded-lg border text-xs font-semibold transition-colors sm:text-sm',
     state === 'future' &&
       'cursor-not-allowed border-border bg-secondary text-muted-foreground',
-    state === 'logged' &&
+    (state === 'achieved' || state === 'logged') &&
       'cursor-pointer border-primary bg-primary text-primary-foreground hover:bg-primary/90',
+    state === 'partial' &&
+      'cursor-pointer border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100',
     state === 'pending' &&
       'cursor-pointer border-primary bg-surface text-foreground',
     state === 'missed' &&
       'cursor-pointer border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100',
-    state === 'idle' &&
+    (state === 'idle' || state === 'out-of-plan') &&
       'cursor-pointer border-border bg-secondary/70 text-muted-foreground hover:bg-accent',
     day.isToday && 'ring-2 ring-primary ring-offset-1'
   );
@@ -92,14 +103,19 @@ function dayCellClasses(day: CalendarDay | ActivityCalendarDay) {
 
 function dayStateLabel(state: DayState): string {
   switch (state) {
+    case 'achieved':
     case 'logged':
-      return 'Logged';
+      return 'Target achieved';
+    case 'partial':
+      return 'Logged · target not met';
     case 'pending':
       return 'Today';
     case 'missed':
-      return 'Missed';
+      return 'Not logged';
     case 'idle':
       return 'No plan';
+    case 'out-of-plan':
+      return 'Logged · out of plan';
     default:
       return 'Future';
   }
@@ -124,17 +140,21 @@ function CalendarDayCell({
       title={`${day.dayOfWeek}, ${dateLabel}${state === 'future' ? '' : ` · ${dayStateLabel(state)}`}`}
     >
       <span className="inline-flex h-full w-full items-center justify-center">{day.day}</span>
-      {(state === 'logged' || state === 'missed') && (
+      {(state === 'achieved' || state === 'logged' || state === 'partial' || state === 'missed') && (
         <span
           className={cn(
             'absolute bottom-0.5 right-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-white shadow-sm',
-            state === 'logged' ? 'bg-emerald-500' : 'bg-rose-500'
+            state === 'achieved' || state === 'logged'
+              ? 'bg-emerald-500'
+              : state === 'partial'
+                ? 'bg-emerald-500 ring-2 ring-amber-300'
+                : 'bg-rose-500'
           )}
         >
-          {state === 'logged' ? (
-            <Check className="h-2.5 w-2.5" strokeWidth={3} />
-          ) : (
+          {state === 'missed' ? (
             <X className="h-2.5 w-2.5" strokeWidth={3} />
+          ) : (
+            <Check className="h-2.5 w-2.5" strokeWidth={3} />
           )}
         </span>
       )}
@@ -149,13 +169,34 @@ const CATEGORY_META: Record<string, { label: string; emoji: string }> = {
   soul: { label: 'Soul', emoji: '✨' },
 };
 
-function ActivityTotalsList({
-  title,
-  items,
+function ActivityTotalsPanel({
+  monthItems,
+  lifetime,
+  monthLabel,
+  month,
+  year,
+  canGoPreviousMonth,
+  canGoNextMonth,
+  isLoading,
+  onPreviousMonth,
+  onNextMonth,
+  onJumpToCurrentMonth,
 }: {
-  title: string;
-  items: Array<{ activityId: string; name: string; unit: string; total: number; category?: string }>;
+  monthItems: Array<{ activityId: string; name: string; unit: string; total: number; category?: string }>;
+  lifetime: Array<{ activityId: string; name: string; unit: string; total: number; category?: string }>;
+  monthLabel: string;
+  month: number;
+  year: number;
+  canGoPreviousMonth: boolean;
+  canGoNextMonth: boolean;
+  isLoading?: boolean;
+  onPreviousMonth: () => void;
+  onNextMonth: () => void;
+  onJumpToCurrentMonth: () => void;
 }) {
+  const [scope, setScope] = useState<'month' | 'overall'>('month');
+  const items = scope === 'month' ? monthItems : lifetime;
+
   const grouped = CATEGORY_ORDER.map((category) => ({
     category,
     items: items
@@ -163,29 +204,74 @@ function ActivityTotalsList({
       .sort((a, b) => b.total - a.total),
   })).filter((group) => group.items.length > 0);
 
-  const uncategorized = items.filter(
-    (item) => !CATEGORY_ORDER.includes((item.category || 'body').toLowerCase() as (typeof CATEGORY_ORDER)[number])
-  );
-
   return (
-    <div>
-      <h4 className="mb-2 text-sm font-semibold text-foreground">{title}</h4>
+    <section className="section-card space-y-3 p-4 sm:p-5">
+        <div>
+          <h2 className="section-title">Activity totals</h2>
+          <p className="text-xs text-muted-foreground">
+            Tap Overall above to see lifetime totals grouped by Mind, Body, and Soul
+          </p>
+        </div>
+
+      <div className="space-y-3">
+        <ChipTabs
+          tabs={[
+            { id: 'month', label: 'Monthly' },
+            { id: 'overall', label: 'Overall' },
+          ]}
+          active={scope}
+          onChange={(id) => setScope(id as 'month' | 'overall')}
+        />
+
+        {scope === 'month' && (
+          <MonthNavigator
+            month={month}
+            year={year}
+            monthName={monthLabel}
+            canGoPreviousMonth={canGoPreviousMonth}
+            canGoNextMonth={canGoNextMonth}
+            isLoading={isLoading}
+            onPreviousMonth={onPreviousMonth}
+            onNextMonth={onNextMonth}
+            onJumpToCurrentMonth={onJumpToCurrentMonth}
+          />
+        )}
+      </div>
+
       {items.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No activity totals yet.</p>
+        <p className="py-6 text-center text-xs text-muted-foreground">
+          No {scope === 'month' ? `${monthLabel.toLowerCase()} ` : ''}activity totals yet.
+        </p>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {grouped.map((group) => {
             const meta = CATEGORY_META[group.category];
             return (
-              <div key={group.category}>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {meta.emoji} {meta.label}
-                </p>
-                <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
+              <div
+                key={group.category}
+                className="overflow-hidden rounded-xl border border-border bg-surface"
+              >
+                <div className="flex items-center gap-1.5 border-b border-border bg-secondary/40 px-2.5 py-1.5">
+                  <span className="text-sm" aria-hidden>
+                    {meta.emoji}
+                  </span>
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">
+                    {meta.label}
+                  </h3>
+                  <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
+                    {group.items.length}
+                  </span>
+                </div>
+                <ul className="divide-y divide-border">
                   {group.items.map((item) => (
-                    <li key={item.activityId} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                      <span className="min-w-0 truncate font-medium text-foreground">{item.name}</span>
-                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                    <li
+                      key={item.activityId}
+                      className="flex items-center justify-between gap-2 px-2.5 py-1.5"
+                    >
+                      <span className="min-w-0 truncate text-xs font-medium text-foreground">
+                        {item.name}
+                      </span>
+                      <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
                         {item.total.toLocaleString()} {item.unit}
                       </span>
                     </li>
@@ -194,21 +280,9 @@ function ActivityTotalsList({
               </div>
             );
           })}
-          {uncategorized.length > 0 && (
-            <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
-              {uncategorized.map((item) => (
-                <li key={item.activityId} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
-                  <span className="min-w-0 truncate font-medium text-foreground">{item.name}</span>
-                  <span className="shrink-0 tabular-nums text-muted-foreground">
-                    {item.total.toLocaleString()} {item.unit}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -340,6 +414,74 @@ function isActualCurrentMonth(month: number, year: number): boolean {
   return month === now.getMonth() + 1 && year === now.getFullYear();
 }
 
+function MonthNavigator({
+  month,
+  year,
+  monthName,
+  canGoPreviousMonth,
+  canGoNextMonth,
+  isLoading,
+  onPreviousMonth,
+  onNextMonth,
+  onJumpToCurrentMonth,
+}: {
+  month: number;
+  year: number;
+  monthName: string;
+  canGoPreviousMonth: boolean;
+  canGoNextMonth: boolean;
+  isLoading?: boolean;
+  onPreviousMonth: () => void;
+  onNextMonth: () => void;
+  onJumpToCurrentMonth: () => void;
+}) {
+  const isCurrentMonth = isActualCurrentMonth(month, year);
+
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-1 items-center gap-1 rounded-2xl border border-input bg-surface px-1.5 py-1.5">
+        <button
+          type="button"
+          disabled={!canGoPreviousMonth || isLoading}
+          onClick={onPreviousMonth}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Previous month"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <div className="min-w-0 flex-1 px-1 text-center">
+          <p className="text-sm font-semibold leading-tight text-foreground">
+            {isCurrentMonth ? 'This month' : monthName}
+          </p>
+          <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">
+            {monthName} {year}
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={!canGoNextMonth || isLoading}
+          onClick={onNextMonth}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Next month"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+      {!isCurrentMonth ? (
+        <button
+          type="button"
+          disabled={isLoading}
+          onClick={onJumpToCurrentMonth}
+          className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary-soft px-3 text-xs font-semibold text-primary transition-colors hover:bg-accent disabled:opacity-50 sm:h-9"
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          This month
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function CombinedLeaderboardSection({
   monthLeaderboard,
   allTimeLeaderboard,
@@ -378,7 +520,6 @@ function CombinedLeaderboardSection({
   onScopeChange?: (scope: LeaderboardScope) => void;
 }) {
   const [scope, setScope] = useState<LeaderboardScope>('monthly');
-  const isCurrentMonth = isActualCurrentMonth(month, year);
 
   const activeLeaderboard = scope === 'monthly' ? monthLeaderboard : allTimeLeaderboard;
   const onPageChange = scope === 'monthly' ? onMonthlyPageChange : onAllTimePageChange;
@@ -416,47 +557,17 @@ function CombinedLeaderboardSection({
         />
 
         {scope === 'monthly' && (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="flex min-w-0 flex-1 items-center gap-1 rounded-2xl border border-input bg-surface px-1.5 py-1.5">
-              <button
-                type="button"
-                disabled={!canGoPreviousMonth || isLoading}
-                onClick={onPreviousMonth}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Previous month"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <div className="min-w-0 flex-1 px-1 text-center">
-                <p className="text-sm font-semibold leading-tight text-foreground">
-                  {isCurrentMonth ? 'This month' : monthName}
-                </p>
-                <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">
-                  {monthName} {year}
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={!canGoNextMonth || isLoading}
-                onClick={onNextMonth}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Next month"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-            {!isCurrentMonth ? (
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={onJumpToCurrentMonth}
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary-soft px-3 text-xs font-semibold text-primary transition-colors hover:bg-accent disabled:opacity-50 sm:h-9"
-              >
-                <CalendarDays className="h-3.5 w-3.5" />
-                This month
-              </button>
-            ) : null}
-          </div>
+          <MonthNavigator
+            month={month}
+            year={year}
+            monthName={monthName}
+            canGoPreviousMonth={canGoPreviousMonth}
+            canGoNextMonth={canGoNextMonth}
+            isLoading={isLoading}
+            onPreviousMonth={onPreviousMonth}
+            onNextMonth={onNextMonth}
+            onJumpToCurrentMonth={onJumpToCurrentMonth}
+          />
         )}
       </div>
 
@@ -516,7 +627,8 @@ export function StreakCalendarView({
   const handleDayClick = (day: CalendarDay | ActivityCalendarDay) => {
     if (day.isFuture) return;
     const dateStr = toLocalDateKey(day.date);
-    if (day.hasLog) {
+    const state = getDayState(day);
+    if (state === 'achieved' || state === 'logged' || state === 'partial') {
       router.push(`/home?date=${dateStr}`);
       return;
     }
@@ -583,21 +695,21 @@ export function StreakCalendarView({
     <div className="mx-auto max-w-4xl space-y-5 sm:space-y-6">
       <PageHeader
         title="Streak calendar"
-        subtitle="Track your consistency day by day and spot gaps before they break your streak."
+        subtitle="Activity streaks count only days where the daily target was achieved. Switch to Overall for activity totals by Mind, Body, and Soul."
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
         <StatCard
           label="Current streak"
           value={`${currentStreak} days`}
-          hint="Keep logging to grow it"
+          hint="Consecutive target-achieved days"
           icon={Flame}
           accent="orange"
         />
         <StatCard
           label="Longest streak"
           value={`${longestStreak} days`}
-          hint={`${totalLogged} days logged total`}
+          hint={`${totalLogged} target-achieved days total`}
           icon={Trophy}
           accent="green"
         />
@@ -610,7 +722,9 @@ export function StreakCalendarView({
           </span>
           <div>
             <h2 className="section-title">View streak by</h2>
-            <p className="text-xs text-muted-foreground">Overall daily log or a single activity</p>
+            <p className="text-xs text-muted-foreground">
+              Tap an activity for its calendar. Switch to Overall below for Mind / Body / Soul totals.
+            </p>
           </div>
         </div>
 
@@ -645,8 +759,11 @@ export function StreakCalendarView({
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                           <span className="font-medium text-primary">{activity.currentStreak} day streak</span>
                           <span>Best {activity.longestStreak}</span>
-                          <span>{activity.totalDaysLogged} logged</span>
+                          <span>{activity.totalDaysLogged} achieved</span>
                         </div>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Tap to open calendar · target must be met to extend streak
+                        </p>
                       </div>
                       <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
                     </button>
@@ -775,18 +892,43 @@ export function StreakCalendarView({
             </div>
 
             <div className="mb-3 flex flex-wrap items-center justify-end gap-3 text-xs font-medium text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-white">
-                  <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                </span>
-                Logged
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-white">
-                  <X className="h-2.5 w-2.5" strokeWidth={3} />
-                </span>
-                Missing
-              </span>
+              {filterType === 'activity' ? (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-white">
+                      <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                    </span>
+                    Target achieved
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-white ring-2 ring-amber-300">
+                      <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                    </span>
+                    Logged · not done
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-white">
+                      <X className="h-2.5 w-2.5" strokeWidth={3} />
+                    </span>
+                    Not logged
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-white">
+                      <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                    </span>
+                    Logged
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-white">
+                      <X className="h-2.5 w-2.5" strokeWidth={3} />
+                    </span>
+                    Missing
+                  </span>
+                </>
+              )}
             </div>
 
             <div className="mb-1.5 grid grid-cols-7 gap-1.5">
@@ -818,7 +960,7 @@ export function StreakCalendarView({
                 </div>
                 <div className="text-center">
                   <p className="text-lg font-bold tabular-nums text-foreground">{selectedActivityStreak.totalDaysLogged}</p>
-                  <p className="text-[11px] text-muted-foreground">Days logged</p>
+                  <p className="text-[11px] text-muted-foreground">Days achieved</p>
                 </div>
               </div>
             )}
@@ -827,12 +969,18 @@ export function StreakCalendarView({
               {activityCalendarData ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                    <StatTile label="Days logged" value={activityCalendarData.statistics?.daysLogged ?? 0} />
-                    <StatTile label="Days missed" value={activityCalendarData.statistics?.daysNotLogged ?? 0} />
                     <StatTile
-                      label="% Points Earned"
-                      value={`${formatPercent(activityCalendarData.statistics?.completionPercentage)}%`}
+                      label="Target achieved"
+                      value={activityCalendarData.statistics?.daysAchieved ?? activityCalendarData.statistics?.daysLogged ?? 0}
                       accent="success"
+                    />
+                    <StatTile
+                      label="Logged · not done"
+                      value={activityCalendarData.statistics?.daysPartial ?? 0}
+                    />
+                    <StatTile
+                      label="Not logged"
+                      value={activityCalendarData.statistics?.daysMissed ?? activityCalendarData.statistics?.daysNotLogged ?? 0}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -841,68 +989,72 @@ export function StreakCalendarView({
                       value={activityCalendarData.statistics?.totalValue ?? 0}
                     />
                     <StatTile
-                      label="Points earned"
-                      value={formatPercent(activityCalendarData.statistics?.totalPoints)}
+                      label="% earned"
+                      value={`${formatPercent(activityCalendarData.statistics?.totalPoints)}%`}
                       accent="primary"
                     />
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     <StatTile label="Days logged" value={calendarData?.statistics.daysLogged || 0} />
                     <StatTile label="Days missed" value={calendarData?.statistics.daysNotLogged || 0} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                     <StatTile
-                      label="% Points Earned"
-                      value={`${formatPercent(calendarData?.statistics.completionPercentage)}%`}
-                      accent="success"
+                      label={`${weeklyAverages?.monthLabel || activeCalendar.monthName} % earned`}
+                      value={`${formatPercent(weeklyAverages?.monthEarnedPercent)}%`}
+                      accent="primary"
+                    />
+                    <StatTile
+                      label="Overall % earned"
+                      value={`${formatPercent(weeklyAverages?.overallEarnedPercent)}%`}
+                      accent="primary"
                     />
                   </div>
-                  {weeklyAverages && (
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
-                      <StatTile
-                        label={`${weeklyAverages.monthLabel} Weekly Average`}
-                        value={`${formatPercent(weeklyAverages.monthWeeklyAveragePercent)}% Points Earned`}
-                        accent="primary"
-                      />
-                      <StatTile
-                        label="Overall Weekly Average"
-                        value={`${formatPercent(weeklyAverages.overallWeeklyAveragePercent)}% Points Earned`}
-                        accent="primary"
-                      />
-                    </div>
-                  )}
                 </div>
               )}
             </div>
           </section>
 
-          {filterType === 'overall' && activityTotals && (
-            <section className="section-card space-y-4 p-4 sm:p-5">
-              <div>
-                <h2 className="section-title">Overall activity totals</h2>
-                <p className="text-xs text-muted-foreground">Cumulative activity values this month and lifetime</p>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <ActivityTotalsList title="This month" items={activityTotals.month} />
-                <ActivityTotalsList title="Lifetime" items={activityTotals.lifetime} />
-              </div>
-            </section>
+          {filterType === 'overall' && activityTotals && activeCalendar && (
+            <ActivityTotalsPanel
+              monthItems={activityTotals.month}
+              lifetime={activityTotals.lifetime}
+              monthLabel={activeCalendar.monthName}
+              month={activeCalendar.month}
+              year={activeCalendar.year}
+              canGoPreviousMonth={activeCalendar.pagination.canGoPrevious}
+              canGoNextMonth={activeCalendar.pagination.canGoNext}
+              isLoading={isCalendarFetching}
+              onPreviousMonth={onPreviousMonth}
+              onNextMonth={onNextMonth}
+              onJumpToCurrentMonth={onJumpToCurrentMonth}
+            />
           )}
 
           {filterType === 'overall' && fourWeekTrendChartData.length > 0 && (
             <section className="section-card space-y-4 p-4 sm:p-5">
               <div>
                 <h2 className="section-title">4-week analysis</h2>
-                <p className="text-xs text-muted-foreground">% Points Earned over the last four completed weeks</p>
+                <p className="text-xs text-muted-foreground">
+                  % earned over the last four completed weeks. Tap a bar to review missed activities for that week.
+                </p>
               </div>
               <ActivityChart
                 data={fourWeekTrendChartData}
                 variant="bar"
                 height={200}
-                tooltipUnit="% Points Earned"
+                tooltipUnit="% earned"
                 showBarLabels
                 enableInsideZoom={false}
+                onBarClick={(_, index) => {
+                  const week = calendarData?.fourWeekTrend?.[index];
+                  if (week?.weekStart) {
+                    router.push(`/week-analysis?weekStart=${week.weekStart}`);
+                  }
+                }}
               />
             </section>
           )}

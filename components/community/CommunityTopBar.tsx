@@ -33,6 +33,7 @@ export function CommunityTopBar({ className }: CommunityTopBarProps) {
       actions={
         <HeaderIconLink
           href="/community/create"
+          className="community-create-btn"
           icon={<Plus className="h-[18px] w-[18px]" />}
           caption="Create"
         />

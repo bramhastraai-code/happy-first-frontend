@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Loader2, Sparkles, Users } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
@@ -10,6 +10,7 @@ import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
 import { communityAPI, communityTypeLabel } from '@/lib/api/community';
 import { useAuthStore } from '@/lib/store/authStore';
 import { setPendingCommunityId } from '@/lib/utils/pendingCommunity';
+import { parseCommunityInviterFromUrl } from '@/lib/community/share';
 import { cn } from '@/lib/utils';
 
 function apiErrorMessage(err: unknown, fallback: string) {
@@ -22,22 +23,26 @@ export default function CommunityJoinPage() {
   const params = useParams<{ id: string }>();
   const communityId = params.id;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { accessToken, isHydrated } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
   const [groupId, setGroupId] = useState('');
+  const inviterProfileId = parseCommunityInviterFromUrl(searchParams.toString());
 
   useEffect(() => {
     if (!communityId) return;
     // Remember invite so post-registration get-started can join + show community tasks
-    setPendingCommunityId(communityId);
-  }, [communityId]);
+    setPendingCommunityId(communityId, inviterProfileId);
+  }, [communityId, inviterProfileId]);
 
   useEffect(() => {
     if (!isHydrated || !communityId) return;
     if (!accessToken) {
-      // Send guests to register with community invite remembered
-      router.replace(`/register?community=${encodeURIComponent(communityId)}`);
+      const inviterQuery = inviterProfileId
+        ? `&invitedBy=${encodeURIComponent(inviterProfileId)}`
+        : '';
+      router.replace(`/register?community=${encodeURIComponent(communityId)}${inviterQuery}`);
     }
   }, [accessToken, communityId, isHydrated, router]);
 
@@ -61,7 +66,13 @@ export default function CommunityJoinPage() {
 
   const joinMutation = useMutation({
     mutationFn: () =>
-      communityAPI.join(communityId, groupId ? { groupId } : undefined),
+      communityAPI.join(
+        communityId,
+        {
+          ...(groupId ? { groupId } : {}),
+          ...(inviterProfileId ? { invitedByProfileId: inviterProfileId } : {}),
+        }
+      ),
     onSuccess: (res) => {
       setError(null);
       void queryClient.invalidateQueries({ queryKey: ['community', communityId] });

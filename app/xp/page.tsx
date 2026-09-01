@@ -16,9 +16,13 @@ import {
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader, StatCard } from '@/components/ui/PageHeader';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import GuidedTour from '@/components/ui/GuidedTour';
+import TourStartButton from '@/components/ui/TourStartButton';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { useAuthStore } from '@/lib/store/authStore';
+import { usePageTour } from '@/lib/hooks/usePageTour';
 import { economyAPI, type XpDashboard, type LevelMember } from '@/lib/api/economy';
+import { xpTourSteps } from '@/lib/utils/tourSteps';
 import { cn } from '@/lib/utils';
 
 const XP_STEPS = [
@@ -56,6 +60,11 @@ const XP_EARN_METHODS = [
   },
 ];
 
+function formatXpValue(value: number) {
+  const n = Number(value) || 0;
+  return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+
 export default function XpPage() {
   const router = useRouter();
   const { accessToken, user, isHydrated, sessionReady } = useAuthStore();
@@ -65,6 +74,7 @@ export default function XpPage() {
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
   const [members, setMembers] = useState<LevelMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
+  const { runTour, isMounted, handleStartTour, handleTourFinish } = usePageTour('tourCompleted:xp');
 
   useEffect(() => {
     if (!isHydrated || !sessionReady) return;
@@ -116,6 +126,12 @@ export default function XpPage() {
 
   return (
     <MainLayout>
+      {isMounted ? (
+        <>
+          <GuidedTour run={runTour} onFinish={handleTourFinish} steps={xpTourSteps} />
+          <TourStartButton onClick={handleStartTour} />
+        </>
+      ) : null}
       <PageHeader
         title="Happy First XP"
         subtitle="How challenging is the lifestyle you’ve committed to?"
@@ -130,7 +146,7 @@ export default function XpPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
-            className="section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft via-surface to-surface p-5"
+            className="xp-hero section-card overflow-hidden border-primary/20 bg-gradient-to-br from-primary-soft via-surface to-surface p-5"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -222,78 +238,11 @@ export default function XpPage() {
             </div>
           ) : null}
 
-          {/* Personal bests */}
-          <section aria-label="Personal bests">
-            <h2 className="section-title mb-3">Personal bests</h2>
-            <div className="grid grid-cols-3 gap-3">
-              <StatCard
-                label="Best day"
-                value={data.personalBest.day}
-                icon={Trophy}
-                accent="orange"
-              />
-              <StatCard
-                label="Best week"
-                value={data.personalBest.week}
-                icon={TrendingUp}
-                accent="orange"
-              />
-              <StatCard
-                label="Best month"
-                value={data.personalBest.month}
-                icon={Sparkles}
-                accent="neutral"
-              />
-            </div>
-          </section>
-
-          {/* XP sources */}
-          <section aria-label="XP sources">
-            <h2 className="section-title mb-3">XP sources</h2>
-            <p className="mb-3 text-xs text-muted-foreground">Lifetime by activity</p>
-            {data.sources.length === 0 ? (
-              <div className="section-card px-4 py-10 text-center">
-                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-soft text-primary">
-                  <Sparkles className="h-6 w-6" />
-                </span>
-                <p className="text-sm font-medium text-foreground">No XP yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Log activities to start earning XP.
-                </p>
-              </div>
-            ) : (
-              <ul className="section-card divide-y divide-border overflow-hidden">
-                {data.sources.map((row) => {
-                  const maxXp = Math.max(...data.sources.map((s) => s.xp), 1);
-                  const pct = Math.round((row.xp / maxXp) * 100);
-                  return (
-                    <li key={row.activity} className="px-4 py-3">
-                      <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
-                        <span className="truncate font-medium text-foreground">
-                          {row.activity}
-                        </span>
-                        <span className="shrink-0 font-bold tabular-nums text-primary">
-                          {row.xp} XP
-                        </span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-                        <div
-                          className="h-full rounded-full bg-primary transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-
-          {/* Levels */}
-          <section aria-label="Levels">
+          {/* Levels — shown first so level-up path is clear */}
+          <section aria-label="Levels" className="xp-levels-section">
             <h2 className="section-title mb-3">Levels</h2>
             <p className="mb-3 text-xs text-muted-foreground">
-              Tap a level to see members — follow or chat from their profile
+              XP table — tap a level to see members at that standing
             </p>
             <ul className="section-card divide-y divide-border overflow-hidden">
               {data.levels.map((row) => (
@@ -404,6 +353,73 @@ export default function XpPage() {
               )}
             </motion.section>
           ) : null}
+
+          {/* Personal bests */}
+          <section aria-label="Personal bests">
+            <h2 className="section-title mb-3">Personal bests</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <StatCard
+                label="Best day"
+                value={formatXpValue(data.personalBest.day)}
+                icon={Trophy}
+                accent="orange"
+              />
+              <StatCard
+                label="Best week"
+                value={formatXpValue(data.personalBest.week)}
+                icon={TrendingUp}
+                accent="orange"
+              />
+              <StatCard
+                label="Best month"
+                value={formatXpValue(data.personalBest.month)}
+                icon={Sparkles}
+                accent="neutral"
+              />
+            </div>
+          </section>
+
+          {/* XP sources */}
+          <section aria-label="XP sources" className="xp-sources-section">
+            <h2 className="section-title mb-3">XP sources</h2>
+            <p className="mb-3 text-xs text-muted-foreground">Lifetime by activity</p>
+            {data.sources.length === 0 ? (
+              <div className="section-card px-4 py-10 text-center">
+                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+                  <Sparkles className="h-6 w-6" />
+                </span>
+                <p className="text-sm font-medium text-foreground">No XP yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Log activities to start earning XP.
+                </p>
+              </div>
+            ) : (
+              <ul className="section-card divide-y divide-border overflow-hidden">
+                {data.sources.map((row) => {
+                  const maxXp = Math.max(...data.sources.map((s) => s.xp), 1);
+                  const pct = Math.round((row.xp / maxXp) * 100);
+                  return (
+                    <li key={row.activity} className="px-4 py-3">
+                      <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                        <span className="truncate font-medium text-foreground">
+                          {row.activity}
+                        </span>
+                        <span className="shrink-0 font-bold tabular-nums text-primary">
+                          {row.xp} XP
+                        </span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
 
           <section aria-label="How XP works">
             <h2 className="section-title mb-3">How it works</h2>
