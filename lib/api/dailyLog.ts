@@ -1,5 +1,4 @@
 import api from './axios';
-import type { DailyMoodValue } from '@/lib/utils/dailyMood';
 
 export interface DailyLogActivity {
   activityId: string;
@@ -12,17 +11,11 @@ export interface DailyLogActivity {
 
 export interface SubmitDailyLogData {
   activities: DailyLogActivity[];
-  mood?: DailyMoodValue;
 }
 
 export interface SubmitPreviousDailyLogData {
   date: string;
   activities: DailyLogActivity[];
-}
-
-export interface DailyMoodRecord {
-  dateKey: string;
-  mood: DailyMoodValue;
 }
 
 export interface MissedLogDaysData {
@@ -193,6 +186,9 @@ export interface LeaderboardEntry {
   user: {
     _id: string;
     name: string;
+    avatarUrl?: string | null;
+    avatarSeed?: string | null;
+    avatarStyle?: string | null;
   };
   isCurrentUser?: boolean;
 }
@@ -314,13 +310,6 @@ export interface ActivityCalendarData {
 
 export const dailyLogAPI = {
   submit: (data: SubmitDailyLogData) => api.post('/dailyLog/web', data),
-
-  getMood: (date?: string) =>
-    api.get<{
-      success: boolean;
-      message: string;
-      data: DailyMoodRecord | null;
-    }>('/dailyLog/mood', { params: date ? { date } : {} }),
   
   submitPrevious: (data: SubmitPreviousDailyLogData) => api.post('/dailyLog/previous', data),
   

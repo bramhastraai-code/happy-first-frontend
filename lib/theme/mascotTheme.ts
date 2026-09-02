@@ -11,9 +11,9 @@ export const MASCOT_COLOR_PRESETS = [
 ] as const;
 
 export const DEFAULT_LANDING_OPTIONS = [
-  { value: '/feed', label: 'Inspiration' },
+  { value: '/feed', label: 'Social' },
   { value: '/home', label: 'Happiness' },
-  { value: '/community', label: 'Community' },
+  { value: '/community', label: 'Club' },
   { value: '/settings', label: 'Profile' },
 ] as const;
 

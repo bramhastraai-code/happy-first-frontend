@@ -39,7 +39,6 @@ import {
 } from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
 import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
-import { DAILY_MOOD_OPTIONS, type DailyMoodValue } from '@/lib/utils/dailyMood';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -70,21 +69,10 @@ export default function TasksPage() {
   const [hasUpcomingPlan, setHasUpcomingPlan] = useState(false);
   const [editPlanHref, setEditPlanHref] = useState('/create-plan');
   const [planChoice, setPlanChoice] = useState<PlanChoiceState | null>(null);
-  const [dailyMood, setDailyMood] = useState<DailyMoodValue | ''>('');
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (!selectedProfile?._id) return;
-    void dailyLogAPI
-      .getMood()
-      .then((res) => {
-        if (res.data.data?.mood) setDailyMood(res.data.data.mood);
-      })
-      .catch(() => {});
-  }, [selectedProfile?._id]);
 
   // Deep-link from home Body / Mind / Soul cards (#body, #mind, #soul)
   useEffect(() => {
@@ -343,7 +331,6 @@ export default function TasksPage() {
       const submitData: SubmitDailyLogData = {
         activities: [...personalPayload, ...communityPayload],
       };
-      if (dailyMood) submitData.mood = dailyMood;
 
       const response = await dailyLogAPI.submit(submitData);
       const points = extractEarnedPoints(response.data.data);
@@ -879,35 +866,6 @@ export default function TasksPage() {
                 onPendingChange={handlePendingChange}
                 getActivityInputMax={getActivityInputMax}
               />
-
-              <div className="app-card space-y-2 p-4">
-                <p className="text-sm font-semibold text-foreground">How are you feeling today?</p>
-                <p className="text-xs text-muted-foreground">Optional — log your mood with today&apos;s activities.</p>
-                <div className="flex flex-wrap gap-2">
-                  {DAILY_MOOD_OPTIONS.map((option) => {
-                    const selected = dailyMood === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() =>
-                          setDailyMood((current) =>
-                            current === option.value ? '' : option.value
-                          )
-                        }
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                          selected
-                            ? 'border-primary bg-primary-soft text-primary'
-                            : 'border-border bg-secondary text-foreground'
-                        }`}
-                      >
-                        <span aria-hidden>{option.emoji}</span>
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
 
             {/* Warning Banner for Unusual Values */}
             {showWarning && warningActivities.length > 0 && (

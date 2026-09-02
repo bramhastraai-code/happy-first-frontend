@@ -10,14 +10,14 @@ import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { HappyIcon } from '@/components/ui/HappyIcon';
 
 /**
- * Inspiration → Feed (not profile)
+ * Social → Feed (not profile)
  * Happiness → Home + Tasks
- * Community → Community hub
+ * Club → Community hub
  * Profile → own feed profile (/feed/profile/:id); Settings linked from there
  */
 const baseNavigation = [
   {
-    name: 'Inspiration',
+    name: 'Social',
     href: '/feed',
     icon: Sparkles,
     match: (pathname: string) =>
@@ -35,7 +35,7 @@ const baseNavigation = [
       pathname.startsWith('/tasks/'),
   },
   {
-    name: 'Community',
+    name: 'Club',
     href: '/community',
     icon: Users,
     match: (pathname: string) =>

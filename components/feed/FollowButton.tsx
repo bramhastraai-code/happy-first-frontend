@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, UserMinus, UserPlus } from 'lucide-react';
 import { followAPI, type FollowActionResult } from '@/lib/api/follow';
+import { dailyMoodInvalidationKeys } from '@/lib/api/dailyMood';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -60,6 +61,9 @@ export function FollowButton({
       void queryClient.invalidateQueries({ queryKey: ['followSuggestions'] });
       void queryClient.invalidateQueries({ queryKey: ['followSearch'] });
       void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      for (const key of dailyMoodInvalidationKeys(profileId)) {
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
       queryClient.setQueriesData<{ pages?: Array<{ posts: Array<{ author: { profileId: string; isFollowing?: boolean } }> }> }>(
         { queryKey: ['feed'] },
         (old) => {

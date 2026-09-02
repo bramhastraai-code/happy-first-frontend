@@ -19,6 +19,7 @@ import { PageHeader, StatCard } from '@/components/ui/PageHeader';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { LeaderboardRankBadge } from '@/components/leaderboard/LeaderboardRankBadge';
 import type {
   ActivityCalendarData,
   ActivityCalendarDay,
@@ -326,24 +327,19 @@ function LeaderboardList({
         <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
           {ranks.map((entry) => {
             const isYou = entry.isCurrentUser || entry.user._id === selectedProfileId;
-            const isTop3 = entry.rank <= 3;
 
             return (
               <li
                 key={`${entry.user._id}-${entry.rank}`}
                 className={cn('flex items-center gap-3 px-4 py-3', isYou && 'bg-accent/70')}
               >
-                <span
-                  className={cn(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold',
-                    entry.rank === 1 && 'bg-amber-100 text-amber-800',
-                    entry.rank === 2 && 'bg-stone-200 text-stone-700',
-                    entry.rank === 3 && 'bg-orange-100 text-orange-800',
-                    !isTop3 && 'bg-secondary text-muted-foreground'
-                  )}
-                >
-                  {isTop3 ? <Medal className="h-4 w-4" /> : entry.rank}
-                </span>
+                <LeaderboardRankBadge
+                  rank={entry.rank}
+                  name={entry.user.name}
+                  avatarUrl={entry.user.avatarUrl}
+                  avatarSeed={entry.user.avatarSeed}
+                  avatarStyle={entry.user.avatarStyle}
+                />
                 <div className="min-w-0 flex-1">
                   <p className={cn('truncate font-medium', isYou ? 'text-primary' : 'text-foreground')}>
                     {entry.user.name}

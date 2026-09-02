@@ -1,5 +1,6 @@
 import api from './axios';
 import type { FeedPost } from './feed';
+import type { DailyMoodView } from '@/lib/utils/dailyMood';
 
 export interface FollowPerson {
   profileId: string;
@@ -58,6 +59,7 @@ export interface PublicProfileData {
   isFollowing: boolean;
   followsYou: boolean;
   isMe: boolean;
+  dailyMood?: DailyMoodView;
 }
 
 export interface FollowActionResult {

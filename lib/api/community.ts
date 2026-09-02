@@ -1242,8 +1242,24 @@ export const communityAPI = {
     api.get<
       Envelope<{
         period: string;
-        received: Array<{ rank: number; count: number; profileId: string; name: string }>;
-        given: Array<{ rank: number; count: number; profileId: string; name: string }>;
+        received: Array<{
+          rank: number;
+          count: number;
+          profileId: string;
+          name: string;
+          avatarUrl?: string | null;
+          avatarSeed?: string | null;
+          avatarStyle?: string | null;
+        }>;
+        given: Array<{
+          rank: number;
+          count: number;
+          profileId: string;
+          name: string;
+          avatarUrl?: string | null;
+          avatarSeed?: string | null;
+          avatarStyle?: string | null;
+        }>;
       }>
     >(`/community/${id}/appreciations/leaderboard`, { params }),
 

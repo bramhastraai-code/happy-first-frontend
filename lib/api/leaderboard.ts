@@ -19,15 +19,24 @@ export const leaderboardAPI = {
     }>("/leaderboard/get", { params });
   },
 
-  getRange: (activity: string, startDate: string, endDate: string, page = 1, limit = 15) => {
+  getRange: (
+    activity: string,
+    startDate: string,
+    endDate: string,
+    page = 1,
+    limit = 15,
+    category?: string
+  ) => {
     const params: {
       activity?: string;
+      category?: string;
       startDate: string;
       endDate: string;
       page: number;
       limit: number;
     } = { startDate, endDate, page, limit };
     if (activity) params.activity = activity;
+    if (category) params.category = category;
 
     return api.get<{
       success: boolean;

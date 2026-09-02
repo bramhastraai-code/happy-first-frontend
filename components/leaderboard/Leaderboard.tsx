@@ -8,9 +8,10 @@ import { activityAPI, Activity } from '@/lib/api/activity';
 import { useAuthStore } from '@/lib/store/authStore';
 import ActivitySelect from '@/components/ui/ActivitySelect';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Loader2, Trophy, Medal, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Trophy, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveProfileTimezone } from '@/lib/utils/profileTime';
+import { LeaderboardRankBadge } from '@/components/leaderboard/LeaderboardRankBadge';
 
 const MAX_PAST_WEEKS = 52;
 
@@ -37,7 +38,15 @@ function formatScore(value: number, asPercent: boolean) {
   return asPercent ? `${formatted}%` : formatted;
 }
 
-export default function Leaderboard() {
+type LeaderboardProps = {
+  categoryFilter?: 'body' | 'mind' | 'soul' | null;
+  onCategoryFilterClear?: () => void;
+};
+
+export default function Leaderboard({
+  categoryFilter = null,
+  onCategoryFilterClear,
+}: LeaderboardProps) {
   const { selectedProfile } = useAuthStore();
   const [weekOffset, setWeekOffset] = useState(0);
   const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
@@ -51,6 +60,12 @@ export default function Leaderboard() {
     () => weekBounds(weekOffset, selectedProfile?.timezone),
     [weekOffset, selectedProfile?.timezone]
   );
+  const filteredActivities = useMemo(() => {
+    if (!categoryFilter) return activities;
+    return activities.filter(
+      (activity) => (activity.category || '').toLowerCase() === categoryFilter
+    );
+  }, [activities, categoryFilter]);
   const asPercent = !selectedActivity;
 
   useEffect(() => {
@@ -61,8 +76,14 @@ export default function Leaderboard() {
   }, []);
 
   useEffect(() => {
+    if (categoryFilter) {
+      setSelectedActivity('');
+    }
+  }, [categoryFilter]);
+
+  useEffect(() => {
     setPage(1);
-  }, [selectedActivity, weekOffset]);
+  }, [selectedActivity, weekOffset, categoryFilter]);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -73,7 +94,9 @@ export default function Leaderboard() {
           selectedActivity,
           week.start,
           week.end,
-          page
+          page,
+          15,
+          categoryFilter && !selectedActivity ? categoryFilter : undefined
         );
 
         if (response.data?.data) {
@@ -88,9 +111,9 @@ export default function Leaderboard() {
     };
 
     void fetchLeaderboard();
-  }, [selectedActivity, week.start, week.end, page, selectedProfile?._id]);
+  }, [selectedActivity, categoryFilter, week.start, week.end, page, selectedProfile?._id]);
 
-  const unit = activities.find((a) => a._id === selectedActivity)?.baseUnit || '%';
+  const unit = filteredActivities.find((a) => a._id === selectedActivity)?.baseUnit || '%';
   const ranks = leaderboard?.ranks ?? [];
   const pagination = leaderboard?.pagination;
   const totalLeaders = leaderboard?.totalLeaders ?? 0;
@@ -131,8 +154,18 @@ export default function Leaderboard() {
           <ActivitySelect
             className="min-w-0 flex-1"
             value={selectedActivity}
-            onChange={setSelectedActivity}
-            activities={activities}
+            onChange={(activityId) => {
+              setSelectedActivity(activityId);
+              if (activityId && categoryFilter) {
+                onCategoryFilterClear?.();
+              }
+            }}
+            activities={filteredActivities}
+            allLabel={
+              categoryFilter
+                ? `All ${categoryFilter} activities`
+                : 'All activities'
+            }
           />
           {weekOffset !== 0 ? (
             <button
@@ -187,7 +220,6 @@ export default function Leaderboard() {
           ) : (
             ranks.map((entry) => {
               const isYou = entry.isCurrentUser || entry.user._id === selectedProfile?._id;
-              const isTop3 = entry.rank <= 3;
 
               return (
                 <li
@@ -197,17 +229,13 @@ export default function Leaderboard() {
                     isYou && 'bg-accent/70'
                   )}
                 >
-                  <span
-                    className={cn(
-                      'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold',
-                      entry.rank === 1 && 'bg-amber-100 text-amber-800',
-                      entry.rank === 2 && 'bg-stone-200 text-stone-700',
-                      entry.rank === 3 && 'bg-orange-100 text-orange-800',
-                      !isTop3 && 'bg-secondary text-muted-foreground'
-                    )}
-                  >
-                    {isTop3 ? <Medal className="h-4 w-4" /> : entry.rank}
-                  </span>
+                  <LeaderboardRankBadge
+                    rank={entry.rank}
+                    name={entry.user.name}
+                    avatarUrl={entry.user.avatarUrl}
+                    avatarSeed={entry.user.avatarSeed}
+                    avatarStyle={entry.user.avatarStyle}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className={cn('truncate font-medium', isYou ? 'text-primary' : 'text-foreground')}>
                       {entry.user.name}

@@ -34,6 +34,8 @@ import {
 } from '@/lib/api/community';
 import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { LeaderboardRankBadge } from '@/components/leaderboard/LeaderboardRankBadge';
+import { hasUploadedProfileAvatar } from '@/lib/utils/avatar';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 
@@ -187,6 +189,7 @@ function RankingRow({
 }) {
   const isMe = String(row.profileId) === String(selectedProfileId);
   const isTop3 = Boolean(showTopMedals && row.rank >= 1 && row.rank <= 3);
+  const showUploadedPhoto = hasUploadedProfileAvatar(row.avatarUrl, row.avatarStyle);
 
   return (
     <li
@@ -198,18 +201,13 @@ function RankingRow({
         !highlightYou && isTop3 && row.rank === 3 && 'bg-orange-50/50'
       )}
     >
-      <span className="w-6 shrink-0 text-center text-xs font-bold tabular-nums text-muted-foreground">
-        {row.rank}
-      </span>
-      <Link href={`/feed/profile/${row.profileId}`} className="shrink-0">
-        <ProfileAvatar
-          name={row.name}
-          avatarUrl={row.avatarUrl}
-          avatarSeed={row.avatarSeed}
-          avatarStyle={row.avatarStyle}
-          size="sm"
-        />
-      </Link>
+      <LeaderboardRankBadge
+        rank={row.rank}
+        name={row.name}
+        avatarUrl={row.avatarUrl}
+        avatarSeed={row.avatarSeed}
+        avatarStyle={row.avatarStyle}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2 overflow-visible">
           <Link
@@ -219,7 +217,7 @@ function RankingRow({
             {row.name}
             {isMe ? ' (you)' : ''}
           </Link>
-          {showTopMedals ? <ContributionMedal rank={row.rank} /> : null}
+          {showTopMedals && !showUploadedPhoto ? <ContributionMedal rank={row.rank} /> : null}
         </div>
         <p className="text-[11px] capitalize text-muted-foreground">
           {row.role}

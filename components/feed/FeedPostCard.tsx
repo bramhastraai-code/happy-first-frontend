@@ -35,6 +35,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { FeedLikesSheet } from '@/components/feed/FeedLikesSheet';
 import { FollowButton } from '@/components/feed/FollowButton';
+import { DailyMoodInline } from '@/components/mood/DailyMoodInline';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { HappyIcon } from '@/components/ui/HappyIcon';
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
@@ -366,6 +367,7 @@ export function FeedPostCard({
               >
                 {post.author.name}
               </Link>
+              <DailyMoodInline mood={post.author.dailyMood} />
               {accepted.length > 0 ? (
                 <span className="font-medium text-muted-foreground">
                   {' '}

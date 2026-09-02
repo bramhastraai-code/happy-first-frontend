@@ -68,7 +68,7 @@ export function HomeSocialPreview({ expanded, onToggle }: HomeSocialPreviewProps
     <CollapsibleSection
       id="home-social"
       title="My social"
-      subtitle="Inspiration from people you follow"
+      subtitle="Social updates from people you follow"
       icon={Rss}
       expanded={expanded}
       onToggle={onToggle}
@@ -79,9 +79,9 @@ export function HomeSocialPreview({ expanded, onToggle }: HomeSocialPreviewProps
         <p className="px-4 py-6 text-center text-sm text-muted-foreground">Loading…</p>
       ) : posts.length === 0 ? (
         <div className="space-y-3 px-4 py-5 text-center">
-          <p className="text-sm text-muted-foreground">No posts yet — explore Inspiration.</p>
+          <p className="text-sm text-muted-foreground">No posts yet — explore Social.</p>
           <Link href="/feed" className="text-sm font-semibold text-primary hover:underline">
-            Open Inspiration
+            Open Social
           </Link>
         </div>
       ) : (
@@ -93,7 +93,7 @@ export function HomeSocialPreview({ expanded, onToggle }: HomeSocialPreviewProps
           ))}
           <li className="px-4 py-3">
             <Link href="/feed" className="text-sm font-semibold text-primary hover:underline">
-              See all in Inspiration →
+              See all in Social →
             </Link>
           </li>
         </ul>

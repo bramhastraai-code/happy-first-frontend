@@ -46,6 +46,13 @@ import {
   progressBadgeClass,
   progressToneClass,
 } from '@/lib/utils/activityProgress';
+import {
+  ACTIVITY_CATEGORIES,
+  buildActivityCategoryMap,
+  categoryLabel,
+  filterPlanActivitiesByCategory,
+  type ActivityCategory,
+} from '@/lib/utils/activityCategory';
 import Link from 'next/link';
 
 export default function HomePage() {
@@ -78,6 +85,7 @@ function HomePageContent() {
   });
   // Empty until mount — avoids Vercel SSR (UTC) baking the wrong calendar day into state.
   const [logDateFilter, setLogDateFilter] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<ActivityCategory | null>(null);
   const [runTour, setRunTour] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [weekendPrompt, setWeekendPrompt] = useState<PlanChoiceState['weekendPrompt'] | null>(
@@ -328,19 +336,38 @@ function HomePageContent() {
       ? selectedDayLog.streak
       : (selectedDateIsToday ? (streakData?.overallStreak.currentStreak || 0) : 0);
 
+  const categoryById = useMemo(
+    () => buildActivityCategoryMap(activityList),
+    [activityList]
+  );
+
+  const filteredPlanActivities = useMemo(
+    () =>
+      filterPlanActivitiesByCategory(
+        weeklyPlan?.activities ?? [],
+        categoryById,
+        selectedCategory
+      ),
+    [weeklyPlan?.activities, categoryById, selectedCategory]
+  );
+
+  const handleCategoryChange = (category: ActivityCategory | null) => {
+    setSelectedCategory(category);
+    if (category) {
+      setExpandedSections((prev) => ({
+        ...prev,
+        pendingActivities: true,
+        leaderboard: true,
+      }));
+    }
+  };
+
   const selectedDayLogByCategory = useMemo(() => {
     if (!selectedDayLog?.activities?.length) return [];
 
-    const categoryById = new Map(
-      activityList.map((a) => [a._id, (a.category || '').toLowerCase()])
-    );
-    const categories = [
-      { id: 'body', label: 'Body', emoji: '💪' },
-      { id: 'mind', label: 'Mind', emoji: '🧠' },
-      { id: 'soul', label: 'Soul', emoji: '✨' },
-    ] as const;
+    const categories = ACTIVITY_CATEGORIES;
 
-    return categories
+    const groups = categories
       .map((category) => ({
         ...category,
         activities: selectedDayLog.activities.filter(
@@ -348,7 +375,10 @@ function HomePageContent() {
         ),
       }))
       .filter((group) => group.activities.length > 0);
-  }, [selectedDayLog, activityList]);
+
+    if (!selectedCategory) return groups;
+    return groups.filter((group) => group.id === selectedCategory);
+  }, [selectedDayLog, categoryById, selectedCategory]);
 
   // Show loading only on first visit with no cached data
   if (!isHydrated || !sessionReady || !logDateFilter || isBootstrapping) {
@@ -407,7 +437,28 @@ function HomePageContent() {
           />
         ) : null}
 
-        <HomeCategoryCards weeklyPlan={weeklyPlan} activityList={activityList} />
+        <HomeCategoryCards
+          weeklyPlan={weeklyPlan}
+          activityList={activityList}
+          selectedCategory={selectedCategory}
+          onCategoryChange={handleCategoryChange}
+        />
+
+        {selectedCategory ? (
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary-soft/40 px-3 py-2">
+            <p className="text-xs font-medium text-foreground">
+              Showing <span className="font-semibold text-primary">{categoryLabel(selectedCategory)}</span>{' '}
+              activities & leaderboard
+            </p>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory(null)}
+              className="shrink-0 text-xs font-semibold text-primary hover:underline"
+            >
+              Clear
+            </button>
+          </div>
+        ) : null}
 
         <div className="log-today-cta flex gap-2">
           <Button
@@ -692,7 +743,11 @@ function HomePageContent() {
         <CollapsibleSection
           className="pending-activities"
           title="Pending activities"
-          subtitle="Today's open activities from your plan"
+          subtitle={
+            selectedCategory
+              ? `${categoryLabel(selectedCategory)} · today's open activities`
+              : "Today's open activities from your plan"
+          }
           icon={ListChecks}
           expanded={expandedSections.pendingActivities}
           onToggle={() => toggleSection('pendingActivities')}
@@ -722,11 +777,11 @@ function HomePageContent() {
               ) : weeklyPlan ? (
                 <>
                   {/* Check if there are any pending activities */}
-                  {(weeklyPlan.activities.filter(activity => activity.cadence === 'daily').length > 0 ||
-                    weeklyPlan.activities.filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0).length > 0) ? (
+                  {(filteredPlanActivities.filter(activity => activity.cadence === 'daily').length > 0 ||
+                    filteredPlanActivities.filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0).length > 0) ? (
                     <>
                       {/* Daily Activities Section */}
-                      {weeklyPlan.activities.filter(activity => activity.cadence === 'daily').length > 0 && (
+                      {filteredPlanActivities.filter(activity => activity.cadence === 'daily').length > 0 && (
                         <div className="space-y-3">
                           <div className="flex items-center gap-2 mb-3">
                             <div className="w-8 h-8 rounded-lg bg-primary-soft flex items-center justify-center">
@@ -734,7 +789,7 @@ function HomePageContent() {
                             </div>
                             <h2 className="text-base font-semibold text-gray-900">Daily Activities</h2>
                           </div>
-                          {weeklyPlan.activities
+                          {filteredPlanActivities
                             .filter(activity => activity.cadence === 'daily')
                             .map((activity, index) => {
                               const activityData = typeof activity === 'object' ? activity : null;
@@ -798,7 +853,7 @@ function HomePageContent() {
                       )}
 
                       {/* Weekly Activities Section */}
-                      {weeklyPlan.activities.filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0).length > 0 && (
+                      {filteredPlanActivities.filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0).length > 0 && (
                         <div className="space-y-3 mt-6">
                           <div className="flex items-center gap-2 mb-3">
                             <div className="w-8 h-8 rounded-lg bg-primary-soft flex items-center justify-center">
@@ -806,7 +861,7 @@ function HomePageContent() {
                             </div>
                             <h2 className="text-base font-semibold text-gray-900">Weekly Activities</h2>
                           </div>
-                          {weeklyPlan.activities
+                          {filteredPlanActivities
                             .filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0)
                             .map((activity, index) => {
                               const activityData = typeof activity === 'object' ? activity : null;
@@ -889,12 +944,16 @@ function HomePageContent() {
                     <div className="bg-gradient-to-br from-emerald-50 to-green-50 border-l-4 border-emerald-500 rounded-r-lg p-6 text-center shadow-sm">
                       <div className="text-5xl mb-3">🎉</div>
                       <h3 className="font-bold text-emerald-900 text-base mb-2">All Caught Up!</h3>
-                      <p className="text-sm text-emerald-700">You&apos;ve completed all your activities for this week.</p>
+                      <p className="text-sm text-emerald-700">
+                        {selectedCategory
+                          ? `No pending ${categoryLabel(selectedCategory).toLowerCase()} activities this week.`
+                          : "You've completed all your activities for this week."}
+                      </p>
                     </div>
                   )}
 
                   {/* Completed Activities Section */}
-                  {weeklyPlan.activities.filter(activity => {
+                  {filteredPlanActivities.filter(activity => {
                     return activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) <= 0;
                   }).length > 0 && (
                       <div className="mt-6 pt-6 border-t border-gray-200">
@@ -905,7 +964,7 @@ function HomePageContent() {
                           <h2 className="text-base font-semibold text-gray-900">Completed Activities</h2>
                         </div>
                         <div className="space-y-3">
-                          {weeklyPlan.activities
+                          {filteredPlanActivities
                             .filter(activity => {
                               return activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) <= 0;
                             })
@@ -1079,21 +1138,32 @@ function HomePageContent() {
         <CollapsibleSection
           className="leaderboard-section"
           title="Weekly Consistency Leaderboard"
-          subtitle="Compare weekly % with others"
+          subtitle={
+            selectedCategory
+              ? `${categoryLabel(selectedCategory)} category · compare weekly %`
+              : 'Compare weekly % with others'
+          }
           icon={Trophy}
           expanded={expandedSections.leaderboard}
           onToggle={() => toggleSection('leaderboard')}
           overflowVisible
           contentClassName="overflow-visible"
         >
-          <Leaderboard />
+          <Leaderboard
+            categoryFilter={selectedCategory}
+            onCategoryFilterClear={() => setSelectedCategory(null)}
+          />
         </CollapsibleSection>
 
         <CollapsibleSection
           id="log-tracker"
           className="log-tracker"
           title="Daily log tracker"
-          subtitle="Pick a date to review or submit"
+          subtitle={
+            selectedCategory
+              ? `${categoryLabel(selectedCategory)} · pick a date to review or submit`
+              : 'Pick a date to review or submit'
+          }
           icon={CalendarDays}
           expanded={expandedSections.logTracker}
           onToggle={() => toggleSection('logTracker')}
@@ -1275,6 +1345,13 @@ function HomePageContent() {
 
                   {/* Activities by Mind / Body / Soul */}
                   <div className="space-y-2.5">
+                    {selectedDayLogByCategory.length === 0 && selectedCategory ? (
+                      <div className="rounded-xl border border-dashed border-border bg-secondary/40 px-4 py-8 text-center">
+                        <p className="text-sm font-medium text-foreground">
+                          No {categoryLabel(selectedCategory).toLowerCase()} activities logged on this date
+                        </p>
+                      </div>
+                    ) : null}
                     {selectedDayLogByCategory.map((group) => (
                       <div key={group.id} className="overflow-hidden rounded-xl border border-border bg-surface">
                         <div className="flex items-center gap-2 border-b border-border px-3 py-2">

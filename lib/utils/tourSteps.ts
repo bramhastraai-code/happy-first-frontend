@@ -102,21 +102,21 @@ export const homeTourSteps: Step[] = [
     target: '#home-social',
     title: 'My social',
     content:
-      'A peek at Inspiration — posts from people you follow. Open Inspiration in the bottom bar for the full feed, stories, and create.',
+      'A peek at Social — posts from people you follow. Open Social in the bottom bar for the full feed, stories, and create.',
     placement: 'top',
   },
   {
     target: '#home-community',
     title: 'My community',
     content:
-      'Communities you belong to. Open Community to discover groups, scan invite QR codes, chat, and track group goals.',
+      'Clubs you belong to. Open Club to discover groups, scan invite QR codes, chat, and track group goals.',
     placement: 'top',
   },
   {
     target: '.bottom-nav',
     title: 'Main navigation',
     content:
-      'Inspiration (feed & messages) · Happiness (home & tasks) · Community (groups) · Profile (settings, family, referrals, theme).',
+      'Social (feed & messages) · Happiness (home & tasks) · Club (groups) · Profile (settings, family, referrals, theme).',
     placement: 'top',
     isFixed: true,
     disableScrolling: true,
@@ -140,7 +140,7 @@ export const communityTourSteps: Step[] = [
   {
     target: '.bottom-nav',
     title: 'Navigation',
-    content: 'Switch between Inspiration, Happiness, Community, and Profile anytime.',
+    content: 'Switch between Social, Happiness, Club, and Profile anytime.',
     placement: 'top',
     isFixed: true,
   },
@@ -194,7 +194,7 @@ export const settingsTourSteps: Step[] = [
 export const feedTourSteps: Step[] = [
   {
     target: '.feed-header',
-    title: 'Inspiration feed',
+    title: 'Social feed',
     content: 'Posts from people you follow — like, comment, and share motivation.',
     disableBeacon: true,
     placement: 'bottom',
@@ -283,7 +283,7 @@ export const tasksTourSteps: Step[] = [
     target: '.bottom-nav',
     title: 'Main navigation',
     content:
-      'Inspiration · Happiness · Community · Profile — use these anytime to move around the app.',
+      'Social · Happiness · Club · Profile — use these anytime to move around the app.',
     placement: 'top',
     isFixed: true,
     disableScrolling: true,

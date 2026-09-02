@@ -4,16 +4,17 @@ import { useMemo } from 'react';
 import type { Activity } from '@/lib/api/activity';
 import type { WeeklyPlan, WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { resolveActivityId } from '@/lib/utils/activityId';
-
-const CATEGORIES = [
-  { id: 'body', label: 'Body', emoji: '💪' },
-  { id: 'mind', label: 'Mind', emoji: '🧠' },
-  { id: 'soul', label: 'Soul', emoji: '✨' },
-] as const;
+import {
+  ACTIVITY_CATEGORIES,
+  type ActivityCategory,
+} from '@/lib/utils/activityCategory';
+import { cn } from '@/lib/utils';
 
 type HomeCategoryCardsProps = {
   weeklyPlan?: WeeklyPlan | null;
   activityList?: Activity[];
+  selectedCategory?: ActivityCategory | null;
+  onCategoryChange?: (category: ActivityCategory | null) => void;
 };
 
 function weekTargetUnits(activity: WeeklyPlanActivity): number {
@@ -26,9 +27,74 @@ function achievedUnits(activity: WeeklyPlanActivity): number {
   return Number(activity.achievedUnits ?? activity.achieved ?? 0) || 0;
 }
 
+function CategoryProgressRing({
+  percent,
+  emoji,
+  label,
+}: {
+  percent: number;
+  emoji: string;
+  label: string;
+}) {
+  const capped = Math.min(Math.max(0, percent), 100);
+  const size = 56;
+  const stroke = 5;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (capped / 100) * circumference;
+  const center = size / 2;
+
+  return (
+    <div
+      className="relative h-14 w-14 shrink-0 sm:h-16 sm:w-16"
+      role="img"
+      aria-label={`${label} ${percent}% this week`}
+    >
+      <svg
+        viewBox={`0 0 ${size} ${size}`}
+        className="h-full w-full -rotate-90"
+        aria-hidden
+      >
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={stroke}
+          className="text-primary/15"
+        />
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          className={cn(
+            'text-primary transition-[stroke-dashoffset] duration-500 ease-out',
+            percent > 100 && 'text-emerald-500'
+          )}
+        />
+      </svg>
+      <span
+        className="absolute inset-0 flex items-center justify-center rounded-full text-base sm:text-lg"
+        aria-hidden
+      >
+        {emoji}
+      </span>
+    </div>
+  );
+}
+
 export function HomeCategoryCards({
   weeklyPlan = null,
   activityList = [],
+  selectedCategory = null,
+  onCategoryChange,
 }: HomeCategoryCardsProps) {
   const stats = useMemo(() => {
     const byCategory: Record<string, { achieved: number; target: number; percent: number }> = {
@@ -40,7 +106,7 @@ export function HomeCategoryCards({
     if (!weeklyPlan?.activities?.length) return byCategory;
 
     const categoryById = new Map(
-      activityList.map((a) => [a._id, (a.category || '').toLowerCase()])
+      activityList.map((activity) => [activity._id, (activity.category || '').toLowerCase()])
     );
     const seenIds = new Set<string>();
 
@@ -66,36 +132,40 @@ export function HomeCategoryCards({
 
   return (
     <div className="home-category-cards grid grid-cols-3 gap-2 sm:gap-2.5">
-      {CATEGORIES.map((category) => {
+      {ACTIVITY_CATEGORIES.map((category) => {
         const { percent } = stats[category.id];
+        const isSelected = selectedCategory === category.id;
 
         return (
-          <div
+          <button
             key={category.id}
-            className="section-card flex flex-col items-center gap-1 px-2 py-2 text-center sm:py-2.5"
+            type="button"
+            onClick={() =>
+              onCategoryChange?.(isSelected ? null : category.id)
+            }
+            aria-pressed={isSelected}
+            className={cn(
+              'section-card flex flex-col items-center gap-1.5 px-2 py-2.5 text-center transition sm:py-3',
+              isSelected
+                ? 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+                : 'hover:border-primary/30'
+            )}
           >
-            <span
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft text-base sm:h-9 sm:w-9 sm:text-lg"
-              aria-hidden
-            >
-              {category.emoji}
-            </span>
+            <CategoryProgressRing
+              percent={percent}
+              emoji={category.emoji}
+              label={category.label}
+            />
             <span className="text-xs font-semibold leading-none text-foreground sm:text-sm">
               {category.label}
             </span>
             <span className="text-sm font-bold tabular-nums leading-none text-primary sm:text-base">
               {percent}%
             </span>
-            <div className="h-1 w-full max-w-[72px] overflow-hidden rounded-full bg-primary/15 sm:max-w-[80px]">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-primary to-primary-hover transition-[width] duration-500"
-                style={{ width: `${Math.min(percent, 100)}%` }}
-              />
-            </div>
             <span className="text-[9px] font-medium leading-none text-muted-foreground sm:text-[10px]">
               This week
             </span>
-          </div>
+          </button>
         );
       })}
     </div>

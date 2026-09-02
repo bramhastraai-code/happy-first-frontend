@@ -15,8 +15,8 @@ import { communityAPI, type Community } from '@/lib/api/community';
 import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
 import { usePageTour } from '@/lib/hooks/usePageTour';
 import { communityTourSteps } from '@/lib/utils/tourSteps';
+import { PageFabColumn, pageFabCircleClass } from '@/components/ui/PageFabColumn';
 import { cn } from '@/lib/utils';
-import { CommunityCreateFab } from '@/components/community/CommunityCreateFab';
 
 const CATEGORY_FILTERS = ['All', 'Body', 'Mind', 'Soul'] as const;
 
@@ -194,10 +194,7 @@ export default function CommunityPage() {
   return (
     <MainLayout>
       {isMounted ? (
-        <>
-          <GuidedTour run={runTour} onFinish={handleTourFinish} steps={communityTourSteps} />
-          <TourStartButton onClick={handleStartTour} />
-        </>
+        <GuidedTour run={runTour} onFinish={handleTourFinish} steps={communityTourSteps} />
       ) : null}
       <div className="community-page-header">
         <CommunityTopBar />
@@ -464,18 +461,28 @@ export default function CommunityPage() {
         ) : null}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setScannerOpen(true)}
-        className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-4 z-40 inline-flex h-14 w-14 cursor-pointer items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-float)] transition-transform active:scale-95 sm:right-8"
-        aria-label="Scan community QR"
-      >
-        <ScanLine className="h-7 w-7" strokeWidth={2.5} />
-      </button>
+      {isMounted ? (
+        <PageFabColumn>
+          <button
+            type="button"
+            onClick={() => setScannerOpen(true)}
+            className={pageFabCircleClass}
+            aria-label="Scan community QR"
+          >
+            <ScanLine className="h-7 w-7" strokeWidth={2.5} />
+          </button>
+          <Link
+            href="/community/create"
+            aria-label="Create community"
+            className={cn('community-create-btn', pageFabCircleClass)}
+          >
+            <Plus className="h-7 w-7" strokeWidth={2.5} />
+          </Link>
+          <TourStartButton inline onClick={handleStartTour} />
+        </PageFabColumn>
+      ) : null}
 
       <CommunityJoinScanner open={scannerOpen} onClose={() => setScannerOpen(false)} />
-
-      <CommunityCreateFab />
     </MainLayout>
   );
 }

@@ -118,3 +118,10 @@ export function isUploadedAvatarUrl(url?: string | null): boolean {
   if (!url) return false;
   return !url.includes('api.dicebear.com');
 }
+
+export function hasUploadedProfileAvatar(
+  avatarUrl?: string | null,
+  avatarStyle?: string | null
+): boolean {
+  return avatarStyle === 'uploaded' || isUploadedAvatarUrl(avatarUrl);
+}

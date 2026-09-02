@@ -26,8 +26,8 @@ import {
 } from '@/lib/utils/profileTime';
 
 const QUICK_LINKS = [
-  { name: 'Feed', href: '/feed', icon: Rss },
-  { name: 'Community', href: '/community', icon: Users },
+  { name: 'Social', href: '/feed', icon: Rss },
+  { name: 'Club', href: '/community', icon: Users },
   { name: 'Tasks', href: '/tasks', icon: ClipboardList },
   { name: 'Events', href: '/community', icon: CalendarDays },
   { name: 'Find people', href: '/feed/explore', icon: UserSearch },

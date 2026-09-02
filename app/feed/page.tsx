@@ -21,6 +21,7 @@ import { useFeedRealtime } from '@/lib/hooks/useFeedRealtime';
 import { Button } from '@/components/ui/button';
 import GuidedTour from '@/components/ui/GuidedTour';
 import TourStartButton from '@/components/ui/TourStartButton';
+import { PageFabColumn, pageFabCircleClass } from '@/components/ui/PageFabColumn';
 import { usePageTour } from '@/lib/hooks/usePageTour';
 import { feedTourSteps } from '@/lib/utils/tourSteps';
 
@@ -214,10 +215,7 @@ function FeedPageContent() {
   return (
     <MainLayout>
       {isMounted ? (
-        <>
-          <GuidedTour run={runTour} onFinish={handleTourFinish} steps={feedTourSteps} />
-          <TourStartButton onClick={handleStartTour} />
-        </>
+        <GuidedTour run={runTour} onFinish={handleTourFinish} steps={feedTourSteps} />
       ) : null}
       <div className="feed-page relative w-full pb-4">
         <div className="feed-header">
@@ -350,14 +348,19 @@ function FeedPageContent() {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => openCreate('post')}
-          className="feed-compose fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-float)] transition-transform active:scale-95 sm:right-8"
-          aria-label="Create post"
-        >
-          <Plus className="h-7 w-7" strokeWidth={2.5} />
-        </button>
+        {isMounted ? (
+          <PageFabColumn>
+            <button
+              type="button"
+              onClick={() => openCreate('post')}
+              className={`feed-compose ${pageFabCircleClass}`}
+              aria-label="Create post"
+            >
+              <Plus className="h-7 w-7" strokeWidth={2.5} />
+            </button>
+            <TourStartButton inline onClick={handleStartTour} />
+          </PageFabColumn>
+        ) : null}
       </div>
 
       {activePost && (

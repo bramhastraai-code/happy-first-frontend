@@ -1,4 +1,5 @@
 import api from './axios';
+import type { DailyMoodView } from '@/lib/utils/dailyMood';
 
 export interface FeedAuthor {
   profileId: string;
@@ -7,6 +8,7 @@ export interface FeedAuthor {
   userName?: string | null;
   isFollowing?: boolean;
   followsYou?: boolean;
+  dailyMood?: DailyMoodView;
   avatarUrl?: string | null;
   avatarSeed?: string | null;
   avatarStyle?: string | null;

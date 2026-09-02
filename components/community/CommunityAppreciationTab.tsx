@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import { CustomDropdown } from '@/components/ui/CustomDropdown';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { LeaderboardRankBadge } from '@/components/leaderboard/LeaderboardRankBadge';
 import { communityAPI } from '@/lib/api/community';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
@@ -324,12 +325,20 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
             ) : (
               <ul className="space-y-2">
                 {(boardQuery.data?.received || []).slice(0, 5).map((row) => (
-                  <li key={row.profileId} className="flex justify-between gap-2 text-xs">
+                  <li key={row.profileId} className="flex items-center gap-2">
+                    <LeaderboardRankBadge
+                      rank={row.rank}
+                      name={row.name}
+                      avatarUrl={row.avatarUrl}
+                      avatarSeed={row.avatarSeed}
+                      avatarStyle={row.avatarStyle}
+                      size="sm"
+                    />
                     <Link
                       href={`/feed/profile/${row.profileId}`}
-                      className="min-w-0 truncate font-medium text-foreground hover:underline"
+                      className="min-w-0 flex-1 truncate font-medium text-foreground hover:underline"
                     >
-                      {row.rank}. {row.name}
+                      {row.name}
                     </Link>
                     <span className="shrink-0 font-semibold tabular-nums text-primary">
                       {row.count}
@@ -350,12 +359,20 @@ export function CommunityAppreciationTab({ communityId }: CommunityAppreciationT
             ) : (
               <ul className="space-y-2">
                 {(boardQuery.data?.given || []).slice(0, 5).map((row) => (
-                  <li key={row.profileId} className="flex justify-between gap-2 text-xs">
+                  <li key={row.profileId} className="flex items-center gap-2">
+                    <LeaderboardRankBadge
+                      rank={row.rank}
+                      name={row.name}
+                      avatarUrl={row.avatarUrl}
+                      avatarSeed={row.avatarSeed}
+                      avatarStyle={row.avatarStyle}
+                      size="sm"
+                    />
                     <Link
                       href={`/feed/profile/${row.profileId}`}
-                      className="min-w-0 truncate font-medium text-foreground hover:underline"
+                      className="min-w-0 flex-1 truncate font-medium text-foreground hover:underline"
                     >
-                      {row.rank}. {row.name}
+                      {row.name}
                     </Link>
                     <span className="shrink-0 font-semibold tabular-nums text-primary">
                       {row.count}
