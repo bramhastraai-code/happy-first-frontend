@@ -145,10 +145,10 @@ export function HomeCategoryCards({
             }
             aria-pressed={isSelected}
             className={cn(
-              'section-card flex flex-col items-center gap-1.5 px-2 py-2.5 text-center transition sm:py-3',
+              'flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl px-2 py-2.5 text-center transition-colors sm:py-3',
               isSelected
-                ? 'ring-2 ring-primary ring-offset-2 ring-offset-background'
-                : 'hover:border-primary/30'
+                ? 'bg-primary-soft'
+                : 'bg-transparent hover:bg-primary-soft/50'
             )}
           >
             <CategoryProgressRing
@@ -165,6 +165,13 @@ export function HomeCategoryCards({
             <span className="text-[9px] font-medium leading-none text-muted-foreground sm:text-[10px]">
               This week
             </span>
+            <span
+              aria-hidden
+              className={cn(
+                'mt-0.5 h-1 w-6 rounded-full transition-colors',
+                isSelected ? 'bg-primary' : 'bg-transparent'
+              )}
+            />
           </button>
         );
       })}

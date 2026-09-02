@@ -6,6 +6,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { authAPI } from '@/lib/api/auth';
 import { useAuthStore, type Profile } from '@/lib/store/authStore';
 import { Button } from '@/components/ui/button';
+import {
+  settingsBtnClass,
+  settingsFieldClass,
+  settingsTextareaClass,
+} from '@/components/settings/settingsUi';
 import { cn } from '@/lib/utils';
 
 interface ProfileEditSheetProps {
@@ -143,7 +148,7 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
           'sm:mx-4 sm:rounded-3xl'
         )}
       >
-        <div className="border-b border-border px-4 py-3">
+        <div className="px-4 py-3">
           <p className="text-center text-sm font-semibold text-foreground">Edit profile</p>
         </div>
 
@@ -157,7 +162,7 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
                 setError('');
               }}
               maxLength={80}
-              className="h-11 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className={settingsFieldClass}
               placeholder="Name"
             />
           </div>
@@ -174,7 +179,7 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
               }}
               rows={3}
               maxLength={150}
-              className="w-full resize-none rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className={cn(settingsTextareaClass, 'resize-none')}
               placeholder="Write a short bio…"
             />
           </div>
@@ -193,7 +198,7 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
               }}
               rows={2}
               maxLength={200}
-              className="w-full resize-none rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className={cn(settingsTextareaClass, 'resize-none')}
               placeholder="One thing you want people to know…"
             />
           </div>
@@ -210,7 +215,7 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
               maxLength={200}
               inputMode="url"
               autoComplete="url"
-              className="h-11 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className={settingsFieldClass}
               placeholder="instagram.com/you"
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
@@ -218,13 +223,13 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
             </p>
           </div>
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
-          <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+          <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="outline"
               disabled={loading}
               onClick={() => !loading && onClose()}
-              className="w-full sm:w-auto"
+              className={cn('w-full sm:w-auto', settingsBtnClass)}
             >
               Cancel
             </Button>
@@ -232,7 +237,7 @@ export function ProfileEditSheet({ open, onClose, profileId }: ProfileEditSheetP
               type="button"
               disabled={loading}
               onClick={() => void save()}
-              className="w-full sm:w-auto"
+              className={cn('w-full sm:w-auto', settingsBtnClass)}
             >
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Submit

@@ -10,7 +10,7 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children, hideBottomNav = false }: MainLayoutProps) {
   return (
-    <div className="min-h-dvh overflow-x-clip bg-background">
+    <div className="min-h-dvh bg-background">
       <main className="page-container">{children}</main>
       {!hideBottomNav && <BottomNav />}
     </div>

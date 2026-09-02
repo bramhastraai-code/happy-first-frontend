@@ -77,7 +77,7 @@ export function ProfileDailyMood({
                 {activeMood.label}
               </span>
               <span className="block text-[10px] text-muted-foreground">
-                {moodExpiresInLabel(activeMood.expiresAt)} · Tap to change
+                 Tap to change
               </span>
             </span>
           </>

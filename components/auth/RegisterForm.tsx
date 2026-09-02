@@ -9,7 +9,7 @@ import { BRAND_NAME } from '@/lib/brand';
 import { authAPI } from '@/lib/api/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import AuthShell, { authButtonClass, authFieldClass } from '@/components/layout/AuthShell';
+import AuthShell, { authButtonClass, authFieldClass, authLinkClass } from '@/components/layout/AuthShell';
 import CountryCodeSelect from '@/components/ui/CountryCodeSelect';
 import { AuthFieldLabel } from '@/components/auth/AuthFieldLabel';
 import { CountrySearchSelect } from '@/components/auth/CountrySearchSelect';
@@ -27,8 +27,6 @@ import { cn } from '@/lib/utils';
 import { detectBrowserTimezone } from '@/lib/utils/timezones';
 import { timezoneForCountry } from '@/lib/utils/countries';
 import { setPendingCommunityId } from '@/lib/utils/pendingCommunity';
-
-const labelClassName = 'sr-only';
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
@@ -212,7 +210,7 @@ export default function RegisterForm() {
       footer={
         <>
           Have an account?{' '}
-          <Link href="/login" className="font-semibold text-primary">
+          <Link href="/login" className={authLinkClass}>
             Log in
           </Link>
         </>
@@ -311,7 +309,7 @@ export default function RegisterForm() {
               )}
             </Button>
 
-            <p className="pt-2 text-center text-[11px] leading-snug text-neutral-400">
+            <p className="pt-2 text-center text-[11px] leading-snug text-[#737373]">
               By signing up, you agree to our terms. Already registered?{' '}
               <Link
                 href={buildForgotPasswordHref(formData.phoneNumber, formData.countryCode)}
@@ -338,7 +336,7 @@ export default function RegisterForm() {
               <button
                 type="button"
                 onClick={goToPhoneStep}
-                className="shrink-0 font-semibold text-primary"
+                className="shrink-0 font-semibold text-[#00376b]"
                 disabled={loading}
               >
                 Edit
@@ -550,7 +548,7 @@ export default function RegisterForm() {
               )}
             </Button>
 
-            <p className="pt-2 text-center text-[11px] leading-snug text-neutral-400">
+            <p className="pt-2 text-center text-[11px] leading-snug text-[#737373]">
               By signing up, you agree to receive WhatsApp messages for OTP and reminders from{' '}
               {BRAND_NAME}.
             </p>

@@ -7,7 +7,7 @@ import { authAPI } from '@/lib/api/auth';
 import { useAuthStore } from '@/lib/store/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import AuthShell, { authButtonClass, authFieldClass } from '@/components/layout/AuthShell';
+import AuthShell, { authButtonClass, authFieldClass, authLinkClass } from '@/components/layout/AuthShell';
 import CountryCodeSelect from '@/components/ui/CountryCodeSelect';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
@@ -230,20 +230,16 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      backHref="/"
-      backLabel="Home"
-      title="Welcome back"
-      subtitle="Log in with your phone number"
       footer={
         <>
           Don&apos;t have an account?{' '}
-          <Link href="/register" className="font-semibold text-primary">
+          <Link href="/register" className={authLinkClass}>
             Sign up
           </Link>
         </>
       }
     >
-      <div className="mb-4 flex gap-0 rounded-xl bg-white/50 p-0.5 text-center text-xs font-semibold">
+      <div className="mb-4 flex border-b border-[#dbdbdb] text-center text-xs font-semibold">
         {methods.map((method) => (
           <button
             key={method.id}
@@ -255,10 +251,10 @@ export default function LoginPage() {
               resetMessages();
             }}
             className={cn(
-              'flex-1 rounded-lg py-2.5 transition-colors',
+              '-mb-px flex-1 border-b-2 py-2.5 transition-colors',
               loginMethod === method.id
-                ? 'bg-white text-foreground shadow-sm'
-                : 'text-neutral-500 hover:text-foreground'
+                ? 'border-[#262626] text-[#262626]'
+                : 'border-transparent text-[#737373]'
             )}
           >
             {method.label}
@@ -391,7 +387,7 @@ export default function LoginPage() {
           <p className="pt-3 text-center">
             <Link
               href={buildForgotPasswordHref(formData.phoneNumber, formData.countryCode)}
-              className="text-xs text-neutral-500 hover:text-neutral-800"
+              className="text-xs text-[#00376b]"
             >
               Forgot password?
             </Link>

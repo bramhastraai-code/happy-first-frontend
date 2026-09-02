@@ -5,8 +5,6 @@ import Link from 'next/link';
 import { DateTime } from 'luxon';
 import {
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
   MessageCircle,
   MessageSquare,
   MoreHorizontal,
@@ -21,8 +19,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { feedAPI, formatCollaborationLabel, type FeedPost } from '@/lib/api/feed';
-import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
-import { renderCaptionWithMentions } from '@/lib/utils/renderCaptionWithMentions';
+import { FeedCaption } from '@/components/feed/FeedCaption';
 import {
   renderTextCardImage,
   textCardGradient,
@@ -38,7 +35,7 @@ import { FollowButton } from '@/components/feed/FollowButton';
 import { DailyMoodInline } from '@/components/mood/DailyMoodInline';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { HappyIcon } from '@/components/ui/HappyIcon';
-import { ZoomableImage } from '@/components/ui/ZoomableImage';
+import { PostMediaCarousel } from '@/components/feed/PostMediaCarousel';
 import { cn } from '@/lib/utils';
 import { useOverlayHistory } from '@/lib/hooks/useOverlayHistory';
 
@@ -65,6 +62,8 @@ interface FeedPostCardProps {
   hideCommunityLabel?: boolean;
   /** Discover visitor mode — disable like/comment/share actions */
   interactionsDisabled?: boolean;
+  /** Single-tap media opens this instead of the one-photo preview */
+  onOpenPost?: (post: FeedPost) => void;
 }
 
 function formatCount(value: number) {
@@ -84,6 +83,7 @@ export function FeedPostCard({
   isOwner = false,
   hideCommunityLabel = false,
   interactionsDisabled = false,
+  onOpenPost,
 }: FeedPostCardProps) {
   const queryClient = useQueryClient();
   const { selectedProfile } = useAuthStore();
@@ -99,7 +99,6 @@ export function FeedPostCard({
     name: string;
   } | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [mediaIndex, setMediaIndex] = useState(0);
   const [editCaption, setEditCaption] = useState(post.caption || '');
   const [editText, setEditText] = useState(post.textCard?.text || '');
   const [editBgIndex, setEditBgIndex] = useState(() =>
@@ -114,31 +113,11 @@ export function FeedPostCard({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const lastTap = useRef(0);
-  const touchStartX = useRef<number | null>(null);
 
   const mediaItems =
     post.mediaItems && post.mediaItems.length > 0
       ? post.mediaItems
       : [{ url: post.imageUrl, mediaType: post.mediaType || 'image' }];
-  const safeIndex = Math.min(mediaIndex, Math.max(0, mediaItems.length - 1));
-  const current = mediaItems[safeIndex] || mediaItems[0];
-  const isVideo = (current?.mediaType || 'image') === 'video';
-  const mediaUrl = resolveMediaUrl(current?.url || post.imageUrl);
-  const multi = mediaItems.length > 1;
-
-  useEffect(() => {
-    setMediaIndex(0);
-  }, [post.id]);
-
-  // Auto-advance multi-photo carousel every 3s (pause while fullscreen preview is open)
-  useEffect(() => {
-    if (!multi || previewOpen || mediaItems.length < 2) return;
-    const timer = window.setInterval(() => {
-      setMediaIndex((value) => (value + 1) % mediaItems.length);
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [multi, previewOpen, mediaItems.length, post.id]);
 
   useOverlayHistory({
     open: previewOpen,
@@ -184,12 +163,6 @@ export function FeedPostCard({
     if (!previewOpen) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setPreviewOpen(false);
-      if (event.key === 'ArrowRight' && multi) {
-        setMediaIndex((value) => Math.min(mediaItems.length - 1, value + 1));
-      }
-      if (event.key === 'ArrowLeft' && multi) {
-        setMediaIndex((value) => Math.max(0, value - 1));
-      }
     };
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
@@ -197,7 +170,7 @@ export function FeedPostCard({
       document.body.style.overflow = '';
       window.removeEventListener('keydown', onKey);
     };
-  }, [previewOpen, multi, mediaItems.length]);
+  }, [previewOpen]);
 
   const triggerLikeBurst = () => {
     if (interactionsDisabled) return;
@@ -207,22 +180,9 @@ export function FeedPostCard({
   };
 
   const handleMediaTap = () => {
-    const now = Date.now();
-    if (now - lastTap.current < 320) {
-      triggerLikeBurst();
-      lastTap.current = 0;
-      return;
-    }
-    lastTap.current = now;
-    window.setTimeout(() => {
-      if (lastTap.current === now && !isVideo) {
-        setPreviewOpen(true);
-      }
-    }, 280);
+    if (onOpenPost) onOpenPost(post);
+    else setPreviewOpen(true);
   };
-
-  const goPrev = () => setMediaIndex((value) => Math.max(0, value - 1));
-  const goNext = () => setMediaIndex((value) => Math.min(mediaItems.length - 1, value + 1));
 
   const repostMutation = useMutation({
     mutationFn: async () => {
@@ -520,105 +480,13 @@ export function FeedPostCard({
         </div>
       </header>
 
-      {post.caption ? (
-        <div className="mb-3">
-          {renderCaptionWithMentions(post.caption, {
-            collaborators: [
-              ...(post.acceptedCollaborators || []),
-              ...(post.collaborators || []),
-            ],
-          })}
-        </div>
-      ) : null}
-
-      <div
-        className="relative flex min-h-[12rem] items-center justify-center overflow-hidden rounded-2xl bg-neutral-950"
-        onTouchStart={(event) => {
-          touchStartX.current = event.changedTouches[0]?.clientX ?? null;
-        }}
-        onTouchEnd={(event) => {
-          if (!multi || touchStartX.current == null) return;
-          const endX = event.changedTouches[0]?.clientX ?? touchStartX.current;
-          const delta = endX - touchStartX.current;
-          touchStartX.current = null;
-          if (Math.abs(delta) < 40) return;
-          if (delta < 0) goNext();
-          else goPrev();
-        }}
+      <PostMediaCarousel
+        items={mediaItems}
+        alt={post.caption || `${post.author.name} activity`}
+        className="rounded-2xl"
+        onTap={handleMediaTap}
+        onDoubleTap={triggerLikeBurst}
       >
-        {isVideo ? (
-          <video
-            key={`${post.id}-${safeIndex}`}
-            src={mediaUrl}
-            controls
-            playsInline
-            preload="metadata"
-            className="mx-auto max-h-[min(78vh,760px)] w-auto max-w-full object-contain"
-            onDoubleClick={triggerLikeBurst}
-          />
-        ) : (
-          <button
-            type="button"
-            className={cn(
-              'relative flex w-full items-center justify-center',
-              'sm:cursor-zoom-in'
-            )}
-            onClick={handleMediaTap}
-            aria-label={isVideo ? 'Play video' : 'Open photo'}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              key={`${post.id}-${safeIndex}`}
-              src={mediaUrl}
-              alt={post.caption || `${post.author.name} activity`}
-              className="mx-auto max-h-[min(78vh,760px)] w-auto max-w-full object-contain"
-              loading="lazy"
-            />
-          </button>
-        )}
-
-        {multi ? (
-          <>
-            {safeIndex > 0 ? (
-              <button
-                type="button"
-                onClick={goPrev}
-                className="absolute left-2 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white hover:bg-black/60 sm:inline-flex"
-                aria-label="Previous image"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-            ) : null}
-            {safeIndex < mediaItems.length - 1 ? (
-              <button
-                type="button"
-                onClick={goNext}
-                className="absolute right-2 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white hover:bg-black/60 sm:inline-flex"
-                aria-label="Next image"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            ) : null}
-            <div className="absolute bottom-3 left-0 right-0 z-10 flex justify-center gap-1.5">
-              {mediaItems.map((_, index) => (
-                <button
-                  key={`${post.id}-dot-${index}`}
-                  type="button"
-                  onClick={() => setMediaIndex(index)}
-                  className={cn(
-                    'h-1.5 rounded-full transition-all',
-                    index === safeIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/45'
-                  )}
-                  aria-label={`Go to image ${index + 1}`}
-                />
-              ))}
-            </div>
-            <span className="absolute right-3 top-3 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
-              {safeIndex + 1}/{mediaItems.length}
-            </span>
-          </>
-        ) : null}
-
         <AnimatePresence>
           {heartBurst && (
             <motion.span
@@ -631,7 +499,7 @@ export function FeedPostCard({
             </motion.span>
           )}
         </AnimatePresence>
-      </div>
+      </PostMediaCarousel>
 
       <div className="mt-3 flex items-center gap-5">
         <button
@@ -709,6 +577,18 @@ export function FeedPostCard({
         >
           {post.likeCount === 1 ? '1 like' : `${formatCount(post.likeCount)} likes`}
         </button>
+      ) : null}
+
+      {post.caption ? (
+        <FeedCaption
+          caption={post.caption}
+          authorName={post.author.name}
+          authorProfileId={post.author.profileId}
+          collaborators={[
+            ...(post.acceptedCollaborators || []),
+            ...(post.collaborators || []),
+          ]}
+        />
       ) : null}
 
       {editOpen ? (
@@ -1010,65 +890,30 @@ export function FeedPostCard({
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
-              {multi && safeIndex > 0 ? (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    goPrev();
-                  }}
-                  className="absolute left-4 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
-                  aria-label="Previous photo"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-              ) : null}
-              {multi && safeIndex < mediaItems.length - 1 ? (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    goNext();
-                  }}
-                  className="absolute right-4 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
-                  aria-label="Next photo"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              ) : null}
-              <div className="relative z-[1] flex max-h-[92vh] max-w-[min(100%,960px)] flex-col items-center">
-                {isVideo ? (
-                  <video
-                    src={mediaUrl}
-                    controls
-                    autoPlay
-                    playsInline
-                    className="max-h-[min(88vh,900px)] max-w-full rounded-lg object-contain"
-                  />
-                ) : (
-                  <ZoomableImage
-                    src={mediaUrl}
-                    alt={post.caption || `${post.author.name} activity`}
-                    className="max-h-[min(88vh,900px)] max-w-full rounded-lg object-contain"
-                    stageClassName="max-h-[min(88vh,900px)] w-full"
-                  />
-                )}
-                {multi ? (
-                  <p className="mt-2 text-xs text-white/70">
-                    {safeIndex + 1} / {mediaItems.length}
-                  </p>
-                ) : null}
+              <div
+                className="relative z-[1] w-full max-w-[min(100%,960px)]"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <PostMediaCarousel
+                  items={mediaItems}
+                  alt={post.caption || `${post.author.name} activity`}
+                  className="rounded-lg"
+                  slideClassName="h-[min(82dvh,40rem)]"
+                />
                 {post.caption ? (
-                  <div className="mt-3 max-w-lg px-2 text-center">
-                    {renderCaptionWithMentions(post.caption, {
-                      collaborators: [
-                        ...(post.acceptedCollaborators || []),
-                        ...(post.collaborators || []),
-                      ],
-                      className: 'text-sm text-white/90',
-                      mentionClassName: 'font-semibold text-primary hover:underline',
-                    })}
-                  </div>
+                  <FeedCaption
+                    className="mt-3 max-w-lg px-2"
+                    textClassName="text-center text-white/90"
+                    caption={post.caption}
+                    authorName={post.author.name}
+                    authorProfileId={post.author.profileId}
+                    collaborators={[
+                      ...(post.acceptedCollaborators || []),
+                      ...(post.collaborators || []),
+                    ]}
+                    mentionClassName="font-semibold text-primary hover:underline"
+                    moreFadeClassName="bg-black text-white/55"
+                  />
                 ) : null}
               </div>
             </div>,

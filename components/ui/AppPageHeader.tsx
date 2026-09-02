@@ -38,6 +38,8 @@ interface AppPageHeaderProps {
   subtitleTone?: 'label' | 'plain';
   /** `end` = right of title; `below` = always under content; `stack` = under on mobile, right from md+ */
   actionsPlacement?: 'end' | 'below' | 'stack';
+  /** Skip sticky chrome — parent owns the sticky header shell. */
+  flush?: boolean;
   className?: string;
 }
 
@@ -51,6 +53,7 @@ export function AppPageHeader({
   avatarHref,
   subtitleTone = 'label',
   actionsPlacement = 'end',
+  flush = false,
   className,
 }: AppPageHeaderProps) {
   const { selectedProfile, user } = useAuthStore();
@@ -128,7 +131,7 @@ export function AppPageHeader({
     <header
       className={cn(
         'welcome-banner overflow-visible',
-        pageStickyHeaderClass,
+        !flush && pageStickyHeaderClass,
         className
       )}
     >

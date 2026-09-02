@@ -6,7 +6,6 @@ import { createPortal } from 'react-dom';
 import { DateTime } from 'luxon';
 import {
   ChevronLeft,
-  ChevronRight,
   MessageCircle,
   MoreHorizontal,
   Pencil,
@@ -22,9 +21,8 @@ import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { HappyIcon } from '@/components/ui/HappyIcon';
-import { ZoomableImage } from '@/components/ui/ZoomableImage';
-import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
-import { renderCaptionWithMentions } from '@/lib/utils/renderCaptionWithMentions';
+import { PostMediaCarousel } from '@/components/feed/PostMediaCarousel';
+import { FeedCaption } from '@/components/feed/FeedCaption';
 import {
   renderTextCardImage,
   textCardGradient,
@@ -93,10 +91,8 @@ function ViewerPostCard({
   const ownsPost =
     isOwner ||
     Boolean(selectedProfile?._id && post.author.profileId === selectedProfile._id);
-  const [mediaIndex, setMediaIndex] = useState(0);
   const [heartBurst, setHeartBurst] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
-  const touchStartX = useRef<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const shareMenuRef = useRef<HTMLDivElement>(null);
 
@@ -104,11 +100,6 @@ function ViewerPostCard({
     post.mediaItems && post.mediaItems.length > 0
       ? post.mediaItems
       : [{ url: post.imageUrl, mediaType: post.mediaType || 'image' }];
-  const safeMedia = Math.min(mediaIndex, Math.max(0, mediaItems.length - 1));
-  const current = mediaItems[safeMedia] || mediaItems[0];
-  const isVideo = (current?.mediaType || 'image') === 'video';
-  const mediaUrl = resolveMediaUrl(current?.url || post.imageUrl);
-  const multi = mediaItems.length > 1;
   const timeLabel = DateTime.fromISO(post.createdAt).toRelative() || 'just now';
 
   const canRepost =
@@ -119,18 +110,8 @@ function ViewerPostCard({
     post.repostOf?.author.profileId !== selectedProfile?._id;
 
   useEffect(() => {
-    setMediaIndex(0);
     setShareMenuOpen(false);
   }, [post.id]);
-
-  // Auto-advance multi-photo carousel every 3s
-  useEffect(() => {
-    if (!multi || mediaItems.length < 2) return;
-    const timer = window.setInterval(() => {
-      setMediaIndex((value) => (value + 1) % mediaItems.length);
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [multi, mediaItems.length, post.id]);
 
   useEffect(() => {
     if (!menuOpen && !shareMenuOpen) return;
@@ -146,10 +127,6 @@ function ViewerPostCard({
     document.addEventListener('mousedown', onPointer);
     return () => document.removeEventListener('mousedown', onPointer);
   }, [menuOpen, shareMenuOpen, onCloseMenu]);
-
-  const goPrevMedia = () => setMediaIndex((value) => Math.max(0, value - 1));
-  const goNextMedia = () =>
-    setMediaIndex((value) => Math.min(mediaItems.length - 1, value + 1));
 
   const triggerLikeBurst = () => {
     if (!post.likedByMe) onToggleLike();
@@ -241,78 +218,13 @@ function ViewerPostCard({
         </div>
       </div>
 
-      <div
-        className="relative mx-3 flex min-h-[12rem] items-center justify-center overflow-hidden rounded-2xl bg-stone-900 sm:mx-4"
-        onTouchStart={(event) => {
-          touchStartX.current = event.changedTouches[0]?.clientX ?? null;
-        }}
-        onTouchEnd={(event) => {
-          if (!multi || touchStartX.current == null) return;
-          const endX = event.changedTouches[0]?.clientX ?? touchStartX.current;
-          const delta = endX - touchStartX.current;
-          touchStartX.current = null;
-          if (Math.abs(delta) < 40) return;
-          if (delta < 0) goNextMedia();
-          else goPrevMedia();
-        }}
+      <PostMediaCarousel
+        items={mediaItems}
+        alt={post.caption || post.author.name}
+        className="mx-3 rounded-2xl sm:mx-4"
+        slideClassName="h-[min(58dvh,26rem)]"
+        onDoubleTap={triggerLikeBurst}
       >
-        {isVideo ? (
-          <video
-            key={`${post.id}-${safeMedia}`}
-            src={mediaUrl}
-            controls
-            playsInline
-            className="max-h-[min(58vh,520px)] w-full object-contain"
-            onDoubleClick={triggerLikeBurst}
-          />
-        ) : (
-          <ZoomableImage
-            src={mediaUrl}
-            alt={post.caption || post.author.name}
-            className="max-h-[min(58vh,520px)] w-full object-contain"
-            stageClassName="max-h-[min(58vh,520px)] w-full"
-          />
-        )}
-
-        {multi ? (
-          <>
-            {safeMedia > 0 ? (
-              <button
-                type="button"
-                onClick={goPrevMedia}
-                className="absolute left-2 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white hover:bg-black/60 sm:inline-flex"
-                aria-label="Previous media"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-            ) : null}
-            {safeMedia < mediaItems.length - 1 ? (
-              <button
-                type="button"
-                onClick={goNextMedia}
-                className="absolute right-2 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white hover:bg-black/60 sm:inline-flex"
-                aria-label="Next media"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            ) : null}
-            <div className="absolute bottom-3 left-0 right-0 z-10 flex justify-center gap-1.5">
-              {mediaItems.map((_, i) => (
-                <span
-                  key={`${post.id}-m-${i}`}
-                  className={cn(
-                    'h-1.5 rounded-full transition-all',
-                    i === safeMedia ? 'w-4 bg-primary' : 'w-1.5 bg-white/50'
-                  )}
-                />
-              ))}
-            </div>
-            <span className="absolute right-2.5 top-2.5 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
-              {safeMedia + 1}/{mediaItems.length}
-            </span>
-          </>
-        ) : null}
-
         <AnimatePresence>
           {heartBurst ? (
             <motion.span
@@ -325,7 +237,7 @@ function ViewerPostCard({
             </motion.span>
           ) : null}
         </AnimatePresence>
-      </div>
+      </PostMediaCarousel>
 
       <div className="px-4 pt-3 sm:px-5">
         <div className="flex items-center gap-5">
@@ -431,17 +343,16 @@ function ViewerPostCard({
         )}
 
         {post.caption ? (
-          <p className="mt-2 text-sm leading-relaxed text-foreground">
-            <span className="font-semibold">{post.author.name}</span>{' '}
-            {renderCaptionWithMentions(post.caption, {
-              collaborators: [
-                ...(post.acceptedCollaborators || []),
-                ...(post.collaborators || []),
-              ],
-              inline: true,
-              mentionClassName: 'font-semibold text-primary hover:underline',
-            })}
-          </p>
+          <FeedCaption
+            caption={post.caption}
+            authorName={post.author.name}
+            authorProfileId={post.author.profileId}
+            collaborators={[
+              ...(post.acceptedCollaborators || []),
+              ...(post.collaborators || []),
+            ]}
+            mentionClassName="font-semibold text-primary hover:underline"
+          />
         ) : null}
 
         <button
@@ -482,7 +393,6 @@ export function ProfilePostViewer({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const didScrollToStart = useRef(false);
 
   useOverlayHistory({
     open,
@@ -492,7 +402,6 @@ export function ProfilePostViewer({
 
   useEffect(() => {
     if (!open) {
-      didScrollToStart.current = false;
       setMenuPostId(null);
       setEditPost(null);
       setDeletePost(null);
@@ -520,18 +429,15 @@ export function ProfilePostViewer({
     };
   }, [open, editPost, deletePost, menuPostId, onClose]);
 
-  // Jump to the tapped post once the list is mounted
+  // Jump to the tapped post when the overlay opens or the list grows
   useEffect(() => {
-    if (!open || didScrollToStart.current || posts.length === 0) return;
+    if (!open || posts.length === 0) return;
     const targetIndex = Math.min(Math.max(0, startIndex), posts.length - 1);
     const frame = requestAnimationFrame(() => {
       const root = scrollRef.current;
       if (!root) return;
       const el = root.querySelector<HTMLElement>(`[data-post-index="${targetIndex}"]`);
-      if (el) {
-        el.scrollIntoView({ block: 'start' });
-        didScrollToStart.current = true;
-      }
+      if (el) el.scrollIntoView({ block: 'start' });
     });
     return () => cancelAnimationFrame(frame);
   }, [open, startIndex, posts.length]);

@@ -33,7 +33,7 @@ export function BrandLogo({
   const content = wordmark ? (
     <span
       className={cn(
-        'block max-w-[16rem] text-center font-serif text-[1.85rem] font-semibold leading-[1.05] tracking-tight sm:text-[2.05rem]',
+        'block max-w-[16rem] text-center font-serif text-[2.15rem] font-semibold leading-[1.05] tracking-tight sm:text-[2.35rem]',
         variant === 'light' ? 'text-white' : 'text-foreground'
       )}
     >

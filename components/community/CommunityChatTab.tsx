@@ -1915,25 +1915,34 @@ export function CommunityChatTab({
           ) : null}
 
           {mentionSuggestions && activeMention && (
-            <div className="absolute bottom-[calc(100%-0.25rem)] left-2 right-2 z-30 max-h-48 overflow-y-auto rounded-xl bg-white py-1 shadow-xl ring-1 ring-black/5 sm:left-12 sm:right-12">
+            <div className="absolute bottom-full left-2 right-2 z-30 mb-1 max-h-56 overflow-y-auto rounded-none border border-[#dbdbdb] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.12)] sm:left-12 sm:right-12">
               {mentionSuggestions.roles.map((role) => (
                 <button
                   key={role.role}
                   type="button"
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#111b21] hover:bg-black/5"
+                  className="flex w-full items-center gap-3 border-b border-[#efefef] px-3 py-2 text-left hover:bg-neutral-50 last:border-b-0"
                   onClick={() =>
                     insertMention({ kind: 'role', role: role.role, label: role.label })
                   }
                 >
-                  <span className="font-semibold text-primary">@{role.label}</span>
-                  <span className="text-xs text-[#667781]">Notify {role.label}</span>
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                    @
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold leading-tight text-[#262626]">
+                      {role.label}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs leading-tight text-[#737373]">
+                      Notify {role.label}
+                    </span>
+                  </span>
                 </button>
               ))}
               {mentionSuggestions.people.map((member) => (
                 <button
                   key={member.profile.id}
                   type="button"
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#111b21] hover:bg-black/5"
+                  className="flex w-full items-center gap-3 border-b border-[#efefef] px-3 py-2 text-left hover:bg-neutral-50 last:border-b-0"
                   onClick={() =>
                     insertMention({
                       kind: 'member',
@@ -1948,13 +1957,21 @@ export function CommunityChatTab({
                     avatarSeed={member.profile.avatarSeed}
                     avatarStyle={member.profile.avatarStyle}
                     size="sm"
-                    className="h-6 w-6"
+                    rounded="full"
+                    className="h-9 w-9"
                   />
-                  <span className="font-medium">@{member.profile.name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold leading-tight text-[#262626]">
+                      {member.profile.name}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs leading-tight text-[#737373]">
+                      @{member.profile.name}
+                    </span>
+                  </span>
                 </button>
               ))}
               {!mentionSuggestions.roles.length && !mentionSuggestions.people.length && (
-                <p className="px-3 py-2 text-xs text-[#667781]">No matches</p>
+                <p className="px-3 py-2 text-xs text-[#737373]">No matches</p>
               )}
             </div>
           )}

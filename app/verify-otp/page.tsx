@@ -142,7 +142,7 @@ function VerifyOTPContent() {
         <button
           type="button"
           onClick={() => router.push('/register')}
-          className="font-semibold text-foreground"
+          className="font-semibold text-[#262626]"
         >
           Back to sign up
         </button>

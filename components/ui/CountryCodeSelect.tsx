@@ -106,9 +106,9 @@ export default function CountryCodeSelect({
         className={cn(
           'flex w-full items-center justify-between gap-2 rounded-2xl border border-input bg-surface px-4 text-left text-sm transition-colors',
           compact ? 'h-10 rounded-xl px-3' : 'h-12',
-          dialOnly &&
-            'h-10 rounded-none border-[#e7e5e4] bg-white px-2 shadow-none focus-visible:ring-0',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          dialOnly &&
+            'h-[38px] rounded-[3px] border-[#dbdbdb] bg-[#fafafa] px-2 shadow-none focus-visible:border-[#a8a8a8] focus-visible:ring-0',
           disabled && 'cursor-not-allowed opacity-50'
         )}
       >

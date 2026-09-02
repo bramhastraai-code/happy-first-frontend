@@ -13,6 +13,7 @@ interface FeedTopBarProps {
   onOpenMessageFromNotification?: (conversationId: string) => void;
   onOpenPost?: (photoId: string) => void;
   className?: string;
+  flush?: boolean;
 }
 
 export function FeedTopBar({
@@ -20,6 +21,7 @@ export function FeedTopBar({
   onOpenMessageFromNotification,
   onOpenPost,
   className,
+  flush,
 }: FeedTopBarProps) {
   const { selectedProfile, user } = useAuthStore();
   const displayName = selectedProfile?.name || user?.name || 'there';
@@ -30,6 +32,7 @@ export function FeedTopBar({
   return (
     <AppPageHeader
       className={cn(className)}
+      flush={flush}
       title={<span className="text-primary">{firstNameFrom(displayName)}</span>}
       subtitle={new Date().toLocaleDateString('en-US', {
         weekday: 'long',

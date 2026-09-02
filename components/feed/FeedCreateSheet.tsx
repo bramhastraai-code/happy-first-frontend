@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 import { SocialPostGuidelines } from '@/components/feed/SocialPostGuidelines';
+import { MentionSuggestionList } from '@/components/feed/MentionSuggestionList';
 
 type CreateKind = PublishTarget;
 type PickMode = 'image' | 'video' | 'camera' | 'drop';
@@ -33,6 +34,9 @@ type PendingMedia = {
 type TagPerson = {
   profileId: string;
   name: string;
+  avatarUrl?: string | null;
+  avatarSeed?: string | null;
+  avatarStyle?: string | null;
 };
 
 interface FeedCreateSheetProps {
@@ -113,7 +117,13 @@ export function FeedCreateSheet({
         .filter((m) => m.profile?.id && m.profile.id !== me && !selected.has(m.profile.id))
         .filter((m) => !q || m.profile.name.toLowerCase().includes(q))
         .slice(0, 8)
-        .map((m) => ({ profileId: m.profile.id, name: m.profile.name }));
+        .map((m) => ({
+          profileId: m.profile.id,
+          name: m.profile.name,
+          avatarUrl: m.profile.avatarUrl,
+          avatarSeed: m.profile.avatarSeed,
+          avatarStyle: m.profile.avatarStyle,
+        }));
     }
 
     // @ tags only resolve people you follow
@@ -121,7 +131,13 @@ export function FeedCreateSheet({
       .filter((p) => p.profileId !== me && !selected.has(p.profileId))
       .filter((p) => !q || p.name.toLowerCase().includes(q))
       .slice(0, 8)
-      .map((p) => ({ profileId: p.profileId, name: p.name }));
+      .map((p) => ({
+        profileId: p.profileId,
+        name: p.name,
+        avatarUrl: p.avatarUrl,
+        avatarSeed: p.avatarSeed,
+        avatarStyle: p.avatarStyle,
+      }));
   }, [
     mentionQuery,
     allowsCollaborators,
@@ -583,26 +599,18 @@ export function FeedCreateSheet({
                     className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
                   />
                   {mentionSuggestions.length > 0 ? (
-                    <ul className="absolute left-0 right-0 z-20 mt-1 max-h-40 overflow-y-auto rounded-xl border border-border bg-surface shadow-[var(--shadow-float)]">
-                      {mentionSuggestions.map((person) => (
-                        <li key={person.profileId}>
-                          <button
-                            type="button"
-                            className="flex w-full px-3 py-2 text-left text-sm hover:bg-secondary"
-                            onClick={() => {
-                              setCollaborators((prev) =>
-                                prev.some((c) => c.profileId === person.profileId)
-                                  ? prev
-                                  : [...prev, person].slice(0, MAX_COLLABORATORS)
-                              );
-                              setMentionQuery('');
-                            }}
-                          >
-                            @{person.name}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
+                    <MentionSuggestionList
+                      people={mentionSuggestions}
+                      placement="below"
+                      onSelect={(person) => {
+                        setCollaborators((prev) =>
+                          prev.some((c) => c.profileId === person.profileId)
+                            ? prev
+                            : [...prev, person].slice(0, MAX_COLLABORATORS)
+                        );
+                        setMentionQuery('');
+                      }}
+                    />
                   ) : null}
                   {collaborators.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -660,19 +668,11 @@ export function FeedCreateSheet({
                   className="w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
                 {mentionSuggestions.length > 0 && caption.includes('@') ? (
-                  <ul className="absolute left-0 right-0 z-20 mt-1 max-h-44 overflow-y-auto rounded-xl border border-border bg-surface shadow-[var(--shadow-float)]">
-                    {mentionSuggestions.map((person) => (
-                      <li key={person.profileId}>
-                        <button
-                          type="button"
-                          className="flex w-full px-3 py-2 text-left text-sm hover:bg-secondary"
-                          onClick={() => addCollaborator(person)}
-                        >
-                          @{person.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <MentionSuggestionList
+                    people={mentionSuggestions}
+                    placement="below"
+                    onSelect={addCollaborator}
+                  />
                 ) : null}
                 <p className="mt-1 text-right text-[11px] text-muted-foreground">
                   {caption.length}/300
@@ -893,19 +893,11 @@ export function FeedCreateSheet({
                   className="w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
                 {mentionSuggestions.length > 0 ? (
-                  <ul className="absolute left-0 right-0 z-20 mt-1 max-h-44 overflow-y-auto rounded-xl border border-border bg-surface shadow-[var(--shadow-float)]">
-                    {mentionSuggestions.map((person) => (
-                      <li key={person.profileId}>
-                        <button
-                          type="button"
-                          className="flex w-full px-3 py-2 text-left text-sm hover:bg-secondary"
-                          onClick={() => addCollaborator(person)}
-                        >
-                          @{person.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <MentionSuggestionList
+                    people={mentionSuggestions}
+                    placement="below"
+                    onSelect={addCollaborator}
+                  />
                 ) : null}
                 <p className="mt-1 text-right text-[11px] text-muted-foreground">
                   {caption.length}/300

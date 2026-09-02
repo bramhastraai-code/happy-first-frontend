@@ -16,7 +16,7 @@ export function AuthFieldLabel({
   return (
     <label
       htmlFor={htmlFor}
-      className={cn('mb-1 flex items-center gap-1.5 text-xs font-semibold text-neutral-600', className)}
+      className={cn('sr-only', className)}
     >
       <span>{children}</span>
       {required ? (

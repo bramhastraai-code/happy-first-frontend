@@ -1,8 +1,11 @@
 'use client';
 
+import { useMemo } from 'react';
 import Lottie from 'lottie-react';
 import loaderAnimation from '@/public/lottie/loader.json';
 import { cn } from '@/lib/utils';
+import { useMascotThemeColor } from '@/lib/hooks/useMascotThemeColor';
+import { recolorLottie } from '@/lib/theme/recolorLottie';
 
 interface LoadingScreenProps {
   label?: string;
@@ -17,6 +20,12 @@ export default function LoadingScreen({
   className,
   size = 96,
 }: LoadingScreenProps) {
+  const themeColor = useMascotThemeColor();
+  const animationData = useMemo(
+    () => recolorLottie(loaderAnimation, themeColor),
+    [themeColor]
+  );
+
   return (
     <div
       className={cn(
@@ -29,7 +38,8 @@ export default function LoadingScreen({
       aria-label={label}
     >
       <Lottie
-        animationData={loaderAnimation}
+        key={themeColor}
+        animationData={animationData}
         loop
         style={{ width: size, height: size }}
       />

@@ -40,7 +40,7 @@ export function CountrySearchSelect({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search country…"
           disabled={disabled}
-          className="h-9 w-full rounded-xl border border-[#e7e5e4] bg-white pl-8 pr-2.5 text-xs outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
+          className="h-9 w-full rounded-[3px] border border-[#dbdbdb] bg-[#fafafa] pl-8 pr-2.5 text-xs outline-none focus:border-[#a8a8a8]"
           aria-label="Search countries"
         />
       </div>
@@ -51,7 +51,7 @@ export function CountrySearchSelect({
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          'h-10 w-full rounded-xl border border-[#e7e5e4] bg-white px-2.5 text-xs outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/15',
+          'h-[38px] w-full rounded-[3px] border border-[#dbdbdb] bg-[#fafafa] px-2.5 text-xs outline-none focus:border-[#a8a8a8]',
           className
         )}
         size={Math.min(6, Math.max(3, filtered.length))}

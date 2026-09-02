@@ -37,7 +37,7 @@ export function TimezoneGroupedSelect({
           if (group?.zones[0]) onChange(group.zones[0].value);
         }}
         className={cn(
-          'h-10 w-full rounded-xl border border-[#e7e5e4] bg-white px-2.5 text-xs outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/15',
+          'h-[38px] w-full rounded-[3px] border border-[#dbdbdb] bg-[#fafafa] px-2.5 text-xs outline-none focus:border-[#a8a8a8]',
           className
         )}
         aria-label="Timezone region"
@@ -55,7 +55,7 @@ export function TimezoneGroupedSelect({
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          'h-10 w-full rounded-xl border border-[#e7e5e4] bg-white px-2.5 text-xs outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/15',
+          'h-[38px] w-full rounded-[3px] border border-[#dbdbdb] bg-[#fafafa] px-2.5 text-xs outline-none focus:border-[#a8a8a8]',
           className
         )}
       >

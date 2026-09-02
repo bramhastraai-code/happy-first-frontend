@@ -398,21 +398,6 @@ export default function FeedProfilePage() {
                   </div>
                 ))}
               </div>
-              {(data.postsCount ?? 0) > 0 ? (
-                <p className="mt-2 text-xs text-neutral-400">
-                  {data.postsCount} post{data.postsCount === 1 ? '' : 's'} total
-                  {data.daysSinceLastPost != null
-                    ? ` · ${
-                        data.daysSinceLastPost === 0
-                          ? 'posted today'
-                          : `last post ${data.daysSinceLastPost} day${data.daysSinceLastPost === 1 ? '' : 's'} ago`
-                      }`
-                    : null}
-                </p>
-              ) : (
-                <p className="mt-2 text-xs text-neutral-400">No posts yet</p>
-              )}
-
               <div className="mt-3 flex gap-2">
                 {isMe ? (
                   <>

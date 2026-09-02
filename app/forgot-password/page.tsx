@@ -198,13 +198,13 @@ function ForgotPasswordForm() {
     formData.confirmPassword.length > 0 && formData.newPassword === formData.confirmPassword;
 
   const lockIcon = (
-    <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-foreground">
-      <Lock className="h-10 w-10" strokeWidth={1.4} />
+    <div className="flex h-[96px] w-[96px] items-center justify-center rounded-full border-2 border-[#262626]">
+      <Lock className="h-10 w-10 text-[#262626]" strokeWidth={1.25} />
     </div>
   );
 
   const backToLogin = (
-    <Link href="/login" className="font-semibold text-foreground">
+    <Link href="/login" className="font-semibold text-[#262626]">
       Back to login
     </Link>
   );
@@ -405,7 +405,7 @@ function ForgotPasswordForm() {
           <>
             <AuthOrDivider />
             <p className="text-center text-sm font-semibold">
-              <Link href="/register" className="text-foreground">
+              <Link href="/register" className="text-[#262626]">
                 Create new account
               </Link>
             </p>

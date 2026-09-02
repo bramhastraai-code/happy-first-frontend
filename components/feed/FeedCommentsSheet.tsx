@@ -14,6 +14,7 @@ import { HappyIcon } from '@/components/ui/HappyIcon';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 import { renderCaptionWithMentions } from '@/lib/utils/renderCaptionWithMentions';
+import { MentionSuggestionList } from '@/components/feed/MentionSuggestionList';
 
 interface FeedCommentsSheetProps {
   post: FeedPost;
@@ -478,19 +479,11 @@ export function FeedCommentsSheet({
               className="h-10 w-full rounded-full border border-input bg-secondary px-4 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
             {mentionSuggestions.length > 0 ? (
-              <ul className="absolute bottom-full left-0 right-0 z-20 mb-1 max-h-40 overflow-y-auto rounded-xl border border-border bg-surface shadow-[var(--shadow-float)]">
-                {mentionSuggestions.map((person) => (
-                  <li key={person.profileId}>
-                    <button
-                      type="button"
-                      className="flex w-full px-3 py-2 text-left text-sm hover:bg-secondary"
-                      onClick={() => insertMention(person.name)}
-                    >
-                      @{person.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <MentionSuggestionList
+                people={mentionSuggestions}
+                onSelect={(person) => insertMention(person.name)}
+                placement="above"
+              />
             ) : null}
           </div>
           <button

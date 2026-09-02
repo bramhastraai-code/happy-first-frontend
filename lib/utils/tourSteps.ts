@@ -27,13 +27,6 @@ export const homeTourSteps: Step[] = [
     placement: 'bottom',
   },
   {
-    target: '.log-today-cta',
-    title: "Log today's activities",
-    content:
-      'Opens Tasks so you can enter Mind, Body, and Soul values from your weekly plan. Submit after 6 PM to keep your streak.',
-    placement: 'bottom',
-  },
-  {
     target: '.my-happiness',
     title: 'My happiness',
     content:
@@ -135,7 +128,8 @@ export const communityTourSteps: Step[] = [
     target: '.community-create-btn',
     title: 'Create a community',
     content: 'Set activities & levels, or choose discussion-only with No targets.',
-    placement: 'bottom',
+    placement: 'left',
+    isFixed: true,
   },
   {
     target: '.bottom-nav',

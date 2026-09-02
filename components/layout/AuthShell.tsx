@@ -1,23 +1,27 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { BrandLogo } from '@/components/ui/BrandLogo';
 
-/** Compact field used on login / signup / forgot password. */
+/** Instagram-style field used on login / signup / forgot password. */
 export const authFieldClass =
-  'h-11 rounded-xl border border-white/70 bg-white/90 px-3 text-sm shadow-sm placeholder:text-neutral-400 focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20';
+  'h-[38px] rounded-[3px] border border-[#dbdbdb] bg-[#fafafa] px-2 text-xs text-[#262626] shadow-none placeholder:text-[#737373] focus-visible:border-[#a8a8a8] focus-visible:ring-0 focus-visible:ring-offset-0';
+
+export const authSelectClass =
+  'h-[38px] w-full rounded-[3px] border border-[#dbdbdb] bg-[#fafafa] px-2 text-xs text-[#262626] outline-none focus:border-[#a8a8a8]';
 
 export const authButtonClass =
-  'mt-2 !h-11 w-full !rounded-xl text-sm font-semibold shadow-md';
+  'mt-2 !h-8 w-full !rounded-lg text-sm font-semibold shadow-none focus-visible:ring-0 active:!scale-100';
+
+export const authLinkClass = 'font-semibold text-primary hover:text-primary/90';
 
 export function AuthOrDivider() {
   return (
     <div className="my-4 flex items-center gap-4">
-      <span className="h-px flex-1 bg-white/50" />
-      <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">or</span>
-      <span className="h-px flex-1 bg-white/50" />
+      <span className="h-px flex-1 bg-[#dbdbdb]" />
+      <span className="text-xs font-semibold uppercase tracking-wide text-[#737373]">or</span>
+      <span className="h-px flex-1 bg-[#dbdbdb]" />
     </div>
   );
 }
@@ -47,34 +51,23 @@ export default function AuthShell({
   backHref,
   backLabel = 'Back',
 }: AuthShellProps) {
-  return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-x-hidden px-4 py-8 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] pt-[calc(2rem+env(safe-area-inset-top,0px))]">
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[#fff8f1]">
-        <div className="absolute left-1/4 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-sky-300/25 blur-3xl" />
-      </div>
+  const cardClass = 'bg-transparent px-2 py-8 sm:px-4 sm:py-10';
 
-      <div className={cn('relative w-full', size === 'wide' ? 'max-w-[440px]' : 'max-w-[380px]')}>
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-[#fafafa] px-4 py-8 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] pt-[calc(2rem+env(safe-area-inset-top,0px))]">
+      <div className={cn('w-full', size === 'wide' ? 'max-w-[400px]' : 'max-w-[350px]')}>
         {backHref ? (
           <a
             href={backHref}
-            className="mb-3 inline-flex items-center text-sm font-semibold text-neutral-600 transition hover:text-foreground"
+            className="mb-3 inline-flex items-center text-sm font-semibold text-[#00376b]"
           >
-            ← {backLabel}
+            {backLabel}
           </a>
         ) : null}
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-          className={cn(
-            'overflow-hidden rounded-[1.75rem] border border-white/60 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-7',
-            'bg-white/75'
-          )}
-        >
+        <div className={cardClass}>
           {hideLogo ? null : (
-            <div className="mb-5 flex justify-center">
+            <div className="mb-6 flex justify-center">
               <BrandLogo href="/" wordmark className="no-underline" />
             </div>
           )}
@@ -84,12 +77,12 @@ export default function AuthShell({
           {title || subtitle ? (
             <div className="mb-5 text-center">
               {title ? (
-                <h1 className="text-xl font-bold tracking-tight text-neutral-900 sm:text-[1.35rem]">
-                  {title}
-                </h1>
+                <h1 className="text-[17px] font-semibold leading-5 text-[#737373]">{title}</h1>
               ) : null}
               {subtitle ? (
-                <p className="mt-1.5 text-sm leading-relaxed text-neutral-600">{subtitle}</p>
+                <p className={cn('text-sm leading-5 text-[#737373]', title && 'mt-2')}>
+                  {subtitle}
+                </p>
               ) : null}
             </div>
           ) : null}
@@ -97,13 +90,13 @@ export default function AuthShell({
           {headerExtra}
 
           {children}
+        </div>
 
-          {footer ? (
-            <p className="mt-6 border-t border-neutral-200/80 pt-5 text-center text-sm text-neutral-600">
-              {footer}
-            </p>
-          ) : null}
-        </motion.div>
+        {footer ? (
+          <div className={cn(cardClass, 'mt-2.5 py-[18px] text-center text-sm text-[#262626] sm:py-[18px]')}>
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>
   );

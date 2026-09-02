@@ -45,6 +45,7 @@
 html {
   scroll-behavior: smooth;
   overflow-x: clip;
+  overflow-y: auto;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -54,12 +55,10 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: clip;
   min-height: 100dvh;
 }
 
-html.hf-tour-active,
-html.hf-tour-active body {
+html.hf-tour-active {
   overflow-x: visible;
 }
 

@@ -8,14 +8,16 @@ import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { FeedTopBar } from '@/components/feed/FeedTopBar';
 import { FeedStories } from '@/components/feed/FeedStories';
-import { FeedPostCard } from '@/components/feed/FeedPostCard';
+import { FeedPostCard, type FeedPostEditExtras } from '@/components/feed/FeedPostCard';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { FeedEmpty } from '@/components/feed/FeedEmpty';
 import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
 import { FeedCreateSheet } from '@/components/feed/FeedCreateSheet';
 import { StoryViewer } from '@/components/feed/StoryViewer';
 import { FeedSuggestedPeople } from '@/components/feed/FeedSuggestedPeople';
+import { ProfilePostViewer } from '@/components/feed/ProfilePostViewer';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
+import { followAPI } from '@/lib/api/follow';
 import { useAuthStore } from '@/lib/store/authStore';
 import { useFeedRealtime } from '@/lib/hooks/useFeedRealtime';
 import { Button } from '@/components/ui/button';
@@ -24,6 +26,8 @@ import TourStartButton from '@/components/ui/TourStartButton';
 import { PageFabColumn, pageFabCircleClass } from '@/components/ui/PageFabColumn';
 import { usePageTour } from '@/lib/hooks/usePageTour';
 import { feedTourSteps } from '@/lib/utils/tourSteps';
+import { pageStickyHeaderClass } from '@/components/ui/AppPageHeader';
+import { cn } from '@/lib/utils';
 
 export default function FeedPage() {
   return (
@@ -46,6 +50,11 @@ function FeedPageContent() {
   const deepLinkPostId = searchParams.get('post');
   const [activePost, setActivePost] = useState<FeedPost | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
+  const [repostingId, setRepostingId] = useState<string | null>(null);
+  const [authorViewer, setAuthorViewer] = useState<{
+    profileId: string;
+    startPostId: string;
+  } | null>(null);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createKind, setCreateKind] = useState<'post' | 'story'>('post');
@@ -117,6 +126,25 @@ function FeedPageContent() {
         };
       });
 
+      queryClient.setQueriesData<{ posts: FeedPost[]; nextCursor: string | null }>(
+        { queryKey: ['profilePosts'] },
+        (old) => {
+          if (!old?.posts) return old;
+          return {
+            ...old,
+            posts: old.posts.map((post) => {
+              if (post.id !== photoId) return post;
+              const likedByMe = !post.likedByMe;
+              return {
+                ...post,
+                likedByMe,
+                likeCount: Math.max(0, post.likeCount + (likedByMe ? 1 : -1)),
+              };
+            }),
+          };
+        }
+      );
+
       return { previous };
     },
     onError: (_error, _photoId, context) => {
@@ -133,6 +161,44 @@ function FeedPageContent() {
     () => feedQuery.data?.pages.flatMap((page) => page.posts) ?? [],
     [feedQuery.data]
   );
+
+  const authorPostsQuery = useQuery({
+    queryKey: ['profilePosts', authorViewer?.profileId],
+    enabled: Boolean(authorViewer?.profileId),
+    queryFn: async () => {
+      const res = await followAPI.getPosts(authorViewer!.profileId, { limit: 36 });
+      return res.data.data;
+    },
+  });
+
+  const authorViewerPosts = useMemo(() => {
+    if (!authorViewer) return [];
+    const fetched = authorPostsQuery.data?.posts;
+    if (fetched && fetched.length > 0) {
+      if (fetched.some((post) => post.id === authorViewer.startPostId)) return fetched;
+      const seed = posts.find((post) => post.id === authorViewer.startPostId);
+      return seed ? [seed, ...fetched] : fetched;
+    }
+    const fromFeed: FeedPost[] = [];
+    const seen = new Set<string>();
+    for (const post of posts) {
+      if (post.author.profileId !== authorViewer.profileId || post.isStory) continue;
+      if (seen.has(post.id)) continue;
+      seen.add(post.id);
+      fromFeed.push(post);
+    }
+    if (!seen.has(authorViewer.startPostId)) {
+      const seed = posts.find((post) => post.id === authorViewer.startPostId);
+      if (seed) fromFeed.unshift(seed);
+    }
+    return fromFeed;
+  }, [authorViewer, authorPostsQuery.data?.posts, posts]);
+
+  const authorStartIndex = useMemo(() => {
+    if (!authorViewer) return 0;
+    const index = authorViewerPosts.findIndex((post) => post.id === authorViewer.startPostId);
+    return index >= 0 ? index : 0;
+  }, [authorViewer, authorViewerPosts]);
 
   useEffect(() => {
     if (!deepLinkPostId || !posts.length) return;
@@ -184,6 +250,134 @@ function FeedPageContent() {
     setMessagesOpen(true);
   }, []);
 
+  const handleOpenAuthorPosts = useCallback((post: FeedPost) => {
+    if (!post.author.profileId) return;
+    setAuthorViewer({ profileId: post.author.profileId, startPostId: post.id });
+  }, []);
+
+  const handleEditPost = useCallback(
+    async (target: FeedPost, caption: string, extras?: FeedPostEditExtras) => {
+      const res = await feedAPI.updatePost(target.id, caption, extras);
+      const updated = res.data.data.post;
+      queryClient.setQueryData<{
+        pages: { posts: FeedPost[]; nextCursor: string | null }[];
+        pageParams: unknown[];
+      }>(['feed', selectedProfile?._id], (old) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            posts: page.posts.map((item) =>
+              item.id === updated.id ? { ...item, ...updated } : item
+            ),
+          })),
+        };
+      });
+      queryClient.setQueriesData<{ posts: FeedPost[]; nextCursor: string | null }>(
+        { queryKey: ['profilePosts'] },
+        (old) => {
+          if (!old?.posts) return old;
+          return {
+            ...old,
+            posts: old.posts.map((item) =>
+              item.id === updated.id ? { ...item, ...updated } : item
+            ),
+          };
+        }
+      );
+      if (activePost?.id === updated.id) {
+        setActivePost((prev) => (prev ? { ...prev, ...updated } : prev));
+      }
+    },
+    [queryClient, selectedProfile?._id, activePost?.id]
+  );
+
+  const handleDeletePost = useCallback(
+    async (target: FeedPost) => {
+      await feedAPI.deletePost(target.id);
+      queryClient.setQueryData<{
+        pages: { posts: FeedPost[]; nextCursor: string | null }[];
+        pageParams: unknown[];
+      }>(['feed', selectedProfile?._id], (old) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            posts: page.posts.filter((item) => item.id !== target.id),
+          })),
+        };
+      });
+      queryClient.setQueriesData<{ posts: FeedPost[]; nextCursor: string | null }>(
+        { queryKey: ['profilePosts'] },
+        (old) => {
+          if (!old?.posts) return old;
+          return {
+            ...old,
+            posts: old.posts.filter((item) => item.id !== target.id),
+          };
+        }
+      );
+      if (activePost?.id === target.id) setActivePost(null);
+    },
+    [queryClient, selectedProfile?._id, activePost?.id]
+  );
+
+  const handleToggleRepost = useCallback(
+    async (postId: string) => {
+      setRepostingId(postId);
+      try {
+        const res = await feedAPI.toggleRepost(postId);
+        const result = res.data.data;
+        queryClient.setQueriesData<{
+          pages: { posts: FeedPost[]; nextCursor: string | null }[];
+          pageParams: unknown[];
+        }>({ queryKey: ['feed'] }, (old) => {
+          if (!old?.pages) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              posts: page.posts.map((item) => {
+                const canonicalId = item.repostOf?.id || item.id;
+                if (canonicalId !== result.photoId) return item;
+                return {
+                  ...item,
+                  repostCount: result.repostCount,
+                  repostedByMe: result.reposted,
+                };
+              }),
+            })),
+          };
+        });
+        queryClient.setQueriesData<{ posts: FeedPost[]; nextCursor: string | null }>(
+          { queryKey: ['profilePosts'] },
+          (old) => {
+            if (!old?.posts) return old;
+            return {
+              ...old,
+              posts: old.posts.map((item) => {
+                if (item.id !== result.photoId && item.repostOf?.id !== result.photoId) {
+                  return item;
+                }
+                return {
+                  ...item,
+                  repostCount: result.repostCount,
+                  repostedByMe: result.reposted,
+                };
+              }),
+            };
+          }
+        );
+        void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      } finally {
+        setRepostingId(null);
+      }
+    },
+    [queryClient]
+  );
+
   const openCreate = (kind: 'post' | 'story' = 'post') => {
     setCreateKind(kind);
     setCreateOpen(true);
@@ -213,13 +407,14 @@ function FeedPageContent() {
   }
 
   return (
-    <MainLayout>
+    <MainLayout hideBottomNav={Boolean(authorViewer)}>
       {isMounted ? (
         <GuidedTour run={runTour} onFinish={handleTourFinish} steps={feedTourSteps} />
       ) : null}
-      <div className="feed-page relative w-full pb-4">
-        <div className="feed-header">
+      <div className="feed-page w-full pb-4">
+        <div className={cn('feed-header', pageStickyHeaderClass)}>
           <FeedTopBar
+          flush
           onOpenMessages={() => {
             setMessageTarget(null);
             setOpenConversationId(null);
@@ -237,6 +432,7 @@ function FeedPageContent() {
         />
         </div>
 
+        <div className="overflow-x-clip">
         <div className="mt-3 overflow-visible border-b border-border/60 pb-3 sm:mt-4 sm:rounded-2xl sm:border sm:border-border sm:bg-surface sm:p-3 sm:pb-3 sm:pt-4 sm:shadow-[var(--shadow-card)]">
           <FeedStories
             stories={stories}
@@ -287,51 +483,15 @@ function FeedPageContent() {
                   liking={likingId === post.id}
                   onToggleLike={handleToggleLike}
                   onOpenComments={setActivePost}
+                  onOpenPost={handleOpenAuthorPosts}
                   onMessage={handleMessage}
                   canMessage={Boolean(post.author.userId && post.author.userId !== user?._id)}
                   isOwner={
                     post.author.profileId === selectedProfile?._id ||
                     post.author.userId === user?._id
                   }
-                  onEdit={async (target, caption, extras) => {
-                    const res = await feedAPI.updatePost(target.id, caption, extras);
-                    const updated = res.data.data.post;
-                    queryClient.setQueryData<{
-                      pages: { posts: FeedPost[]; nextCursor: string | null }[];
-                      pageParams: unknown[];
-                    }>(['feed', selectedProfile?._id], (old) => {
-                      if (!old?.pages) return old;
-                      return {
-                        ...old,
-                        pages: old.pages.map((page) => ({
-                          ...page,
-                          posts: page.posts.map((item) =>
-                            item.id === updated.id ? { ...item, ...updated } : item
-                          ),
-                        })),
-                      };
-                    });
-                    if (activePost?.id === updated.id) {
-                      setActivePost((prev) => (prev ? { ...prev, ...updated } : prev));
-                    }
-                  }}
-                  onDelete={async (target) => {
-                    await feedAPI.deletePost(target.id);
-                    queryClient.setQueryData<{
-                      pages: { posts: FeedPost[]; nextCursor: string | null }[];
-                      pageParams: unknown[];
-                    }>(['feed', selectedProfile?._id], (old) => {
-                      if (!old?.pages) return old;
-                      return {
-                        ...old,
-                        pages: old.pages.map((page) => ({
-                          ...page,
-                          posts: page.posts.filter((item) => item.id !== target.id),
-                        })),
-                      };
-                    });
-                    if (activePost?.id === target.id) setActivePost(null);
-                  }}
+                  onEdit={handleEditPost}
+                  onDelete={handleDeletePost}
                 />
                 {((index + 1) % 3 === 0 ||
                   (index === posts.length - 1 && posts.length < 3)) && (
@@ -346,6 +506,7 @@ function FeedPageContent() {
               )}
             </div>
           )}
+        </div>
         </div>
 
         {isMounted ? (
@@ -400,6 +561,21 @@ function FeedPageContent() {
         onDeleted={() => {
           void storiesQuery.refetch();
         }}
+      />
+
+      <ProfilePostViewer
+        open={authorViewer !== null && authorViewerPosts.length > 0}
+        posts={authorViewerPosts}
+        startIndex={authorStartIndex}
+        isOwner={authorViewer?.profileId === selectedProfile?._id}
+        likingId={likingId}
+        repostingId={repostingId}
+        onClose={() => setAuthorViewer(null)}
+        onToggleLike={handleToggleLike}
+        onToggleRepost={handleToggleRepost}
+        onOpenComments={(post) => setActivePost(post)}
+        onEdit={handleEditPost}
+        onDelete={handleDeletePost}
       />
     </MainLayout>
   );

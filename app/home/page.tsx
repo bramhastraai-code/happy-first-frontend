@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Flame, Calendar, Loader2, BarChart3, ListChecks, CalendarDays, Coins, Sparkles, Check, X, ChevronLeft, ChevronRight, ClipboardList, HelpCircle } from 'lucide-react';
+import { Trophy, Flame, Calendar, Loader2, BarChart3, ListChecks, CalendarDays, Coins, Sparkles, Check, X, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
 import { economyAPI, type EconomySummary } from '@/lib/api/economy';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { ChipTabs } from '@/components/ui/ChipTabs';
@@ -445,32 +445,26 @@ function HomePageContent() {
         />
 
         {selectedCategory ? (
-          <div className="flex items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary-soft/40 px-3 py-2">
-            <p className="text-xs font-medium text-foreground">
-              Showing <span className="font-semibold text-primary">{categoryLabel(selectedCategory)}</span>{' '}
-              activities & leaderboard
-            </p>
-            <button
-              type="button"
-              onClick={() => setSelectedCategory(null)}
-              className="shrink-0 text-xs font-semibold text-primary hover:underline"
-            >
-              Clear
-            </button>
-          </div>
-        ) : null}
-
-        <div className="log-today-cta flex gap-2">
-          <Button
+          <button
             type="button"
-            variant="outline"
-            className="h-11 flex-1 gap-2"
-            onClick={() => router.push('/tasks')}
+            onClick={() => setSelectedCategory(null)}
+            className="inline-flex max-w-full cursor-pointer items-center gap-2 rounded-full py-1 pr-1 text-left transition-colors hover:bg-primary-soft/70"
+            aria-label={`Clear ${categoryLabel(selectedCategory)} filter`}
           >
-            <ClipboardList className="h-4 w-4" />
-            Log today&apos;s activities
-          </Button>
-        </div>
+            <span className="text-sm leading-none" aria-hidden>
+              {ACTIVITY_CATEGORIES.find((row) => row.id === selectedCategory)?.emoji}
+            </span>
+            <span className="min-w-0 truncate text-xs">
+              <span className="font-semibold text-foreground">
+                {categoryLabel(selectedCategory)}
+              </span>
+              <span className="text-muted-foreground"> · activities & leaderboard</span>
+            </span>
+            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <X className="h-3.5 w-3.5" />
+            </span>
+          </button>
+        ) : null}
 
         <section className="my-happiness space-y-3">
           <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

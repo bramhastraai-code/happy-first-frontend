@@ -1,9 +1,7 @@
 'use client';
 
-import { Plus } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/authStore';
 import { AppPageHeader } from '@/components/ui/AppPageHeader';
-import { HeaderIconLink } from '@/components/ui/HeaderIconAction';
 import { firstNameFrom } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
 
@@ -30,14 +28,6 @@ export function CommunityTopBar({ className }: CommunityTopBarProps) {
       })}
       subtitleTone="label"
       avatarHref={profileHref}
-      actions={
-        <HeaderIconLink
-          href="/community/create"
-          className="community-create-btn"
-          icon={<Plus className="h-[18px] w-[18px]" />}
-          caption="Create"
-        />
-      }
     />
   );
 }

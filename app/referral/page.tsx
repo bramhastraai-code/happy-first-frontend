@@ -7,7 +7,6 @@ import {
   Copy,
   Mail,
   MessageCircle,
-  Share2,
   Check,
   Users,
   Coins,
@@ -18,13 +17,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { BRAND_NAME, getSiteUrl } from '@/lib/brand';
 import { CustomDropdown } from '@/components/ui/CustomDropdown';
 import { cn } from '@/lib/utils';
-
-const SHARE_OPTIONS = [
-  { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
-  { id: 'mail', label: 'Email', icon: Mail },
-  { id: 'facebook', label: 'Facebook', icon: Share2 },
-  { id: 'copy', label: 'Copy', icon: Copy },
-] as const;
 
 type MemberSort = 'newest' | 'oldest' | 'nameAsc';
 
@@ -238,56 +230,43 @@ export default function ReferralPage() {
 
         {/* Share */}
         <section className="section-card p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Your code
-          </p>
-          <p className="mt-1 font-mono text-3xl font-bold tracking-wider text-foreground">
-            {loading ? '…' : referralCode || '—'}
-          </p>
-
-          <Button
+          <h2 className="text-base font-semibold text-foreground">Your code</h2>
+          <button
+            type="button"
             onClick={() => void handleCopyLink()}
             disabled={!referralLink}
-            className="mt-4 w-full"
+            className="mt-3 flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-border bg-[#fafafa] px-3 py-3 text-left disabled:opacity-50"
           >
-            {copied ? (
-              <>
-                <Check className="mr-2 h-4 w-4" />
-                Copied
-              </>
-            ) : (
-              <>
-                <Copy className="mr-2 h-4 w-4" />
-                Copy invite link
-              </>
-            )}
-          </Button>
+            <span className="font-mono text-xl font-bold tracking-[0.18em] text-foreground">
+              {loading ? '…' : referralCode || '—'}
+            </span>
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? 'Copied' : 'Copy'}
+            </span>
+          </button>
 
-          <div className="mt-4 grid grid-cols-4 gap-2">
-            {SHARE_OPTIONS.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => handleShare(id)}
-                disabled={!referralLink}
-                className={cn(
-                  'flex flex-col items-center gap-1.5 rounded-xl border border-border px-1 py-2.5',
-                  'transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50'
-                )}
-              >
-                <Icon className="h-5 w-5 text-foreground" />
-                <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
-              </button>
-            ))}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleShare('whatsapp')}
+              disabled={!referralLink}
+              className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border text-sm font-semibold text-foreground disabled:opacity-50"
+            >
+              <MessageCircle className="h-4 w-4" />
+              WhatsApp
+            </button>
+            <button
+              type="button"
+              onClick={() => handleShare('mail')}
+              disabled={!referralLink}
+              className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border text-sm font-semibold text-foreground disabled:opacity-50"
+            >
+              <Mail className="h-4 w-4" />
+              Email
+            </button>
           </div>
         </section>
-
-        {/* Impact — only when there is data */}
-        {!loading && referralStats.insight?.message ? (
-          <p className="rounded-2xl border border-primary/20 bg-primary-soft/50 px-4 py-3 text-sm text-foreground">
-            {referralStats.insight.message}
-          </p>
-        ) : null}
 
         {!loading && impactRows.length > 0 ? (
           <section>
