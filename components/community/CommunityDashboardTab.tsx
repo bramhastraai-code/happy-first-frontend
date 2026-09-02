@@ -37,6 +37,8 @@ import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { LeaderboardRankBadge } from '@/components/leaderboard/LeaderboardRankBadge';
 import { hasUploadedProfileAvatar } from '@/lib/utils/avatar';
 import { useAuthStore } from '@/lib/store/authStore';
+import { MoodFace } from '@/components/mood/MoodFace';
+import { firstNameFrom } from '@/lib/utils/greeting';
 import { cn } from '@/lib/utils';
 
 interface CommunityDashboardTabProps {
@@ -47,8 +49,9 @@ interface CommunityDashboardTabProps {
   onAdminOpenHandled?: () => void;
 }
 
-const CONTRIBUTION_PAGE_SIZE = 5;
 const CONTRIBUTION_SEARCH_DEBOUNCE_MS = 280;
+
+const STAT_COLORS = ['#EA580C', '#6CBC5A', '#4DB6A8', '#E8A838'] as const;
 
 function formatValue(value: number, unit?: string | null) {
   const n = Number(value) || 0;
@@ -90,9 +93,11 @@ function ProgressBar({
 function ScoreRing({
   percent,
   size = 'md',
+  color,
 }: {
   percent: number;
   size?: 'md' | 'lg';
+  color?: string;
 }) {
   const value = Math.max(0, Number(percent) || 0);
   const capped = Math.min(value, 100);
@@ -101,8 +106,8 @@ function ScoreRing({
   const stroke = size === 'lg' ? 9 : 8;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (capped / 100) * circumference;
-  const over = value > 100;
   const center = view / 2;
+  const strokeColor = color || (value > 100 ? '#6CBC5A' : '#EA580C');
 
   return (
     <div
@@ -119,49 +124,41 @@ function ScoreRing({
           fill="none"
           stroke="currentColor"
           strokeWidth={stroke}
-          className="text-black/[0.06]"
+          className="text-black/[0.08]"
         />
         <circle
           cx={center}
           cy={center}
           r={radius}
           fill="none"
-          stroke="currentColor"
+          stroke={strokeColor}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          className={cn(
-            'transition-[stroke-dashoffset] duration-700 ease-out',
-            over ? 'text-emerald-500' : 'text-primary'
-          )}
+          className="transition-[stroke-dashoffset] duration-700 ease-out"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <p
           className={cn(
-            'font-bold tabular-nums leading-none tracking-tight text-foreground',
+            'font-serif font-semibold tabular-nums leading-none tracking-tight text-foreground',
             size === 'lg' ? 'text-2xl' : 'text-xl'
           )}
         >
           {Math.round(value)}%
         </p>
-        {size === 'lg' ? (
-          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Score
-          </p>
-        ) : null}
       </div>
     </div>
   );
 }
 
 function scoreMood(percent: number) {
-  if (percent >= 100) return { label: 'Target crushed', tone: 'text-emerald-700 bg-emerald-500/15' };
-  if (percent >= 70) return { label: 'Strong week', tone: 'text-primary bg-primary/15' };
-  if (percent >= 40) return { label: 'Building momentum', tone: 'text-amber-700 bg-amber-500/15' };
-  if (percent > 0) return { label: 'Getting started', tone: 'text-sky-700 bg-sky-500/15' };
-  return { label: 'Ready to begin', tone: 'text-muted-foreground bg-black/[0.04]' };
+  if (percent >= 100) return { label: 'rad', color: '#C6D63C', face: 'rad' as const };
+  if (percent >= 70) return { label: 'good', color: '#6CBC5A', face: 'good' as const };
+  if (percent >= 40) return { label: 'meh', color: '#4DB6A8', face: 'meh' as const };
+  if (percent > 0) return { label: 'bad', color: '#7E9AAB', face: 'bad' as const };
+  return { label: 'awful', color: '#6B5E56', face: 'awful' as const };
 }
 
 function formatCompactStat(value: number, unit?: string | null) {
@@ -188,17 +185,13 @@ function RankingRow({
   highlightYou?: boolean;
 }) {
   const isMe = String(row.profileId) === String(selectedProfileId);
-  const isTop3 = Boolean(showTopMedals && row.rank >= 1 && row.rank <= 3);
   const showUploadedPhoto = hasUploadedProfileAvatar(row.avatarUrl, row.avatarStyle);
 
   return (
     <li
       className={cn(
         'flex items-center gap-3 px-4 py-3',
-        highlightYou && 'bg-primary-soft/50',
-        !highlightYou && isTop3 && row.rank === 1 && 'bg-amber-50/60',
-        !highlightYou && isTop3 && row.rank === 2 && 'bg-slate-50/80',
-        !highlightYou && isTop3 && row.rank === 3 && 'bg-orange-50/50'
+        highlightYou && 'bg-primary-soft/40'
       )}
     >
       <LeaderboardRankBadge
@@ -282,8 +275,7 @@ function RankingList({
 }
 
 /**
- * Member contribution list with search + pagination (5/page).
- * On page 1, always includes the logged-in member even if their rank is outside the page.
+ * Member contribution list with search. Shows every matching member.
  */
 function MemberContributionList({
   ranking,
@@ -295,24 +287,20 @@ function MemberContributionList({
   ranking: CommunityLeaderboardRow[];
   selectedProfileId?: string | null;
   emptyLabel: string;
-  /** Reset page/search when week or activity filter changes */
   resetKey: string;
   loading?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
-  const [page, setPage] = useState(1);
 
   useEffect(() => {
     setQuery('');
     setDebounced('');
-    setPage(1);
   }, [resetKey]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebounced(query.trim());
-      setPage(1);
     }, CONTRIBUTION_SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [query]);
@@ -324,45 +312,21 @@ function MemberContributionList({
   }, [ranking, debounced]);
 
   const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / CONTRIBUTION_PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-
-  const pageItems = useMemo(() => {
-    const start = (currentPage - 1) * CONTRIBUTION_PAGE_SIZE;
-    return filtered.slice(start, start + CONTRIBUTION_PAGE_SIZE);
-  }, [filtered, currentPage]);
-
   const myRow = useMemo(() => {
     if (!selectedProfileId) return null;
     return ranking.find((row) => String(row.profileId) === String(selectedProfileId)) || null;
   }, [ranking, selectedProfileId]);
 
-  const myRowOnPage = pageItems.some(
-    (row) => String(row.profileId) === String(selectedProfileId)
-  );
-  const showPinnedYou =
-    currentPage === 1 && Boolean(myRow) && !myRowOnPage && !debounced;
-
-  // When searching, still surface "you" on page 1 if you match the query but aren't in the slice
-  const showPinnedYouWhileSearch =
-    currentPage === 1 &&
-    Boolean(myRow) &&
-    !myRowOnPage &&
-    Boolean(debounced) &&
-    filtered.some((row) => String(row.profileId) === String(selectedProfileId));
-
-  const pinnedYou = showPinnedYou || showPinnedYouWhileSearch ? myRow : null;
-
   return (
     <div>
-      <div className="border-b border-border px-4 py-3 sm:px-5">
+      <div className="px-4 pb-2 pt-3 sm:px-5">
         <label className="relative block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search members by name…"
-            className="h-11 w-full rounded-xl border border-input bg-secondary pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            placeholder="Search members…"
+            className="h-11 w-full rounded-none border border-[#dbdbdb] bg-[#fafafa] pl-10 pr-3 text-sm outline-none focus:border-neutral-400"
             inputMode="search"
           />
         </label>
@@ -380,7 +344,7 @@ function MemberContributionList({
       ) : (
         <>
           <ul className="divide-y divide-border">
-            {pageItems.map((row) => (
+            {filtered.map((row) => (
               <RankingRow
                 key={row.profileId}
                 row={row}
@@ -390,52 +354,52 @@ function MemberContributionList({
               />
             ))}
           </ul>
-
-          {pinnedYou ? (
-            <div className="border-t border-dashed border-border">
-              <p className="px-4 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:px-5">
-                Your rank
-              </p>
-              <ul>
-                <RankingRow
-                  row={pinnedYou}
-                  selectedProfileId={selectedProfileId}
-                  valueLabel="contribution"
-                  showTopMedals
-                  highlightYou
-                />
-              </ul>
-            </div>
-          ) : null}
-
-          <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3 sm:px-5">
-            <p className="text-[11px] text-muted-foreground">
-              Page {currentPage} of {totalPages} · {total} members
-              {myRow ? ` · you #${myRow.rank}` : ''}
-            </p>
-            <div className="flex items-center gap-1.5">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={currentPage <= 1}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-                aria-label="Previous page"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={currentPage >= totalPages}
-                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-                aria-label="Next page"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <p className="px-4 py-3 text-[11px] text-muted-foreground sm:px-5">
+            {total} {total === 1 ? 'member' : 'members'}
+            {myRow ? ` · you #${myRow.rank}` : ''}
+          </p>
         </>
       )}
+    </div>
+  );
+}
+
+function MembersStrip({
+  ranking,
+  selectedProfileId,
+}: {
+  ranking: CommunityLeaderboardRow[];
+  selectedProfileId?: string | null;
+}) {
+  if (ranking.length === 0) return null;
+
+  return (
+    <div className="-mx-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ul className="flex min-w-max gap-3 px-1">
+        {ranking.map((row) => {
+          const isMe = String(row.profileId) === String(selectedProfileId);
+          return (
+            <li key={row.profileId} className="w-[3.4rem] shrink-0">
+              <Link
+                href={`/feed/profile/${row.profileId}`}
+                className="flex flex-col items-center gap-1.5"
+              >
+                <ProfileAvatar
+                  name={row.name}
+                  avatarUrl={row.avatarUrl}
+                  avatarSeed={row.avatarSeed}
+                  avatarStyle={row.avatarStyle}
+                  size="md"
+                  className="!rounded-full"
+                />
+                <span className="w-full truncate text-center text-[11px] font-medium text-foreground">
+                  {isMe ? 'you' : firstNameFrom(row.name, 'Member')}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -453,8 +417,6 @@ export function CommunityDashboardTab({
   const [weekOffset, setWeekOffset] = useState(0);
   const [detailActivityId, setDetailActivityId] = useState<string | null>(null);
   const [contributionActivityId, setContributionActivityId] = useState<string>('overall');
-  const [activityProgressOpen, setActivityProgressOpen] = useState(false);
-  const [memberContributionOpen, setMemberContributionOpen] = useState(true);
   const [adminOpen, setAdminOpen] = useState(false);
   const [buddyMessage, setBuddyMessage] = useState<string | null>(null);
   const [buddyChatOpen, setBuddyChatOpen] = useState(false);
@@ -772,12 +734,7 @@ export function CommunityDashboardTab({
 
   return (
     <div className="space-y-4">
-      <div
-        className={cn(
-          'flex items-center gap-2 rounded-[1.35rem] border border-white/70',
-          'bg-white/70 px-2.5 py-2 shadow-sm backdrop-blur-xl'
-        )}
-      >
+      <div className="flex items-center gap-1">
         <Button
           size="icon"
           variant="ghost"
@@ -787,12 +744,12 @@ export function CommunityDashboardTab({
             setWeekOffset((v) => v - 1);
           }}
           aria-label="Previous week"
-          className="rounded-full"
+          className="text-primary"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-5 w-5" />
         </Button>
         <div className="min-w-0 flex-1 text-center">
-          <p className="truncate text-sm font-semibold text-foreground">
+          <p className="font-serif text-lg font-semibold leading-tight text-foreground">
             {weekLabel || 'This week'}
           </p>
           <p className="text-[11px] text-muted-foreground">
@@ -810,9 +767,9 @@ export function CommunityDashboardTab({
             setWeekOffset((v) => Math.min(0, v + 1));
           }}
           aria-label="Next week"
-          className="rounded-full"
+          className="text-primary"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-5 w-5" />
         </Button>
       </div>
 
@@ -840,9 +797,12 @@ export function CommunityDashboardTab({
       ) : null}
 
       {weekOffset === 0 ? (
-        <div className="section-card overflow-hidden p-4">
+        <div className="rounded-[1.5rem] border border-border bg-surface p-4 shadow-[var(--shadow-card)]">
           <div className="flex items-start gap-3">
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+            <span
+              className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white"
+              style={{ backgroundColor: '#E8A838' }}
+            >
               <HeartHandshake className="h-5 w-5" />
             </span>
             <div className="min-w-0 flex-1">
@@ -952,192 +912,130 @@ export function CommunityDashboardTab({
             const participationRate = Math.round(analytics?.participation.rate ?? 0);
             const stats = [
               {
-                label: 'Total target',
+                label: 'target',
                 value: formatCompactStat(analytics?.totalCommunityTarget ?? 0),
                 icon: Target,
               },
               {
-                label: 'Completed',
+                label: 'done',
                 value: formatCompactStat(
                   analytics?.totalCompleted ?? analytics?.totalValue ?? 0
                 ),
                 icon: Trophy,
               },
               {
-                label: 'Remaining',
+                label: 'left',
                 value: formatCompactStat(analytics?.remainingTarget ?? 0),
                 icon: ChartColumnIncreasing,
               },
               {
-                label: 'Avg / member',
+                label: 'avg',
                 value: `${Math.round(analytics?.averageProgressPerMember ?? 0)}%`,
                 icon: Users,
               },
             ] as const;
 
             return (
-              <div
-                className={cn(
-                  'relative overflow-hidden rounded-[1.75rem] border border-white/70',
-                  'bg-gradient-to-br from-white/90 via-primary-soft/50 to-sky-100/40',
-                  'p-5 shadow-[0_18px_50px_rgba(15,23,42,0.1)] backdrop-blur-xl'
-                )}
-              >
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-primary/20 blur-3xl"
-                />
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute -bottom-16 -left-8 h-44 w-44 rounded-full bg-sky-400/15 blur-3xl"
-                />
-
-                <div className="relative flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      Community details
+              <>
+                <section className="rounded-[1.5rem] border border-border bg-surface px-4 py-5 shadow-[var(--shadow-card)]">
+                  <h2 className="text-center font-serif text-xl font-semibold leading-tight text-foreground">
+                    How&apos;s the week going?
+                  </h2>
+                  <div className="mt-4 flex flex-col items-center">
+                    <span
+                      className="inline-flex h-14 w-14 items-center justify-center rounded-full"
+                      style={{ backgroundColor: mood.color }}
+                    >
+                      <MoodFace kind={mood.face} className="h-9 w-9" />
+                    </span>
+                    <p
+                      className="mt-1.5 text-xs font-medium capitalize"
+                      style={{ color: mood.color }}
+                    >
+                      {mood.label}
                     </p>
-                    <h2 className="mt-1 text-lg font-bold tracking-tight text-foreground">
-                      Overall community score
+                    <div className="mt-3">
+                      <ScoreRing percent={overallScore} size="lg" color={mood.color} />
+                    </div>
+                    <p className="mt-3 text-center text-xs text-muted-foreground">
+                      {membersLogged}/{memberCount} members logged · {participationRate}%
+                      participation
+                    </p>
+                  </div>
+                  <div className="mt-5 grid grid-cols-4 gap-2">
+                    {stats.map((stat, index) => {
+                      const Icon = stat.icon;
+                      return (
+                        <div key={stat.label} className="flex flex-col items-center gap-1.5">
+                          <span
+                            className="inline-flex h-12 w-12 items-center justify-center rounded-full text-white"
+                            style={{ backgroundColor: STAT_COLORS[index] }}
+                          >
+                            <Icon className="h-5 w-5" strokeWidth={2} />
+                          </span>
+                          <span className="text-[11px] font-medium capitalize text-foreground">
+                            {stat.label}
+                          </span>
+                          <span className="text-xs font-semibold tabular-nums text-foreground">
+                            {stat.value}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section className="overflow-hidden rounded-[1.5rem] border border-border bg-surface shadow-[var(--shadow-card)]">
+                  <div className="px-4 pt-4 sm:px-5">
+                    <h2 className="font-serif text-lg font-semibold leading-tight text-foreground">
+                      Everyone
                     </h2>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {weekLabel || 'This week'}
+                      {contributionSubtitle}
                     </p>
-                  </div>
-                  <span
-                    className={cn(
-                      'inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold',
-                      mood.tone
-                    )}
-                  >
-                    {mood.label}
-                  </span>
-                </div>
-
-                <div className="relative mt-5 flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
-                  <div
-                    className={cn(
-                      'relative rounded-[1.5rem] border border-white/80 bg-white/70 p-3',
-                      'shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md'
-                    )}
-                  >
-                    <ScoreRing percent={overallScore} size="lg" />
-                  </div>
-
-                  <div className="min-w-0 flex-1 space-y-4">
-                    <p className="text-center text-[12px] leading-relaxed text-muted-foreground sm:text-left">
-                      Average activity completion vs community weekly targets
-                    </p>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2 text-[11px] font-medium">
-                        <span className="text-muted-foreground">Weekly progress</span>
-                        <span className="tabular-nums text-foreground">
-                          {Math.round(overallScore)}%
-                        </span>
-                      </div>
-                      <ProgressBar percent={overallScore} size="lg" />
+                    <div className="mt-3">
+                      <MembersStrip
+                        ranking={contributionRanking}
+                        selectedProfileId={selectedProfile?._id}
+                      />
                     </div>
-
-                    <div
-                      className={cn(
-                        'flex items-center gap-3 rounded-2xl border border-white/80 bg-white/65 px-3.5 py-3',
-                        'shadow-sm backdrop-blur-md'
-                      )}
-                    >
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
-                        <Users className="h-[18px] w-[18px]" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Participation
-                        </p>
-                        <p className="text-sm font-semibold text-foreground">
-                          {membersLogged}/{memberCount} members logged
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-xl font-bold tabular-nums text-primary">
-                        {participationRate}%
-                      </p>
+                    <div className="mt-3">
+                      <CustomDropdown
+                        value={contributionActivityId}
+                        options={contributionFilterOptions}
+                        disabled={weekViewQuery.isFetching || contributionFilterOptions.length <= 1}
+                        onChange={(value) => setContributionActivityId(value)}
+                      />
                     </div>
                   </div>
-                </div>
-
-                <div className="relative mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                  {stats.map((stat) => {
-                    const Icon = stat.icon;
-                    return (
-                      <div
-                        key={stat.label}
-                        className={cn(
-                          'rounded-2xl border border-white/80 bg-white/65 px-3 py-3',
-                          'shadow-sm backdrop-blur-md transition hover:bg-white/85'
-                        )}
-                      >
-                        <div className="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <Icon className="h-3.5 w-3.5" />
-                        </div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          {stat.label}
-                        </p>
-                        <p className="mt-1 text-base font-bold tabular-nums tracking-tight text-foreground">
-                          {stat.value}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <p className="relative mt-4 text-center text-[11px] text-muted-foreground sm:text-left">
-                  {analytics?.participation.label ||
-                    `${membersLogged}/${memberCount} members logged this week`}
-                </p>
-              </div>
+                  <MemberContributionList
+                    ranking={contributionRanking}
+                    selectedProfileId={selectedProfile?._id}
+                    resetKey={`${weekOffset}:${contributionActivityId}`}
+                    loading={
+                      contributionActivityId === 'overall' &&
+                      (membersFallbackQuery.isLoading ||
+                        (membersFallbackQuery.isFetching && contributionRanking.length === 0))
+                    }
+                    emptyLabel={
+                      contributionActivityId === 'overall'
+                        ? 'No active members to show yet.'
+                        : 'No logs for this activity yet.'
+                    }
+                  />
+                </section>
+              </>
             );
           })()}
 
-          <CollapsibleSection
-            title="Member contribution"
-            subtitle={contributionSubtitle}
-            icon={Trophy}
-            expanded={memberContributionOpen}
-            onToggle={() => setMemberContributionOpen((value) => !value)}
-            overflowVisible
-            contentClassName="!space-y-0 !px-0 !pb-0 !pt-0"
-          >
-            <div className="space-y-3 border-b border-border px-4 py-3 sm:px-5">
-              <CustomDropdown
-                value={contributionActivityId}
-                options={contributionFilterOptions}
-                disabled={weekViewQuery.isFetching || contributionFilterOptions.length <= 1}
-                onChange={(value) => setContributionActivityId(value)}
-              />
-            </div>
-            <MemberContributionList
-              ranking={contributionRanking}
-              selectedProfileId={selectedProfile?._id}
-              resetKey={`${weekOffset}:${contributionActivityId}`}
-              loading={
-                contributionActivityId === 'overall' &&
-                (membersFallbackQuery.isLoading ||
-                  (membersFallbackQuery.isFetching && contributionRanking.length === 0))
-              }
-              emptyLabel={
-                contributionActivityId === 'overall'
-                  ? 'No active members to show yet.'
-                  : 'No logs for this activity yet.'
-              }
-            />
-          </CollapsibleSection>
-
           {aiSummary?.text ? (
-            <div className="section-card space-y-3 p-4">
+            <div className="rounded-[1.5rem] border border-border bg-surface p-4 shadow-[var(--shadow-card)]">
               <div>
-                <p className="text-xs font-medium text-muted-foreground">Monday community summary</p>
-                <p className="mt-1 text-sm leading-relaxed text-foreground">{aiSummary.text}</p>
+                <p className="font-serif text-lg font-semibold text-foreground">This week</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{aiSummary.text}</p>
               </div>
               {aiSummary.highlights?.length ? (
-                <ul className="space-y-1.5">
+                <ul className="mt-3 space-y-1.5">
                   {aiSummary.highlights.map((h) => (
                     <li key={h} className="text-xs text-muted-foreground">
                       · {h}
@@ -1146,10 +1044,8 @@ export function CommunityDashboardTab({
                 </ul>
               ) : null}
               {aiSummary.recommendations?.length ? (
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Recommendations
-                  </p>
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-foreground">Recommendations</p>
                   <ul className="mt-1.5 space-y-1.5">
                     {aiSummary.recommendations.map((r) => (
                       <li key={r} className="text-xs text-foreground/90">
@@ -1162,14 +1058,15 @@ export function CommunityDashboardTab({
             </div>
           ) : null}
 
-          <CollapsibleSection
-            title="Activity progress"
-            subtitle="Logged vs community weekly targets · tap to expand"
-            icon={ChartColumnIncreasing}
-            expanded={activityProgressOpen}
-            onToggle={() => setActivityProgressOpen((value) => !value)}
-            contentClassName="!space-y-0 !px-0 !pb-0 !pt-0"
-          >
+          <section className="overflow-hidden rounded-[1.5rem] border border-border bg-surface shadow-[var(--shadow-card)]">
+            <div className="px-4 py-4 sm:px-5">
+              <h2 className="font-serif text-lg font-semibold leading-tight text-foreground">
+                Activities
+              </h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Logged vs community weekly targets · tap for members
+              </p>
+            </div>
             {activityProgressRows.length ? (
               <ul className="divide-y divide-border">
                 {activityProgressRows.map((activity) => {
@@ -1204,7 +1101,7 @@ export function CommunityDashboardTab({
                               </span>
                             </p>
                           </div>
-                          <p className="shrink-0 text-sm font-bold tabular-nums text-foreground">
+                          <p className="shrink-0 font-serif text-lg font-semibold tabular-nums text-foreground">
                             {Math.round(activity.progressPercent)}%
                           </p>
                         </div>
@@ -1222,7 +1119,7 @@ export function CommunityDashboardTab({
                 No community activities configured.
               </p>
             )}
-          </CollapsibleSection>
+          </section>
         </>
       )}
 

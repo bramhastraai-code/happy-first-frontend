@@ -176,19 +176,19 @@ export function GlobalSearch() {
     <div ref={containerRef} className="home-search relative space-y-2">
       <div className="flex items-center gap-2">
         <label className="relative block min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onFocus={() => setOpen(true)}
-            placeholder="Search people, communities, events, tasks…"
+            placeholder="Search…"
             className={cn(
-              'h-11 w-full rounded-xl border border-border bg-surface pl-10 pr-9 text-sm text-foreground shadow-sm',
-              'placeholder:text-muted-foreground outline-none',
-              'focus:border-primary/40 focus:ring-2 focus:ring-primary/20'
+              'h-11 w-full truncate rounded-none border border-[#dbdbdb] bg-[#fafafa] pl-10 pr-9 text-sm text-foreground',
+              'placeholder:truncate placeholder:text-muted-foreground outline-none',
+              'focus:border-neutral-400 focus:ring-0'
             )}
             inputMode="search"
-            aria-label="Global search"
+            aria-label="Search people, communities, events, and tasks"
           />
           {query && (
             <button
@@ -206,11 +206,11 @@ export function GlobalSearch() {
         </label>
         <Link
           href="/feed/explore"
-          className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 active:scale-[0.98]"
+          className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-none bg-primary px-3 text-sm font-semibold text-primary-foreground transition hover:opacity-95 active:scale-[0.98] sm:px-3.5"
           aria-label="Find people"
         >
           <UserSearch className="h-4 w-4" />
-          <span>People</span>
+          <span className="hidden sm:inline">People</span>
         </Link>
       </div>
 

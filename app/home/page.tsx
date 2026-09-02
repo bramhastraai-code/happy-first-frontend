@@ -30,6 +30,7 @@ import { HomeMotivationCard } from '@/components/home/HomeMotivationCard';
 import { HomeSocialPreview } from '@/components/home/HomeSocialPreview';
 import { HomeCommunityPreview } from '@/components/home/HomeCommunityPreview';
 import { HomeNoPlanHub } from '@/components/home/HomeNoPlanHub';
+import { HomeMoodCard } from '@/components/mood/HomeMoodCard';
 import { WeekendPlanPromptModal } from '@/components/plan/WeekendPlanPromptModal';
 import { CommunityInvitePromptCard } from '@/components/community/CommunityInvitePromptCard';
 import { weeklyPlanAPI, type PlanChoiceState } from '@/lib/api/weeklyPlan';
@@ -470,6 +471,11 @@ function HomePageContent() {
           <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             My happiness
           </p>
+
+          <HomeMoodCard
+            profileId={selectedProfile?._id}
+            suppressed={runTour || Boolean(weekendPrompt?.show)}
+          />
 
           {isRefreshing && (
             <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">

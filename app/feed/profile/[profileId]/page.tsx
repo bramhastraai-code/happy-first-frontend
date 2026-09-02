@@ -17,7 +17,6 @@ import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { ProfilePostViewer } from '@/components/feed/ProfilePostViewer';
 import { ProfileEditSheet } from '@/components/feed/ProfileEditSheet';
-import { ProfileDailyMood } from '@/components/mood/ProfileDailyMood';
 import ReferralPromoCard from '@/components/profile/ReferralPromoCard';
 import { followAPI } from '@/lib/api/follow';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
@@ -243,15 +242,12 @@ export default function FeedProfilePage() {
             {/* Instagram-style profile header */}
             <section className="px-1 pt-1">
               <div className="flex items-start gap-6 sm:gap-10">
-                <div className="flex shrink-0 flex-col items-center gap-2">
+                <div className="flex shrink-0 flex-col items-center">
                   <ProfilePhotoButton
                     profile={data.profile}
                     canEdit={isMe}
                     sizeClassName="h-[86px] w-[86px] text-2xl ring-1 ring-border sm:h-24 sm:w-24"
                   />
-                  {isMe ? (
-                    <ProfileDailyMood profileId={profileId} isOwnProfile className="max-w-[7.5rem]" />
-                  ) : null}
                 </div>
                 <div className="grid min-w-0 flex-1 grid-cols-3 gap-1 text-center">
                   <div className="py-1">
@@ -284,16 +280,7 @@ export default function FeedProfilePage() {
               </div>
 
               <div className="mt-3 space-y-1">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <h1 className="text-sm font-semibold text-foreground">{data.profile.name}</h1>
-                  {!isMe && data.dailyMood ? (
-                    <ProfileDailyMood
-                      profileId={profileId}
-                      visibleMood={data.dailyMood}
-                      isOwnProfile={false}
-                    />
-                  ) : null}
-                </div>
+                <h1 className="text-sm font-semibold text-foreground">{data.profile.name}</h1>
                 {data.profile.city ? (
                   <p className="text-xs text-muted-foreground">{data.profile.city}</p>
                 ) : null}

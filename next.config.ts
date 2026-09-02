@@ -12,7 +12,7 @@ const securityHeaders = [
   // Don't leak full URLs (which can contain tokens/ids) to other origins.
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   // Only allow the browser features the app actually uses (tracker + photos).
-  { key: 'Permissions-Policy', value: 'geolocation=(self), camera=(self), microphone=()' },
+  { key: 'Permissions-Policy', value: 'geolocation=(self), camera=(self), microphone=(self)' },
   // Force HTTPS for a year once visited over HTTPS.
   { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
 ];

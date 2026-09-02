@@ -89,13 +89,10 @@ export function CommunityGroupsBadgesTab({
         <div className="border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-semibold text-foreground">Groups</p>
-              <p className="text-xs text-muted-foreground">
-                Apartments, departments, or teams within this community. Ask an admin if you need a
-                new group.
-              </p>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Apartments, departments, or teams within this community. Ask an admin if you need a
+              new group.
+            </p>
           </div>
         </div>
 

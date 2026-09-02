@@ -121,7 +121,6 @@ export function CommunityAnnouncementsTab({
 
       <div className="section-card overflow-hidden">
         <div className="border-b border-border px-4 py-3">
-          <p className="text-sm font-semibold text-foreground">Announcements</p>
           <p className="text-xs text-muted-foreground">
             Updates from admins and moderators
           </p>

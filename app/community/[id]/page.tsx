@@ -15,13 +15,13 @@ import {
   Users,
 } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
-import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
 import {
-  AppPageHeader,
+  headerActionBtnClass,
   headerBackBtnClass,
+  pageStickyHeaderClass,
 } from '@/components/ui/AppPageHeader';
-import { HeaderIconButton, HeaderIconLink, HeaderOverflowMenu, type HeaderOverflowItem } from '@/components/ui/HeaderIconAction';
+import { HeaderOverflowMenu, type HeaderOverflowItem } from '@/components/ui/HeaderIconAction';
 import { NotificationBell } from '@/components/feed/NotificationBell';
 import { CommunityDashboardTab } from '@/components/community/CommunityDashboardTab';
 import { CommunityChatTab } from '@/components/community/CommunityChatTab';
@@ -34,9 +34,16 @@ import { CommunityAppreciationTab } from '@/components/community/CommunityApprec
 import { CommunityAvatar } from '@/components/community/CommunityAvatarPicker';
 import { CommunityAboutMediaGallery } from '@/components/community/CommunityAboutMediaGallery';
 import { CommunityShareDialog } from '@/components/community/CommunityShareDialog';
+import {
+  COMMUNITY_SECTION_TITLES,
+  CommunityHubShortcuts,
+  type CommunityHubSection,
+} from '@/components/community/CommunityHubShortcuts';
 import { useCommunityConfirm } from '@/components/community/useCommunityConfirm';
 import { communityAPI, communityTypeLabel } from '@/lib/api/community';
 import { useAuthStore } from '@/lib/store/authStore';
+
+type CommunityPageTab = 'dashboard' | Exclude<CommunityHubSection, 'chat'>;
 
 function apiErrorMessage(err: unknown, fallback: string) {
   return (
@@ -64,7 +71,7 @@ export default function CommunityDetailPage() {
   const queryClient = useQueryClient();
   const { requestConfirm, ConfirmDialogElement } = useCommunityConfirm();
   const { selectedProfile } = useAuthStore();
-  const [tab, setTab] = useState('dashboard');
+  const [tab, setTab] = useState<CommunityPageTab>('dashboard');
   const [openAdminControls, setOpenAdminControls] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -237,6 +244,45 @@ export default function CommunityDetailPage() {
   const createdOnLabel = formatCreatedOn(overview?.createdOn || community?.createdAt);
 
   const overflowItems: HeaderOverflowItem[] = [];
+  if (
+    !isDeleted &&
+    !isDisabled &&
+    (isMember || community?.type === 'invite_only' || community?.type === 'public')
+  ) {
+    overflowItems.push({
+      id: 'share',
+      label: 'Share',
+      icon: <Share2 />,
+      onClick: () => setShareOpen(true),
+    });
+  }
+  if (isAdmin && !isDeleted && !isDisabled) {
+    overflowItems.push({
+      id: 'activities',
+      label: 'Activities',
+      icon: <Pencil />,
+      href: `/community/${communityId}/edit`,
+    });
+    overflowItems.push({
+      id: 'admin',
+      label: 'Admin',
+      icon: <Settings2 />,
+      onClick: () => {
+        setTab('dashboard');
+        setOpenAdminControls(true);
+      },
+    });
+  }
+  if (isMember && !isDeleted && !isDisabled) {
+    overflowItems.push({
+      id: 'leave',
+      label: leaveBusy ? 'Leaving…' : 'Leave',
+      icon: leaveBusy ? <Loader2 className="animate-spin" /> : <DoorOpen />,
+      danger: true,
+      disabled: leaveBusy,
+      onClick: requestLeave,
+    });
+  }
   if (isAdmin && !isDeleted && !isDisabled) {
     overflowItems.push({
       id: 'delete',
@@ -248,119 +294,96 @@ export default function CommunityDetailPage() {
     });
   }
 
+  const roleLabel = isAdmin
+    ? 'Admin'
+    : isModerator
+      ? 'Moderator'
+      : isMember
+        ? 'Member'
+        : isPending
+          ? 'Request pending'
+          : community
+            ? communityTypeLabel(community.type)
+            : '';
+
+  const goHome = () => setTab('dashboard');
+
+  const openHubSection = (id: CommunityHubSection) => {
+    if (id === 'chat') {
+      setChatOpen(true);
+      return;
+    }
+    setTab(id);
+  };
+
   return (
     <MainLayout hideBottomNav={chatOpen}>
       <div className="space-y-4">
-        <AppPageHeader
-          showAvatar={false}
-          actionsPlacement="stack"
-          leading={
-            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        <header className={pageStickyHeaderClass}>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {tab === 'dashboard' ? (
               <Link href="/community" className={`${headerBackBtnClass} -ml-1.5`} aria-label="Back">
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-6 w-6" />
               </Link>
-              {community ? (
-                <CommunityAvatar
-                  name={community.name}
-                  icon={community.icon}
-                  avatarUrl={community.avatarUrl}
-                  avatarSeed={community.avatarSeed}
-                  avatarStyle={community.avatarStyle}
-                  size="sm"
-                  className="!h-10 !w-10 !rounded-2xl sm:!h-12 sm:!w-12"
-                />
-              ) : null}
-            </div>
-          }
-          title={
-            communityQuery.isLoading ? (
-              <span className="inline-flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading…
-              </span>
-            ) : community ? (
-              community.name
             ) : (
-              <span className="text-destructive">Community not found</span>
-            )
-          }
-          meta={
-            community ? (
-              <span className="inline-flex min-w-0 items-center gap-1 text-[11px] leading-snug text-muted-foreground sm:text-xs">
-                <span className="shrink-0">{communityTypeLabel(community.type)}</span>
-                <span aria-hidden className="shrink-0">
-                  ·
-                </span>
-                <Users className="h-3 w-3 shrink-0" />
-                <span>
-                  {community.memberCount}{' '}
-                  {community.memberCount === 1 ? 'member' : 'members'}
-                  {isAdmin
-                    ? ' · Admin'
-                    : isModerator
-                      ? ' · Moderator'
-                      : isMember
-                        ? ' · Member'
-                        : isPending
-                          ? ' · Request pending'
-                          : ''}
-                  {community.pendingDisableAt
-                    ? ` · Disables ${formatCreatedOn(community.pendingDisableAt) || 'soon'}`
-                    : ''}
-                </span>
-              </span>
-            ) : null
-          }
-          actions={
-            <>
-              {isMember ? <NotificationBell caption="Alerts" /> : null}
-              {isAdmin && !isDeleted && !isDisabled ? (
+              <button
+                type="button"
+                onClick={goHome}
+                className={`${headerBackBtnClass} -ml-1.5 text-primary`}
+                aria-label="Back to community"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+            )}
+            {tab === 'dashboard' && community ? (
+              <CommunityAvatar
+                name={community.name}
+                icon={community.icon}
+                avatarUrl={community.avatarUrl}
+                avatarSeed={community.avatarSeed}
+                avatarStyle={community.avatarStyle}
+                size="sm"
+                className="!h-10 !w-10 !rounded-full"
+              />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              {communityQuery.isLoading ? (
+                <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading…
+                </p>
+              ) : tab !== 'dashboard' ? (
+                <h1 className="font-serif text-lg font-semibold leading-tight text-foreground">
+                  {COMMUNITY_SECTION_TITLES[tab]}
+                </h1>
+              ) : community ? (
                 <>
-                  <HeaderIconLink
-                    href={`/community/${communityId}/edit`}
-                    icon={<Pencil className="h-[18px] w-[18px]" />}
-                    caption="Activities"
-                  />
-                  <HeaderIconButton
-                    icon={<Settings2 className="h-[18px] w-[18px]" />}
-                    caption="Admin"
-                    onClick={() => {
-                      setTab('dashboard');
-                      setOpenAdminControls(true);
-                    }}
-                  />
+                  <h1 className="font-serif text-[15px] font-semibold leading-tight text-foreground sm:text-lg">
+                    {community.name}
+                  </h1>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {community.memberCount}{' '}
+                    {community.memberCount === 1 ? 'member' : 'members'}
+                    {roleLabel ? ` · ${roleLabel}` : ''}
+                    {community.pendingDisableAt
+                      ? ` · Disables ${formatCreatedOn(community.pendingDisableAt) || 'soon'}`
+                      : ''}
+                  </p>
                 </>
-              ) : null}
-              {isMember && !isDeleted && !isDisabled ? (
-                <HeaderIconButton
-                  icon={
-                    leaveBusy ? (
-                      <Loader2 className="h-[18px] w-[18px] animate-spin" />
-                    ) : (
-                      <DoorOpen className="h-[18px] w-[18px]" />
-                    )
-                  }
-                  caption={leaveBusy ? 'Leaving…' : 'Leave'}
-                  danger
-                  disabled={leaveBusy}
-                  onClick={requestLeave}
-                />
-              ) : null}
-              {!isDeleted &&
-              !isDisabled &&
-              (isMember ||
-                community?.type === 'invite_only' ||
-                community?.type === 'public') ? (
-                <HeaderIconButton
-                  icon={<Share2 className="h-[18px] w-[18px]" />}
-                  caption="Share"
-                  onClick={() => setShareOpen(true)}
-                />
-              ) : null}
-              {overflowItems.length ? <HeaderOverflowMenu items={overflowItems} /> : null}
-            </>
-          }
-        />
+              ) : (
+                <h1 className="font-serif text-[15px] font-semibold text-destructive">
+                  Community not found
+                </h1>
+              )}
+            </div>
+            {isMember ? (
+              <NotificationBell triggerClassName={`${headerActionBtnClass} relative`} />
+            ) : null}
+            {overflowItems.length ? (
+              <HeaderOverflowMenu items={overflowItems} iconOnly />
+            ) : null}
+          </div>
+        </header>
 
         {leaveError && !soleAdminOpen ? (
           <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -405,76 +428,71 @@ export default function CommunityDetailPage() {
 
         {!community ? null : isMember ? (
           <>
-            <ChipTabs
-              tabs={[
-                { id: 'dashboard', label: 'Dashboard' },
-                { id: 'members', label: 'Members' },
-                { id: 'feed', label: 'Feed' },
-                { id: 'announcements', label: 'News' },
-                { id: 'chat', label: 'Chat' },
-                { id: 'kudos', label: 'Kudos' },
-                { id: 'groups', label: 'Groups' },
-                { id: 'calendar', label: 'Calendar' },
-              ]}
-              active={tab}
-              onChange={(id) => {
-                if (id === 'chat') {
-                  setChatOpen(true);
-                  return;
-                }
-                setTab(id);
-              }}
-            />
-
             {tab === 'dashboard' ? (
-              <CommunityDashboardTab
-                communityId={communityId}
-                community={community}
-                isAdmin={Boolean(isAdmin)}
-                openAdminOnMount={openAdminControls}
-                onAdminOpenHandled={() => setOpenAdminControls(false)}
-              />
-            ) : null}
-            {tab === 'members' ? (
-              <CommunityMembersTab
-                communityId={communityId}
-                community={community}
-                isAdmin={Boolean(isAdmin)}
-                isModerator={Boolean(isModerator || isAdmin)}
-                canInvite={Boolean(canInvite)}
-                onRequestLeave={requestLeave}
-                leaveBusy={leaveBusy}
-              />
-            ) : null}
-            {tab === 'feed' ? <CommunityFeedTab communityId={communityId} /> : null}
-            {tab === 'announcements' ? (
-              <CommunityAnnouncementsTab
-                communityId={communityId}
-                isModerator={Boolean(isModerator || isAdmin)}
-              />
-            ) : null}
-            {tab === 'kudos' ? (
-              <CommunityAppreciationTab communityId={communityId} />
-            ) : null}
-            {tab === 'groups' ? (
-              <CommunityGroupsBadgesTab
-                communityId={communityId}
-                isAdmin={Boolean(isAdmin)}
-              />
-            ) : null}
-            {tab === 'calendar' ? (
-              <CommunityCalendarTab
-                communityId={communityId}
-                isModerator={Boolean(isModerator || isAdmin)}
-              />
-            ) : null}
+              <>
+                {!isDeleted && !isDisabled ? (
+                  <CommunityHubShortcuts onSelect={openHubSection} />
+                ) : null}
+                <CommunityDashboardTab
+                  communityId={communityId}
+                  community={community}
+                  isAdmin={Boolean(isAdmin)}
+                  openAdminOnMount={openAdminControls}
+                  onAdminOpenHandled={() => setOpenAdminControls(false)}
+                />
+              </>
+            ) : (
+              <>
+                {tab === 'members' ? (
+                  <CommunityMembersTab
+                    communityId={communityId}
+                    community={community}
+                    isAdmin={Boolean(isAdmin)}
+                    isModerator={Boolean(isModerator || isAdmin)}
+                    canInvite={Boolean(canInvite)}
+                    onRequestLeave={requestLeave}
+                    leaveBusy={leaveBusy}
+                  />
+                ) : null}
+                {tab === 'feed' ? <CommunityFeedTab communityId={communityId} /> : null}
+                {tab === 'announcements' ? (
+                  <CommunityAnnouncementsTab
+                    communityId={communityId}
+                    isModerator={Boolean(isModerator || isAdmin)}
+                  />
+                ) : null}
+                {tab === 'kudos' ? (
+                  <CommunityAppreciationTab communityId={communityId} />
+                ) : null}
+                {tab === 'groups' ? (
+                  <CommunityGroupsBadgesTab
+                    communityId={communityId}
+                    isAdmin={Boolean(isAdmin)}
+                  />
+                ) : null}
+                {tab === 'calendar' ? (
+                  <CommunityCalendarTab
+                    communityId={communityId}
+                    isModerator={Boolean(isModerator || isAdmin)}
+                  />
+                ) : null}
+              </>
+            )}
           </>
         ) : (
           <div className="space-y-4">
             {isPending ? (
-              <div className="section-card space-y-3 p-5 text-center">
-                <p className="text-sm font-semibold text-foreground">Request pending</p>
-                <p className="text-sm text-muted-foreground">
+              <div className="rounded-[1.5rem] border border-border bg-surface px-5 py-8 text-center shadow-[var(--shadow-card)]">
+                <span
+                  className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full text-white"
+                  style={{ backgroundColor: '#E8A838' }}
+                >
+                  <Users className="h-6 w-6" />
+                </span>
+                <p className="mt-4 font-serif text-xl font-semibold text-foreground">
+                  Request pending
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   An admin or moderator needs to approve your request before you can access this
                   community.
                 </p>
@@ -486,62 +504,67 @@ export default function CommunityDetailPage() {
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
-                  <div className="section-card space-y-4 p-5">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">About this community</p>
+                  <div className="space-y-3">
+                    <div className="rounded-[1.5rem] border border-border bg-surface px-5 py-5 shadow-[var(--shadow-card)]">
+                      <p className="font-serif text-lg font-semibold text-foreground">
+                        About this community
+                      </p>
                       {createdOnLabel ? (
                         <p className="mt-1 text-xs text-muted-foreground">
                           Created {createdOnLabel}
                         </p>
                       ) : null}
+                      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                        {overview?.description ||
+                          community.description ||
+                          'Join to see the dashboard, chat, and members.'}
+                      </p>
                     </div>
-                    <p className="text-sm leading-relaxed text-muted-foreground">
-                      {overview?.description ||
-                        community.description ||
-                        'Join to see the dashboard, chat, and members.'}
-                    </p>
-                    <p className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
-                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                      {overview?.memberCount ?? community.memberCount} members
-                    </p>
 
                     {(overview?.aboutMedia?.length || community.aboutMedia?.length) ? (
-                      <CommunityAboutMediaGallery
-                        items={overview?.aboutMedia || community.aboutMedia || []}
-                      />
+                      <div className="rounded-[1.5rem] border border-border bg-surface p-4 shadow-[var(--shadow-card)]">
+                        <CommunityAboutMediaGallery
+                          items={overview?.aboutMedia || community.aboutMedia || []}
+                        />
+                      </div>
                     ) : null}
 
                     {(overview?.activitiesTracked?.length || community.activities?.length) ? (
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <div className="rounded-[1.5rem] border border-border bg-surface p-4 shadow-[var(--shadow-card)]">
+                        <p className="font-serif text-lg font-semibold text-foreground">
                           Activities
                         </p>
-                        <ul className="mt-2 flex flex-wrap gap-1.5">
+                        <ul className="mt-3 grid grid-cols-3 gap-x-2 gap-y-4">
                           {(overview?.activitiesTracked ||
                             community.activities.map((a) => ({
                               id: a.id,
                               name: a.name,
                               unit: a.baseUnit || '',
                             }))
-                          ).map((a) => (
-                            <li
-                              key={a.id}
-                              className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-foreground"
-                            >
-                              {a.name}
-                              {a.unit ? ` · ${a.unit}` : ''}
-                            </li>
-                          ))}
+                          ).map((a, index) => {
+                            const colors = ['#6CBC5A', '#4DB6A8', '#C6D63C', '#EA580C', '#7E9AAB', '#E8A838'];
+                            return (
+                              <li key={a.id} className="flex flex-col items-center gap-1.5 text-center">
+                                <span
+                                  className="inline-flex h-12 w-12 items-center justify-center rounded-full text-[13px] font-semibold text-white"
+                                  style={{ backgroundColor: colors[index % colors.length] }}
+                                >
+                                  {a.name.slice(0, 1).toUpperCase()}
+                                </span>
+                                <span className="text-[11px] font-medium leading-tight text-foreground">
+                                  {a.name}
+                                </span>
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
                     ) : null}
 
                     {overview?.weeklyTotals?.length ? (
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          This week
-                        </p>
-                        <ul className="mt-2 space-y-1.5">
+                      <div className="rounded-[1.5rem] border border-border bg-surface p-4 shadow-[var(--shadow-card)]">
+                        <p className="font-serif text-lg font-semibold text-foreground">This week</p>
+                        <ul className="mt-3 space-y-2">
                           {overview.weeklyTotals.map((row) => (
                             <li
                               key={row.activityId}
@@ -559,11 +582,9 @@ export default function CommunityDetailPage() {
                     ) : null}
 
                     {overview?.overallTotals?.length ? (
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Overall
-                        </p>
-                        <ul className="mt-2 space-y-1.5">
+                      <div className="rounded-[1.5rem] border border-border bg-surface p-4 shadow-[var(--shadow-card)]">
+                        <p className="font-serif text-lg font-semibold text-foreground">Overall</p>
+                        <ul className="mt-3 space-y-2">
                           {overview.overallTotals.map((row) => (
                             <li
                               key={row.activityId}
@@ -581,8 +602,8 @@ export default function CommunityDetailPage() {
                     ) : null}
 
                     {(overview?.whyJoin?.text || community.joinWhyAi?.text) ? (
-                      <div className="rounded-xl bg-primary-soft/60 px-3 py-3">
-                        <p className="text-xs font-semibold text-foreground">Why join</p>
+                      <div className="rounded-[1.5rem] bg-primary-soft/70 px-4 py-4">
+                        <p className="font-serif text-lg font-semibold text-foreground">Why join</p>
                         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                           {overview?.whyJoin?.text || community.joinWhyAi?.text}
                         </p>
@@ -593,19 +614,21 @@ export default function CommunityDetailPage() {
 
                 {community.type !== 'private' ? (
                   <div className="space-y-2">
-                    <h2 className="section-title px-0.5">Community feed</h2>
+                    <h2 className="px-0.5 font-serif text-lg font-semibold text-foreground">
+                      Community feed
+                    </h2>
                     <CommunityFeedTab communityId={communityId} readOnly />
                   </div>
                 ) : null}
 
-                <div className="section-card space-y-3 p-5 text-center">
+                <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] z-20 space-y-2">
                   {joinError ? (
-                    <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    <p className="rounded-lg bg-destructive/10 px-3 py-2 text-center text-xs text-destructive">
                       {joinError}
                     </p>
                   ) : null}
                   <Button
-                    className="w-full"
+                    className="h-12 w-full rounded-full text-base font-semibold"
                     disabled={joinMutation.isPending || community.type === 'private'}
                     onClick={() => {
                       setJoinError(null);

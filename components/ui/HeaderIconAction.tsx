@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import Link from 'next/link';
 import { MoreHorizontal } from 'lucide-react';
+import { headerActionBtnClass } from '@/components/ui/AppPageHeader';
 import { cn } from '@/lib/utils';
 
 const baseClass =
@@ -89,10 +90,16 @@ export interface HeaderOverflowItem {
 interface HeaderOverflowMenuProps {
   items: HeaderOverflowItem[];
   caption?: string;
+  /** Icon-only trigger (Daylio-style headers). */
+  iconOnly?: boolean;
 }
 
 /** Collapses secondary header actions into a single More control. */
-export function HeaderOverflowMenu({ items, caption = 'More' }: HeaderOverflowMenuProps) {
+export function HeaderOverflowMenu({
+  items,
+  caption = 'More',
+  iconOnly = false,
+}: HeaderOverflowMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -126,13 +133,26 @@ export function HeaderOverflowMenu({ items, caption = 'More' }: HeaderOverflowMe
 
   return (
     <div className="relative" ref={rootRef}>
-      <HeaderIconButton
-        icon={<MoreHorizontal className="h-[18px] w-[18px]" />}
-        caption={caption}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={() => setOpen((value) => !value)}
-      />
+      {iconOnly ? (
+        <button
+          type="button"
+          className={headerActionBtnClass}
+          aria-label={caption}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          onClick={() => setOpen((value) => !value)}
+        >
+          <MoreHorizontal className="h-5 w-5" />
+        </button>
+      ) : (
+        <HeaderIconButton
+          icon={<MoreHorizontal className="h-[18px] w-[18px]" />}
+          caption={caption}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          onClick={() => setOpen((value) => !value)}
+        />
+      )}
       {open ? (
         <div
           role="menu"
