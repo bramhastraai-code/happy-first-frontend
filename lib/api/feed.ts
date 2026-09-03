@@ -155,8 +155,8 @@ export function formatCollaborationLabel(
 ) {
   const list = accepted || [];
   if (!list.length) return authorName;
-  if (list.length === 1) return `${authorName} with ${list[0].name}`;
-  return `${authorName} with ${list[0].name} and ${list.length - 1} others`;
+  if (list.length === 1) return `${authorName} and ${list[0].name}`;
+  return `${authorName} and ${list[0].name} and ${list.length - 1} others`;
 }
 
 export const feedAPI = {

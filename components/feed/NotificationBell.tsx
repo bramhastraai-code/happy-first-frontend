@@ -126,6 +126,7 @@ export function NotificationBell({
       void queryClient.invalidateQueries({ queryKey: ['notifications'] });
       void queryClient.invalidateQueries({ queryKey: ['feed'] });
       void queryClient.invalidateQueries({ queryKey: ['profilePosts'] });
+      void queryClient.invalidateQueries({ queryKey: ['publicProfile'] });
     },
   });
 

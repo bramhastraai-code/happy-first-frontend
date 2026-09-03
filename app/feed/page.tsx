@@ -324,6 +324,43 @@ function FeedPageContent() {
     [queryClient, selectedProfile?._id, activePost?.id]
   );
 
+  const handleLeaveSpark = useCallback(
+    async (target: FeedPost) => {
+      if (!selectedProfile?._id) return;
+      const res = await feedAPI.removeCollaborator(target.id, selectedProfile._id);
+      const updated = res.data.data.post;
+      queryClient.setQueryData<{
+        pages: { posts: FeedPost[]; nextCursor: string | null }[];
+        pageParams: unknown[];
+      }>(['feed', selectedProfile._id], (old) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            posts: page.posts.map((item) =>
+              item.id === updated.id ? { ...item, ...updated } : item
+            ),
+          })),
+        };
+      });
+      queryClient.setQueriesData<{ posts: FeedPost[]; nextCursor: string | null }>(
+        { queryKey: ['profilePosts'] },
+        (old) => {
+          if (!old?.posts) return old;
+          return {
+            ...old,
+            posts: old.posts.filter((item) => item.id !== target.id),
+          };
+        }
+      );
+      if (activePost?.id === target.id) {
+        setActivePost((prev) => (prev ? { ...prev, ...updated } : prev));
+      }
+    },
+    [queryClient, selectedProfile?._id, activePost?.id]
+  );
+
   const handleToggleRepost = useCallback(
     async (postId: string) => {
       setRepostingId(postId);
@@ -576,6 +613,7 @@ function FeedPageContent() {
         onOpenComments={(post) => setActivePost(post)}
         onEdit={handleEditPost}
         onDelete={handleDeletePost}
+        onLeaveSpark={handleLeaveSpark}
       />
     </MainLayout>
   );

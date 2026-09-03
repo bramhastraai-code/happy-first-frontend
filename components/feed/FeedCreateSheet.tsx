@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Camera, ImageIcon, Loader2, Plus, Type, Upload, Video, X } from 'lucide-react';
+import { ArrowLeft, Camera, ImageIcon, Loader2, Plus, Sparkles, Type, Upload, Video, X } from 'lucide-react';
 import { feedAPI, type PublishTarget } from '@/lib/api/feed';
 import { followAPI } from '@/lib/api/follow';
 import { communityAPI } from '@/lib/api/community';
@@ -51,6 +51,63 @@ interface FeedCreateSheetProps {
 const MAX_POST_IMAGES = 10;
 const MAX_COLLABORATORS = 10;
 
+function SparkInviteBlock({
+  query,
+  onQueryChange,
+  suggestions,
+  collaborators,
+  onAdd,
+  onRemove,
+  communityId,
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  suggestions: TagPerson[];
+  collaborators: TagPerson[];
+  onAdd: (person: TagPerson) => void;
+  onRemove: (profileId: string) => void;
+  communityId?: string;
+}) {
+  return (
+    <div className="relative">
+      <span className="mb-1.5 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+        <Sparkles className="h-3.5 w-3.5 text-primary" />
+        Spark with
+      </span>
+      <input
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+        placeholder={
+          communityId ? 'Search members to Spark with' : 'Search anyone to Spark with'
+        }
+        className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+      />
+      {suggestions.length > 0 ? (
+        <MentionSuggestionList
+          people={suggestions}
+          placement="below"
+          onSelect={onAdd}
+        />
+      ) : null}
+      {collaborators.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {collaborators.map((person) => (
+            <button
+              key={person.profileId}
+              type="button"
+              onClick={() => onRemove(person.profileId)}
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+            >
+              @{person.name}
+              <X className="h-3 w-3" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function FeedCreateSheet({
   open,
   onClose,
@@ -71,6 +128,9 @@ export function FeedCreateSheet({
   const [caption, setCaption] = useState('');
   const [collaborators, setCollaborators] = useState<TagPerson[]>([]);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [sparkSearch, setSparkSearch] = useState('');
+  const [sparkSearchDebounced, setSparkSearchDebounced] = useState('');
+  const [mentionDebounced, setMentionDebounced] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [textMode, setTextMode] = useState(false);
@@ -84,6 +144,16 @@ export function FeedCreateSheet({
     if (open) setKind(communityId ? 'post' : defaultKind);
   }, [open, defaultKind, communityId]);
 
+  useEffect(() => {
+    const t = window.setTimeout(() => setSparkSearchDebounced(sparkSearch.trim()), 220);
+    return () => window.clearTimeout(t);
+  }, [sparkSearch]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setMentionDebounced(mentionQuery ?? ''), 220);
+    return () => window.clearTimeout(t);
+  }, [mentionQuery]);
+
   const allowsCollaborators = kind !== 'story';
   const isStoryOnly = kind === 'story';
 
@@ -96,55 +166,104 @@ export function FeedCreateSheet({
     },
   });
 
-  const peopleSearchQuery = useQuery({
-    queryKey: ['following', selectedProfile?._id, 'mentions'],
-    enabled: open && !communityId && allowsCollaborators && !!selectedProfile?._id,
-    staleTime: 60_000,
+  const sparkPeopleQuery = useQuery({
+    queryKey: ['sparkSearch', sparkSearchDebounced],
+    enabled:
+      open &&
+      !communityId &&
+      allowsCollaborators &&
+      sparkSearchDebounced.length > 0,
     queryFn: async () => {
-      const res = await followAPI.getFollowing(selectedProfile!._id, { limit: 100 });
+      const res = await followAPI.searchUsers(sparkSearchDebounced, 16);
       return res.data.data.people || [];
     },
   });
 
-  const mentionSuggestions = useMemo(() => {
-    if (mentionQuery === null || !allowsCollaborators) return [];
-    const q = mentionQuery.toLowerCase();
-    const selected = new Set(collaborators.map((c) => c.profileId));
+  const mentionPeopleQuery = useQuery({
+    queryKey: ['sparkMentionSearch', mentionDebounced],
+    enabled:
+      open &&
+      !communityId &&
+      allowsCollaborators &&
+      mentionQuery !== null,
+    queryFn: async () => {
+      const res = await followAPI.searchUsers(mentionDebounced, 16);
+      return res.data.data.people || [];
+    },
+  });
+
+  const selectedIds = useMemo(
+    () => new Set(collaborators.map((c) => c.profileId)),
+    [collaborators]
+  );
+
+  const filterPeople = (people: TagPerson[]) => {
     const me = selectedProfile?._id;
+    return people
+      .filter((p) => p.profileId !== me && !selectedIds.has(p.profileId))
+      .slice(0, 8);
+  };
 
-    if (communityId) {
-      return (membersQuery.data || [])
-        .filter((m) => m.profile?.id && m.profile.id !== me && !selected.has(m.profile.id))
-        .filter((m) => !q || m.profile.name.toLowerCase().includes(q))
-        .slice(0, 8)
-        .map((m) => ({
-          profileId: m.profile.id,
-          name: m.profile.name,
-          avatarUrl: m.profile.avatarUrl,
-          avatarSeed: m.profile.avatarSeed,
-          avatarStyle: m.profile.avatarStyle,
-        }));
-    }
-
-    // @ tags only resolve people you follow
-    return (peopleSearchQuery.data || [])
-      .filter((p) => p.profileId !== me && !selected.has(p.profileId))
-      .filter((p) => !q || p.name.toLowerCase().includes(q))
+  const communityPeople = (q: string) => {
+    const me = selectedProfile?._id;
+    const needle = q.toLowerCase();
+    return (membersQuery.data || [])
+      .filter((m) => m.profile?.id && m.profile.id !== me && !selectedIds.has(m.profile.id))
+      .filter((m) => !needle || m.profile.name.toLowerCase().includes(needle))
       .slice(0, 8)
-      .map((p) => ({
+      .map((m) => ({
+        profileId: m.profile.id,
+        name: m.profile.name,
+        avatarUrl: m.profile.avatarUrl,
+        avatarSeed: m.profile.avatarSeed,
+        avatarStyle: m.profile.avatarStyle,
+      }));
+  };
+
+  const sparkSuggestions = useMemo(() => {
+    if (!allowsCollaborators) return [];
+    if (communityId) {
+      if (!sparkSearch.trim()) return [];
+      return communityPeople(sparkSearch);
+    }
+    return filterPeople(
+      (sparkPeopleQuery.data || []).map((p) => ({
         profileId: p.profileId,
         name: p.name,
         avatarUrl: p.avatarUrl,
         avatarSeed: p.avatarSeed,
         avatarStyle: p.avatarStyle,
-      }));
+      }))
+    );
+  }, [
+    allowsCollaborators,
+    communityId,
+    sparkSearch,
+    sparkPeopleQuery.data,
+    membersQuery.data,
+    selectedIds,
+    selectedProfile?._id,
+  ]);
+
+  const mentionSuggestions = useMemo(() => {
+    if (mentionQuery === null || !allowsCollaborators) return [];
+    if (communityId) return communityPeople(mentionQuery);
+    return filterPeople(
+      (mentionPeopleQuery.data || []).map((p) => ({
+        profileId: p.profileId,
+        name: p.name,
+        avatarUrl: p.avatarUrl,
+        avatarSeed: p.avatarSeed,
+        avatarStyle: p.avatarStyle,
+      }))
+    );
   }, [
     mentionQuery,
     allowsCollaborators,
     communityId,
+    mentionPeopleQuery.data,
     membersQuery.data,
-    peopleSearchQuery.data,
-    collaborators,
+    selectedIds,
     selectedProfile?._id,
   ]);
 
@@ -160,6 +279,9 @@ export function FeedCreateSheet({
     setCaption('');
     setCollaborators([]);
     setMentionQuery(null);
+    setSparkSearch('');
+    setSparkSearchDebounced('');
+    setMentionDebounced('');
     setLocalError(null);
     setDragOver(false);
     setTextMode(false);
@@ -195,19 +317,30 @@ export function FeedCreateSheet({
     setMentionQuery(null);
   };
 
+  const addSparkPerson = (person: TagPerson) => {
+    setCollaborators((prev) => {
+      if (prev.some((c) => c.profileId === person.profileId)) return prev;
+      if (prev.length >= MAX_COLLABORATORS) return prev;
+      return [...prev, person];
+    });
+    setSparkSearch('');
+  };
+
+  const removeSparkPerson = (profileId: string) => {
+    setCollaborators((prev) => prev.filter((c) => c.profileId !== profileId));
+  };
+
   const uploadMutation = useMutation({
     mutationFn: async () => {
       const publishTo: PublishTarget = communityId ? 'post' : kind;
       let collabIds =
         publishTo === 'story' ? [] : collaborators.map((c) => c.profileId);
 
-      // Also resolve @Name mentions typed in the caption (even if chip wasn't tapped)
-      // Global @ tags only resolve people you follow.
+      // Also resolve @Name mentions typed in the caption (even if chip wasn't tapped).
       if (publishTo !== 'story' && caption.trim()) {
         const mentionNames = [
           ...caption.matchAll(/@([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)*)/g),
         ].map((m) => m[1].trim());
-        const following = peopleSearchQuery.data || [];
         for (const name of mentionNames) {
           try {
             if (communityId) {
@@ -217,8 +350,11 @@ export function FeedCreateSheet({
               );
               if (hit?.profile?.id) collabIds.push(hit.profile.id);
             } else {
-              const exact = following.find(
-                (p) => p.name.toLowerCase() === name.toLowerCase()
+              const res = await followAPI.searchUsers(name, 8);
+              const exact = (res.data.data.people || []).find(
+                (p) =>
+                  p.name.toLowerCase() === name.toLowerCase() &&
+                  p.profileId !== selectedProfile?._id
               );
               if (exact?.profileId) collabIds.push(exact.profileId);
             }
@@ -587,51 +723,15 @@ export function FeedCreateSheet({
               </div>
 
               {allowsCollaborators ? (
-                <div className="relative">
-                  <input
-                    value={mentionQuery ?? ''}
-                    onChange={(event) => setMentionQuery(event.target.value)}
-                    placeholder={
-                      communityId
-                        ? 'Tag collaborators (@name)'
-                        : 'Tag people you follow (@name)'
-                    }
-                    className="h-10 w-full rounded-xl border border-input bg-secondary px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  {mentionSuggestions.length > 0 ? (
-                    <MentionSuggestionList
-                      people={mentionSuggestions}
-                      placement="below"
-                      onSelect={(person) => {
-                        setCollaborators((prev) =>
-                          prev.some((c) => c.profileId === person.profileId)
-                            ? prev
-                            : [...prev, person].slice(0, MAX_COLLABORATORS)
-                        );
-                        setMentionQuery('');
-                      }}
-                    />
-                  ) : null}
-                  {collaborators.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {collaborators.map((person) => (
-                        <button
-                          key={person.profileId}
-                          type="button"
-                          onClick={() =>
-                            setCollaborators((prev) =>
-                              prev.filter((c) => c.profileId !== person.profileId)
-                            )
-                          }
-                          className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
-                        >
-                          @{person.name}
-                          <X className="h-3 w-3" />
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+                <SparkInviteBlock
+                  query={sparkSearch}
+                  onQueryChange={setSparkSearch}
+                  suggestions={sparkSuggestions}
+                  collaborators={collaborators}
+                  onAdd={addSparkPerson}
+                  onRemove={removeSparkPerson}
+                  communityId={communityId}
+                />
               ) : null}
 
               <div className="relative block">
@@ -640,7 +740,7 @@ export function FeedCreateSheet({
                   {allowsCollaborators
                     ? communityId
                       ? ' · @tag members'
-                      : ' · @tag people you follow'
+                      : ' · @tag anyone'
                     : ''}
                 </span>
                 <textarea
@@ -663,7 +763,7 @@ export function FeedCreateSheet({
                   placeholder={
                     kind === 'story'
                       ? 'Add a caption to your story…'
-                      : 'Write a caption… use @ to tag people you follow'
+                      : 'Write a caption… use @ to Spark with anyone'
                   }
                   className="w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
@@ -859,13 +959,25 @@ export function FeedCreateSheet({
                 ) : null}
               </div>
 
+              {allowsCollaborators ? (
+                <SparkInviteBlock
+                  query={sparkSearch}
+                  onQueryChange={setSparkSearch}
+                  suggestions={sparkSuggestions}
+                  collaborators={collaborators}
+                  onAdd={addSparkPerson}
+                  onRemove={removeSparkPerson}
+                  communityId={communityId}
+                />
+              ) : null}
+
               <div className="relative block">
                 <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
                   Caption (optional)
                   {allowsCollaborators
                     ? communityId
                       ? ' · @tag members'
-                      : ' · @tag people you follow'
+                      : ' · @tag anyone'
                     : ''}
                 </span>
                 <textarea
@@ -888,7 +1000,7 @@ export function FeedCreateSheet({
                   placeholder={
                     kind === 'story'
                       ? 'Add to your story…'
-                      : 'Write a caption… use @ to tag people you follow'
+                      : 'Write a caption… use @ to Spark with anyone'
                   }
                   className="w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
@@ -902,25 +1014,6 @@ export function FeedCreateSheet({
                 <p className="mt-1 text-right text-[11px] text-muted-foreground">
                   {caption.length}/300
                 </p>
-                {collaborators.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {collaborators.map((person) => (
-                      <button
-                        key={person.profileId}
-                        type="button"
-                        onClick={() =>
-                          setCollaborators((prev) =>
-                            prev.filter((c) => c.profileId !== person.profileId)
-                          )
-                        }
-                        className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
-                      >
-                        @{person.name}
-                        <X className="h-3 w-3" />
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
               </div>
               <div className="flex gap-2">
                 <Button

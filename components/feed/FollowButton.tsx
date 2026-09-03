@@ -3,7 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, UserMinus, UserPlus } from 'lucide-react';
-import { followAPI, type FollowActionResult } from '@/lib/api/follow';
+import {
+  followAPI,
+  type FollowActionResult,
+  type FollowPerson,
+  type PublicProfileData,
+} from '@/lib/api/follow';
 import { dailyMoodInvalidationKeys } from '@/lib/api/dailyMood';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -16,8 +21,28 @@ interface FollowButtonProps {
   size?: 'sm' | 'default';
   className?: string;
   onChanged?: (result: FollowActionResult) => void;
-  /** Public profile uses Connect instead of Follow. */
-  verb?: 'follow' | 'connect';
+}
+
+function patchPersonList<T extends { people?: FollowPerson[] } | FollowPerson[] | undefined>(
+  old: T,
+  profileId: string,
+  isFollowing: boolean
+): T {
+  if (!old) return old;
+  if (Array.isArray(old)) {
+    return old.map((person) =>
+      person.profileId === profileId ? { ...person, isFollowing } : person
+    ) as T;
+  }
+  if (old.people) {
+    return {
+      ...old,
+      people: old.people.map((person) =>
+        person.profileId === profileId ? { ...person, isFollowing } : person
+      ),
+    };
+  }
+  return old;
 }
 
 export function FollowButton({
@@ -28,7 +53,6 @@ export function FollowButton({
   size = 'default',
   className,
   onChanged,
-  verb = 'follow',
 }: FollowButtonProps) {
   const queryClient = useQueryClient();
   const [following, setFollowing] = useState(isFollowing);
@@ -38,23 +62,55 @@ export function FollowButton({
   }, [isFollowing, profileId]);
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      if (following) {
-        const res = await followAPI.unfollow(profileId);
+    mutationFn: async (nextFollowing: boolean) => {
+      if (nextFollowing) {
+        const res = await followAPI.follow(profileId);
         return res.data.data;
       }
-      const res = await followAPI.follow(profileId);
+      const res = await followAPI.unfollow(profileId);
       return res.data.data;
     },
-    onMutate: () => {
-      setFollowing((value) => !value);
+    onMutate: (nextFollowing) => {
+      const previous = following;
+      setFollowing(nextFollowing);
+      return { previous };
     },
-    onError: () => {
-      setFollowing(isFollowing);
+    onError: (_error, _vars, context) => {
+      setFollowing(context?.previous ?? isFollowing);
     },
     onSuccess: (result) => {
       setFollowing(result.isFollowing);
       onChanged?.(result);
+
+      queryClient.setQueryData<PublicProfileData>(['publicProfile', profileId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          isFollowing: result.isFollowing,
+          followsYou: result.followsYou,
+          followersCount: result.followersCount ?? old.followersCount,
+          followingCount: result.followingCount ?? old.followingCount,
+          profile: {
+            ...old.profile,
+            isFollowing: result.isFollowing,
+            followsYou: result.followsYou,
+          },
+        };
+      });
+
+      queryClient.setQueriesData({ queryKey: ['followers'] }, (old) =>
+        patchPersonList(old as { people?: FollowPerson[] } | FollowPerson[] | undefined, profileId, result.isFollowing)
+      );
+      queryClient.setQueriesData({ queryKey: ['following'] }, (old) =>
+        patchPersonList(old as { people?: FollowPerson[] } | FollowPerson[] | undefined, profileId, result.isFollowing)
+      );
+      queryClient.setQueriesData({ queryKey: ['followSuggestions'] }, (old) =>
+        patchPersonList(old as FollowPerson[] | undefined, profileId, result.isFollowing)
+      );
+      queryClient.setQueriesData({ queryKey: ['followSearch'] }, (old) =>
+        patchPersonList(old as { people?: FollowPerson[] } | undefined, profileId, result.isFollowing)
+      );
+
       void queryClient.invalidateQueries({ queryKey: ['publicProfile', profileId] });
       void queryClient.invalidateQueries({ queryKey: ['followers'] });
       void queryClient.invalidateQueries({ queryKey: ['following'] });
@@ -64,43 +120,31 @@ export function FollowButton({
       for (const key of dailyMoodInvalidationKeys(profileId)) {
         void queryClient.invalidateQueries({ queryKey: key });
       }
-      queryClient.setQueriesData<{ pages?: Array<{ posts: Array<{ author: { profileId: string; isFollowing?: boolean } }> }> }>(
-        { queryKey: ['feed'] },
-        (old) => {
-          if (!old?.pages) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              posts: page.posts.map((post) =>
-                post.author.profileId === profileId
-                  ? {
-                      ...post,
-                      author: { ...post.author, isFollowing: result.isFollowing },
-                    }
-                  : post
-              ),
-            })),
-          };
-        }
-      );
+      queryClient.setQueriesData<{
+        pages?: Array<{ posts: Array<{ author: { profileId: string; isFollowing?: boolean } }> }>;
+      }>({ queryKey: ['feed'] }, (old) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            posts: page.posts.map((post) =>
+              post.author.profileId === profileId
+                ? {
+                    ...post,
+                    author: { ...post.author, isFollowing: result.isFollowing },
+                  }
+                : post
+            ),
+          })),
+        };
+      });
     },
   });
 
   if (isMe) return null;
 
-  const label =
-    verb === 'connect'
-      ? following
-        ? 'Connected'
-        : followsYou
-          ? 'Connect back'
-          : 'Connect'
-      : following
-        ? 'Following'
-        : followsYou
-          ? 'Follow back'
-          : 'Follow';
+  const label = following ? 'Following' : followsYou ? 'Follow back' : 'Follow';
 
   return (
     <Button
@@ -116,7 +160,7 @@ export function FollowButton({
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        mutation.mutate();
+        mutation.mutate(!following);
       }}
     >
       {mutation.isPending ? (

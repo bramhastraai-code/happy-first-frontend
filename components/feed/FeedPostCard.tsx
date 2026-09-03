@@ -11,6 +11,7 @@ import {
   Pencil,
   Repeat2,
   Share2,
+  Sparkles,
   Trash2,
   UserMinus,
   X,
@@ -331,7 +332,7 @@ export function FeedPostCard({
               {accepted.length > 0 ? (
                 <span className="font-medium text-muted-foreground">
                   {' '}
-                  with{' '}
+                  and{' '}
                   <Link
                     href={`/feed/profile/${accepted[0].profileId}`}
                     className="font-semibold text-foreground hover:underline"
@@ -341,6 +342,10 @@ export function FeedPostCard({
                   {accepted.length > 1
                     ? ` and ${accepted.length - 1} others`
                     : null}
+                  <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    Spark
+                  </span>
                 </span>
               ) : !hideCommunityLabel && post.communityId && post.communityName ? (
                 <span className="font-medium text-muted-foreground">
@@ -426,7 +431,7 @@ export function FeedPostCard({
                         }}
                       >
                         <UserMinus className="h-3.5 w-3.5 shrink-0" />
-                        Remove collaborator
+                        Remove from Spark
                       </button>
                     ) : null}
                     <button
@@ -453,7 +458,7 @@ export function FeedPostCard({
                         }}
                       >
                         <UserMinus className="h-3.5 w-3.5 shrink-0" />
-                        Leave collaboration
+                        Leave Spark
                       </button>
                     ) : null}
                     {canMessage ? (
@@ -742,7 +747,11 @@ export function FeedPostCard({
       <ConfirmDialog
         open={deleteOpen}
         title="Delete this post?"
-        description="Are you sure you want to delete this post?"
+        description={
+          accepted.length > 0
+            ? 'This Spark will be removed for everyone on it.'
+            : 'Are you sure you want to delete this post?'
+        }
         confirmLabel="Delete"
         cancelLabel="Cancel"
         destructive
@@ -762,8 +771,8 @@ export function FeedPostCard({
 
       <ConfirmDialog
         open={leaveOpen}
-        title="Leave collaboration?"
-        description="This post will no longer appear as shared with you."
+        title="Leave Spark?"
+        description="This Spark will no longer appear on your profile. The original post stays up."
         confirmLabel="Leave"
         cancelLabel="Cancel"
         destructive
@@ -777,10 +786,10 @@ export function FeedPostCard({
 
       <ConfirmDialog
         open={Boolean(removeTarget)}
-        title="Remove collaborator?"
+        title="Remove from Spark?"
         description={
           removeTarget
-            ? `${removeTarget.name} will be removed from this post.`
+            ? `${removeTarget.name} will be removed from this Spark.`
             : undefined
         }
         confirmLabel="Remove"
@@ -806,9 +815,9 @@ export function FeedPostCard({
               <div className="relative z-10 w-full max-w-md rounded-t-3xl border border-border bg-surface p-4 shadow-[var(--shadow-float)] sm:rounded-3xl">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Collaborators</p>
+                    <p className="text-sm font-semibold text-foreground">Spark</p>
                     <p className="text-xs text-muted-foreground">
-                      Remove people tagged on this post
+                      Remove people from this Spark
                     </p>
                   </div>
                   <button
@@ -861,7 +870,7 @@ export function FeedPostCard({
                 </ul>
                 {removableCollabs.length === 0 ? (
                   <p className="py-8 text-center text-sm text-muted-foreground">
-                    No collaborators on this post
+                    No one on this Spark yet
                   </p>
                 ) : null}
               </div>

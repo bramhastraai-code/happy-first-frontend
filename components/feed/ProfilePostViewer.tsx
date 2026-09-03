@@ -11,10 +11,13 @@ import {
   Pencil,
   Repeat2,
   Share2,
+  Sparkles,
   Trash2,
+  UserMinus,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { FeedPost } from '@/lib/api/feed';
+import { feedAPI, formatCollaborationLabel } from '@/lib/api/feed';
 import type { FeedPostEditExtras } from '@/components/feed/FeedPostCard';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
@@ -49,6 +52,7 @@ interface ProfilePostViewerProps {
     extras?: FeedPostEditExtras
   ) => Promise<void>;
   onDelete: (post: FeedPost) => Promise<void>;
+  onLeaveSpark?: (post: FeedPost) => Promise<void>;
   likingId?: string | null;
   repostingId?: string | null;
 }
@@ -71,6 +75,7 @@ function ViewerPostCard({
   onOpenComments,
   onEditClick,
   onDeleteClick,
+  onLeaveSparkClick,
   onShare,
 }: {
   post: FeedPost;
@@ -85,12 +90,21 @@ function ViewerPostCard({
   onOpenComments: () => void;
   onEditClick: () => void;
   onDeleteClick: () => void;
+  onLeaveSparkClick?: () => void;
   onShare: () => void;
 }) {
   const { selectedProfile } = useAuthStore();
-  const ownsPost =
-    isOwner ||
-    Boolean(selectedProfile?._id && post.author.profileId === selectedProfile._id);
+  const isAuthor = Boolean(
+    selectedProfile?._id && post.author.profileId === selectedProfile._id
+  );
+  const accepted = post.acceptedCollaborators || [];
+  const isSparkPartner = Boolean(
+    selectedProfile?._id &&
+      accepted.some((c) => c.profileId === selectedProfile._id)
+  );
+  const canEdit = isAuthor;
+  const canDelete = isAuthor;
+  const canLeaveSpark = isSparkPartner && !isAuthor;
   const [heartBurst, setHeartBurst] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -104,7 +118,7 @@ function ViewerPostCard({
 
   const canRepost =
     Boolean(onToggleRepost) &&
-    !ownsPost &&
+    !isAuthor &&
     !post.communityId &&
     !post.isStory &&
     post.repostOf?.author.profileId !== selectedProfile?._id;
@@ -159,8 +173,28 @@ function ViewerPostCard({
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">
               {post.author.name}
+              {accepted.length > 0 ? (
+                <span className="font-medium text-muted-foreground">
+                  {' '}
+                  and {accepted[0].name}
+                  {accepted.length > 1
+                    ? ` and ${accepted.length - 1} others`
+                    : ''}
+                </span>
+              ) : null}
             </p>
-            <p className="truncate text-[11px] text-muted-foreground">{timeLabel}</p>
+            <p className="flex items-center gap-1.5 truncate text-[11px] text-muted-foreground">
+              {accepted.length > 0 ? (
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                  <Sparkles className="h-2.5 w-2.5" />
+                  Spark
+                </span>
+              ) : null}
+              <span>{timeLabel}</span>
+              <span className="sr-only">
+                {formatCollaborationLabel(post.author.name, accepted)}
+              </span>
+            </p>
           </div>
         </Link>
         <div className="relative" ref={menuRef}>
@@ -180,24 +214,38 @@ function ViewerPostCard({
                 exit={{ opacity: 0, scale: 0.96, y: -4 }}
                 className="absolute right-0 top-10 z-40 w-max min-w-[10rem] overflow-hidden rounded-xl border border-border bg-surface shadow-[var(--shadow-float)]"
               >
-                {ownsPost ? (
+                {canEdit || canDelete || canLeaveSpark ? (
                   <>
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary"
-                      onClick={onEditClick}
-                    >
-                      <Pencil className="h-4 w-4 shrink-0" />
-                      Edit caption
-                    </button>
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
-                      onClick={onDeleteClick}
-                    >
-                      <Trash2 className="h-4 w-4 shrink-0" />
-                      Delete
-                    </button>
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+                        onClick={onEditClick}
+                      >
+                        <Pencil className="h-4 w-4 shrink-0" />
+                        Edit caption
+                      </button>
+                    ) : null}
+                    {canLeaveSpark && onLeaveSparkClick ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+                        onClick={onLeaveSparkClick}
+                      >
+                        <UserMinus className="h-4 w-4 shrink-0" />
+                        {isOwner ? 'Delete' : 'Leave Spark'}
+                      </button>
+                    ) : null}
+                    {canDelete ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+                        onClick={onDeleteClick}
+                      >
+                        <Trash2 className="h-4 w-4 shrink-0" />
+                        Delete
+                      </button>
+                    ) : null}
                   </>
                 ) : canRepost ? (
                   <button
@@ -380,18 +428,21 @@ export function ProfilePostViewer({
   onOpenComments,
   onEdit,
   onDelete,
+  onLeaveSpark,
   likingId = null,
   repostingId = null,
 }: ProfilePostViewerProps) {
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
   const [editPost, setEditPost] = useState<FeedPost | null>(null);
   const [deletePost, setDeletePost] = useState<FeedPost | null>(null);
+  const [leaveSparkPost, setLeaveSparkPost] = useState<FeedPost | null>(null);
   const [editCaption, setEditCaption] = useState('');
   const [editText, setEditText] = useState('');
   const [editBgIndex, setEditBgIndex] = useState(0);
   const [editFontIndex, setEditFontIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useOverlayHistory({
@@ -405,6 +456,7 @@ export function ProfilePostViewer({
       setMenuPostId(null);
       setEditPost(null);
       setDeletePost(null);
+      setLeaveSparkPost(null);
       return;
     }
     if (posts.length === 0) {
@@ -415,7 +467,7 @@ export function ProfilePostViewer({
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (editPost || deletePost) return;
+      if (editPost || deletePost || leaveSparkPost) return;
       if (event.key === 'Escape') {
         if (menuPostId) setMenuPostId(null);
         else onClose();
@@ -427,7 +479,7 @@ export function ProfilePostViewer({
       document.body.style.overflow = '';
       window.removeEventListener('keydown', onKey);
     };
-  }, [open, editPost, deletePost, menuPostId, onClose]);
+  }, [open, editPost, deletePost, leaveSparkPost, menuPostId, onClose]);
 
   // Jump to the tapped post when the overlay opens or the list grows
   useEffect(() => {
@@ -545,6 +597,10 @@ export function ProfilePostViewer({
                 onDeleteClick={() => {
                   setMenuPostId(null);
                   setDeletePost(post);
+                }}
+                onLeaveSparkClick={() => {
+                  setMenuPostId(null);
+                  setLeaveSparkPost(post);
                 }}
                 onShare={() => void handleShare(post)}
               />
@@ -694,7 +750,7 @@ export function ProfilePostViewer({
       <ConfirmDialog
         open={Boolean(deletePost)}
         title="Delete this post?"
-        description="Are you sure you want to delete this post?"
+        description="Are you sure you want to delete this post? It will be removed for everyone in this Spark."
         confirmLabel="Delete"
         cancelLabel="Cancel"
         destructive
@@ -710,6 +766,34 @@ export function ProfilePostViewer({
             if (posts.length <= 1) onClose();
           } finally {
             setDeleting(false);
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(leaveSparkPost)}
+        title={isOwner ? 'Delete this Spark from your profile?' : 'Leave Spark?'}
+        description="This Spark will no longer appear on your profile. The original post stays up."
+        confirmLabel={isOwner ? 'Delete' : 'Leave'}
+        cancelLabel="Cancel"
+        destructive
+        loading={leaving}
+        zClassName="z-[250]"
+        onCancel={() => setLeaveSparkPost(null)}
+        onConfirm={async () => {
+          if (!leaveSparkPost) return;
+          setLeaving(true);
+          try {
+            if (onLeaveSpark) {
+              await onLeaveSpark(leaveSparkPost);
+            } else {
+              const me = useAuthStore.getState().selectedProfile?._id;
+              if (me) await feedAPI.removeCollaborator(leaveSparkPost.id, me);
+            }
+            setLeaveSparkPost(null);
+            if (posts.length <= 1) onClose();
+          } finally {
+            setLeaving(false);
           }
         }}
       />

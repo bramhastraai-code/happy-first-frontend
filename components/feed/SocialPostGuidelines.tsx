@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 const DOS = [
   'Share real happiness moments, wins, and encouragement.',
   'Be kind — celebrate others and keep comments constructive.',
-  'Use @ to tag people you follow (with their consent).',
+  'Use Spark to invite anyone onto your post (with their consent).',
 ];
 
 const DONTS = [

@@ -447,6 +447,11 @@ export default function FeedExplorePage() {
           if (activePost?.id === target.id) setActivePost(null);
           if (posts.length <= 1) setViewerIndex(null);
         }}
+        onLeaveSpark={async (target) => {
+          if (!selectedProfile?._id) return;
+          const res = await feedAPI.removeCollaborator(target.id, selectedProfile._id);
+          patchPost(target.id, res.data.data.post);
+        }}
       />
 
       {activePost ? (

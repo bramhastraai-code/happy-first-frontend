@@ -409,7 +409,6 @@ export default function FeedProfilePage() {
                       isFollowing={data.isFollowing}
                       followsYou={data.followsYou}
                       isMe={false}
-                      verb="connect"
                       className="h-8 flex-1 !rounded-none"
                     />
                     {messageTarget && (data.allowMessages ?? data.profile.allowMessages ?? true) ? (
@@ -595,6 +594,25 @@ export default function FeedProfilePage() {
             }
           );
           void queryClient.invalidateQueries({ queryKey: ['publicProfile', profileId] });
+          void queryClient.invalidateQueries({ queryKey: ['feed'] });
+          if (activePost?.id === target.id) setActivePost(null);
+        }}
+        onLeaveSpark={async (target) => {
+          if (!selectedProfile?._id) return;
+          await feedAPI.removeCollaborator(target.id, selectedProfile._id);
+          queryClient.setQueryData<{ posts: FeedPost[]; nextCursor: string | null }>(
+            postsKey,
+            (old) => {
+              if (!old?.posts) return old;
+              return {
+                ...old,
+                posts: old.posts.filter((item) => item.id !== target.id),
+              };
+            }
+          );
+          void queryClient.invalidateQueries({ queryKey: ['publicProfile', profileId] });
+          void queryClient.invalidateQueries({ queryKey: ['feed'] });
+          void queryClient.invalidateQueries({ queryKey: ['profilePosts'] });
           if (activePost?.id === target.id) setActivePost(null);
         }}
       />
