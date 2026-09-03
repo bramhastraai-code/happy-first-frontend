@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { MoreHorizontal } from 'lucide-react';
 import { headerActionBtnClass } from '@/components/ui/AppPageHeader';
@@ -101,22 +102,61 @@ export function HeaderOverflowMenu({
   iconOnly = false,
 }: HeaderOverflowMenuProps) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const updatePos = () => {
+    const el = rootRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setPos({
+      top: rect.bottom + 4,
+      right: Math.max(8, window.innerWidth - rect.right),
+    });
+  };
+
+  const toggleOpen = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const el = rootRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 4,
+        right: Math.max(8, window.innerWidth - rect.right),
+      });
+    }
+    setOpen(true);
+  };
 
   useEffect(() => {
     if (!open) return;
+    updatePos();
     const onPointer = (event: MouseEvent) => {
-      if (rootRef.current?.contains(event.target as Node)) return;
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
       setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
-    window.addEventListener('mousedown', onPointer);
+    document.addEventListener('mousedown', onPointer);
     window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', updatePos);
+    window.addEventListener('scroll', updatePos, true);
     return () => {
-      window.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('mousedown', onPointer);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', updatePos);
+      window.removeEventListener('scroll', updatePos, true);
     };
   }, [open]);
 
@@ -124,15 +164,66 @@ export function HeaderOverflowMenu({
 
   const itemClass = (danger?: boolean) =>
     cn(
-      'flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium transition-colors',
+      'flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium transition-colors',
       danger
         ? 'text-destructive hover:bg-destructive/10'
         : 'text-foreground hover:bg-secondary',
       'disabled:pointer-events-none disabled:opacity-50'
     );
 
+  const closeAndRun = (handler?: () => void) => {
+    setOpen(false);
+    handler?.();
+  };
+
+  const menu =
+    open && mounted && pos
+      ? createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            style={{ top: pos.top, right: pos.right }}
+            className="fixed z-[280] min-w-[11.5rem] overflow-hidden rounded-xl border border-border bg-surface py-1 shadow-[var(--shadow-float)]"
+            onMouseDown={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            {items.map((item) =>
+              item.href ? (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  role="menuitem"
+                  className={itemClass(item.danger)}
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center [&>svg]:h-3.5 [&>svg]:w-3.5">
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </Link>
+              ) : (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="menuitem"
+                  disabled={item.disabled}
+                  className={itemClass(item.danger)}
+                  onClick={() => closeAndRun(item.onClick)}
+                >
+                  <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center [&>svg]:h-3.5 [&>svg]:w-3.5">
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </button>
+              )
+            )}
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
-    <div className="relative" ref={rootRef}>
+    <div className="relative z-[45]" ref={rootRef}>
       {iconOnly ? (
         <button
           type="button"
@@ -140,7 +231,7 @@ export function HeaderOverflowMenu({
           aria-label={caption}
           aria-expanded={open}
           aria-haspopup="menu"
-          onClick={() => setOpen((value) => !value)}
+          onClick={toggleOpen}
         >
           <MoreHorizontal className="h-5 w-5" />
         </button>
@@ -150,49 +241,10 @@ export function HeaderOverflowMenu({
           caption={caption}
           aria-expanded={open}
           aria-haspopup="menu"
-          onClick={() => setOpen((value) => !value)}
+          onClick={toggleOpen}
         />
       )}
-      {open ? (
-        <div
-          role="menu"
-          className="absolute right-0 top-full z-50 mt-1 min-w-[10.5rem] overflow-hidden rounded-xl border border-border bg-surface py-1 shadow-[var(--shadow-float)]"
-        >
-          {items.map((item) =>
-            item.href ? (
-              <Link
-                key={item.id}
-                href={item.href}
-                role="menuitem"
-                className={itemClass(item.danger)}
-                onClick={() => setOpen(false)}
-              >
-                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center [&>svg]:h-3.5 [&>svg]:w-3.5">
-                  {item.icon}
-                </span>
-                {item.label}
-              </Link>
-            ) : (
-              <button
-                key={item.id}
-                type="button"
-                role="menuitem"
-                disabled={item.disabled}
-                className={itemClass(item.danger)}
-                onClick={() => {
-                  setOpen(false);
-                  item.onClick?.();
-                }}
-              >
-                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center [&>svg]:h-3.5 [&>svg]:w-3.5">
-                  {item.icon}
-                </span>
-                {item.label}
-              </button>
-            )
-          )}
-        </div>
-      ) : null}
+      {menu}
     </div>
   );
 }

@@ -40,6 +40,8 @@ export function useCommunityConfirm() {
       await options.onConfirm();
       setOpen(false);
       setOptions(null);
+    } catch {
+      // Keep the dialog open so the user can retry after a failed leave/delete.
     } finally {
       setLoading(false);
     }

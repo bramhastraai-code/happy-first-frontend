@@ -201,9 +201,10 @@ export default function CommunityDetailPage() {
       ) {
         setSoleAdminOpen(true);
         setLeaveError(apiErrorMessage(err, 'Assign another admin or acknowledge disable.'));
-      } else {
-        setLeaveError(apiErrorMessage(err, 'Could not leave community'));
+        return;
       }
+      setLeaveError(apiErrorMessage(err, 'Could not leave community'));
+      throw err;
     } finally {
       setLeaveBusy(false);
     }
@@ -258,8 +259,8 @@ export default function CommunityDetailPage() {
   }
   if (isAdmin && !isDeleted && !isDisabled) {
     overflowItems.push({
-      id: 'activities',
-      label: 'Activities',
+      id: 'edit',
+      label: 'Edit',
       icon: <Pencil />,
       href: `/community/${communityId}/edit`,
     });
@@ -319,7 +320,7 @@ export default function CommunityDetailPage() {
   return (
     <MainLayout hideBottomNav={chatOpen}>
       <div className="space-y-4">
-        <header className={pageStickyHeaderClass}>
+        <header className={`${pageStickyHeaderClass} overflow-visible`}>
           <div className="flex items-center gap-1.5 sm:gap-2">
             {tab === 'dashboard' ? (
               <Link href="/community" className={`${headerBackBtnClass} -ml-1.5`} aria-label="Back">

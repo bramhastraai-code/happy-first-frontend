@@ -24,23 +24,82 @@ export const DAYLIO_MOOD_OPTIONS = [
 
 export type DaylioMoodFace = (typeof DAYLIO_MOOD_OPTIONS)[number]['face'];
 
-export const MOOD_JOURNAL_EMOTIONS = [
-  { id: 'happy', label: 'happy' },
-  { id: 'excited', label: 'excited' },
-  { id: 'grateful', label: 'grateful' },
-  { id: 'relaxed', label: 'relaxed' },
-  { id: 'content', label: 'content' },
-  { id: 'tired', label: 'tired' },
-  { id: 'unsure', label: 'unsure' },
-  { id: 'bored', label: 'bored' },
-  { id: 'anxious', label: 'anxious' },
-  { id: 'angry', label: 'angry' },
-  { id: 'stressed', label: 'stressed' },
-  { id: 'sad', label: 'sad' },
-  { id: 'desperate', label: 'desperate' },
+export const MOOD_STICKER_COLORS = [
+  '#C6D63C',
+  '#6CBC5A',
+  '#4DB6A8',
+  '#5B9BD5',
+  '#8B7EC8',
+  '#E8A838',
+  '#EA580C',
+  '#EF4444',
+  '#EC4899',
+  '#F59E0B',
+  '#7E9AAB',
+  '#6B5E56',
 ] as const;
 
+export interface MoodEmotionSticker {
+  id: string;
+  emoji: string;
+  name: string;
+  color: string;
+  custom?: boolean;
+}
+
+export const MOOD_JOURNAL_EMOTIONS: MoodEmotionSticker[] = [
+  { id: 'happy', emoji: '😊', name: 'happy', color: '#C6D63C' },
+  { id: 'excited', emoji: '🤩', name: 'excited', color: '#E8A838' },
+  { id: 'grateful', emoji: '🙏', name: 'grateful', color: '#6CBC5A' },
+  { id: 'relaxed', emoji: '😌', name: 'relaxed', color: '#4DB6A8' },
+  { id: 'content', emoji: '🥰', name: 'content', color: '#EA580C' },
+  { id: 'tired', emoji: '😴', name: 'tired', color: '#7E9AAB' },
+  { id: 'unsure', emoji: '🤔', name: 'unsure', color: '#8B7EC8' },
+  { id: 'bored', emoji: '😑', name: 'bored', color: '#9CA3AF' },
+  { id: 'anxious', emoji: '😰', name: 'anxious', color: '#F59E0B' },
+  { id: 'angry', emoji: '😡', name: 'angry', color: '#EF4444' },
+  { id: 'stressed', emoji: '😫', name: 'stressed', color: '#6B5E56' },
+  { id: 'sad', emoji: '😔', name: 'sad', color: '#64748B' },
+  { id: 'desperate', emoji: '🆘', name: 'desperate', color: '#B91C1C' },
+];
+
 export type MoodJournalEmotionId = (typeof MOOD_JOURNAL_EMOTIONS)[number]['id'];
+
+export function moodStickerStorageKey(profileId?: string | null) {
+  return `hf-mood-stickers:${profileId || 'me'}`;
+}
+
+export function hydrateMoodStickers(raw?: unknown): MoodEmotionSticker[] {
+  if (!Array.isArray(raw)) return [];
+  const out: MoodEmotionSticker[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item === 'string') {
+      const preset = MOOD_JOURNAL_EMOTIONS.find((row) => row.id === item);
+      if (!preset || seen.has(preset.id)) continue;
+      out.push(preset);
+      seen.add(preset.id);
+      continue;
+    }
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Partial<MoodEmotionSticker>;
+    const emoji = String(row.emoji || '').trim().slice(0, 16) || '🙂';
+    const name = String(row.name || '').trim().slice(0, 40) || 'custom';
+    const color = String(row.color || '').trim() || '#EA580C';
+    const id = String(row.id || '').trim() || `custom-${out.length}`;
+    if (seen.has(id)) continue;
+    const preset = MOOD_JOURNAL_EMOTIONS.find((p) => p.id === id);
+    out.push({
+      id,
+      emoji,
+      name,
+      color,
+      custom: Boolean(row.custom) || !preset,
+    });
+    seen.add(id);
+  }
+  return out;
+}
 
 export interface DailyMoodMedia {
   url: string;
@@ -54,7 +113,7 @@ export interface DailyMoodView {
   emoji: string;
   expiresAt: string;
   updatedAt?: string | null;
-  emotions?: string[];
+  emotions?: MoodEmotionSticker[] | string[];
   note?: string;
   photo?: DailyMoodMedia | null;
   voice?: DailyMoodMedia | null;

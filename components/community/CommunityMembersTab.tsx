@@ -926,6 +926,9 @@ export function CommunityMembersTab({
                       zIndex: 260,
                     }}
                     className="flex w-[min(16rem,calc(100vw-1.25rem))] flex-col overflow-hidden rounded-md border border-border bg-white shadow-[0_10px_40px_rgb(28_25_23/0.22)]"
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
                   >
                     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
                       {(isAdmin || isModerator) && member.canRemind && !isMe ? (
@@ -1115,6 +1118,7 @@ export function CommunityMembersTab({
                               Remove
                             </button>
                           ) : null}
+                          {!isMe ? (
                           <button
                             type="button"
                             disabled={removeMutation.isPending || blacklistMutation.isPending}
@@ -1138,6 +1142,7 @@ export function CommunityMembersTab({
                             )}
                             Blacklist
                           </button>
+                          ) : null}
                         </>
                       ) : null}
                     </div>

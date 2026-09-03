@@ -27,7 +27,7 @@ export function ConfirmDialog({
   cancelLabel = 'No',
   loading = false,
   destructive = false,
-  zClassName = 'z-[260]',
+  zClassName = 'z-[300]',
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -73,6 +73,9 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         className="relative w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-float)]"
+        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         <h2 id="confirm-dialog-title" className="text-base font-semibold text-foreground">
           {title}

@@ -87,11 +87,15 @@ export function HomeMoodCard({
           </span>
           <span className="mt-0.5 block truncate text-xs text-muted-foreground">
             {daylio
-              ? mood?.note
-                ? mood.note
-                : mood?.emotions?.length
-                  ? `Feeling ${daylio.label} · ${mood.emotions.length} emotion${mood.emotions.length === 1 ? '' : 's'}`
-                  : `Feeling ${daylio.label} · tap to add more`
+              ? mood?.emotions?.length
+                ? `Feeling ${daylio.label} · ${
+                    mood.emotions
+                      .map((item) => (typeof item === 'string' ? item : item.name))
+                      .filter(Boolean)
+                      .slice(0, 3)
+                      .join(', ')
+                  }`
+                : `Feeling ${daylio.label} · tap to add emojis`
               : "Tap to set today's mood"}
           </span>
         </span>
