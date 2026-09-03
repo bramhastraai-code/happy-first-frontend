@@ -17,7 +17,8 @@ export interface AppNotification {
     | 'community_appreciation'
     | 'community_mention'
     | 'community_reply'
-    | 'community_invite';
+    | 'community_invite'
+    | 'community_join_request';
   title: string;
   body: string;
   photoId?: string | null;

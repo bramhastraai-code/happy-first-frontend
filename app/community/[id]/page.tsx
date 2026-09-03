@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft,
@@ -68,6 +68,7 @@ export default function CommunityDetailPage() {
   const params = useParams<{ id: string }>();
   const communityId = params.id;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { requestConfirm, ConfirmDialogElement } = useCommunityConfirm();
   const { selectedProfile } = useAuthStore();
@@ -81,6 +82,21 @@ export default function CommunityDetailPage() {
   const [soleAdminOpen, setSoleAdminOpen] = useState(false);
   const [assignAdminProfileId, setAssignAdminProfileId] = useState('');
   const [leaveBusy, setLeaveBusy] = useState(false);
+
+  useEffect(() => {
+    const next = searchParams.get('tab');
+    if (
+      next === 'members' ||
+      next === 'feed' ||
+      next === 'announcements' ||
+      next === 'kudos' ||
+      next === 'groups' ||
+      next === 'calendar' ||
+      next === 'dashboard'
+    ) {
+      setTab(next);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!chatOpen) return;

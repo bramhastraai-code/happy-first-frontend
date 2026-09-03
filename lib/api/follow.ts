@@ -36,6 +36,15 @@ export interface PublicProfileCommunity {
   role: 'admin' | 'moderator' | 'member' | string;
   viewerIsMember: boolean;
   viewerCanJoin: boolean;
+  viewerMembershipStatus?:
+    | 'active'
+    | 'pending'
+    | 'invited'
+    | 'blacklisted'
+    | 'removed'
+    | 'left'
+    | string
+    | null;
   avatarUrl?: string | null;
   avatarSeed?: string | null;
   avatarStyle?: string | null;
@@ -47,6 +56,7 @@ export interface PublicProfileData {
   followersCount: number;
   followingCount: number;
   postsCount: number;
+  sparkCount?: number;
   lastPostAt?: string | null;
   daysSinceLastPost?: number | null;
   thisWeekActivitiesTotal?: number;
@@ -66,6 +76,7 @@ export interface FollowActionResult {
   followersCount: number;
   followingCount: number;
   postsCount?: number;
+  sparkCount?: number;
   isFollowing: boolean;
   followsYou: boolean;
   isMe: boolean;
@@ -89,7 +100,10 @@ export const followAPI = {
       { params }
     ),
 
-  getPosts: (profileId: string, params?: { limit?: number; cursor?: string }) =>
+  getPosts: (
+    profileId: string,
+    params?: { limit?: number; cursor?: string; tab?: 'posts' | 'spark' | 'all' }
+  ) =>
     api.get<Envelope<{ posts: FeedPost[]; nextCursor: string | null }>>(
       `/follow/${profileId}/posts`,
       { params }

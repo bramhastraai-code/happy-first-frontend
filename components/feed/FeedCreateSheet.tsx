@@ -763,7 +763,7 @@ export function FeedCreateSheet({
                   placeholder={
                     kind === 'story'
                       ? 'Add a caption to your story…'
-                      : 'Write a caption… use @ to Spark with anyone'
+                      : 'Write a caption…'
                   }
                   className="w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
@@ -1000,7 +1000,7 @@ export function FeedCreateSheet({
                   placeholder={
                     kind === 'story'
                       ? 'Add to your story…'
-                      : 'Write a caption… use @ to Spark with anyone'
+                      : 'Write a caption…'
                   }
                   className="w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />

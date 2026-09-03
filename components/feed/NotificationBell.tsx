@@ -34,7 +34,7 @@ function iconFor(type: AppNotification['type']) {
   if (type === 'comment' || type === 'community_mention' || type === 'community_reply') {
     return MessageCircle;
   }
-  if (type === 'follow' || type === 'post_collaboration' || type === 'community_invite') {
+  if (type === 'follow' || type === 'post_collaboration' || type === 'community_invite' || type === 'community_join_request') {
     return UserPlus;
   }
   if (
@@ -179,6 +179,7 @@ export function NotificationBell({
         item.type === 'community_week_summary' ||
         item.type === 'community_nudge' ||
         item.type === 'community_invite' ||
+        item.type === 'community_join_request' ||
         item.type === 'community_event' ||
         item.type === 'community_event_reminder' ||
         item.type === 'community_appreciation' ||
@@ -189,7 +190,9 @@ export function NotificationBell({
       router.push(
         item.type === 'community_invite'
           ? `/community/join/${item.communityId}`
-          : `/community/${item.communityId}`
+          : item.type === 'community_join_request'
+            ? `/community/${item.communityId}?tab=members`
+            : `/community/${item.communityId}`
       );
       setOpen(false);
       return;
@@ -340,7 +343,7 @@ export function NotificationBell({
                               </button>
                               {item.type === 'post_collaboration' &&
                               item.photoId &&
-                              item.title.toLowerCase().includes('invited') ? (
+                              /invited you to spark/i.test(item.title) ? (
                                 <div className="mt-2 flex gap-2">
                                   <button
                                     type="button"

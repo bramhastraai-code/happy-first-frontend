@@ -166,7 +166,7 @@ function FeedPageContent() {
     queryKey: ['profilePosts', authorViewer?.profileId],
     enabled: Boolean(authorViewer?.profileId),
     queryFn: async () => {
-      const res = await followAPI.getPosts(authorViewer!.profileId, { limit: 36 });
+      const res = await followAPI.getPosts(authorViewer!.profileId, { limit: 36, tab: 'all' });
       return res.data.data;
     },
   });

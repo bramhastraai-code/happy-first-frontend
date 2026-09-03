@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Grid3X3, Loader2, MessageSquare } from 'lucide-react';
+import { ChevronLeft, Grid3X3, Loader2, MessageSquare, Sparkles } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
@@ -46,9 +46,10 @@ export default function FeedProfilePage() {
   const [repostingId, setRepostingId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [gridTab, setGridTab] = useState<'posts' | 'spark'>('posts');
 
   const enabled = isHydrated && !!accessToken && !!profileId;
-  const postsKey = ['profilePosts', profileId] as const;
+  const postsKey = ['profilePosts', profileId, gridTab] as const;
 
   const profileQuery = useQuery({
     queryKey: ['publicProfile', profileId],
@@ -97,7 +98,7 @@ export default function FeedProfilePage() {
     queryKey: postsKey,
     enabled,
     queryFn: async () => {
-      const res = await followAPI.getPosts(profileId, { limit: 36 });
+      const res = await followAPI.getPosts(profileId, { limit: 36, tab: gridTab });
       return res.data.data;
     },
   });
@@ -252,7 +253,7 @@ export default function FeedProfilePage() {
                 <div className="grid min-w-0 flex-1 grid-cols-3 gap-1 text-center">
                   <div className="py-1">
                     <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
-                      {data.postsCount}
+                      {(data.postsCount || 0) + (data.sparkCount || 0)}
                     </p>
                     <p className="text-xs text-foreground/80">posts</p>
                   </div>
@@ -447,33 +448,63 @@ export default function FeedProfilePage() {
                           {community.memberCount} {community.memberCount === 1 ? 'member' : 'members'}
                         </p>
                       </Link>
-                      {community.viewerCanJoin ? (
-                        <button
-                          type="button"
-                          disabled={joiningId === community.id}
-                          onClick={async () => {
-                            setJoiningId(community.id);
-                            try {
-                              await communityAPI.join(community.id);
-                              await queryClient.invalidateQueries({
-                                queryKey: ['publicProfile', profileId],
-                              });
-                              router.push(`/community/${community.id}`);
-                            } finally {
-                              setJoiningId(null);
-                            }
-                          }}
-                          className="shrink-0 rounded-none bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
-                        >
-                          {joiningId === community.id ? 'Joining…' : 'Join'}
-                        </button>
-                      ) : community.viewerIsMember ? (
+                      {community.viewerIsMember ? (
                         <Link
                           href={`/community/${community.id}`}
                           className="shrink-0 text-xs font-semibold text-primary"
                         >
                           Open
                         </Link>
+                      ) : community.viewerMembershipStatus === 'pending' ? (
+                        <Link
+                          href={`/community/${community.id}`}
+                          className="shrink-0 rounded-none border border-[#dbdbdb] bg-neutral-50 px-3 py-1.5 text-xs font-semibold text-neutral-500"
+                        >
+                          Requested
+                        </Link>
+                      ) : community.viewerCanJoin ? (
+                        <button
+                          type="button"
+                          disabled={joiningId === community.id}
+                          onClick={async () => {
+                            setJoiningId(community.id);
+                            try {
+                              const res = await communityAPI.join(community.id);
+                              const nextStatus =
+                                res.data.data.community?.myMembershipStatus || 'pending';
+                              queryClient.setQueryData(
+                                ['publicProfile', profileId],
+                                (old: typeof data) => {
+                                  if (!old?.communities) return old;
+                                  return {
+                                    ...old,
+                                    communities: old.communities.map((item) =>
+                                      item.id === community.id
+                                        ? {
+                                            ...item,
+                                            viewerCanJoin: false,
+                                            viewerIsMember: nextStatus === 'active',
+                                            viewerMembershipStatus: nextStatus,
+                                          }
+                                        : item
+                                    ),
+                                  };
+                                }
+                              );
+                              await queryClient.invalidateQueries({
+                                queryKey: ['publicProfile', profileId],
+                              });
+                              if (nextStatus === 'active') {
+                                router.push(`/community/${community.id}`);
+                              }
+                            } finally {
+                              setJoiningId(null);
+                            }
+                          }}
+                          className="shrink-0 rounded-none bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                        >
+                          {joiningId === community.id ? 'Requesting…' : 'Join'}
+                        </button>
                       ) : null}
                     </li>
                   ))}
@@ -489,15 +520,40 @@ export default function FeedProfilePage() {
 
             <div
               id="profile-posts-grid"
-              className="mt-4 flex items-center justify-center gap-3 border-b border-border"
+              className="mt-4 flex items-center justify-center gap-1 border-b border-border"
             >
-              <a
-                href="#profile-posts-grid"
-                className="inline-flex items-center gap-1.5 border-t border-foreground px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-foreground"
+              <button
+                type="button"
+                onClick={() => {
+                  setGridTab('posts');
+                  setViewerIndex(null);
+                }}
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide',
+                  gridTab === 'posts'
+                    ? 'border-t border-foreground text-foreground'
+                    : 'border-t border-transparent text-muted-foreground'
+                )}
               >
                 <Grid3X3 className="h-3.5 w-3.5" />
                 {isMe ? 'My posts' : 'Posts'} ({data.postsCount})
-              </a>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGridTab('spark');
+                  setViewerIndex(null);
+                }}
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide',
+                  gridTab === 'spark'
+                    ? 'border-t border-foreground text-foreground'
+                    : 'border-t border-transparent text-muted-foreground'
+                )}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Spark ({data.sparkCount || 0})
+              </button>
             </div>
 
             {postsQuery.isLoading ? (
@@ -505,7 +561,13 @@ export default function FeedProfilePage() {
                 <Loader2 className="h-7 w-7 animate-spin text-primary" />
               </div>
             ) : posts.length === 0 ? (
-              <p className="py-16 text-center text-sm text-muted-foreground">No posts yet</p>
+              <p className="py-16 text-center text-sm text-muted-foreground">
+                {gridTab === 'spark'
+                  ? isMe
+                    ? 'No Sparks yet. Invite someone when you post — it shows here after they accept.'
+                    : 'No Sparks yet'
+                  : 'No posts yet'}
+              </p>
             ) : (
               <div className="mt-3 grid grid-cols-3 gap-0.5 sm:gap-2">
                 {posts.map((post, index) => {
@@ -542,6 +604,11 @@ export default function FeedProfilePage() {
                       {(post.mediaItems?.length || 0) > 1 ? (
                         <span className="absolute right-1.5 top-1.5 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                           {post.mediaItems!.length}
+                        </span>
+                      ) : null}
+                      {gridTab === 'spark' ? (
+                        <span className="absolute left-1.5 top-1.5 rounded bg-black/55 p-1 text-white">
+                          <Sparkles className="h-3 w-3" />
                         </span>
                       ) : null}
                     </button>
