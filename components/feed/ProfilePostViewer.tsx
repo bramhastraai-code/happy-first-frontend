@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
+import { useQuery } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
 import {
   ChevronLeft,
@@ -18,6 +19,8 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import type { FeedPost } from '@/lib/api/feed';
 import { feedAPI, formatCollaborationLabel } from '@/lib/api/feed';
+import { followAPI } from '@/lib/api/follow';
+import { hashtagAPI, type HashtagSummary } from '@/lib/api/hashtag';
 import type { FeedPostEditExtras } from '@/components/feed/FeedPostCard';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
@@ -26,6 +29,8 @@ import { Button } from '@/components/ui/button';
 import { HappyIcon } from '@/components/ui/HappyIcon';
 import { PostMediaCarousel } from '@/components/feed/PostMediaCarousel';
 import { FeedCaption } from '@/components/feed/FeedCaption';
+import { MentionSuggestionList } from '@/components/feed/MentionSuggestionList';
+import { HashtagSuggestionList } from '@/components/feed/HashtagSuggestionList';
 import {
   renderTextCardImage,
   textCardGradient,
@@ -398,6 +403,7 @@ function ViewerPostCard({
             collaborators={[
               ...(post.acceptedCollaborators || []),
               ...(post.collaborators || []),
+              ...(post.mentions || []),
             ]}
             mentionClassName="font-semibold text-primary hover:underline"
           />
@@ -443,7 +449,114 @@ export function ProfilePostViewer({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [editMentionQuery, setEditMentionQuery] = useState<string | null>(null);
+  const [editMentionDebounced, setEditMentionDebounced] = useState('');
+  const [editHashtagQuery, setEditHashtagQuery] = useState<string | null>(null);
+  const [editHashtagDebounced, setEditHashtagDebounced] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const editCaptionRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setEditMentionQuery(null);
+    setEditHashtagQuery(null);
+  }, [editPost]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setEditMentionDebounced(editMentionQuery ?? ''), 220);
+    return () => window.clearTimeout(t);
+  }, [editMentionQuery]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setEditHashtagDebounced(editHashtagQuery ?? ''), 220);
+    return () => window.clearTimeout(t);
+  }, [editHashtagQuery]);
+
+  const editMentionPeopleQuery = useQuery({
+    queryKey: ['editCaptionMentionSearch', editMentionDebounced],
+    enabled: Boolean(editPost) && editMentionQuery !== null,
+    queryFn: async () => {
+      const res = await followAPI.searchMentionCandidates(editMentionDebounced, 16);
+      return res.data.data.people || [];
+    },
+  });
+
+  const editTrendingHashtagsQuery = useQuery({
+    queryKey: ['hashtagsComposerTrending'],
+    enabled: Boolean(editPost) && editHashtagQuery === '',
+    queryFn: async () => {
+      const res = await hashtagAPI.getTrending(10);
+      return res.data.data.hashtags;
+    },
+  });
+
+  const editHashtagSearchQuery = useQuery({
+    queryKey: ['hashtagsComposerSearch', editHashtagDebounced],
+    enabled: Boolean(editPost) && editHashtagQuery !== null && editHashtagDebounced.length > 0,
+    queryFn: async () => {
+      const res = await hashtagAPI.search(editHashtagDebounced, 10);
+      return res.data.data.hashtags;
+    },
+  });
+
+  const editMentionSuggestions = useMemo(() => {
+    if (editMentionQuery === null) return [];
+    return editMentionPeopleQuery.data || [];
+  }, [editMentionQuery, editMentionPeopleQuery.data]);
+
+  const editHashtagSuggestions = useMemo(() => {
+    if (editHashtagQuery === null) return [];
+    const trimmed = editHashtagQuery.trim();
+    if (!trimmed) return editTrendingHashtagsQuery.data || [];
+
+    const results = editHashtagSearchQuery.data || [];
+    const normalized = trimmed.toLowerCase();
+    const hasExactMatch = results.some((h) => h.normalizedName === normalized);
+    if (hasExactMatch) return results;
+
+    const newEntry: HashtagSummary = {
+      id: `new:${normalized}`,
+      name: trimmed,
+      normalizedName: normalized,
+      postCount: 0,
+    };
+    return [newEntry, ...results];
+  }, [editHashtagQuery, editTrendingHashtagsQuery.data, editHashtagSearchQuery.data]);
+
+  const detectEditMention = (value: string, cursor: number) => {
+    const before = value.slice(0, cursor);
+    const match = before.match(/@([^\s@]*)$/);
+    setEditMentionQuery(match ? match[1] : null);
+  };
+
+  const detectEditHashtag = (value: string, cursor: number) => {
+    const before = value.slice(0, cursor);
+    const match = before.match(/#([^\s#]*)$/);
+    setEditHashtagQuery(match ? match[1] : null);
+  };
+
+  const insertEditMention = (person: { name: string }) => {
+    setEditCaption((prev) => {
+      const el = editCaptionRef.current;
+      const cursor = el?.selectionStart ?? prev.length;
+      const before = prev.slice(0, cursor);
+      const after = prev.slice(cursor);
+      const replaced = before.replace(/@([^\s@]*)$/, `@${person.name} `);
+      return `${replaced}${after}`.slice(0, 300);
+    });
+    setEditMentionQuery(null);
+  };
+
+  const insertEditHashtag = (hashtag: HashtagSummary) => {
+    setEditCaption((prev) => {
+      const el = editCaptionRef.current;
+      const cursor = el?.selectionStart ?? prev.length;
+      const before = prev.slice(0, cursor);
+      const after = prev.slice(cursor);
+      const replaced = before.replace(/#([^\s#]*)$/, `#${hashtag.name} `);
+      return `${replaced}${after}`.slice(0, 300);
+    });
+    setEditHashtagQuery(null);
+  };
 
   useOverlayHistory({
     open,
@@ -685,14 +798,40 @@ export function ProfilePostViewer({
             <label className="mt-3 block text-xs font-medium text-muted-foreground">
               Caption
             </label>
-            <textarea
-              value={editCaption}
-              onChange={(e) => setEditCaption(e.target.value.slice(0, 300))}
-              rows={editPost.textCard?.text ? 2 : 4}
-              maxLength={300}
-              className="mt-1.5 w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
-              placeholder="Write a caption…"
-            />
+            <div className="relative">
+              <textarea
+                ref={editCaptionRef}
+                value={editCaption}
+                onChange={(e) => {
+                  const value = e.target.value.slice(0, 300);
+                  setEditCaption(value);
+                  detectEditMention(value, e.target.selectionStart);
+                  detectEditHashtag(value, e.target.selectionStart);
+                }}
+                onKeyUp={(e) => {
+                  const target = e.currentTarget;
+                  detectEditMention(target.value, target.selectionStart);
+                  detectEditHashtag(target.value, target.selectionStart);
+                }}
+                rows={editPost.textCard?.text ? 2 : 4}
+                maxLength={300}
+                className="mt-1.5 w-full rounded-xl border border-input bg-secondary px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                placeholder="Write a caption…"
+              />
+              {editMentionSuggestions.length > 0 ? (
+                <MentionSuggestionList
+                  people={editMentionSuggestions}
+                  placement="inline"
+                  onSelect={insertEditMention}
+                />
+              ) : editHashtagSuggestions.length > 0 ? (
+                <HashtagSuggestionList
+                  hashtags={editHashtagSuggestions}
+                  placement="inline"
+                  onSelect={insertEditHashtag}
+                />
+              ) : null}
+            </div>
             <p className="mt-1 text-right text-[11px] text-muted-foreground">
               {editCaption.length}/300
             </p>

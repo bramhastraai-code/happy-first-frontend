@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Camera, ImageIcon, Loader2, Plus, Sparkles, Type, Upload, Video, X } from 'lucide-react';
 import { feedAPI, type PublishTarget } from '@/lib/api/feed';
 import { followAPI } from '@/lib/api/follow';
+import { hashtagAPI, type HashtagSummary } from '@/lib/api/hashtag';
 import { communityAPI } from '@/lib/api/community';
 import { compressImageForUpload } from '@/lib/utils/compressImage';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
@@ -20,6 +21,7 @@ import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 import { SocialPostGuidelines } from '@/components/feed/SocialPostGuidelines';
 import { MentionSuggestionList } from '@/components/feed/MentionSuggestionList';
+import { HashtagSuggestionList } from '@/components/feed/HashtagSuggestionList';
 
 type CreateKind = PublishTarget;
 type PickMode = 'image' | 'video' | 'camera' | 'drop';
@@ -128,9 +130,11 @@ export function FeedCreateSheet({
   const [caption, setCaption] = useState('');
   const [collaborators, setCollaborators] = useState<TagPerson[]>([]);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [hashtagQuery, setHashtagQuery] = useState<string | null>(null);
   const [sparkSearch, setSparkSearch] = useState('');
   const [sparkSearchDebounced, setSparkSearchDebounced] = useState('');
   const [mentionDebounced, setMentionDebounced] = useState('');
+  const [hashtagDebounced, setHashtagDebounced] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [textMode, setTextMode] = useState(false);
@@ -153,6 +157,11 @@ export function FeedCreateSheet({
     const t = window.setTimeout(() => setMentionDebounced(mentionQuery ?? ''), 220);
     return () => window.clearTimeout(t);
   }, [mentionQuery]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setHashtagDebounced(hashtagQuery ?? ''), 220);
+    return () => window.clearTimeout(t);
+  }, [hashtagQuery]);
 
   const allowsCollaborators = kind !== 'story';
   const isStoryOnly = kind === 'story';
@@ -187,10 +196,49 @@ export function FeedCreateSheet({
       allowsCollaborators &&
       mentionQuery !== null,
     queryFn: async () => {
-      const res = await followAPI.searchUsers(mentionDebounced, 16);
+      const res = await followAPI.searchMentionCandidates(mentionDebounced, 16);
       return res.data.data.people || [];
     },
   });
+
+  const trendingHashtagsQuery = useQuery({
+    queryKey: ['hashtagsComposerTrending'],
+    enabled: open && hashtagQuery === '',
+    queryFn: async () => {
+      const res = await hashtagAPI.getTrending(10);
+      return res.data.data.hashtags;
+    },
+  });
+
+  const hashtagSearchQuery = useQuery({
+    queryKey: ['hashtagsComposerSearch', hashtagDebounced],
+    enabled: open && hashtagQuery !== null && hashtagDebounced.length > 0,
+    queryFn: async () => {
+      const res = await hashtagAPI.search(hashtagDebounced, 10);
+      return res.data.data.hashtags;
+    },
+  });
+
+  const hashtagSuggestions = useMemo(() => {
+    if (hashtagQuery === null) return [];
+    const trimmed = hashtagQuery.trim();
+    if (!trimmed) return trendingHashtagsQuery.data || [];
+
+    const results = hashtagSearchQuery.data || [];
+    const normalized = trimmed.toLowerCase();
+    const hasExactMatch = results.some((h) => h.normalizedName === normalized);
+    if (hasExactMatch) return results;
+
+    // Instagram-style: show the tag being typed even if it has never been used,
+    // so the user can confirm they're creating a brand-new hashtag.
+    const newEntry: HashtagSummary = {
+      id: `new:${normalized}`,
+      name: trimmed,
+      normalizedName: normalized,
+      postCount: 0,
+    };
+    return [newEntry, ...results];
+  }, [hashtagQuery, trendingHashtagsQuery.data, hashtagSearchQuery.data]);
 
   const selectedIds = useMemo(
     () => new Set(collaborators.map((c) => c.profileId)),
@@ -279,9 +327,11 @@ export function FeedCreateSheet({
     setCaption('');
     setCollaborators([]);
     setMentionQuery(null);
+    setHashtagQuery(null);
     setSparkSearch('');
     setSparkSearchDebounced('');
     setMentionDebounced('');
+    setHashtagDebounced('');
     setLocalError(null);
     setDragOver(false);
     setTextMode(false);
@@ -300,6 +350,12 @@ export function FeedCreateSheet({
     setMentionQuery(match ? match[1] : null);
   };
 
+  const detectHashtag = (value: string, cursor: number) => {
+    const before = value.slice(0, cursor);
+    const match = before.match(/#([^\s#]*)$/);
+    setHashtagQuery(match ? match[1] : null);
+  };
+
   const addCollaborator = (person: TagPerson) => {
     setCollaborators((prev) => {
       if (prev.some((c) => c.profileId === person.profileId)) return prev;
@@ -315,6 +371,18 @@ export function FeedCreateSheet({
       return `${replaced}${after}`.slice(0, 300);
     });
     setMentionQuery(null);
+  };
+
+  const insertHashtag = (hashtag: HashtagSummary) => {
+    setCaption((prev) => {
+      const el = captionRef.current;
+      const cursor = el?.selectionStart ?? prev.length;
+      const before = prev.slice(0, cursor);
+      const after = prev.slice(cursor);
+      const replaced = before.replace(/#([^\s#]*)$/, `#${hashtag.name} `);
+      return `${replaced}${after}`.slice(0, 300);
+    });
+    setHashtagQuery(null);
   };
 
   const addSparkPerson = (person: TagPerson) => {
@@ -752,11 +820,14 @@ export function FeedCreateSheet({
                     if (allowsCollaborators) {
                       detectMention(value, event.target.selectionStart);
                     }
+                    detectHashtag(value, event.target.selectionStart);
                   }}
                   onKeyUp={(event) => {
-                    if (!allowsCollaborators) return;
                     const target = event.currentTarget;
-                    detectMention(target.value, target.selectionStart);
+                    if (allowsCollaborators) {
+                      detectMention(target.value, target.selectionStart);
+                    }
+                    detectHashtag(target.value, target.selectionStart);
                   }}
                   maxLength={300}
                   rows={2}
@@ -770,8 +841,14 @@ export function FeedCreateSheet({
                 {mentionSuggestions.length > 0 && caption.includes('@') ? (
                   <MentionSuggestionList
                     people={mentionSuggestions}
-                    placement="below"
+                    placement="inline"
                     onSelect={addCollaborator}
+                  />
+                ) : hashtagSuggestions.length > 0 ? (
+                  <HashtagSuggestionList
+                    hashtags={hashtagSuggestions}
+                    placement="inline"
+                    onSelect={insertHashtag}
                   />
                 ) : null}
                 <p className="mt-1 text-right text-[11px] text-muted-foreground">
@@ -989,11 +1066,14 @@ export function FeedCreateSheet({
                     if (allowsCollaborators) {
                       detectMention(value, event.target.selectionStart);
                     }
+                    detectHashtag(value, event.target.selectionStart);
                   }}
                   onKeyUp={(event) => {
-                    if (!allowsCollaborators) return;
                     const target = event.currentTarget;
-                    detectMention(target.value, target.selectionStart);
+                    if (allowsCollaborators) {
+                      detectMention(target.value, target.selectionStart);
+                    }
+                    detectHashtag(target.value, target.selectionStart);
                   }}
                   maxLength={300}
                   rows={2}
@@ -1007,8 +1087,14 @@ export function FeedCreateSheet({
                 {mentionSuggestions.length > 0 ? (
                   <MentionSuggestionList
                     people={mentionSuggestions}
-                    placement="below"
+                    placement="inline"
                     onSelect={addCollaborator}
+                  />
+                ) : hashtagSuggestions.length > 0 ? (
+                  <HashtagSuggestionList
+                    hashtags={hashtagSuggestions}
+                    placement="inline"
+                    onSelect={insertHashtag}
                   />
                 ) : null}
                 <p className="mt-1 text-right text-[11px] text-muted-foreground">

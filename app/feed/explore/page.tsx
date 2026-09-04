@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Copy, Loader2, Play, Search, UserPlus } from 'lucide-react';
+import { ChevronLeft, Copy, Hash, Loader2, Play, Search, UserPlus } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { FollowButton } from '@/components/feed/FollowButton';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
@@ -13,6 +13,7 @@ import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { headerBackBtnClass, pageStickyHeaderClass } from '@/components/ui/AppPageHeader';
 import { followAPI, type FollowPerson } from '@/lib/api/follow';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
+import { hashtagAPI, type HashtagSummary } from '@/lib/api/hashtag';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
@@ -52,7 +53,33 @@ function PersonRow({ person }: { person: FollowPerson }) {
   );
 }
 
-type SearchTab = 'people' | 'posts';
+type SearchTab = 'people' | 'posts' | 'tags';
+
+function formatPostCount(count: number) {
+  if (count < 1000) return `${count} post${count === 1 ? '' : 's'}`;
+  return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k posts`;
+}
+
+function HashtagRow({ hashtag }: { hashtag: HashtagSummary }) {
+  return (
+    <Link
+      href={`/feed/hashtag/${hashtag.normalizedName}`}
+      className="flex items-center gap-3 px-1 py-2.5"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+        <Hash className="h-4.5 w-4.5" />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-foreground">
+          #{hashtag.name}
+        </p>
+        <p className="truncate text-[11px] text-muted-foreground">
+          {formatPostCount(hashtag.postCount)}
+        </p>
+      </div>
+    </Link>
+  );
+}
 
 function ExplorePostGrid({
   posts,
@@ -189,6 +216,24 @@ export default function FeedExplorePage() {
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 
+  const trendingTagsQuery = useQuery({
+    queryKey: ['hashtagsTrending'],
+    enabled: enabled && tab === 'tags' && !isSearching,
+    queryFn: async () => {
+      const res = await hashtagAPI.getTrending(30);
+      return res.data.data.hashtags;
+    },
+  });
+
+  const tagsSearchQuery = useQuery({
+    queryKey: ['hashtagsSearch', debounced],
+    enabled: enabled && tab === 'tags' && isSearching,
+    queryFn: async () => {
+      const res = await hashtagAPI.search(debounced.replace(/^#/, ''), 30);
+      return res.data.data.hashtags;
+    },
+  });
+
   const list = useMemo(() => {
     if (isSearching) return searchQuery.data || [];
     return browsingQuery.data || [];
@@ -275,21 +320,26 @@ export default function FeedExplorePage() {
               placeholder={
                 tab === 'posts'
                   ? 'Search posts'
-                  : 'Search people'
+                  : tab === 'tags'
+                    ? 'Search hashtags'
+                    : 'Search people'
               }
               className="h-11 w-full rounded-xl border border-input bg-secondary pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
               autoFocus
               inputMode="search"
-              aria-label={tab === 'posts' ? 'Search posts' : 'Search people'}
+              aria-label={
+                tab === 'posts' ? 'Search posts' : tab === 'tags' ? 'Search hashtags' : 'Search people'
+              }
             />
           </label>
         </div>
 
-        <div className="grid grid-cols-2 gap-1 rounded-2xl bg-secondary p-1">
+        <div className="grid grid-cols-3 gap-1 rounded-2xl bg-secondary p-1">
           {(
             [
               { id: 'people', label: 'People' },
               { id: 'posts', label: 'Posts' },
+              { id: 'tags', label: 'Tags' },
             ] as const
           ).map((item) => (
             <button
@@ -364,7 +414,7 @@ export default function FeedExplorePage() {
               )}
             </section>
           </>
-        ) : (
+        ) : tab === 'posts' ? (
           <section className="space-y-3">
             {!isSearching ? (
               <div className="px-1">
@@ -399,6 +449,36 @@ export default function FeedExplorePage() {
                   </button>
                 ) : null}
               </>
+            )}
+          </section>
+        ) : (
+          <section className="rounded-2xl border border-border bg-surface p-3 sm:p-4 sm:shadow-[var(--shadow-card)]">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-foreground">
+                {isSearching ? 'Search results' : 'Trending hashtags'}
+              </h2>
+            </div>
+
+            {(isSearching ? tagsSearchQuery.isLoading : trendingTagsQuery.isLoading) ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (isSearching ? tagsSearchQuery.data : trendingTagsQuery.data)?.length ? (
+              <ul className="divide-y divide-border">
+                {(isSearching ? tagsSearchQuery.data : trendingTagsQuery.data)!.map(
+                  (hashtag) => (
+                    <li key={hashtag.id}>
+                      <HashtagRow hashtag={hashtag} />
+                    </li>
+                  )
+                )}
+              </ul>
+            ) : (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                {isSearching
+                  ? `No hashtags found for “${debounced}”`
+                  : 'No trending hashtags yet'}
+              </p>
             )}
           </section>
         )}
