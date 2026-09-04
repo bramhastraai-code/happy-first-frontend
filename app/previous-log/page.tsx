@@ -14,11 +14,10 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 import CompactDatePicker from '@/components/ui/CompactDatePicker';
 import TaskCategorySection from '@/components/tasks/TaskCategorySection';
 import CommunityActivitiesSection from '@/components/tasks/CommunityActivitiesSection';
-import { Calendar, Clock, AlertCircle, Loader2, Eye } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { activityAPI, type Activity as ActivityType } from '@/lib/api/activity';
 import { communityAPI, type MyCommunityActivity } from '@/lib/api/community';
 import { DateTime } from 'luxon';
-import { cn } from '@/lib/utils';
 import { resolveActivityId } from '@/lib/utils/activityId';
 import { getActivityInputMax } from '@/lib/utils/activityInput';
 import {
@@ -187,14 +186,17 @@ function PreviousLogPageContent() {
 
   useEffect(() => {
     if (!selectedDate) {
-      setDeadlineMessage('Select a date through today to submit or view a log.');
+      setDeadlineMessage('Pick a date');
       return;
     }
 
-    const latestAllowedLabel = DateTime.fromISO(today, { zone }).toFormat('cccc, d LLL yyyy');
+    if (logAlreadyExists && !hasCommunityToLog) {
+      setDeadlineMessage('Already logged');
+      return;
+    }
 
-    if (logAlreadyExists) {
-      setDeadlineMessage('This day is already logged. Viewing your submitted entries.');
+    if (logAlreadyExists && hasCommunityToLog) {
+      setDeadlineMessage('Finish community activities');
       return;
     }
 
@@ -204,21 +206,22 @@ function PreviousLogPageContent() {
 
     if (dateIsLoggable) {
       if (hasPartialLogs) {
-        setDeadlineMessage(
-          'Some activities are already saved for this day. Submit the remaining ones.'
-        );
+        setDeadlineMessage('Finish remaining activities');
         return;
       }
-      setDeadlineMessage(
-        selectedIsToday
-          ? 'Log today’s activities here. Future dates stay blocked.'
-          : `You can submit a missed log for this day. Latest day you can submit: ${latestAllowedLabel}.`
-      );
+      setDeadlineMessage(selectedIsToday ? 'Ready to log' : 'Missed day');
       return;
     }
 
-    setDeadlineMessage(`You can log through ${latestAllowedLabel}. Future dates are blocked.`);
-  }, [selectedDate, logAlreadyExists, dateIsLoggable, selectedIsToday, today, zone, weeklyPlan]);
+    setDeadlineMessage('Future date');
+  }, [
+    selectedDate,
+    logAlreadyExists,
+    dateIsLoggable,
+    selectedIsToday,
+    weeklyPlan,
+    hasCommunityToLog,
+  ]);
 
   useEffect(() => {
     const checkLogAndFetchPlan = async () => {
@@ -468,7 +471,7 @@ function PreviousLogPageContent() {
   };
 
   const formattedSelectedDate = selectedDate
-    ? DateTime.fromISO(selectedDate).toFormat('cccc, d LLL yyyy')
+    ? DateTime.fromISO(selectedDate).toFormat('ccc, d LLL')
     : '';
 
   const handleConfirmSubmit = () => {
@@ -499,7 +502,6 @@ function PreviousLogPageContent() {
 
   if (!isMounted || !isHydrated || !sessionReady) return null;
 
-  const canSubmit = mode === 'submit';
   const showForm = mode === 'submit';
   const showView = mode === 'view' && daySummary;
   const pickerEnabled = Boolean(today);
@@ -509,169 +511,92 @@ function PreviousLogPageContent() {
       {showCongrats && (
         <LogSuccessOverlay
           points={earnedPoints}
-          message="Your missed day log was saved successfully!"
+          message="Missed day saved"
           entries={loggedEntries}
         />
       )}
 
       <PageHeader
-        title="Missed day log"
-        subtitle="Enter today or any past day — or view if already saved"
+        title="Missed log"
         action={
-          selectedDate ? (
-            <span className="chip chip-active text-xs">
-              {DateTime.fromISO(selectedDate).toFormat('d MMM')}
-            </span>
+          pickerEnabled && selectedDate ? (
+            <CompactDatePicker
+              value={selectedDate}
+              onChange={setSelectedDate}
+              maxDate={today}
+              calendarDays={pickerCalendarDays}
+            />
           ) : undefined
         }
       />
 
       <div className="space-y-4">
-        <div className="section-card overflow-visible p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold text-foreground">Select date</h2>
+        <div className="flex items-center justify-between gap-3 px-0.5">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-foreground">
+              {formattedSelectedDate || 'Pick a date'}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{deadlineMessage}</p>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-foreground">
-                {formattedSelectedDate || 'Pick any past date'}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                You can log through {DateTime.fromISO(today, { zone }).toFormat('d MMM yyyy')}. Future dates are blocked.
-              </p>
-            </div>
-            {pickerEnabled && selectedDate && (
-              <CompactDatePicker
-                value={selectedDate}
-                onChange={setSelectedDate}
-                maxDate={today}
-                calendarDays={pickerCalendarDays}
-              />
-            )}
-          </div>
-        </div>
-
-        <div
-          className={cn(
-            'app-card p-4',
-            canSubmit
-              ? 'border-primary/25 bg-primary-soft/50'
-              : showView
-                ? 'border-border bg-secondary/40'
-                : 'border-amber-200 bg-amber-50'
-          )}
-        >
-          <div className="flex items-start gap-3">
-            {showView ? (
-              <Eye className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-            ) : (
-              <Clock
-                className={cn(
-                  'mt-0.5 h-5 w-5 shrink-0',
-                  canSubmit ? 'text-primary' : 'text-amber-600'
-                )}
-              />
-            )}
-            <div>
-              <p
-                className={cn(
-                  'text-sm font-semibold',
-                  canSubmit
-                    ? 'text-accent-foreground'
-                    : showView
-                      ? 'text-foreground'
-                      : 'text-amber-900'
-                )}
-              >
-                {deadlineMessage}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Submit: today or any past day. Already logged days are view-only.
-              </p>
-            </div>
-          </div>
+          {showView ? (
+            <span className="chip shrink-0 text-xs tabular-nums">
+              {daySummary.totalPoints.toFixed(1)}%
+            </span>
+          ) : null}
         </div>
 
         {(checkingLog || mode === 'loading') && (
-          <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            Checking log status…
+            Loading…
           </div>
         )}
 
         {showView && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="section-title">Submitted log</h2>
-              <span className="chip text-xs">{daySummary.totalPoints.toFixed(1)}%</span>
-            </div>
-            <ul className="section-card divide-y divide-border">
-              {daySummary.activities.map((activity) => (
-                <li
-                  key={String(activity.activityId)}
-                  className="flex items-center justify-between gap-3 px-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">
-                      {activity.activity}
-                    </p>
-                    <p className="text-xs capitalize text-muted-foreground">
-                      {activity.cadance === 'daily' ? 'Daily goal' : 'Weekly goal'}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold tabular-nums text-foreground">
-                      {formatSubmittedValue(activity)}
-                    </p>
-                    <p className="text-xs tabular-nums text-muted-foreground">
-                      +{activity.pointsEarned.toFixed(1)}%
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ul className="divide-y divide-border border-y border-border">
+            {daySummary.activities.map((activity) => (
+              <li
+                key={String(activity.activityId)}
+                className="flex items-center justify-between gap-3 py-3"
+              >
+                <p className="min-w-0 truncate text-sm font-medium text-foreground">
+                  {activity.activity}
+                </p>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-semibold tabular-nums text-foreground">
+                    {formatSubmittedValue(activity)}
+                  </p>
+                  <p className="text-[11px] tabular-nums text-muted-foreground">
+                    +{activity.pointsEarned.toFixed(1)}%
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
 
         {showWarning && warningActivities.length > 0 && (
-          <div className="app-card border-orange-200 bg-orange-50 p-5">
-            <div className="mb-3 flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 shrink-0 text-orange-600" />
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-foreground">Unusual values detected</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  These entries look far from your targets. Review before submitting.
-                </p>
-              </div>
+          <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-orange-600" />
+              <h3 className="text-sm font-semibold text-foreground">Unusual values</h3>
             </div>
-            <div className="mb-4 space-y-2">
-              {warningActivities.map((warning, index) => (
-                <div key={index} className="rounded-lg border border-orange-200 bg-surface p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{warning.label}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Entered {warning.value} · Target {warning.target.toFixed(1)}
-                      </p>
-                    </div>
-                    <span
-                      className={cn(
-                        'rounded-lg px-2.5 py-1 text-xs font-semibold',
-                        warning.percentage < 10
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-orange-100 text-orange-700'
-                      )}
-                    >
-                      {warning.percentage}%
-                    </span>
-                  </div>
-                </div>
+            <ul className="mb-3 space-y-1.5">
+              {warningActivities.map((warning) => (
+                <li
+                  key={warning.activityId}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <span className="min-w-0 truncate text-foreground">{warning.label}</span>
+                  <span className="shrink-0 tabular-nums text-orange-700">
+                    {warning.value}/{warning.target.toFixed(0)}
+                  </span>
+                </li>
               ))}
-            </div>
+            </ul>
             <div className="flex gap-2">
               <Button type="button" onClick={handleCancelSubmit} variant="outline" className="flex-1">
-                Go back & edit
+                Edit
               </Button>
               <Button type="button" onClick={handleConfirmSubmit} className="flex-1">
                 Submit anyway
@@ -681,8 +606,7 @@ function PreviousLogPageContent() {
         )}
 
         {showForm && (weeklyPlan || hasCommunityToLog) && (
-          <div className="space-y-4">
-            <h2 className="section-title">Log activities</h2>
+          <div className="space-y-1">
             {weeklyPlan
               ? (['body', 'mind', 'soul'] as const).map((category) => (
                   <TaskCategorySection
@@ -699,7 +623,6 @@ function PreviousLogPageContent() {
                     onCheckboxChange={handleCheckboxChange}
                     onPendingChange={handlePendingChange}
                     getActivityInputMax={getActivityInputMax}
-                    defaultOpen={category === 'body'}
                   />
                 ))
               : null}
@@ -722,8 +645,8 @@ function PreviousLogPageContent() {
         )}
 
         {error && (
-          <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <p>{error}</p>
           </div>
         )}
@@ -741,43 +664,24 @@ function PreviousLogPageContent() {
             }
             className="w-full py-5 text-base font-semibold"
           >
-            {loading ? 'Submitting…' : checkingLog ? 'Checking…' : selectedIsToday ? 'Submit today’s log' : 'Submit missed log'}
+            {loading ? 'Submitting…' : selectedIsToday ? 'Submit today' : 'Submit missed log'}
           </Button>
         )}
 
         {mode === 'closed' && !checkingLog && (
-          <div className="app-card p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-              <div className="text-sm text-muted-foreground">
-                <p className="font-semibold text-foreground">How missed logs work</p>
-                <ul className="mt-2 list-inside list-disc space-y-1">
-                  <li>Pick today or any past day</li>
-                  <li>Enter activity values and submit</li>
-                  <li>If already submitted, you can view the log here</li>
-                  <li>A weekly plan must exist for that date</li>
-                </ul>
-                {pickerEnabled && selectedDate !== today && (
-                  <Button
-                    type="button"
-                    className="mt-4"
-                    variant="outline"
-                    onClick={() => setSelectedDate(today)}
-                  >
-                    Open today
-                  </Button>
-                )}
-                {pickerEnabled && selectedDate !== yesterday && !selectedIsToday && (
-                  <Button
-                    type="button"
-                    className="mt-4 ml-2"
-                    variant="outline"
-                    onClick={() => setSelectedDate(yesterday)}
-                  >
-                    Open yesterday
-                  </Button>
-                )}
-              </div>
+          <div className="py-10 text-center">
+            <p className="text-sm text-muted-foreground">Nothing to log for this day.</p>
+            <div className="mt-4 flex justify-center gap-2">
+              {pickerEnabled && selectedDate !== yesterday ? (
+                <Button type="button" variant="outline" size="sm" onClick={() => setSelectedDate(yesterday)}>
+                  Yesterday
+                </Button>
+              ) : null}
+              {pickerEnabled && selectedDate !== today ? (
+                <Button type="button" variant="outline" size="sm" onClick={() => setSelectedDate(today)}>
+                  Today
+                </Button>
+              ) : null}
             </div>
           </div>
         )}

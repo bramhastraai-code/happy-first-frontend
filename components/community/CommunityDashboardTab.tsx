@@ -66,8 +66,7 @@ function ProgressBar({
   percent: number;
   size?: 'sm' | 'lg';
 }) {
-  const width = Math.min(Math.max(percent, 0), 100);
-  const over = percent > 100;
+  const width = Math.min(Math.max(Number(percent) || 0, 0), 100);
   return (
     <div
       className={cn(
@@ -76,12 +75,7 @@ function ProgressBar({
       )}
     >
       <div
-        className={cn(
-          'relative h-full rounded-full transition-[width] duration-700 ease-out',
-          over
-            ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-            : 'bg-gradient-to-r from-primary via-primary to-primary-hover'
-        )}
+        className="relative h-full rounded-full bg-gradient-to-r from-primary via-primary to-primary-hover transition-[width] duration-700 ease-out"
         style={{ width: `${width}%` }}
       >
         <span className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white/35 to-transparent" />
@@ -99,15 +93,14 @@ function ScoreRing({
   size?: 'md' | 'lg';
   color?: string;
 }) {
-  const value = Math.max(0, Number(percent) || 0);
-  const capped = Math.min(value, 100);
+  const capped = Math.min(100, Math.max(0, Number(percent) || 0));
   const radius = size === 'lg' ? 46 : 38;
   const view = size === 'lg' ? 112 : 96;
   const stroke = size === 'lg' ? 9 : 8;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (capped / 100) * circumference;
   const center = view / 2;
-  const strokeColor = color || (value > 100 ? '#6CBC5A' : '#EA580C');
+  const strokeColor = color || '#EA580C';
 
   return (
     <div
@@ -146,7 +139,7 @@ function ScoreRing({
             size === 'lg' ? 'text-2xl' : 'text-xl'
           )}
         >
-          {Math.round(value)}%
+          {Math.round(capped)}%
         </p>
       </div>
     </div>
@@ -651,7 +644,7 @@ export function CommunityDashboardTab({
             <div>
               <p className="text-xs font-medium text-muted-foreground">Progress</p>
               <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                {Math.round(detailActivity.progressPercent ?? 0)}%
+                {Math.round(Math.min(100, detailActivity.progressPercent ?? 0))}%
               </p>
             </div>
             <p className="text-right text-xs text-muted-foreground">
@@ -1018,7 +1011,7 @@ export function CommunityDashboardTab({
                             {activity.name}
                           </p>
                           <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                            {Math.round(activity.progressPercent)}%
+                            {Math.round(Math.min(100, activity.progressPercent))}%
                           </p>
                         </div>
                         <ProgressBar percent={activity.progressPercent} />

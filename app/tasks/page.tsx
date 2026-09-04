@@ -724,13 +724,13 @@ export default function TasksPage() {
               className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full"
               style={{
                 background: `conic-gradient(${
-                  progress.percentage === 100 ? 'var(--color-success)' : 'var(--color-primary)'
-                } ${progress.percentage * 3.6}deg, var(--color-secondary) 0deg)`,
+                  progress.percentage >= 100 ? 'var(--color-success)' : 'var(--color-primary)'
+                } ${Math.min(100, progress.percentage) * 3.6}deg, var(--color-secondary) 0deg)`,
               }}
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface shadow-sm">
                 <span className="text-sm font-bold tabular-nums text-foreground">
-                  {Math.round(progress.percentage)}%
+                  {Math.round(Math.min(100, progress.percentage))}%
                 </span>
               </div>
             </div>
@@ -748,7 +748,7 @@ export default function TasksPage() {
                 className={`h-full rounded-full transition-all duration-500 ${
                   progress.percentage === 100 ? 'bg-success' : 'bg-primary'
                 }`}
-                style={{ width: `${progress.percentage}%` }}
+                style={{ width: `${Math.min(100, progress.percentage)}%` }}
               />
             </div>
           </div>

@@ -78,7 +78,8 @@ function getDayState(day: CalendarDay | ActivityCalendarDay): DayState {
 
 function formatPercent(value: string | number | null | undefined) {
   const n = Number(value);
-  return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+  if (!Number.isFinite(n)) return '0.00';
+  return Math.min(100, Math.max(0, n)).toFixed(2);
 }
 
 function dayCellClasses(day: CalendarDay | ActivityCalendarDay) {

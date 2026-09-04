@@ -101,18 +101,21 @@ export default function FeedProfilePage() {
 
   const data = profileQuery.data;
   const thisWeekPercent = (() => {
-    if (
-      isOwnProfile &&
-      ownWeekQuery.data &&
-      typeof ownWeekQuery.data.totalPoints === 'number' &&
-      !Number.isNaN(ownWeekQuery.data.totalPoints)
-    ) {
-      return Number(ownWeekQuery.data.totalPoints.toFixed(2));
-    }
-    if (data?.thisWeekCompletionPercent != null && !Number.isNaN(Number(data.thisWeekCompletionPercent))) {
-      return Number(Number(data.thisWeekCompletionPercent).toFixed(2));
-    }
-    return 0;
+    const raw = (() => {
+      if (
+        isOwnProfile &&
+        ownWeekQuery.data &&
+        typeof ownWeekQuery.data.totalPoints === 'number' &&
+        !Number.isNaN(ownWeekQuery.data.totalPoints)
+      ) {
+        return Number(ownWeekQuery.data.totalPoints.toFixed(2));
+      }
+      if (data?.thisWeekCompletionPercent != null && !Number.isNaN(Number(data.thisWeekCompletionPercent))) {
+        return Number(Number(data.thisWeekCompletionPercent).toFixed(2));
+      }
+      return 0;
+    })();
+    return Math.min(100, Math.max(0, raw));
   })();
 
   const postsQuery = useQuery({

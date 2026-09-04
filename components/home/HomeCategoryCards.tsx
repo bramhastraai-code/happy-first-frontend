@@ -8,6 +8,7 @@ import {
   ACTIVITY_CATEGORIES,
   type ActivityCategory,
 } from '@/lib/utils/activityCategory';
+import { clampPercent, ratioToPercent } from '@/lib/utils/percent';
 import { cn } from '@/lib/utils';
 
 type HomeCategoryCardsProps = {
@@ -36,7 +37,7 @@ function CategoryProgressRing({
   emoji: string;
   label: string;
 }) {
-  const capped = Math.min(Math.max(0, percent), 100);
+  const capped = clampPercent(percent);
   const size = 56;
   const stroke = 5;
   const radius = (size - stroke) / 2;
@@ -48,7 +49,7 @@ function CategoryProgressRing({
     <div
       className="relative h-14 w-14 shrink-0 sm:h-16 sm:w-16"
       role="img"
-      aria-label={`${label} ${percent}% this week`}
+      aria-label={`${label} ${capped}% this week`}
     >
       <svg
         viewBox={`0 0 ${size} ${size}`}
@@ -74,10 +75,7 @@ function CategoryProgressRing({
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          className={cn(
-            'text-primary transition-[stroke-dashoffset] duration-500 ease-out',
-            percent > 100 && 'text-emerald-500'
-          )}
+          className="text-primary transition-[stroke-dashoffset] duration-500 ease-out"
         />
       </svg>
       <span
@@ -117,14 +115,15 @@ export function HomeCategoryCards({
       if (!category || !byCategory[category]) continue;
       seenIds.add(id);
 
-      byCategory[category].achieved += achievedUnits(activity);
-      byCategory[category].target += weekTargetUnits(activity);
+      const target = weekTargetUnits(activity);
+      // Cap each activity at its own week target so overlogging can't push category past 100%.
+      byCategory[category].achieved += Math.min(achievedUnits(activity), target);
+      byCategory[category].target += target;
     }
 
     for (const key of Object.keys(byCategory)) {
       const row = byCategory[key];
-      row.percent =
-        row.target > 0 ? Math.round((row.achieved / row.target) * 100) : 0;
+      row.percent = ratioToPercent(row.achieved, row.target);
     }
 
     return byCategory;

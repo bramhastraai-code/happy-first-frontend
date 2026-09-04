@@ -16,6 +16,8 @@ interface DashboardHeaderProps {
   onOpenMessageFromNotification?: (conversationId: string) => void;
   className?: string;
   extraActions?: ReactNode;
+  /** Level label shown next to the name, e.g. "Lv 4 · Builder" */
+  levelLabel?: string | null;
 }
 
 export function DashboardHeader({
@@ -24,6 +26,7 @@ export function DashboardHeader({
   onOpenMessageFromNotification,
   className,
   extraActions,
+  levelLabel = null,
 }: DashboardHeaderProps) {
   const router = useRouter();
   const { user, selectedProfile, profiles, setProfileSelectedInSession } = useAuthStore();
@@ -41,7 +44,20 @@ export function DashboardHeader({
     <AppPageHeader
       className={className}
       showAvatar
-      title={<span className="text-primary">{firstNameFrom(displayName)}</span>}
+      title={
+        <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="text-primary">{firstNameFrom(displayName)}</span>
+          {levelLabel ? (
+            <button
+              type="button"
+              onClick={() => router.push('/xp')}
+              className="text-xs font-semibold tabular-nums text-muted-foreground transition-colors hover:text-primary sm:text-sm"
+            >
+              {levelLabel}
+            </button>
+          ) : null}
+        </span>
+      }
       subtitle={<HeaderTodayMood profileId={selectedProfile?._id} />}
       subtitleTone="plain"
       meta={

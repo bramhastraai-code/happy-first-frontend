@@ -77,7 +77,7 @@ function HomePageContent() {
     activityGoals: false,
     pendingActivities: false,
     leaderboard: false,
-    logTracker: false,
+    logTracker: true,
   });
   // Empty until mount — avoids Vercel SSR (UTC) baking the wrong calendar day into state.
   const [logDateFilter, setLogDateFilter] = useState<string>('');
@@ -419,6 +419,15 @@ function HomePageContent() {
     );
   }, [filteredPlanActivities, categoryById]);
 
+  const totalPendingCount = useMemo(() => {
+    return pendingByCategory.reduce((sum, group) => {
+      const dailyOpen = group.daily.filter(
+        (activity) => formatPlanActivityProgress(activity).tone !== 'achieved'
+      ).length;
+      return sum + dailyOpen + group.weeklyOpen.length;
+    }, 0);
+  }, [pendingByCategory]);
+
   // Show loading only on first visit with no cached data
   if (!isHydrated || !sessionReady || !logDateFilter || isBootstrapping) {
     return (
@@ -450,6 +459,7 @@ function HomePageContent() {
         <DashboardHeader
           className="welcome-banner"
           isPaused={isProfilePaused}
+          levelLabel={economy?.xp ? `Lv ${economy.xp.level}` : null}
           extraActions={
             <HeaderIconLink
               className="home-search"
@@ -468,14 +478,18 @@ function HomePageContent() {
           }}
         />
 
+        <HomeMoodCard
+          className="home-mood"
+          profileId={selectedProfile?._id}
+          suppressed={blockOverlaysForTour || Boolean(weekendPrompt?.show)}
+        />
+
         <HomeCategoryCards
           weeklyPlan={weeklyPlan}
           activityList={activityList}
           selectedCategory={selectedCategory}
           onCategoryChange={handleCategoryChange}
         />
-
-        <HomeEconomyCards economy={economy} />
 
         {selectedCategory ? (
           <button
@@ -499,374 +513,172 @@ function HomePageContent() {
           </button>
         ) : null}
 
-        <section className="my-happiness space-y-3">
-          <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            My happiness
-          </p>
+        {isRefreshing && (
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+            Updating dashboard…
+          </div>
+        )}
 
-          <HomeMoodCard
-            profileId={selectedProfile?._id}
-            suppressed={blockOverlaysForTour || Boolean(weekendPrompt?.show)}
-          />
-
-          {isRefreshing && (
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              Updating dashboard…
-            </div>
-          )}
-
-          {noPlanError ? (
-            <Card className="border-2 border-amber-200 bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 shadow-sm">
-              <CardContent className="p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-xl">
-                      🗓️
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-bold text-amber-900">No Active Plan Yet</h2>
-                      <p className="mt-1 text-sm text-amber-800">
-                        You don&apos;t have a weekly plan right now. Create one to unlock tasks, track points, and stay on streak.
-                      </p>
-                      {upcomingPlan?.weekStart && (
-                        <p className="mt-2 text-xs font-medium text-amber-700">
-                          Upcoming plan starts on {DateTime.fromISO(String(upcomingPlan.weekStart)).toFormat('dd LLL yyyy')}.
-                        </p>
-                      )}
-                    </div>
+        {noPlanError ? (
+          <Card className="border-2 border-amber-200 bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-xl">
+                    🗓️
                   </div>
-                  <button
-                    onClick={() => router.push('/create-plan')}
-                    className="inline-flex items-center justify-center rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700"
-                  >
-                    Create Weekly Plan
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : hasCommunityActivities ? (
-            <Card className="border border-primary/20 bg-gradient-to-br from-primary-soft/40 via-surface to-surface shadow-sm">
-              <CardContent className="p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-xl">
-                      👥
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-bold text-foreground">Community Activities</h2>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        You have {communityActivityCount} community{' '}
-                        {communityActivityCount === 1 ? 'activity' : 'activities'} to log today.
-                        These count toward your activity totals but not personal Wellth points.
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="default"
-                    className="shrink-0"
-                    onClick={() => router.push('/tasks')}
-                  >
-                    Log community activities
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          <Card className="week-tracker section-card app-card-hover overflow-visible">
-            <CardContent className="p-4 sm:p-5">
-              <button
-                type="button"
-                onClick={() => router.push('/streak-calendar')}
-                className="home-streak grid w-full grid-cols-2 gap-2 pb-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-                aria-label="Open streak calendar and activity totals"
-              >
-                <span className="flex flex-col items-center gap-1 px-2 text-center">
-                  <Flame className="h-5 w-5 text-primary" strokeWidth={2.25} />
-                  <span className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
-                    {streakData?.overallStreak.currentStreak || 0}
-                  </span>
-                  <span className="text-xs font-semibold text-foreground">Streak</span>
-                  <span className="text-[10px] font-medium text-muted-foreground">
-                    Best {streakData?.overallStreak.longestStreak || 0} days
-                  </span>
-                </span>
-                <span className="flex flex-col items-center gap-1 px-2 text-center">
-                  <CalendarDays className="h-5 w-5 text-primary" strokeWidth={2.25} />
-                  <span className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
-                    {totalDaysLogged}
-                  </span>
-                  <span className="text-xs font-semibold text-foreground">Days logged</span>
-                  <span className="text-[10px] font-medium text-muted-foreground">{daysLoggedHint}</span>
-                </span>
-              </button>
-
-              <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-border pt-3">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex shrink-0 rounded-lg bg-primary-soft p-1.5 text-primary">
-                    <Calendar className="h-4 w-4" />
-                  </span>
-                  <span className="text-sm font-semibold text-foreground">This week</span>
-                  <span className="chip shrink-0 text-[10px] text-muted-foreground">
-                    {daysLoggedThisWeek}/7 logged
-                  </span>
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                  {upcomingPlan?._id && (
-                    <Button
-                      asChild
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2.5 text-[11px]"
-                    >
-                      <Link href={`/create-plan?edit=${upcomingPlan._id}`}>Edit upcoming</Link>
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
-                {weekDays.map((day, index) => (
-                  <div
-                    key={index}
-                    onClick={() => !day.isFuture && handleBarClick(day.date)}
-                    className={`
-                      flex flex-col items-center justify-center rounded-xl p-1 transition-colors sm:p-2
-                      ${day.isToday ? 'bg-primary-soft ring-2 ring-primary ring-offset-1 ring-offset-surface' : ''}
-                      ${day.isFuture ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}
-                    `}
-                  >
-                    <div className="mb-0.5 text-xs font-semibold tracking-wide text-gray-700 sm:mb-1">
-                      {day.dayName}
-                    </div>
-                    <div
-                      className={`
-                        flex h-10 w-10 items-center justify-center rounded-2xl transition-colors sm:h-11 sm:w-11 md:h-12 md:w-12
-                        ${day.hasLog
-                          ? 'bg-gradient-to-br from-primary to-primary-hover shadow-md'
-                          : day.isFuture
-                          ? 'border-2 border-gray-200 bg-gray-100'
-                          : 'border-2 border-border bg-white hover:border-primary'
-                        }
-                      `}
-                    >
-                      {day.hasLog ? (
-                        <Flame className="h-4 w-4 text-white animate-pulse sm:h-6 sm:w-6 md:h-7 md:w-7" />
-                      ) : (
-                        <Flame className="h-4 w-4 text-gray-300 sm:h-6 sm:w-6 md:h-7 md:w-7" />
-                      )}
-                    </div>
-                    <div className={`
-                      mt-0.5 text-xs font-bold tracking-tight sm:mt-1
-                      ${day.isToday ? 'text-primary' : 'text-gray-600'}
-                    `}>
-                      {day.dayNumber}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 flex items-end gap-3 border-t border-border pt-3">
-                <div className="min-w-0 flex-1">
-                  <div
-                    className="h-1.5 overflow-hidden rounded-full bg-secondary"
-                    role="progressbar"
-                    aria-valuenow={daysLoggedThisWeek}
-                    aria-valuemin={0}
-                    aria-valuemax={7}
-                    aria-label={`${daysLoggedThisWeek} of 7 days logged this week`}
-                  >
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-primary to-primary-hover transition-all duration-500"
-                      style={{ width: `${(daysLoggedThisWeek / 7) * 100}%` }}
-                    />
-                  </div>
-                  {isShowingPreviousWeek ? (
-                    <p className="mt-1.5 text-[11px] font-medium text-muted-foreground">
-                      No logs yet this week · showing last week
+                  <div>
+                    <h2 className="text-lg font-bold text-amber-900">No Active Plan Yet</h2>
+                    <p className="mt-1 text-sm text-amber-800">
+                      You don&apos;t have a weekly plan right now. Create one to unlock tasks, track points, and stay on streak.
                     </p>
-                  ) : null}
+                    {upcomingPlan?.weekStart && (
+                      <p className="mt-2 text-xs font-medium text-amber-700">
+                        Upcoming plan starts on {DateTime.fromISO(String(upcomingPlan.weekStart)).toFormat('dd LLL yyyy')}.
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-lg font-bold leading-none tabular-nums text-foreground">
-                    {stats.points.toFixed(2)}%
-                  </p>
-                  <p className="mt-1 text-[11px] font-semibold text-muted-foreground">
-                    {isShowingPreviousWeek ? 'Last week' : 'Week score'}
-                  </p>
-                </div>
+                <button
+                  onClick={() => router.push('/create-plan')}
+                  className="inline-flex items-center justify-center rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700"
+                >
+                  Create Weekly Plan
+                </button>
               </div>
             </CardContent>
           </Card>
-        </section>
-
-        {weekendPrompt?.show && !blockOverlaysForTour ? (
-          <WeekendPlanPromptModal
-            weekendPrompt={weekendPrompt}
-            onResolved={() => {
-              void weeklyPlanAPI.getCurrentPlanState().then(({ planChoice }) => {
-                setWeekendPrompt(planChoice?.weekendPrompt ?? null);
-              });
-            }}
-          />
+        ) : hasCommunityActivities ? (
+          <Card className="border border-primary/20 bg-gradient-to-br from-primary-soft/40 via-surface to-surface shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-xl">
+                    👥
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-foreground">Community Activities</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      You have {communityActivityCount} community{' '}
+                      {communityActivityCount === 1 ? 'activity' : 'activities'} to log today.
+                      These count toward your activity totals but not personal Wellth points.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="default"
+                  className="shrink-0"
+                  onClick={() => router.push('/tasks')}
+                >
+                  Log community activities
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         ) : null}
 
-        <CommunityInvitePromptCard />
-
-        <HomeMotivationCard />
-
-        <div className="mt-2 space-y-4 sm:mt-4">
-        <CollapsibleSection
-          className="weekly-performance"
-          title="Monthly performance"
-          subtitle={viewMode === 'week' ? 'Weekly consistency scores · tap a bar for missed activities' : 'Daily scores (today excluded)'}
-          icon={BarChart3}
-          expanded={expandedSections.weeklyPerformance}
-          onToggle={() => toggleSection('weeklyPerformance')}
-          contentClassName="space-y-4 pt-3"
-        >
-          {monthlyLogData !== null ? (
-            <>
-              <div className="flex items-center justify-center gap-5">
-                {(['week', 'day'] as const).map((mode) => {
-                  const selected = viewMode === mode;
-                  return (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => setViewMode(mode)}
-                      className="flex flex-col items-center gap-1"
-                    >
-                      <span
-                        className={
-                          selected
-                            ? 'text-sm font-semibold text-foreground'
-                            : 'text-sm font-medium text-muted-foreground'
-                        }
-                      >
-                        {mode === 'week' ? 'Week' : 'Day'}
-                      </span>
-                      <span
-                        aria-hidden
-                        className={`h-0.5 w-6 rounded-full ${selected ? 'bg-primary' : 'bg-transparent'}`}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-
-              {viewMode === 'week' ? (
-                <ActivityChart
-                  data={completedWeeks.map((week) => ({
-                    label: week.weekStart,
-                    value: Number(week.totalPoints.toFixed(2)),
-                    displayValue: `${week.totalPoints.toFixed(2)}%`,
-                  }))}
-                  variant="bar"
-                  height={220}
-                  tooltipUnit="%"
-                  showBarLabels
-                  onBarClick={(_, index) => {
-                    const week = completedWeeks[index];
-                    if (week) router.push(`/week-analysis?weekStart=${week.weekStartISO}`);
-                  }}
-                />
-              ) : (
-                <ActivityChart
-                  data={dayChartPoints.map((point) => ({
-                    label: String(point.day),
-                    tooltipLabel: DateTime.fromISO(point.date.split('T')[0]).toFormat('MMM d'),
-                    value: Number(point.points.toFixed(2)),
-                    displayValue: `${point.points.toFixed(2)}%`,
-                  }))}
-                  variant="line"
-                  height={220}
-                  tooltipUnit="%"
-                  selectedIndex={selectedDayChartIndex}
-                  onBarClick={(_, index) => {
-                    const point = dayChartPoints[index];
-                    if (point) handleBarClick(point.date);
-                  }}
-                />
-              )}
-
-              <div className="grid grid-cols-3 gap-2 pt-1">
-                {viewMode === 'week' ? (
-                  <>
-                    <div className="text-center">
-                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
-                        {weeklyAvgPoints.toFixed(2)}%
-                      </p>
-                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Avg</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
-                        {bestWeekPoints.toFixed(2)}%
-                      </p>
-                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Best week</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
-                        {completedWeeks.length}
-                      </p>
-                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Weeks</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-center">
-                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
-                        {dailyAvgPoints.toFixed(2)}%
-                      </p>
-                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Avg</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
-                        {bestDayPoints.toFixed(2)}%
-                      </p>
-                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Best day</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
-                        {maxDayActivities}
-                      </p>
-                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Max acts</p>
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Log activities to see your chart
-            </p>
-          )}
-        </CollapsibleSection>
 
         <CollapsibleSection
-          className="leaderboard-section"
-          title="Weekly Consistency Leaderboard"
+          className="pending-activities"
+          title="Pending activities"
           subtitle={
             selectedCategory
-              ? `${categoryLabel(selectedCategory)} category · compare weekly %`
-              : 'Compare weekly % with others'
+              ? `${categoryLabel(selectedCategory)} · today's open activities`
+              : "Today's open activities from your plan"
           }
-          icon={Trophy}
-          expanded={expandedSections.leaderboard}
-          onToggle={() => toggleSection('leaderboard')}
-          overflowVisible
-          contentClassName="overflow-visible pt-3"
+          badge={totalPendingCount > 0 ? String(totalPendingCount) : undefined}
+          icon={ListChecks}
+          expanded={expandedSections.pendingActivities}
+          onToggle={() => toggleSection('pendingActivities')}
         >
-          <Leaderboard
-            categoryFilter={selectedCategory}
-            onCategoryFilterClear={() => setSelectedCategory(null)}
-          />
+              
+              {noPlanError ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-center">
+                  <h3 className="font-semibold text-amber-900">No pending activities</h3>
+                  <p className="mt-1 text-sm text-amber-800">Create a weekly plan to see pending activities.</p>
+                </div>
+              ) : hasCommunityActivities && !weeklyPlan ? (
+                <div className="rounded-xl border border-primary/20 bg-primary-soft/30 p-5 text-center">
+                  <h3 className="font-semibold text-foreground">Community activities waiting</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {communityActivityCount} {communityActivityCount === 1 ? 'activity' : 'activities'} from your communities — log on Tasks.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => router.push('/tasks')}
+                  >
+                    Go to Tasks
+                  </Button>
+                </div>
+              ) : weeklyPlan ? (
+                <>
+                  {pendingByCategory.length > 0 ? (
+                    <div>
+                      {pendingByCategory.map((group, index) => (
+                        <ActivityCategoryCollapse
+                          key={group.id}
+                          emoji={group.emoji}
+                          label={group.label}
+                          count={group.daily.length + group.weeklyOpen.length + group.weeklyDone.length}
+                          defaultOpen={index === 0}
+                        >
+                          <div className="space-y-3 pb-2">
+                            {group.daily.map((activity) => (
+                              <DailyPendingCard
+                                key={resolveActivityId(activity)}
+                                activity={activity}
+                              />
+                            ))}
+                            {group.weeklyOpen.map((activity) => (
+                              <WeeklyPendingCard
+                                key={resolveActivityId(activity)}
+                                activity={activity}
+                                weekEnd={weeklyPlan.weekEnd}
+                              />
+                            ))}
+                            {group.weeklyDone.map((activity) => (
+                              <CompletedWeeklyCard
+                                key={resolveActivityId(activity)}
+                                activity={activity}
+                              />
+                            ))}
+                          </div>
+                        </ActivityCategoryCollapse>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-r-lg border-l-4 border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 p-6 text-center shadow-sm">
+                      <div className="mb-3 text-5xl">🎉</div>
+                      <h3 className="mb-2 text-base font-bold text-emerald-900">All Caught Up!</h3>
+                      <p className="text-sm text-emerald-700">
+                        {selectedCategory
+                          ? `No pending ${categoryLabel(selectedCategory).toLowerCase()} activities this week.`
+                          : "You've completed all your activities for this week."}
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-3"></div>
+                  <p className="text-sm text-gray-500">Loading pending activities...</p>
+                </div>
+              )}
         </CollapsibleSection>
 
         <CollapsibleSection
           id="log-tracker"
           className="log-tracker"
-          title="Daily log tracker"
+          title={
+            selectedProfile?.name
+              ? `${selectedProfile.name}'s daily log`
+              : 'Daily log'
+          }
           subtitle={
             selectedCategory
               ? `${categoryLabel(selectedCategory)} · pick a date to review or submit`
@@ -1082,98 +894,296 @@ function HomePageContent() {
               )}
         </CollapsibleSection>
 
-        <CollapsibleSection
-          className="pending-activities"
-          title="Pending activities"
-          subtitle={
-            selectedCategory
-              ? `${categoryLabel(selectedCategory)} · today's open activities`
-              : "Today's open activities from your plan"
-          }
-          icon={ListChecks}
-          expanded={expandedSections.pendingActivities}
-          onToggle={() => toggleSection('pendingActivities')}
-        >
-              
-              {noPlanError ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-center">
-                  <h3 className="font-semibold text-amber-900">No pending activities</h3>
-                  <p className="mt-1 text-sm text-amber-800">Create a weekly plan to see pending activities.</p>
-                </div>
-              ) : hasCommunityActivities && !weeklyPlan ? (
-                <div className="rounded-xl border border-primary/20 bg-primary-soft/30 p-5 text-center">
-                  <h3 className="font-semibold text-foreground">Community activities waiting</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {communityActivityCount} {communityActivityCount === 1 ? 'activity' : 'activities'} from your communities — log on Tasks.
-                  </p>
+        <Card className="week-tracker section-card app-card-hover overflow-visible">
+          <CardContent className="p-4 sm:p-5">
+            <button
+              type="button"
+              onClick={() => router.push('/streak-calendar')}
+              className="home-streak grid w-full grid-cols-2 gap-2 pb-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+              aria-label="Open streak calendar and activity totals"
+            >
+              <span className="flex flex-col items-center gap-1 px-2 text-center">
+                <Flame className="h-5 w-5 text-primary" strokeWidth={2.25} />
+                <span className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
+                  {streakData?.overallStreak.currentStreak || 0}
+                </span>
+                <span className="text-xs font-semibold text-foreground">Streak</span>
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  Best {streakData?.overallStreak.longestStreak || 0} days
+                </span>
+              </span>
+              <span className="flex flex-col items-center gap-1 px-2 text-center">
+                <CalendarDays className="h-5 w-5 text-primary" strokeWidth={2.25} />
+                <span className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
+                  {totalDaysLogged}
+                </span>
+                <span className="text-xs font-semibold text-foreground">Days logged</span>
+                <span className="text-[10px] font-medium text-muted-foreground">{daysLoggedHint}</span>
+              </span>
+            </button>
+
+            <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-border pt-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex shrink-0 rounded-lg bg-primary-soft p-1.5 text-primary">
+                  <Calendar className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-semibold text-foreground">This week</span>
+                <span className="chip shrink-0 text-[10px] text-muted-foreground">
+                  {daysLoggedThisWeek}/7 logged
+                </span>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                {upcomingPlan?._id && (
                   <Button
-                    type="button"
+                    asChild
                     variant="outline"
                     size="sm"
-                    className="mt-3"
-                    onClick={() => router.push('/tasks')}
+                    className="h-7 px-2.5 text-[11px]"
                   >
-                    Go to Tasks
+                    <Link href={`/create-plan?edit=${upcomingPlan._id}`}>Edit upcoming</Link>
                   </Button>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
+              {weekDays.map((day, index) => (
+                <div
+                  key={index}
+                  onClick={() => !day.isFuture && handleBarClick(day.date)}
+                  className={`
+                    flex flex-col items-center justify-center rounded-xl p-1 transition-colors sm:p-2
+                    ${day.isToday ? 'bg-primary-soft ring-2 ring-primary ring-offset-1 ring-offset-surface' : ''}
+                    ${day.isFuture ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}
+                  `}
+                >
+                  <div className="mb-0.5 text-xs font-semibold tracking-wide text-gray-700 sm:mb-1">
+                    {day.dayName}
+                  </div>
+                  <div
+                    className={`
+                      flex h-10 w-10 items-center justify-center rounded-2xl transition-colors sm:h-11 sm:w-11 md:h-12 md:w-12
+                      ${day.hasLog
+                        ? 'bg-gradient-to-br from-primary to-primary-hover shadow-md'
+                        : day.isFuture
+                        ? 'border-2 border-gray-200 bg-gray-100'
+                        : 'border-2 border-border bg-white hover:border-primary'
+                      }
+                    `}
+                  >
+                    {day.hasLog ? (
+                      <Flame className="h-4 w-4 text-white animate-pulse sm:h-6 sm:w-6 md:h-7 md:w-7" />
+                    ) : (
+                      <Flame className="h-4 w-4 text-gray-300 sm:h-6 sm:w-6 md:h-7 md:w-7" />
+                    )}
+                  </div>
+                  <div className={`
+                    mt-0.5 text-xs font-bold tracking-tight sm:mt-1
+                    ${day.isToday ? 'text-primary' : 'text-gray-600'}
+                  `}>
+                    {day.dayNumber}
+                  </div>
                 </div>
-              ) : weeklyPlan ? (
-                <>
-                  {pendingByCategory.length > 0 ? (
-                    <div>
-                      {pendingByCategory.map((group, index) => (
-                        <ActivityCategoryCollapse
-                          key={group.id}
-                          emoji={group.emoji}
-                          label={group.label}
-                          count={group.daily.length + group.weeklyOpen.length + group.weeklyDone.length}
-                          defaultOpen={index === 0}
-                        >
-                          <div className="space-y-3 pb-2">
-                            {group.daily.map((activity) => (
-                              <DailyPendingCard
-                                key={resolveActivityId(activity)}
-                                activity={activity}
-                              />
-                            ))}
-                            {group.weeklyOpen.map((activity) => (
-                              <WeeklyPendingCard
-                                key={resolveActivityId(activity)}
-                                activity={activity}
-                                weekEnd={weeklyPlan.weekEnd}
-                              />
-                            ))}
-                            {group.weeklyDone.map((activity) => (
-                              <CompletedWeeklyCard
-                                key={resolveActivityId(activity)}
-                                activity={activity}
-                              />
-                            ))}
-                          </div>
-                        </ActivityCategoryCollapse>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-r-lg border-l-4 border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 p-6 text-center shadow-sm">
-                      <div className="mb-3 text-5xl">🎉</div>
-                      <h3 className="mb-2 text-base font-bold text-emerald-900">All Caught Up!</h3>
-                      <p className="text-sm text-emerald-700">
-                        {selectedCategory
-                          ? `No pending ${categoryLabel(selectedCategory).toLowerCase()} activities this week.`
-                          : "You've completed all your activities for this week."}
-                      </p>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-center py-8">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-3"></div>
-                  <p className="text-sm text-gray-500">Loading pending activities...</p>
+              ))}
+            </div>
+            <div className="mt-3 flex items-end gap-3 border-t border-border pt-3">
+              <div className="min-w-0 flex-1">
+                <div
+                  className="h-1.5 overflow-hidden rounded-full bg-secondary"
+                  role="progressbar"
+                  aria-valuenow={daysLoggedThisWeek}
+                  aria-valuemin={0}
+                  aria-valuemax={7}
+                  aria-label={`${daysLoggedThisWeek} of 7 days logged this week`}
+                >
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-primary-hover transition-all duration-500"
+                    style={{ width: `${(daysLoggedThisWeek / 7) * 100}%` }}
+                  />
                 </div>
-              )}
+                {isShowingPreviousWeek ? (
+                  <p className="mt-1.5 text-[11px] font-medium text-muted-foreground">
+                    No logs yet this week · showing last week
+                  </p>
+                ) : null}
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-lg font-bold leading-none tabular-nums text-foreground">
+                  {stats.points.toFixed(2)}%
+                </p>
+                <p className="mt-1 text-[11px] font-semibold text-muted-foreground">
+                  {isShowingPreviousWeek ? 'Last week' : 'Week score'}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <HomeEconomyCards economy={economy} />
+
+        <HomeMotivationCard />
+
+        {weekendPrompt?.show && !blockOverlaysForTour ? (
+          <WeekendPlanPromptModal
+            weekendPrompt={weekendPrompt}
+            onResolved={() => {
+              void weeklyPlanAPI.getCurrentPlanState().then(({ planChoice }) => {
+                setWeekendPrompt(planChoice?.weekendPrompt ?? null);
+              });
+            }}
+          />
+        ) : null}
+
+        <CommunityInvitePromptCard />
+
+        <div className="mt-2 space-y-4 sm:mt-4">
+        <CollapsibleSection
+          className="leaderboard-section"
+          title="Weekly Consistency Leaderboard"
+          subtitle={
+            selectedCategory
+              ? `${categoryLabel(selectedCategory)} category · compare weekly %`
+              : 'Compare weekly % with others'
+          }
+          icon={Trophy}
+          expanded={expandedSections.leaderboard}
+          onToggle={() => toggleSection('leaderboard')}
+          overflowVisible
+          contentClassName="overflow-visible pt-3"
+        >
+          <Leaderboard
+            categoryFilter={selectedCategory}
+            onCategoryFilterClear={() => setSelectedCategory(null)}
+          />
         </CollapsibleSection>
 
+        <CollapsibleSection
+          className="weekly-performance"
+          title="Monthly performance"
+          subtitle={viewMode === 'week' ? 'Weekly consistency scores · tap a bar for missed activities' : 'Daily scores (today excluded)'}
+          icon={BarChart3}
+          expanded={expandedSections.weeklyPerformance}
+          onToggle={() => toggleSection('weeklyPerformance')}
+          contentClassName="space-y-4 pt-3"
+        >
+          {monthlyLogData !== null ? (
+            <>
+              <div className="flex items-center justify-center gap-5">
+                {(['week', 'day'] as const).map((mode) => {
+                  const selected = viewMode === mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setViewMode(mode)}
+                      className="flex flex-col items-center gap-1"
+                    >
+                      <span
+                        className={
+                          selected
+                            ? 'text-sm font-semibold text-foreground'
+                            : 'text-sm font-medium text-muted-foreground'
+                        }
+                      >
+                        {mode === 'week' ? 'Week' : 'Day'}
+                      </span>
+                      <span
+                        aria-hidden
+                        className={`h-0.5 w-6 rounded-full ${selected ? 'bg-primary' : 'bg-transparent'}`}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+
+              {viewMode === 'week' ? (
+                <ActivityChart
+                  data={completedWeeks.map((week) => ({
+                    label: week.weekStart,
+                    value: Number(week.totalPoints.toFixed(2)),
+                    displayValue: `${week.totalPoints.toFixed(2)}%`,
+                  }))}
+                  variant="bar"
+                  height={220}
+                  tooltipUnit="%"
+                  showBarLabels
+                  onBarClick={(_, index) => {
+                    const week = completedWeeks[index];
+                    if (week) router.push(`/week-analysis?weekStart=${week.weekStartISO}`);
+                  }}
+                />
+              ) : (
+                <ActivityChart
+                  data={dayChartPoints.map((point) => ({
+                    label: String(point.day),
+                    tooltipLabel: DateTime.fromISO(point.date.split('T')[0]).toFormat('MMM d'),
+                    value: Number(point.points.toFixed(2)),
+                    displayValue: `${point.points.toFixed(2)}%`,
+                  }))}
+                  variant="line"
+                  height={220}
+                  tooltipUnit="%"
+                  selectedIndex={selectedDayChartIndex}
+                  onBarClick={(_, index) => {
+                    const point = dayChartPoints[index];
+                    if (point) handleBarClick(point.date);
+                  }}
+                />
+              )}
+
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                {viewMode === 'week' ? (
+                  <>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {weeklyAvgPoints.toFixed(2)}%
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Avg</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {bestWeekPoints.toFixed(2)}%
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Best week</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {completedWeeks.length}
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Weeks</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {dailyAvgPoints.toFixed(2)}%
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Avg</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {bestDayPoints.toFixed(2)}%
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Best day</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {maxDayActivities}
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Max acts</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Log activities to see your chart
+            </p>
+          )}
+        </CollapsibleSection>
+        </div>
       </div>
-    </div>
 
     <FeedMessagesPanel
       open={messagesOpen}

@@ -20,6 +20,13 @@ export const homeTourSteps: Step[] = [
     placement: 'bottom',
   },
   {
+    target: '.home-mood',
+    title: 'Select mood',
+    content:
+      'Start with today’s mood. After you pick a face, you’ll get a short punch line that matches how you feel.',
+    placement: 'bottom',
+  },
+  {
     target: '.home-category-cards',
     title: 'Body, Mind & Soul',
     content:
@@ -27,20 +34,18 @@ export const homeTourSteps: Step[] = [
     placement: 'bottom',
   },
   {
-    target: '.my-happiness',
-    title: 'My happiness',
+    target: '.pending-activities',
+    title: 'Pending activities',
     content:
-      'Your daily log at a glance — this week’s days, streak progress, and week score. Tap a day to jump to that date in the log tracker.',
-    placement: 'bottom',
+      'What’s still open on your plan — the badge shows the total count. Expand anytime to see leftovers.',
+    placement: 'top',
   },
   {
-    target: '.create-plan-fab',
-    title: 'Create a plan',
+    target: '.log-tracker',
+    title: 'Daily log',
     content:
-      'This button on the bottom-right opens Create Plan — pick activities, set weekly targets, and start (or refresh) your week.',
+      'Your named daily log — browse the calendar, pick a date, review what you logged, or submit a missing day.',
     placement: 'top',
-    isFixed: true,
-    disableScrolling: true,
   },
   {
     target: '.home-streak',
@@ -51,9 +56,9 @@ export const homeTourSteps: Step[] = [
   },
   {
     target: '.xp-coins-grid',
-    title: 'Rewards & level',
+    title: 'Coins & XP',
     content:
-      'Coins and XP sit together. The ring shows your level and progress to the next one — tap through to Coins or XP.',
+      'Coins and XP in a simple row — tap through to Coins or XP. Your level sits next to your name in the header.',
     placement: 'bottom',
   },
   {
@@ -64,13 +69,6 @@ export const homeTourSteps: Step[] = [
     placement: 'bottom',
   },
   {
-    target: '.weekly-performance',
-    title: 'Monthly performance',
-    content:
-      'Week view shows consistency by week; Day view is a daily score line. Bars follow your theme colour. Tap a bar to open that week or day.',
-    placement: 'top',
-  },
-  {
     target: '.leaderboard-section',
     title: 'Weekly consistency leaderboard',
     content:
@@ -78,18 +76,20 @@ export const homeTourSteps: Step[] = [
     placement: 'top',
   },
   {
-    target: '.log-tracker',
-    title: 'Daily log tracker',
+    target: '.weekly-performance',
+    title: 'Monthly performance',
     content:
-      'Browse months, pick a date, review what you logged, or submit a missing day.',
+      'Week view shows consistency by week; Day view is a daily score line. Bars follow your theme colour. Tap a bar to open that week or day.',
     placement: 'top',
   },
   {
-    target: '.pending-activities',
-    title: 'Pending activities',
+    target: '.create-plan-fab',
+    title: 'Create a plan',
     content:
-      'What’s still open on your plan — daily goals and weekly progress. Expand this section anytime to see leftovers.',
+      'This button on the bottom-right opens Create Plan — pick activities, set weekly targets, and start (or refresh) your week.',
     placement: 'top',
+    isFixed: true,
+    disableScrolling: true,
   },
   {
     target: '.bottom-nav',
