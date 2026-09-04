@@ -38,7 +38,8 @@ import {
   type LogSuccessEntry,
 } from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
-import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
+import { HeaderTodayMood } from '@/components/mood/HeaderTodayMood';
+import { firstNameFrom } from '@/lib/utils/greeting';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -73,6 +74,12 @@ export default function TasksPage() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const focusCategory =
+    typeof window !== 'undefined' &&
+    ['body', 'mind', 'soul'].includes(window.location.hash.replace('#', '').toLowerCase())
+      ? window.location.hash.replace('#', '').toLowerCase()
+      : 'body';
 
   // Deep-link from home Body / Mind / Soul cards (#body, #mind, #soul)
   useEffect(() => {
@@ -528,19 +535,12 @@ export default function TasksPage() {
         <AppPageHeader
           className="mb-0"
           title={
-            <>
-              {getTimeGreeting()},{' '}
-              <span className="text-primary">
-                {firstNameFrom(selectedProfile?.name || user?.name)}
-              </span>
-            </>
+            <span className="text-primary">
+              {firstNameFrom(selectedProfile?.name || user?.name)}
+            </span>
           }
-          subtitle={new Date().toLocaleDateString('en-US', {
-            weekday: 'long',
-            month: 'short',
-            day: 'numeric',
-          })}
-          subtitleTone="label"
+          subtitle={<HeaderTodayMood profileId={selectedProfile?._id} />}
+          subtitleTone="plain"
           meta={
             <span className="inline-flex rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary sm:text-xs">
               Today&apos;s log
@@ -849,6 +849,7 @@ export default function TasksPage() {
                       onCheckboxChange={handleCheckboxChange}
                       onPendingChange={handlePendingChange}
                       getActivityInputMax={getActivityInputMax}
+                      defaultOpen={category === focusCategory}
                     />
                   ))
                 : null}
@@ -993,7 +994,7 @@ export default function TasksPage() {
         )}
       </div>
 
-      {planChoice?.weekendPrompt?.show ? (
+      {planChoice?.weekendPrompt?.show && !runTour ? (
         <WeekendPlanPromptModal
           weekendPrompt={planChoice.weekendPrompt}
           onResolved={() => {

@@ -2,19 +2,27 @@
 
 import MainLayout from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { Button } from '@/components/ui/button';
 import {
   Copy,
   Mail,
   MessageCircle,
   Check,
-  Users,
-  Coins,
-  Sparkles,
+  Instagram,
+  Facebook,
+  Share2,
 } from 'lucide-react';
 import { authAPI, type ReferralStatsData, type ReferredMember } from '@/lib/api/auth';
 import { useEffect, useMemo, useState } from 'react';
-import { BRAND_NAME, getSiteUrl } from '@/lib/brand';
+import { BRAND_NAME } from '@/lib/brand';
+import {
+  copyReferralLink,
+  nativeShareReferral,
+  referralInviteUrl,
+  shareReferralEmail,
+  shareReferralFacebook,
+  shareReferralInstagram,
+  shareReferralWhatsApp,
+} from '@/lib/utils/referralShare';
 import { CustomDropdown } from '@/components/ui/CustomDropdown';
 import { cn } from '@/lib/utils';
 
@@ -100,7 +108,7 @@ export default function ReferralPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const referralLink = referralCode ? `${getSiteUrl()}/register?ref=${referralCode}` : '';
+  const referralLink = referralCode ? referralInviteUrl(referralCode) : '';
 
   const sortedMembers = useMemo(
     () => sortMembers(referralStats.referredUsers || [], sort),
@@ -134,32 +142,35 @@ export default function ReferralPage() {
 
   const handleCopyLink = async () => {
     if (!referralLink) return;
-    await navigator.clipboard.writeText(referralLink);
+    await copyReferralLink(referralLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleShare = (platform: string) => {
+  const handleShare = async (platform: string) => {
     if (!referralLink) return;
-
-    const text = encodeURIComponent(
-      `Join me on ${BRAND_NAME}! ${referralLink}`
-    );
 
     switch (platform) {
       case 'whatsapp':
-        window.open(`https://wa.me/?text=${text}`);
+        shareReferralWhatsApp(referralLink);
+        break;
+      case 'instagram':
+        await shareReferralInstagram(referralLink);
         break;
       case 'facebook':
-        window.open(
-          `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`
-        );
+        shareReferralFacebook(referralLink);
         break;
       case 'mail':
-        window.open(`mailto:?subject=Join ${BRAND_NAME}&body=${text}`);
+        shareReferralEmail(referralLink);
+        break;
+      case 'more':
+        {
+          const shared = await nativeShareReferral(referralLink);
+          if (!shared) await handleCopyLink();
+        }
         break;
       case 'copy':
-        void handleCopyLink();
+        await handleCopyLink();
         break;
       default:
         break;
@@ -188,90 +199,101 @@ export default function ReferralPage() {
     <MainLayout>
       <PageHeader title="Refer friends" subtitle="Invite people and earn rewards" />
 
-      <div className="space-y-5">
-        {/* Stats */}
-        <div className="section-card overflow-hidden">
-          <div className="grid grid-cols-3 divide-x divide-border">
-            {(
-              [
-                {
-                  label: 'Friends',
-                  value: loading ? '—' : String(referralStats.totalReferrals),
-                  icon: Users,
-                },
-                {
-                  label: 'Referral points',
-                  value: loading
-                    ? '—'
-                    : (referralStats.HappyPoints || 0).toLocaleString(),
-                  icon: Sparkles,
-                },
-                {
-                  label: 'Coins',
-                  value: loading
-                    ? '—'
-                    : (referralStats.happyCoinsEarned || 0).toLocaleString(),
-                  icon: Coins,
-                },
-              ] as const
-            ).map(({ label, value, icon: Icon }) => (
-              <div key={label} className="flex flex-col items-center px-2 py-4 text-center">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <p className="mt-2.5 text-xl font-bold tabular-nums tracking-tight text-foreground sm:text-2xl">
-                  {value}
-                </p>
-                <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">{label}</p>
-              </div>
-            ))}
-          </div>
+      <div className="space-y-8">
+        <div className="grid grid-cols-3">
+          {(
+            [
+              {
+                label: 'Friends',
+                value: loading ? '—' : String(referralStats.totalReferrals),
+              },
+              {
+                label: 'Points',
+                value: loading ? '—' : (referralStats.HappyPoints || 0).toLocaleString(),
+              },
+              {
+                label: 'Coins',
+                value: loading
+                  ? '—'
+                  : (referralStats.happyCoinsEarned || 0).toLocaleString(),
+              },
+            ] as const
+          ).map(({ label, value }) => (
+            <div key={label} className="text-center">
+              <p className="text-2xl font-bold tabular-nums tracking-tight text-foreground">
+                {value}
+              </p>
+              <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">{label}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Share */}
-        <section className="section-card p-4">
-          <h2 className="text-base font-semibold text-foreground">Your code</h2>
-          <button
-            type="button"
-            onClick={() => void handleCopyLink()}
-            disabled={!referralLink}
-            className="mt-3 flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-border bg-[#fafafa] px-3 py-3 text-left disabled:opacity-50"
-          >
-            <span className="font-mono text-xl font-bold tracking-[0.18em] text-foreground">
-              {loading ? '…' : referralCode || '—'}
-            </span>
-            <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
+        <section>
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Your code
+              </p>
+              <p className="mt-1 font-mono text-2xl font-bold tracking-[0.18em] text-foreground">
+                {loading ? '…' : referralCode || '—'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleCopyLink()}
+              disabled={!referralLink}
+              className="inline-flex items-center gap-1 pb-1 text-sm font-semibold text-primary disabled:opacity-50"
+            >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               {copied ? 'Copied' : 'Copy'}
-            </span>
-          </button>
-
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleShare('whatsapp')}
-              disabled={!referralLink}
-              className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border text-sm font-semibold text-foreground disabled:opacity-50"
-            >
-              <MessageCircle className="h-4 w-4" />
-              WhatsApp
-            </button>
-            <button
-              type="button"
-              onClick={() => handleShare('mail')}
-              disabled={!referralLink}
-              className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border text-sm font-semibold text-foreground disabled:opacity-50"
-            >
-              <Mail className="h-4 w-4" />
-              Email
             </button>
           </div>
+          <span aria-hidden className="mt-3 block h-px bg-border" />
+
+          <p className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Share
+          </p>
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {(
+              [
+                { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, color: '#25D366' },
+                { id: 'instagram', label: 'Instagram', icon: Instagram, color: '#E4405F' },
+                { id: 'mail', label: 'Email', icon: Mail, color: '#EA580C' },
+                { id: 'facebook', label: 'Facebook', icon: Facebook, color: '#1877F2' },
+              ] as const
+            ).map(({ id, label, icon: Icon, color }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => void handleShare(id)}
+                disabled={!referralLink}
+                className="flex flex-col items-center gap-1.5 disabled:opacity-50"
+              >
+                <span
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full text-white"
+                  style={{ backgroundColor: color }}
+                >
+                  <Icon className="h-5 w-5" strokeWidth={2} />
+                </span>
+                <span className="text-[11px] font-medium text-foreground">{label}</span>
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleShare('more')}
+            disabled={!referralLink}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 text-sm font-semibold text-primary disabled:opacity-50"
+          >
+            <Share2 className="h-4 w-4" />
+            More ways to share
+          </button>
         </section>
 
         {!loading && impactRows.length > 0 ? (
           <section>
-            <h2 className="section-title mb-3">You are the reason for…</h2>
-            <ul className="section-card space-y-3 p-4">
+            <h2 className="text-sm font-semibold text-foreground">You are the reason for…</h2>
+            <ul className="mt-3 space-y-3">
               {impactRows.map((row) => (
                 <li key={row.label}>
                   <div className="mb-1 flex items-center justify-between text-sm">
@@ -280,9 +302,9 @@ export default function ReferralPage() {
                       {formatPercent(row.value)}%
                     </span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+                  <div className="h-1 overflow-hidden rounded-full bg-secondary">
                     <div
-                      className="h-full rounded-full bg-primary transition-all"
+                      className="h-full rounded-full bg-primary"
                       style={{ width: `${Math.min(100, Math.max(0, row.value))}%` }}
                     />
                   </div>
@@ -294,18 +316,18 @@ export default function ReferralPage() {
 
         {!loading && activityGroups.length > 0 ? (
           <section>
-            <h2 className="section-title mb-3">Overall Referral Activity</h2>
-            <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-foreground">Referral activity</h2>
+            <div className="mt-3 space-y-4">
               {activityGroups.map((group) => (
                 <div key={group.id}>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     {group.emoji} {group.label}
                   </p>
-                  <ul className="section-card divide-y divide-border">
+                  <ul>
                     {group.items.map((row) => (
                       <li
                         key={row.activityId}
-                        className="flex items-center justify-between gap-3 px-4 py-3"
+                        className="flex items-center justify-between gap-3 border-b border-border py-2.5 last:border-b-0"
                       >
                         <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
                         <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
@@ -320,11 +342,10 @@ export default function ReferralPage() {
           </section>
         ) : null}
 
-        {/* Friends */}
         {!loading && sortedMembers.length > 0 ? (
           <section>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="section-title">Friends</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-foreground">Friends</h2>
               <CustomDropdown
                 variant="pill"
                 align="right"
@@ -338,11 +359,11 @@ export default function ReferralPage() {
                 ]}
               />
             </div>
-            <ul className="section-card divide-y divide-border">
+            <ul className="mt-1">
               {sortedMembers.map((user) => (
                 <li
                   key={user._id}
-                  className="flex flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-2 border-b border-border py-3.5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
@@ -355,10 +376,8 @@ export default function ReferralPage() {
                         </p>
                         <span
                           className={cn(
-                            'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                            user.status === 'active'
-                              ? 'bg-success/15 text-success'
-                              : 'bg-secondary text-muted-foreground'
+                            'text-[11px] font-semibold',
+                            user.status === 'active' ? 'text-success' : 'text-muted-foreground'
                           )}
                         >
                           {user.status === 'active' ? 'Active' : 'Inactive'}
@@ -370,16 +389,14 @@ export default function ReferralPage() {
                     </div>
                   </div>
                   {user.status === 'inactive' && user.canWhatsAppRemind ? (
-                    <Button
+                    <button
                       type="button"
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0"
+                      className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-primary"
                       onClick={() => sendWhatsAppReminder(user)}
                     >
-                      <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
+                      <MessageCircle className="h-3.5 w-3.5" />
                       Remind
-                    </Button>
+                    </button>
                   ) : null}
                 </li>
               ))}
@@ -388,12 +405,9 @@ export default function ReferralPage() {
         ) : null}
 
         {!loading && referralStats.totalReferrals === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-center">
-            <p className="text-sm font-medium text-foreground">No friends yet</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Share your link to get started.
-            </p>
-          </div>
+          <p className="text-center text-sm text-muted-foreground">
+            No friends yet. Share your code to get started.
+          </p>
         ) : null}
       </div>
     </MainLayout>

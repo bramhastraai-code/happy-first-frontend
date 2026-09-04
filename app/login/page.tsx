@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import AuthShell, { authButtonClass, authFieldClass, authLinkClass } from '@/components/layout/AuthShell';
 import CountryCodeSelect from '@/components/ui/CountryCodeSelect';
 import { cn } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { AuthFieldLabel } from '@/components/auth/AuthFieldLabel';
 import { OtpTimerResend } from '@/components/auth/OtpTimerResend';
 import { useOtpCountdown } from '@/lib/hooks/useOtpCountdown';
@@ -33,6 +33,7 @@ export default function LoginPage() {
     otp: '',
   });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [resendingOtp, setResendingOtp] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -311,18 +312,28 @@ export default function LoginPage() {
             <AuthFieldLabel htmlFor="password" required>
               Password
             </AuthFieldLabel>
-          <Input
-            id="password"
-            type="password"
-            placeholder="Password"
-            autoComplete="current-password"
-            aria-label="Password"
-            value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            required
-            disabled={loading}
-            className={authFieldClass}
-          />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Password"
+                autoComplete="current-password"
+                aria-label="Password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                required
+                disabled={loading}
+                className={cn(authFieldClass, 'pr-11')}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-foreground"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
         )}
 

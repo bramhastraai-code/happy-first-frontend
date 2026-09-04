@@ -699,6 +699,7 @@ function PreviousLogPageContent() {
                     onCheckboxChange={handleCheckboxChange}
                     onPendingChange={handlePendingChange}
                     getActivityInputMax={getActivityInputMax}
+                    defaultOpen={category === 'body'}
                   />
                 ))
               : null}

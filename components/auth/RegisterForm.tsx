@@ -13,20 +13,22 @@ import AuthShell, { authButtonClass, authFieldClass, authLinkClass } from '@/com
 import CountryCodeSelect from '@/components/ui/CountryCodeSelect';
 import { AuthFieldLabel } from '@/components/auth/AuthFieldLabel';
 import { CountrySearchSelect } from '@/components/auth/CountrySearchSelect';
-import { TimezoneGroupedSelect } from '@/components/auth/TimezoneGroupedSelect';
 import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter';
 import {
   getPasswordStrength,
   validateDateOfBirth,
   validatePassword,
   validatePhone,
+  validateUsername,
 } from '@/components/auth/registerValidation';
 import { markOtpSession } from '@/lib/auth/otpSession';
 import { buildForgotPasswordHref, isExistingAccountError } from '@/lib/auth/forgotPassword';
 import { cn } from '@/lib/utils';
 import { detectBrowserTimezone } from '@/lib/utils/timezones';
 import { timezoneForCountry } from '@/lib/utils/countries';
+import { INDIAN_STATES, isIndia } from '@/lib/utils/indianStates';
 import { setPendingCommunityId } from '@/lib/utils/pendingCommunity';
+import { CustomDropdown } from '@/components/ui/CustomDropdown';
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
@@ -41,16 +43,23 @@ export default function RegisterForm() {
     phoneNumber: '',
     countryCode: '+91',
     name: '',
+    username: '',
     email: '',
     password: '',
     country: 'India',
     city: '',
+    state: '',
     area: '',
+    locationPin: '',
     dateOfBirth: '',
+    gender: '' as '' | 'male' | 'female' | 'other',
     referredBy: '',
     timezone: detectBrowserTimezone(),
   });
   const [timezoneTouched, setTimezoneTouched] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>(
+    'idle'
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -72,6 +81,25 @@ export default function RegisterForm() {
     }
     setIsReferralLocked(false);
   }, [searchParams]);
+
+  useEffect(() => {
+    const value = formData.username.trim().toLowerCase();
+    const formatError = validateUsername(value);
+    if (formatError) {
+      setUsernameStatus('idle');
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      setUsernameStatus('checking');
+      try {
+        const res = await authAPI.checkUsername(value);
+        setUsernameStatus(res.data.data.available ? 'available' : 'taken');
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [formData.username]);
 
   const passwordStrength = useMemo(
     () => getPasswordStrength(formData.password),
@@ -136,11 +164,9 @@ export default function RegisterForm() {
   const validateDetails = () => {
     const errors: Record<string, string> = {};
 
-    if (!formData.name.trim()) errors.name = 'Full name is required';
-    if (!formData.email.trim()) errors.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = 'Enter a valid email address';
-    }
+    const usernameError = validateUsername(formData.username);
+    if (usernameError) errors.username = usernameError;
+    else if (usernameStatus === 'taken') errors.username = 'This username is already taken';
 
     const passwordError = validatePassword(formData.password);
     if (passwordError) errors.password = passwordError;
@@ -148,10 +174,13 @@ export default function RegisterForm() {
     const dobError = validateDateOfBirth(formData.dateOfBirth);
     if (dobError) errors.dateOfBirth = dobError;
 
+    if (!formData.gender) errors.gender = 'Select a gender';
     if (!formData.country.trim()) errors.country = 'Country is required';
-    if (!formData.city.trim()) errors.city = 'City is required';
+    if (!formData.state.trim()) errors.state = 'State is required';
     if (!formData.area.trim()) errors.area = 'Area is required';
-    if (!formData.timezone.trim()) errors.timezone = 'Timezone is required';
+    if (isIndia(formData.country) && formData.locationPin && !/^\d{6}$/.test(formData.locationPin)) {
+      errors.locationPin = 'Enter a valid 6-digit pincode';
+    }
 
     return errors;
   };
@@ -170,7 +199,14 @@ export default function RegisterForm() {
     setFieldErrors({});
 
     try {
-      const response = await authAPI.register(formData);
+      const username = formData.username.trim().toLowerCase();
+      const response = await authAPI.register({
+        ...formData,
+        username,
+        name: formData.name.trim() || username,
+        city: formData.state,
+        timezone: formData.timezone || detectBrowserTimezone(),
+      });
       markOtpSession(
         formData.phoneNumber,
         formData.countryCode,
@@ -344,46 +380,34 @@ export default function RegisterForm() {
             </div>
 
             <div>
-              <AuthFieldLabel htmlFor="name" required>
-                Full name
+              <AuthFieldLabel htmlFor="username" required>
+                Username
               </AuthFieldLabel>
               <Input
-                id="name"
-                className={cn(authFieldClass, fieldErrorClass('name'))}
+                id="username"
+                className={cn(authFieldClass, fieldErrorClass('username'))}
                 type="text"
-                placeholder="Your full name"
-                autoComplete="name"
+                placeholder="Choose a unique username"
+                autoComplete="username"
                 autoFocus
-                value={formData.name}
+                value={formData.username}
                 onChange={(e) => {
-                  clearFieldError('name');
-                  setFormData({ ...formData, name: e.target.value });
+                  clearFieldError('username');
+                  setFormData({
+                    ...formData,
+                    username: e.target.value.replace(/\s/g, '').slice(0, 20),
+                  });
                 }}
                 required
                 disabled={loading}
               />
-              <FieldError message={fieldErrors.name} />
-            </div>
-
-            <div>
-              <AuthFieldLabel htmlFor="email" required>
-                Email
-              </AuthFieldLabel>
-              <Input
-                id="email"
-                className={cn(authFieldClass, fieldErrorClass('email'))}
-                type="email"
-                placeholder="you@example.com"
-                autoComplete="email"
-                value={formData.email}
-                onChange={(e) => {
-                  clearFieldError('email');
-                  setFormData({ ...formData, email: e.target.value });
-                }}
-                required
-                disabled={loading}
-              />
-              <FieldError message={fieldErrors.email} />
+              {usernameStatus === 'checking' ? (
+                <p className="mt-1 text-[11px] text-neutral-500">Checking availability…</p>
+              ) : usernameStatus === 'available' && !fieldErrors.username ? (
+                <p className="mt-1 text-[11px] font-medium text-success">Username is available</p>
+              ) : (
+                <FieldError message={fieldErrors.username} />
+              )}
             </div>
 
             <div>
@@ -405,9 +429,39 @@ export default function RegisterForm() {
                 disabled={loading}
               />
               <p className="mt-1 text-[11px] text-neutral-500">
-                Used for age-appropriate recommendations. Must be 5 years or older.
+                All age groups are welcome.
               </p>
               <FieldError message={fieldErrors.dateOfBirth} />
+            </div>
+
+            <div>
+              <AuthFieldLabel required>Gender</AuthFieldLabel>
+              <div className="mt-1 grid grid-cols-3 gap-1.5">
+                {([
+                  ['male', 'Male'],
+                  ['female', 'Female'],
+                  ['other', 'Other'],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => {
+                      clearFieldError('gender');
+                      setFormData({ ...formData, gender: value });
+                    }}
+                    className={cn(
+                      'h-[38px] rounded-[3px] border text-xs font-semibold',
+                      formData.gender === value
+                        ? 'border-primary bg-primary-soft text-foreground'
+                        : 'border-[#dbdbdb] bg-[#fafafa] text-neutral-600'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <FieldError message={fieldErrors.gender} />
             </div>
 
             <div>
@@ -423,6 +477,7 @@ export default function RegisterForm() {
                   setFormData((prev) => ({
                     ...prev,
                     country,
+                    state: isIndia(country) ? prev.state : prev.state,
                     ...(!timezoneTouched && tz ? { timezone: tz } : {}),
                   }));
                 }}
@@ -433,36 +488,56 @@ export default function RegisterForm() {
               <FieldError message={fieldErrors.country} />
             </div>
 
-            <div className="grid grid-cols-2 gap-1.5">
-              <div>
-                <AuthFieldLabel htmlFor="city" required>
-                  City
-                </AuthFieldLabel>
+            <div>
+              <AuthFieldLabel htmlFor="state" required>
+                State
+              </AuthFieldLabel>
+              {isIndia(formData.country) ? (
+                <CustomDropdown
+                  id="state"
+                  value={formData.state}
+                  onChange={(state) => {
+                    clearFieldError('state');
+                    setFormData({ ...formData, state });
+                  }}
+                  placeholder="Select state"
+                  searchable
+                  searchPlaceholder="Search state…"
+                  emptyMessage="No states found"
+                  variant="auth"
+                  options={INDIAN_STATES.map((state) => ({ value: state, label: state }))}
+                  disabled={loading}
+                  triggerClassName={fieldErrorClass('state')}
+                  aria-label="State"
+                />
+              ) : (
                 <Input
-                  id="city"
-                  className={cn(authFieldClass, fieldErrorClass('city'))}
+                  id="state"
+                  className={cn(authFieldClass, fieldErrorClass('state'))}
                   type="text"
-                  placeholder="City"
-                  autoComplete="address-level2"
-                  value={formData.city}
+                  placeholder="State / region"
+                  value={formData.state}
                   onChange={(e) => {
-                    clearFieldError('city');
-                    setFormData({ ...formData, city: e.target.value });
+                    clearFieldError('state');
+                    setFormData({ ...formData, state: e.target.value });
                   }}
                   required
                   disabled={loading}
                 />
-                <FieldError message={fieldErrors.city} />
-              </div>
+              )}
+              <FieldError message={fieldErrors.state} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5">
               <div>
                 <AuthFieldLabel htmlFor="area" required>
-                  Area / locality
+                  Area
                 </AuthFieldLabel>
                 <Input
                   id="area"
                   className={cn(authFieldClass, fieldErrorClass('area'))}
                   type="text"
-                  placeholder="Area"
+                  placeholder="Area / locality"
                   autoComplete="address-level3"
                   value={formData.area}
                   onChange={(e) => {
@@ -474,25 +549,29 @@ export default function RegisterForm() {
                 />
                 <FieldError message={fieldErrors.area} />
               </div>
-            </div>
-
-            <div>
-              <AuthFieldLabel htmlFor="timezone" required>
-                Timezone
-              </AuthFieldLabel>
-              <TimezoneGroupedSelect
-                id="timezone"
-                value={formData.timezone}
-                onChange={(timezone) => {
-                  clearFieldError('timezone');
-                  setTimezoneTouched(true);
-                  setFormData({ ...formData, timezone });
-                }}
-                className={fieldErrorClass('timezone')}
-                disabled={loading}
-                required
-              />
-              <FieldError message={fieldErrors.timezone} />
+              <div>
+                <AuthFieldLabel htmlFor="locationPin" optional>
+                  Pincode
+                </AuthFieldLabel>
+                <Input
+                  id="locationPin"
+                  className={cn(authFieldClass, fieldErrorClass('locationPin'))}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Pincode"
+                  maxLength={6}
+                  value={formData.locationPin}
+                  onChange={(e) => {
+                    clearFieldError('locationPin');
+                    setFormData({
+                      ...formData,
+                      locationPin: e.target.value.replace(/\D/g, '').slice(0, 6),
+                    });
+                  }}
+                  disabled={loading}
+                />
+                <FieldError message={fieldErrors.locationPin} />
+              </div>
             </div>
 
             <div>
@@ -537,7 +616,7 @@ export default function RegisterForm() {
               </p>
             )}
 
-            <Button type="submit" disabled={loading} className={authButtonClass}>
+            <Button type="submit" disabled={loading || usernameStatus === 'taken'} className={authButtonClass}>
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />

@@ -47,6 +47,61 @@ export const COUNTRY_OPTIONS = [
 
 export type CountryOption = (typeof COUNTRY_OPTIONS)[number];
 
+const COUNTRY_ISO: Record<string, string> = {
+  India: 'IN',
+  'United Arab Emirates': 'AE',
+  'United States': 'US',
+  'United Kingdom': 'GB',
+  Singapore: 'SG',
+  Australia: 'AU',
+  Canada: 'CA',
+  Nepal: 'NP',
+  Bangladesh: 'BD',
+  Pakistan: 'PK',
+  'Sri Lanka': 'LK',
+  Germany: 'DE',
+  France: 'FR',
+  Netherlands: 'NL',
+  Spain: 'ES',
+  Italy: 'IT',
+  Japan: 'JP',
+  'South Korea': 'KR',
+  China: 'CN',
+  'Hong Kong': 'HK',
+  Malaysia: 'MY',
+  Indonesia: 'ID',
+  Thailand: 'TH',
+  Philippines: 'PH',
+  Vietnam: 'VN',
+  'Saudi Arabia': 'SA',
+  Qatar: 'QA',
+  Kuwait: 'KW',
+  Oman: 'OM',
+  Bahrain: 'BH',
+  'South Africa': 'ZA',
+  Nigeria: 'NG',
+  Kenya: 'KE',
+  Brazil: 'BR',
+  Mexico: 'MX',
+  'New Zealand': 'NZ',
+  Ireland: 'IE',
+  Switzerland: 'CH',
+  Sweden: 'SE',
+  Norway: 'NO',
+  Denmark: 'DK',
+};
+
+function isoToFlag(iso: string): string {
+  return iso
+    .toUpperCase()
+    .replace(/./g, (char) => String.fromCodePoint(127397 + char.charCodeAt(0)));
+}
+
+export function flagForCountry(country: string): string | undefined {
+  const iso = COUNTRY_ISO[country];
+  return iso ? isoToFlag(iso) : undefined;
+}
+
 /** Default IANA timezone when user picks a country (best-effort). */
 export const COUNTRY_TIMEZONE: Record<string, string> = {
   India: 'Asia/Kolkata',

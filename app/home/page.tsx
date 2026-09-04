@@ -5,16 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Flame, Calendar, Loader2, BarChart3, ListChecks, CalendarDays, Coins, Sparkles, Check, X, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
+import { Trophy, Flame, Calendar, Loader2, BarChart3, ListChecks, CalendarDays, X, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { economyAPI, type EconomySummary } from '@/lib/api/economy';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
-import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
 import Leaderboard from '@/components/leaderboard/Leaderboard';
 import { DashboardHeader } from '@/components/ui/DashboardHeader';
-import { HeaderIconButton } from '@/components/ui/HeaderIconAction';
+import { HeaderIconLink } from '@/components/ui/HeaderIconAction';
 import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
-import { StatCard } from '@/components/ui/PageHeader';
 import { DateTime } from 'luxon';
 import GuidedTour from '@/components/ui/GuidedTour';
 import CreatePlanFab from '@/components/ui/CreatePlanFab';
@@ -22,18 +20,17 @@ import { homeTourSteps } from '@/lib/utils/tourSteps';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import ActivityChart from '@/components/charts/ActivityChart';
 import { useHomePageData } from '@/lib/queries/useHomePageData';
-import { GlobalSearch } from '@/components/home/GlobalSearch';
 import { HomeCategoryCards } from '@/components/home/HomeCategoryCards';
+import { HomeEconomyCards } from '@/components/home/HomeEconomyCards';
 import { MissedDaysCard } from '@/components/home/MissedDaysCard';
+import { ActivityCategoryCollapse } from '@/components/home/ActivityCategoryCollapse';
+import { resolveActivityId } from '@/lib/utils/activityId';
 import { DailyMotivationQuote } from '@/components/home/DailyMotivationQuote';
 import { HomeMotivationCard } from '@/components/home/HomeMotivationCard';
-import { HomeSocialPreview } from '@/components/home/HomeSocialPreview';
-import { HomeCommunityPreview } from '@/components/home/HomeCommunityPreview';
-import { HomeNoPlanHub } from '@/components/home/HomeNoPlanHub';
 import { HomeMoodCard } from '@/components/mood/HomeMoodCard';
 import { WeekendPlanPromptModal } from '@/components/plan/WeekendPlanPromptModal';
 import { CommunityInvitePromptCard } from '@/components/community/CommunityInvitePromptCard';
-import { weeklyPlanAPI, type PlanChoiceState } from '@/lib/api/weeklyPlan';
+import { weeklyPlanAPI, type PlanChoiceState, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import { resolveActivityIcon } from '@/lib/utils/activityIcon';
 import { calendarDayMatches, toLocalDateKey } from '@/lib/utils/calendarDate';
 import {
@@ -76,8 +73,6 @@ function HomePageContent() {
   const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
   const [economy, setEconomy] = useState<EconomySummary | null>(null);
   const [expandedSections, setExpandedSections] = useState({
-    social: true,
-    community: true,
     weeklyPerformance: true,
     activityGoals: false,
     pendingActivities: false,
@@ -193,8 +188,6 @@ function HomePageContent() {
 
   const handleStartTour = () => {
     setExpandedSections({
-      social: true,
-      community: true,
       weeklyPerformance: true,
       activityGoals: true,
       pendingActivities: true,
@@ -205,8 +198,8 @@ function HomePageContent() {
   };
 
   const handleTourFinish = () => {
-    setRunTour(false);
     localStorage.setItem('tourCompleted', 'true');
+    setRunTour(false);
   };
 
   const handleBarClick = (date: string) => {
@@ -245,6 +238,14 @@ function HomePageContent() {
       handleStartTour();
     }
   }, [isBootstrapping, selectedProfile]);
+
+  const profileCreatedAt = selectedProfile?.createdAt;
+  const isFirstDayHomeTourDue =
+    isMounted &&
+    !!profileCreatedAt &&
+    new Date(profileCreatedAt).toDateString() === new Date().toDateString() &&
+    localStorage.getItem('tourCompleted') !== 'true';
+  const blockOverlaysForTour = runTour || isFirstDayHomeTourDue;
 
   const selectLogDate = (date: string) => {
     prefetchDailySummary(date);
@@ -291,7 +292,6 @@ function HomePageContent() {
 
   const weekDays = getCurrentWeekDays();
   const daysLoggedThisWeek = weekDays.filter((d) => d.hasLog).length;
-  const weekScoreHint = `${daysLoggedThisWeek} of 7 days`;
   const daysLoggedHint = `${daysLoggedThisWeek} this week`;
   const isWeekend =
     nowInProfileZone(profileZone).weekday === 6 ||
@@ -327,6 +327,22 @@ function HomePageContent() {
   const selectedDayChartIndex = useMemo(() => {
     return dayChartPoints.findIndex((p) => p.date.split('T')[0] === logDateFilter);
   }, [dayChartPoints, logDateFilter]);
+  const completedWeeks = weeklyData.slice(0, -1);
+  const weeklyAvgPoints = completedWeeks.length
+    ? completedWeeks.reduce((sum, week) => sum + week.totalPoints, 0) / completedWeeks.length
+    : 0;
+  const bestWeekPoints = completedWeeks.length
+    ? Math.max(...completedWeeks.map((week) => week.totalPoints))
+    : 0;
+  const dailyAvgPoints = dayChartPoints.length
+    ? dayChartPoints.reduce((sum, day) => sum + day.points, 0) / dayChartPoints.length
+    : 0;
+  const bestDayPoints = dayChartPoints.length
+    ? Math.max(...dayChartPoints.map((day) => day.points))
+    : 0;
+  const maxDayActivities = dayChartPoints.length
+    ? Math.max(...dayChartPoints.map((day) => day.activitiesCount))
+    : 0;
   const selectedDateCalendarDay = trackerCalendarDays.find((d) =>
     calendarDayMatches(d, logDateFilter, profileZone)
   );
@@ -381,6 +397,28 @@ function HomePageContent() {
     return groups.filter((group) => group.id === selectedCategory);
   }, [selectedDayLog, categoryById, selectedCategory]);
 
+  const pendingByCategory = useMemo(() => {
+    return ACTIVITY_CATEGORIES.map((category) => {
+      const items = filteredPlanActivities.filter(
+        (activity) => categoryById.get(resolveActivityId(activity)) === category.id
+      );
+      const daily = items.filter((activity) => activity.cadence === 'daily');
+      const weeklyOpen = items.filter(
+        (activity) =>
+          activity.cadence === 'weekly' &&
+          activity.targetValue - (activity.achievedUnits || 0) > 0
+      );
+      const weeklyDone = items.filter(
+        (activity) =>
+          activity.cadence === 'weekly' &&
+          activity.targetValue - (activity.achievedUnits || 0) <= 0
+      );
+      return { ...category, daily, weeklyOpen, weeklyDone };
+    }).filter(
+      (group) => group.daily.length > 0 || group.weeklyOpen.length > 0 || group.weeklyDone.length > 0
+    );
+  }, [filteredPlanActivities, categoryById]);
+
   // Show loading only on first visit with no cached data
   if (!isHydrated || !sessionReady || !logDateFilter || isBootstrapping) {
     return (
@@ -397,26 +435,27 @@ function HomePageContent() {
 
       {isMounted ? (
         <CreatePlanFab
-          hidden={runTour}
+          hidden={blockOverlaysForTour}
           mode={hasPersonalPlan ? 'log' : 'create'}
           weekendDual={showWeekendDual}
+          onTour={handleStartTour}
         />
       ) : null}
 
       {isMounted ? (
-        <DailyMotivationQuote suppressed={runTour || Boolean(weekendPrompt?.show)} />
+        <DailyMotivationQuote suppressed={blockOverlaysForTour || Boolean(weekendPrompt?.show)} />
       ) : null}
 
       <div className="w-full space-y-5">
         <DashboardHeader
           className="welcome-banner"
-          subtitle={new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
           isPaused={isProfilePaused}
           extraActions={
-            <HeaderIconButton
-              icon={<HelpCircle className="h-4 w-4" />}
-              caption="Tour"
-              onClick={handleStartTour}
+            <HeaderIconLink
+              className="home-search"
+              href="/feed/explore"
+              icon={<Search className="h-[18px] w-[18px]" />}
+              caption="Search"
             />
           }
           onOpenMessages={() => {
@@ -429,21 +468,14 @@ function HomePageContent() {
           }}
         />
 
-        <GlobalSearch />
-
-        {noPlanError ? (
-          <HomeNoPlanHub
-            hasCommunityActivities={hasCommunityActivities}
-            communityActivityCount={communityActivityCount}
-          />
-        ) : null}
-
         <HomeCategoryCards
           weeklyPlan={weeklyPlan}
           activityList={activityList}
           selectedCategory={selectedCategory}
           onCategoryChange={handleCategoryChange}
         />
+
+        <HomeEconomyCards economy={economy} />
 
         {selectedCategory ? (
           <button
@@ -474,7 +506,7 @@ function HomePageContent() {
 
           <HomeMoodCard
             profileId={selectedProfile?._id}
-            suppressed={runTour || Boolean(weekendPrompt?.show)}
+            suppressed={blockOverlaysForTour || Boolean(weekendPrompt?.show)}
           />
 
           {isRefreshing && (
@@ -545,7 +577,33 @@ function HomePageContent() {
 
           <Card className="week-tracker section-card app-card-hover overflow-visible">
             <CardContent className="p-4 sm:p-5">
-              <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+              <button
+                type="button"
+                onClick={() => router.push('/streak-calendar')}
+                className="home-streak grid w-full grid-cols-2 gap-2 pb-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+                aria-label="Open streak calendar and activity totals"
+              >
+                <span className="flex flex-col items-center gap-1 px-2 text-center">
+                  <Flame className="h-5 w-5 text-primary" strokeWidth={2.25} />
+                  <span className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
+                    {streakData?.overallStreak.currentStreak || 0}
+                  </span>
+                  <span className="text-xs font-semibold text-foreground">Streak</span>
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    Best {streakData?.overallStreak.longestStreak || 0} days
+                  </span>
+                </span>
+                <span className="flex flex-col items-center gap-1 px-2 text-center">
+                  <CalendarDays className="h-5 w-5 text-primary" strokeWidth={2.25} />
+                  <span className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
+                    {totalDaysLogged}
+                  </span>
+                  <span className="text-xs font-semibold text-foreground">Days logged</span>
+                  <span className="text-[10px] font-medium text-muted-foreground">{daysLoggedHint}</span>
+                </span>
+              </button>
+
+              <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-border pt-3">
                 <div className="flex items-center gap-2">
                   <span className="inline-flex shrink-0 rounded-lg bg-primary-soft p-1.5 text-primary">
                     <Calendar className="h-4 w-4" />
@@ -608,36 +666,41 @@ function HomePageContent() {
                   </div>
                 ))}
               </div>
-              <div className="mt-3 border-t border-border pt-3">
-                <div
-                  className="h-1.5 overflow-hidden rounded-full bg-secondary"
-                  role="progressbar"
-                  aria-valuenow={daysLoggedThisWeek}
-                  aria-valuemin={0}
-                  aria-valuemax={7}
-                  aria-label={`${daysLoggedThisWeek} of 7 days logged this week`}
-                >
+              <div className="mt-3 flex items-end gap-3 border-t border-border pt-3">
+                <div className="min-w-0 flex-1">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-primary to-primary-hover transition-all duration-500"
-                    style={{ width: `${(daysLoggedThisWeek / 7) * 100}%` }}
-                  />
+                    className="h-1.5 overflow-hidden rounded-full bg-secondary"
+                    role="progressbar"
+                    aria-valuenow={daysLoggedThisWeek}
+                    aria-valuemin={0}
+                    aria-valuemax={7}
+                    aria-label={`${daysLoggedThisWeek} of 7 days logged this week`}
+                  >
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-primary to-primary-hover transition-all duration-500"
+                      style={{ width: `${(daysLoggedThisWeek / 7) * 100}%` }}
+                    />
+                  </div>
+                  {isShowingPreviousWeek ? (
+                    <p className="mt-1.5 text-[11px] font-medium text-muted-foreground">
+                      No logs yet this week · showing last week
+                    </p>
+                  ) : null}
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-lg font-bold leading-none tabular-nums text-foreground">
+                    {stats.points.toFixed(2)}%
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-muted-foreground">
+                    {isShowingPreviousWeek ? 'Last week' : 'Week score'}
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
-
-          <div className="stats-grid">
-            <StatCard
-              label={isShowingPreviousWeek ? 'Previous week score' : 'Week score'}
-              value={`${stats.points.toFixed(2)}%`}
-              hint={weekScoreHint}
-              icon={Trophy}
-              accent="green"
-            />
-          </div>
         </section>
 
-        {weekendPrompt?.show ? (
+        {weekendPrompt?.show && !blockOverlaysForTour ? (
           <WeekendPlanPromptModal
             weekendPrompt={weekendPrompt}
             onResolved={() => {
@@ -650,95 +713,374 @@ function HomePageContent() {
 
         <CommunityInvitePromptCard />
 
-        <button
-          type="button"
-          onClick={() => router.push('/streak-calendar')}
-          className="home-streak w-full rounded-2xl border border-border bg-surface p-3 text-left shadow-[var(--shadow-card)] transition hover:border-primary/30 sm:p-4"
+        <HomeMotivationCard />
+
+        <div className="mt-2 space-y-4 sm:mt-4">
+        <CollapsibleSection
+          className="weekly-performance"
+          title="Monthly performance"
+          subtitle={viewMode === 'week' ? 'Weekly consistency scores · tap a bar for missed activities' : 'Daily scores (today excluded)'}
+          icon={BarChart3}
+          expanded={expandedSections.weeklyPerformance}
+          onToggle={() => toggleSection('weeklyPerformance')}
+          contentClassName="space-y-4 pt-3"
         >
-          <p className="mb-2 text-[11px] font-medium text-primary">
-            Tap to open streak calendar & activity totals
-          </p>
-          <div className="grid grid-cols-2 divide-x divide-border">
-            <div className="flex items-center gap-3 pr-3">
-              <span className="inline-flex shrink-0 rounded-xl bg-primary-soft p-2 text-primary sm:p-2.5">
-                <Flame className="h-4 w-4 sm:h-5 sm:w-5" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-lg font-bold leading-tight tracking-tight tabular-nums sm:text-xl">
-                  {streakData?.overallStreak.currentStreak || 0} days
-                </p>
-                <p className="truncate text-xs font-medium text-foreground sm:text-sm">Current streak</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  Best: {streakData?.overallStreak.longestStreak || 0} days · target-achieved days
-                </p>
+          {monthlyLogData !== null ? (
+            <>
+              <div className="flex items-center justify-center gap-5">
+                {(['week', 'day'] as const).map((mode) => {
+                  const selected = viewMode === mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setViewMode(mode)}
+                      className="flex flex-col items-center gap-1"
+                    >
+                      <span
+                        className={
+                          selected
+                            ? 'text-sm font-semibold text-foreground'
+                            : 'text-sm font-medium text-muted-foreground'
+                        }
+                      >
+                        {mode === 'week' ? 'Week' : 'Day'}
+                      </span>
+                      <span
+                        aria-hidden
+                        className={`h-0.5 w-6 rounded-full ${selected ? 'bg-primary' : 'bg-transparent'}`}
+                      />
+                    </button>
+                  );
+                })}
               </div>
+
+              {viewMode === 'week' ? (
+                <ActivityChart
+                  data={completedWeeks.map((week) => ({
+                    label: week.weekStart,
+                    value: Number(week.totalPoints.toFixed(2)),
+                    displayValue: `${week.totalPoints.toFixed(2)}%`,
+                  }))}
+                  variant="bar"
+                  height={220}
+                  tooltipUnit="%"
+                  showBarLabels
+                  onBarClick={(_, index) => {
+                    const week = completedWeeks[index];
+                    if (week) router.push(`/week-analysis?weekStart=${week.weekStartISO}`);
+                  }}
+                />
+              ) : (
+                <ActivityChart
+                  data={dayChartPoints.map((point) => ({
+                    label: String(point.day),
+                    tooltipLabel: DateTime.fromISO(point.date.split('T')[0]).toFormat('MMM d'),
+                    value: Number(point.points.toFixed(2)),
+                    displayValue: `${point.points.toFixed(2)}%`,
+                  }))}
+                  variant="line"
+                  height={220}
+                  tooltipUnit="%"
+                  selectedIndex={selectedDayChartIndex}
+                  onBarClick={(_, index) => {
+                    const point = dayChartPoints[index];
+                    if (point) handleBarClick(point.date);
+                  }}
+                />
+              )}
+
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                {viewMode === 'week' ? (
+                  <>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {weeklyAvgPoints.toFixed(2)}%
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Avg</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {bestWeekPoints.toFixed(2)}%
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Best week</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {completedWeeks.length}
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Weeks</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {dailyAvgPoints.toFixed(2)}%
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Avg</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {bestDayPoints.toFixed(2)}%
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Best day</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-base font-bold tabular-nums text-foreground sm:text-lg">
+                        {maxDayActivities}
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Max acts</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Log activities to see your chart
+            </p>
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          className="leaderboard-section"
+          title="Weekly Consistency Leaderboard"
+          subtitle={
+            selectedCategory
+              ? `${categoryLabel(selectedCategory)} category · compare weekly %`
+              : 'Compare weekly % with others'
+          }
+          icon={Trophy}
+          expanded={expandedSections.leaderboard}
+          onToggle={() => toggleSection('leaderboard')}
+          overflowVisible
+          contentClassName="overflow-visible pt-3"
+        >
+          <Leaderboard
+            categoryFilter={selectedCategory}
+            onCategoryFilterClear={() => setSelectedCategory(null)}
+          />
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          id="log-tracker"
+          className="log-tracker"
+          title="Daily log tracker"
+          subtitle={
+            selectedCategory
+              ? `${categoryLabel(selectedCategory)} · pick a date to review or submit`
+              : 'Pick a date to review or submit'
+          }
+          icon={CalendarDays}
+          expanded={expandedSections.logTracker}
+          onToggle={() => toggleSection('logTracker')}
+          contentClassName="space-y-4 pt-3"
+        >
+          <MissedDaysCard data={missedLogDays} />
+
+          <div>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                disabled={!canPrevLogMonth}
+                onClick={() => goToLogMonth(-1)}
+                className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Previous month"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <h3 className="min-w-[8.5rem] text-center text-sm font-semibold text-foreground">
+                {weeklyLogData?.monthName || nowInProfileZone(profileZone).toFormat('LLLL')}{' '}
+                {weeklyLogData?.year || nowInProfileZone(profileZone).year}
+              </h3>
+              <button
+                type="button"
+                disabled={!canNextLogMonth}
+                onClick={() => goToLogMonth(1)}
+                className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Next month"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
-            <div className="flex items-center gap-3 pl-3">
-              <span className="inline-flex shrink-0 rounded-xl bg-secondary p-2 text-secondary-foreground sm:p-2.5">
-                <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5" />
+
+            <div className="mb-1 grid grid-cols-7">
+              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                <div key={day} className="py-1 text-center text-[11px] font-medium text-muted-foreground">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7">
+              {Array.from({ length: trackerFirstDayOffset }).map((_, index) => (
+                <div key={`tracker-empty-${index}`} className="aspect-square" />
+              ))}
+
+              {trackerCalendarDays.map((day) => {
+                const dateOnly = toLocalDateKey(day.date, profileZone);
+                const isSelected = logDateFilter === dateOnly;
+                const isToday = day.isToday || dateOnly === todayDate;
+                const isMissed = !day.isFuture && !isToday && !day.hasLog;
+                const numberClass = day.isFuture
+                  ? 'cursor-not-allowed text-muted-foreground/40'
+                  : day.hasLog
+                    ? 'text-primary'
+                    : isMissed
+                      ? 'text-muted-foreground'
+                      : 'text-foreground';
+
+                return (
+                  <button
+                    key={day.date}
+                    type="button"
+                    disabled={day.isFuture}
+                    onClick={() => !day.isFuture && selectLogDate(dateOnly)}
+                    className={`flex aspect-square w-full flex-col items-center justify-center gap-0.5 text-xs font-semibold sm:text-sm ${numberClass} ${
+                      isSelected ? 'rounded-lg ring-2 ring-primary ring-offset-1' : ''
+                    }`}
+                    title={`${dateOnly} - ${day.hasLog ? 'Submitted' : isMissed ? 'Missed' : 'Not submitted'}`}
+                  >
+                    <span>{day.day}</span>
+                    {day.hasLog ? (
+                      <span aria-hidden className="h-1 w-4 rounded-full bg-primary" />
+                    ) : isMissed ? (
+                      <X aria-hidden className="h-2.5 w-2.5 text-red-600" strokeWidth={3} />
+                    ) : isToday ? (
+                      <span aria-hidden className="h-1 w-4 rounded-full bg-foreground/50" />
+                    ) : (
+                      <span aria-hidden className="h-2.5 w-4" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1 w-4 rounded-full bg-primary" />
+                Logged
               </span>
-              <div className="min-w-0">
-                <p className="truncate text-lg font-bold leading-tight tracking-tight tabular-nums sm:text-xl">
-                  {totalDaysLogged}
-                </p>
-                <p className="truncate text-xs font-medium text-foreground sm:text-sm">Days logged</p>
-                <p className="truncate text-xs text-muted-foreground">{daysLoggedHint}</p>
-              </div>
+              <span className="inline-flex items-center gap-1.5">
+                <X className="h-2.5 w-2.5 text-red-600" strokeWidth={3} />
+                Missed
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1 w-4 rounded-full bg-foreground/50" />
+                Today
+              </span>
             </div>
           </div>
-        </button>
 
-        <div className="xp-coins-grid grid grid-cols-2 gap-3">
-          {economy ? (
-            <>
-            <button
+          {!selectedDateHasLog && !noPlanError && (
+            <Button
               type="button"
-              onClick={() => router.push('/xp')}
-              className="section-card flex items-center gap-3 p-4 text-left transition hover:border-primary/30"
+              className="w-full"
+              onClick={() => {
+                if (selectedDateIsToday) router.push('/tasks');
+                else router.push(`/previous-log?date=${logDateFilter}`);
+              }}
             >
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                <Sparkles className="h-5 w-5" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  XP
-                </span>
-                <span className="block truncate text-lg font-bold tabular-nums text-foreground">
-                  {economy.xp.totalXp.toLocaleString()}
-                </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  L{economy.xp.level} {economy.xp.levelTitle} · {economy.xp.todayXp}/{economy.xp.dailyGoal} today
-                </span>
-              </span>
-            </button>
-            <button
+              {selectedDateIsToday ? 'Log today' : 'Log selected date'}
+            </Button>
+          )}
+          {!selectedDateHasLog && noPlanError && selectedDateIsToday && (
+            <Button
               type="button"
-              onClick={() => router.push('/coins')}
-              className="section-card flex items-center gap-3 p-4 text-left transition hover:border-primary/30"
+              className="w-full"
+              onClick={() => router.push('/create-plan')}
             >
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                <Coins className="h-5 w-5" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Coins
-                </span>
-                <span className="block truncate text-lg font-bold tabular-nums text-foreground">
-                  {economy.coins.balance.toLocaleString()}
-                </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  Earned {economy.coins.earned.toLocaleString()}
-                  {economy.coins.platformSharePercent > 0
-                    ? ` · ${economy.coins.platformSharePercent}% of platform`
-                    : ''}
-                </span>
-              </span>
-            </button>
-            </>
-          ) : null}
-        </div>
+              Create a plan to start logging
+            </Button>
+          )}
+              {isDailyLogFetching && !selectedDayLog ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  Loading log for this date…
+                </div>
+              ) : selectedDayLog ? (
+                <div className="space-y-4">
+                  <div className="flex items-end justify-between gap-3 px-0.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">
+                        {new Date(selectedDayLog.date).toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {selectedDayLog.activities.filter((activity) => activity.achieved > 0).length}{' '}
+                        completed
+                        {selectedDayStreak > 0 ? ` · ${selectedDayStreak} day streak` : ''}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-lg font-bold tabular-nums text-foreground">
+                        {selectedDayLog.totalPoints.toFixed(1)}%
+                      </p>
+                      <p className="text-[11px] font-medium text-muted-foreground">Earned</p>
+                    </div>
+                  </div>
 
-        <HomeMotivationCard />
+                  <div className="space-y-3">
+                    {selectedDayLogByCategory.length === 0 && selectedCategory ? (
+                      <p className="py-6 text-center text-sm text-muted-foreground">
+                        No {categoryLabel(selectedCategory).toLowerCase()} activities on this date
+                      </p>
+                    ) : null}
+                    {selectedDayLogByCategory.map((group, index) => (
+                      <ActivityCategoryCollapse
+                        key={group.id}
+                        emoji={group.emoji}
+                        label={group.label}
+                        count={group.activities.length}
+                        defaultOpen={index === 0}
+                      >
+                        <ul>
+                          {group.activities.map((activity) => {
+                            const progress = formatDailySummaryActivityProgress(activity);
+                            const earnedPercent = activity.pointsEarned.toFixed(1);
+
+                            return (
+                              <li
+                                key={activity.activityId}
+                                className="flex items-center gap-2 px-0.5 py-2"
+                              >
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center text-sm">
+                                  {resolveActivityIcon(
+                                    activityList,
+                                    activity.activityId,
+                                    activity.activity
+                                  )}
+                                </span>
+                                <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                                  {activity.activity}
+                                </p>
+                                <div className="shrink-0 text-right">
+                                  <p className={`text-xs font-semibold ${progressToneClass(progress.tone)}`}>
+                                    {progress.text}
+                                  </p>
+                                  {activity.status !== 'pending' && (
+                                    <p className="text-[10px] font-bold tabular-nums text-primary">
+                                      {earnedPercent}%
+                                    </p>
+                                  )}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </ActivityCategoryCollapse>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Select a date to view your log
+                </p>
+              )}
+        </CollapsibleSection>
 
         <CollapsibleSection
           className="pending-activities"
@@ -776,174 +1118,44 @@ function HomePageContent() {
                 </div>
               ) : weeklyPlan ? (
                 <>
-                  {/* Check if there are any pending activities */}
-                  {(filteredPlanActivities.filter(activity => activity.cadence === 'daily').length > 0 ||
-                    filteredPlanActivities.filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0).length > 0) ? (
-                    <>
-                      {/* Daily Activities Section */}
-                      {filteredPlanActivities.filter(activity => activity.cadence === 'daily').length > 0 && (
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className="w-8 h-8 rounded-lg bg-primary-soft flex items-center justify-center">
-                              <span className="text-primary text-sm font-semibold">📅</span>
-                            </div>
-                            <h2 className="text-base font-semibold text-gray-900">Daily Activities</h2>
+                  {pendingByCategory.length > 0 ? (
+                    <div>
+                      {pendingByCategory.map((group, index) => (
+                        <ActivityCategoryCollapse
+                          key={group.id}
+                          emoji={group.emoji}
+                          label={group.label}
+                          count={group.daily.length + group.weeklyOpen.length + group.weeklyDone.length}
+                          defaultOpen={index === 0}
+                        >
+                          <div className="space-y-3 pb-2">
+                            {group.daily.map((activity) => (
+                              <DailyPendingCard
+                                key={resolveActivityId(activity)}
+                                activity={activity}
+                              />
+                            ))}
+                            {group.weeklyOpen.map((activity) => (
+                              <WeeklyPendingCard
+                                key={resolveActivityId(activity)}
+                                activity={activity}
+                                weekEnd={weeklyPlan.weekEnd}
+                              />
+                            ))}
+                            {group.weeklyDone.map((activity) => (
+                              <CompletedWeeklyCard
+                                key={resolveActivityId(activity)}
+                                activity={activity}
+                              />
+                            ))}
                           </div>
-                          {filteredPlanActivities
-                            .filter(activity => activity.cadence === 'daily')
-                            .map((activity, index) => {
-                              const activityData = typeof activity === 'object' ? activity : null;
-                              const isSurprise = activity?.isSurpriseActivity || false;
-                              const progress = formatPlanActivityProgress(activity);
-                              const isAchieved = progress.tone === 'achieved';
-
-                              return (
-                                <div key={index} className={`
-                                  ${isSurprise
-                                    ? 'bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50 border-l-4 border-amber-400'
-                                    : isAchieved
-                                      ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-l-4 border-emerald-500'
-                                      : activity.TodayLogged
-                                        ? 'bg-gradient-to-br from-rose-50 to-red-50 border-l-4 border-rose-400'
-                                        : 'bg-gradient-to-br from-slate-50 to-gray-50 border-l-4 border-slate-300'
-                                  } rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 relative group`}>
-                                  {isSurprise && (
-                                    <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1">
-                                      <span>🎁</span>
-                                      <span className="tracking-wide">BONUS</span>
-                                    </div>
-                                  )}
-                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSurprise
-                                        ? 'bg-amber-100'
-                                        : isAchieved
-                                          ? 'bg-emerald-100'
-                                          : activity.TodayLogged
-                                            ? 'bg-rose-100'
-                                            : 'bg-slate-200'
-                                        }`}>
-                                        <span className="text-xl">
-                                          {isSurprise ? (activity.TodayLogged ? '🎉' : '🎁') : (isAchieved ? '✓' : activity.TodayLogged ? '✗' : '○')}
-                                        </span>
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className={`font-semibold text-sm mb-0.5 ${isSurprise ? 'text-amber-900' : 'text-gray-900'}`}>
-                                          {activityData?.label || activity.label || 'Activity'}
-                                        </p>
-                                        <div className="flex items-center gap-2">
-                                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white/60 text-gray-600 border border-gray-200">
-                                            Daily
-                                          </span>
-                                          <span className="text-xs text-gray-500">•</span>
-                                          <span className="text-xs text-gray-600 font-medium">{activityData?.unit || activity.unit}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="text-left sm:text-right sm:ml-3">
-                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${progressBadgeClass(progress.tone)}`}>
-                                        {progress.text}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      )}
-
-                      {/* Weekly Activities Section */}
-                      {filteredPlanActivities.filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0).length > 0 && (
-                        <div className="space-y-3 mt-6">
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className="w-8 h-8 rounded-lg bg-primary-soft flex items-center justify-center">
-                              <span className="text-primary text-sm font-semibold">📊</span>
-                            </div>
-                            <h2 className="text-base font-semibold text-gray-900">Weekly Activities</h2>
-                          </div>
-                          {filteredPlanActivities
-                            .filter(activity => activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) > 0)
-                            .map((activity, index) => {
-                              const activityData = typeof activity === 'object' ? activity : null;
-                              const weekEnd = new Date(weeklyPlan.weekEnd);
-                              const today = new Date();
-                              const remainingDays = Math.max(0, Math.ceil((weekEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-                              const isSurprise = activity?.isSurpriseActivity || false;
-                              const progress = formatPlanActivityProgress(activity);
-                              const progressPercent =
-                                activity.targetValue > 0
-                                  ? Math.min(
-                                      100,
-                                      ((activity.achievedUnits || 0) / activity.targetValue) * 100
-                                    )
-                                  : 0;
-
-                              return (
-                                <div key={index} className={`${isSurprise
-                                  ? 'bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50 border-l-4 border-amber-400'
-                                  : 'bg-gradient-to-br from-primary-soft to-surface border-l-4 border-primary'
-                                  } rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 relative`}>
-                                  {isSurprise && (
-                                    <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1">
-                                      <span>🎁</span>
-                                      <span className="tracking-wide">BONUS</span>
-                                    </div>
-                                  )}
-                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSurprise ? 'bg-amber-100' : 'bg-primary-soft'
-                                        }`}>
-                                        <span className="text-xl">{isSurprise ? '🎁' : '○'}</span>
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className={`font-semibold text-sm mb-0.5 ${isSurprise ? 'text-amber-900' : 'text-gray-900'}`}>
-                                          {activityData?.label || activity.label || 'Activity'}
-                                        </p>
-                                        <div className="flex items-center gap-2">
-                                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white/60 text-gray-600 border border-gray-200">
-                                            Weekly
-                                          </span>
-                                          <span className="text-xs text-gray-500">•</span>
-                                          <span className="text-xs text-gray-600 font-medium">{activityData?.unit || activity.unit}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="text-left sm:text-right sm:ml-3">
-                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${progressBadgeClass(progress.tone)}`}>
-                                        {progress.text}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <div className="flex items-center justify-between text-xs">
-                                      <span className="text-gray-600 font-medium">Progress</span>
-                                      <span className="text-gray-700 font-semibold">{Math.round(progressPercent)}%</span>
-                                    </div>
-                                    <div className="h-2 bg-white/80 rounded-full overflow-hidden border border-gray-200/50">
-                                      <div
-                                        className={`h-full rounded-full transition-all duration-500 ${isSurprise
-                                          ? 'bg-gradient-to-r from-amber-400 to-orange-400'
-                                          : 'bg-gradient-to-r from-primary to-primary-hover'
-                                          }`}
-                                        style={{ width: `${progressPercent}%` }}
-                                      ></div>
-                                    </div>
-                                    <div className="flex flex-wrap items-center justify-end gap-2 text-xs pt-1">
-                                      <span className="text-gray-600 font-medium">
-                                        {remainingDays} day{remainingDays !== 1 ? 's' : ''} left
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      )}
-                    </>
+                        </ActivityCategoryCollapse>
+                      ))}
+                    </div>
                   ) : (
-                    <div className="bg-gradient-to-br from-emerald-50 to-green-50 border-l-4 border-emerald-500 rounded-r-lg p-6 text-center shadow-sm">
-                      <div className="text-5xl mb-3">🎉</div>
-                      <h3 className="font-bold text-emerald-900 text-base mb-2">All Caught Up!</h3>
+                    <div className="rounded-r-lg border-l-4 border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 p-6 text-center shadow-sm">
+                      <div className="mb-3 text-5xl">🎉</div>
+                      <h3 className="mb-2 text-base font-bold text-emerald-900">All Caught Up!</h3>
                       <p className="text-sm text-emerald-700">
                         {selectedCategory
                           ? `No pending ${categoryLabel(selectedCategory).toLowerCase()} activities this week.`
@@ -951,72 +1163,6 @@ function HomePageContent() {
                       </p>
                     </div>
                   )}
-
-                  {/* Completed Activities Section */}
-                  {filteredPlanActivities.filter(activity => {
-                    return activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) <= 0;
-                  }).length > 0 && (
-                      <div className="mt-6 pt-6 border-t border-gray-200">
-                        <div className="flex items-center gap-2 mb-4">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                            <span className="text-emerald-600 text-sm font-semibold">✓</span>
-                          </div>
-                          <h2 className="text-base font-semibold text-gray-900">Completed Activities</h2>
-                        </div>
-                        <div className="space-y-3">
-                          {filteredPlanActivities
-                            .filter(activity => {
-                              return activity.cadence === 'weekly' && activity.targetValue - (activity.achievedUnits || 0) <= 0;
-                            })
-                            .map((activity, index) => {
-                              const activityData = typeof activity === 'object' ? activity : null;
-                              const progress = formatPlanActivityProgress(activity);
-
-                              return (
-                                <div key={index} className="bg-gradient-to-br from-emerald-50 to-green-50 border-l-4 border-emerald-500 rounded-lg p-4 shadow-sm">
-                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                      <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                                        <span className="text-xl text-emerald-600">✓</span>
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="font-semibold text-sm text-gray-900 mb-0.5">
-                                          {activityData?.label || activity.label || 'Activity'}
-                                        </p>
-                                        <div className="flex items-center gap-2">
-                                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white/60 text-gray-600 border border-gray-200">
-                                            Weekly
-                                          </span>
-                                          <span className="text-xs text-gray-500">•</span>
-                                          <span className="text-xs text-gray-600 font-medium">{activityData?.unit || activity.unit}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="text-left sm:text-right sm:ml-3">
-                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${progressBadgeClass(progress.tone)}`}>
-                                        {progress.text}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <div className="h-2 bg-emerald-100 rounded-full overflow-hidden border border-emerald-200/50">
-                                      <div
-                                        className="h-full bg-gradient-to-r from-emerald-500 to-green-500 rounded-full transition-all duration-300"
-                                        style={{ width: '100%' }}
-                                      ></div>
-                                    </div>
-                                    <div className="flex flex-wrap items-center justify-end gap-2 text-xs pt-1">
-                                      <span className="text-emerald-600 font-medium">100%</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          }
-                        </div>
-                      </div>
-                    )}
                 </>
               ) : (
                 <div className="text-center py-8">
@@ -1026,421 +1172,6 @@ function HomePageContent() {
               )}
         </CollapsibleSection>
 
-      <div className="mt-2 space-y-4 sm:mt-4">
-        <CollapsibleSection
-          className="weekly-performance"
-          title="Monthly performance"
-          subtitle={viewMode === 'week' ? 'Weekly consistency scores · tap a bar for missed activities' : 'Daily scores (today excluded)'}
-          icon={BarChart3}
-          expanded={expandedSections.weeklyPerformance}
-          onToggle={() => toggleSection('weeklyPerformance')}
-          contentClassName="space-y-4"
-        >
-          {monthlyLogData !== null ? (
-            <>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <ChipTabs
-                  tabs={[
-                    { id: 'week', label: 'Week' },
-                    { id: 'day', label: 'Day' },
-                  ]}
-                  active={viewMode}
-                  onChange={(id) => setViewMode(id as 'day' | 'week')}
-                />
-              </div>
-
-              {viewMode === 'week' ? (
-                <ActivityChart
-                  data={weeklyData.slice(0, -1).map((week) => ({
-                    label: week.weekStart,
-                    value: Number(week.totalPoints.toFixed(2)),
-                    displayValue: `${week.totalPoints.toFixed(2)}%`,
-                  }))}
-                  variant="bar"
-                  height={240}
-                  tooltipUnit="%"
-                  showBarLabels
-                  onBarClick={(_, index) => {
-                    const week = weeklyData.slice(0, -1)[index];
-                    if (week) router.push(`/week-analysis?weekStart=${week.weekStartISO}`);
-                  }}
-                />
-              ) : (
-                <ActivityChart
-                  data={dayChartPoints.map((point) => ({
-                    label: String(point.day),
-                    tooltipLabel: DateTime.fromISO(point.date.split('T')[0]).toFormat('MMM d'),
-                    value: Number(point.points.toFixed(2)),
-                    displayValue: `${point.points.toFixed(2)}%`,
-                  }))}
-                  variant="line"
-                  height={260}
-                  tooltipUnit="%"
-                  selectedIndex={selectedDayChartIndex}
-                  onBarClick={(_, index) => {
-                    const point = dayChartPoints[index];
-                    if (point) handleBarClick(point.date);
-                  }}
-                />
-              )}
-
-              <div className="grid grid-cols-1 gap-2 border-t border-border pt-4 sm:grid-cols-3 sm:gap-3">
-                {viewMode === 'week' ? (
-                  <>
-                    <div className="rounded-xl bg-secondary p-2 text-center sm:p-3">
-                      <p className="text-base font-bold text-foreground sm:text-lg">
-                        {weeklyData.length > 1 ? `${(weeklyData.slice(0, -1).reduce((sum, w) => sum + w.totalPoints, 0) / (weeklyData.length - 1)).toFixed(2)}%` : '0.00%'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Weekly avg</p>
-                    </div>
-                    <div className="rounded-xl bg-secondary p-3 text-center">
-                      <p className="text-lg font-bold text-success">
-                        {weeklyData.length > 1 ? `${Math.max(...weeklyData.slice(0, -1).map(w => w.totalPoints)).toFixed(2)}%` : '0.00%'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Best week</p>
-                    </div>
-                    <div className="rounded-xl bg-secondary p-3 text-center">
-                      <p className="text-lg font-bold text-primary">{Math.max(0, weeklyData.length - 1)}</p>
-                      <p className="text-xs text-muted-foreground">Weeks tracked</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="rounded-xl bg-secondary p-2 text-center sm:p-3">
-                      <p className="text-base font-bold text-foreground sm:text-lg">
-                        {dayChartPoints.length > 0 ? `${(dayChartPoints.reduce((sum, d) => sum + d.points, 0) / dayChartPoints.length).toFixed(2)}%` : '0.00%'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Daily avg</p>
-                    </div>
-                    <div className="rounded-xl bg-secondary p-3 text-center">
-                      <p className="text-lg font-bold text-success">
-                        {dayChartPoints.length > 0 ? `${Math.max(...dayChartPoints.map(d => d.points)).toFixed(2)}%` : '0.00%'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Best day</p>
-                    </div>
-                    <div className="rounded-xl bg-secondary p-3 text-center">
-                      <p className="text-lg font-bold text-primary">
-                        {dayChartPoints.length > 0 ? Math.max(...dayChartPoints.map(d => d.activitiesCount)) : 0}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Max activities</p>
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="flex h-36 items-center justify-center rounded-xl border border-dashed border-border bg-secondary/50">
-              <p className="text-sm text-muted-foreground">Log activities to see your chart</p>
-            </div>
-          )}
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          className="leaderboard-section"
-          title="Weekly Consistency Leaderboard"
-          subtitle={
-            selectedCategory
-              ? `${categoryLabel(selectedCategory)} category · compare weekly %`
-              : 'Compare weekly % with others'
-          }
-          icon={Trophy}
-          expanded={expandedSections.leaderboard}
-          onToggle={() => toggleSection('leaderboard')}
-          overflowVisible
-          contentClassName="overflow-visible"
-        >
-          <Leaderboard
-            categoryFilter={selectedCategory}
-            onCategoryFilterClear={() => setSelectedCategory(null)}
-          />
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          id="log-tracker"
-          className="log-tracker"
-          title="Daily log tracker"
-          subtitle={
-            selectedCategory
-              ? `${categoryLabel(selectedCategory)} · pick a date to review or submit`
-              : 'Pick a date to review or submit'
-          }
-          icon={CalendarDays}
-          expanded={expandedSections.logTracker}
-          onToggle={() => toggleSection('logTracker')}
-          contentClassName="space-y-4"
-        >
-          <MissedDaysCard data={missedLogDays} />
-
-          <div className="rounded-xl border border-border bg-secondary/40 p-3 sm:p-4">
-            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center justify-between gap-2 sm:justify-start">
-                <button
-                  type="button"
-                  disabled={!canPrevLogMonth}
-                  onClick={() => goToLogMonth(-1)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-background hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Previous month"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <h3 className="min-w-[8.5rem] text-center text-sm font-semibold text-foreground">
-                  {weeklyLogData?.monthName || nowInProfileZone(profileZone).toFormat('LLLL')}{' '}
-                  {weeklyLogData?.year || nowInProfileZone(profileZone).year}
-                </h3>
-                <button
-                  type="button"
-                  disabled={!canNextLogMonth}
-                  onClick={() => goToLogMonth(1)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-background hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Next month"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="flex gap-3 text-xs font-medium text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-white">
-                    <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                  </span>
-                  Logged
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-white">
-                    <X className="h-2.5 w-2.5" strokeWidth={3} />
-                  </span>
-                  Missing
-                </span>
-              </div>
-            </div>
-
-            <div className="mb-1.5 grid grid-cols-7 gap-1.5">
-              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
-                <div key={day} className="py-1 text-center text-xs font-semibold text-muted-foreground">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
-                  {Array.from({ length: trackerFirstDayOffset }).map((_, index) => (
-                    <div key={`tracker-empty-${index}`} className="aspect-square" />
-                  ))}
-
-                  {trackerCalendarDays.map((day) => {
-                    const dateOnly = toLocalDateKey(day.date, profileZone);
-                    const isSelected = logDateFilter === dateOnly;
-                    const baseClasses = day.isFuture
-                      ? 'cursor-not-allowed border-border bg-secondary text-muted-foreground'
-                      : day.hasLog
-                        ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
-                        : 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100';
-
-                    return (
-                      <button
-                        key={day.date}
-                        type="button"
-                        disabled={day.isFuture}
-                        onClick={() => !day.isFuture && selectLogDate(dateOnly)}
-                        className={`relative aspect-square w-full rounded-lg border text-xs font-semibold transition-colors sm:text-sm ${baseClasses} ${
-                          isSelected ? 'ring-2 ring-primary ring-offset-1' : ''
-                        }`}
-                        title={`${dateOnly} - ${day.hasLog ? 'Submitted' : 'Not Submitted'}`}
-                      >
-                        <span className="inline-flex h-full w-full items-center justify-center">
-                          {day.day}
-                        </span>
-                        {!day.isFuture && (
-                          <span
-                            className={`absolute bottom-0.5 right-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-white shadow-sm ${
-                              day.hasLog ? 'bg-emerald-500' : 'bg-rose-500'
-                            }`}
-                          >
-                            {day.hasLog ? (
-                              <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                            ) : (
-                              <X className="h-2.5 w-2.5" strokeWidth={3} />
-                            )}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-          </div>
-
-          {!selectedDateHasLog && !noPlanError && (
-            <Button
-              type="button"
-              className="w-full"
-              onClick={() => {
-                if (selectedDateIsToday) router.push('/tasks');
-                else router.push(`/previous-log?date=${logDateFilter}`);
-              }}
-            >
-              {selectedDateIsToday ? 'Log today' : 'Log selected date'}
-            </Button>
-          )}
-          {!selectedDateHasLog && noPlanError && selectedDateIsToday && (
-            <Button
-              type="button"
-              className="w-full"
-              onClick={() => router.push('/create-plan')}
-            >
-              Create a plan to start logging
-            </Button>
-          )}
-              {isDailyLogFetching && !selectedDayLog ? (
-                <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  Loading log for this date…
-                </div>
-              ) : selectedDayLog ? (
-                <div className="space-y-3">
-                  {/* Summary Header */}
-                  <div className="rounded-xl border border-border bg-accent p-3 shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary-hover shadow-sm">
-                          <Calendar className="h-4 w-4 text-white" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-gray-900">
-                            {new Date(selectedDayLog.date).toLocaleDateString('en-US', {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            })}
-                          </p>
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {selectedDayLog.activities.filter((activity) => activity.achieved > 0).length}{' '}
-                            {selectedDayLog.activities.filter((activity) => activity.achieved > 0).length === 1
-                              ? 'activity'
-                              : 'activities'}{' '}
-                            completed
-                          </p>
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <div className="flex items-baseline justify-end gap-1">
-                          <Trophy className="h-4 w-4 text-primary" />
-                          <p className="text-2xl font-bold tabular-nums text-primary">
-                            {selectedDayLog.totalPoints.toFixed(1)}%
-                          </p>
-                        </div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-accent-foreground">
-                          Earned
-                        </p>
-                      </div>
-                    </div>
-                    {selectedDayStreak > 0 && (
-                      <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
-                        <Flame className="h-4 w-4 text-primary" />
-                        <span className="text-xs font-semibold text-gray-900">
-                          {selectedDayStreak} day streak active
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Activities by Mind / Body / Soul */}
-                  <div className="space-y-2.5">
-                    {selectedDayLogByCategory.length === 0 && selectedCategory ? (
-                      <div className="rounded-xl border border-dashed border-border bg-secondary/40 px-4 py-8 text-center">
-                        <p className="text-sm font-medium text-foreground">
-                          No {categoryLabel(selectedCategory).toLowerCase()} activities logged on this date
-                        </p>
-                      </div>
-                    ) : null}
-                    {selectedDayLogByCategory.map((group) => (
-                      <div key={group.id} className="overflow-hidden rounded-xl border border-border bg-surface">
-                        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-                          <span className="text-sm" aria-hidden>
-                            {group.emoji}
-                          </span>
-                          <h4 className="text-xs font-bold uppercase tracking-wide text-gray-900">
-                            {group.label}
-                          </h4>
-                          <span className="ml-auto text-[10px] text-muted-foreground">
-                            {group.activities.length}
-                          </span>
-                        </div>
-                        <ul className="divide-y divide-border">
-                          {group.activities.map((activity) => {
-                            const progress = formatDailySummaryActivityProgress(activity);
-                            const earnedPercent = activity.pointsEarned.toFixed(1);
-
-                            return (
-                              <li
-                                key={activity.activityId}
-                                className={`flex items-center gap-2 px-3 py-2 ${
-                                  progress.tone === 'not_logged'
-                                    ? 'bg-amber-50/60'
-                                    : progress.tone === 'achieved'
-                                      ? 'bg-emerald-50/40'
-                                      : 'bg-surface'
-                                }`}
-                              >
-                                <div
-                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm ${
-                                    progress.tone === 'not_logged'
-                                      ? 'bg-amber-100'
-                                      : progress.tone === 'achieved'
-                                        ? 'bg-success-soft'
-                                        : 'bg-secondary'
-                                  }`}
-                                >
-                                  {resolveActivityIcon(
-                                    activityList,
-                                    activity.activityId,
-                                    activity.activity
-                                  )}
-                                </div>
-                                <p className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
-                                  {activity.activity}
-                                </p>
-                                <div className="shrink-0 text-right">
-                                  <p className={`text-xs font-semibold ${progressToneClass(progress.tone)}`}>
-                                    {progress.text}
-                                  </p>
-                                  {activity.status !== 'pending' && (
-                                    <p className="text-[10px] font-bold tabular-nums text-primary">
-                                      {earnedPercent}%
-                                    </p>
-                                  )}
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12 px-4">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-gray-100 to-slate-100 flex items-center justify-center border-2 border-gray-200">
-                    <Calendar className="w-8 h-8 text-gray-400" />
-                  </div>
-                  <p className="text-sm font-semibold text-gray-900 mb-1">No Activities Logged</p>
-                  <p className="text-xs text-gray-500">Select a different date to view your activity logs</p>
-                </div>
-              )}
-        </CollapsibleSection>
-
-        <HomeSocialPreview
-          expanded={expandedSections.social}
-          onToggle={() =>
-            setExpandedSections((prev) => ({ ...prev, social: !prev.social }))
-          }
-        />
-
-        <HomeCommunityPreview
-          expanded={expandedSections.community}
-          onToggle={() =>
-            setExpandedSections((prev) => ({ ...prev, community: !prev.community }))
-          }
-        />
       </div>
     </div>
 
@@ -1453,5 +1184,209 @@ function HomePageContent() {
       initialConversationId={openConversationId}
     />
     </MainLayout>
+  );
+}
+
+function DailyPendingCard({ activity }: { activity: WeeklyPlanActivity }) {
+  const isSurprise = activity.isSurpriseActivity || false;
+  const progress = formatPlanActivityProgress(activity);
+  const isAchieved = progress.tone === 'achieved';
+
+  return (
+    <div
+      className={`relative rounded-lg p-4 shadow-sm transition-all duration-200 ${
+        isSurprise
+          ? 'border-l-4 border-amber-400 bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50'
+          : isAchieved
+            ? 'border-l-4 border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50'
+            : activity.TodayLogged
+              ? 'border-l-4 border-rose-400 bg-gradient-to-br from-rose-50 to-red-50'
+              : 'border-l-4 border-slate-300 bg-gradient-to-br from-slate-50 to-gray-50'
+      }`}
+    >
+      {isSurprise ? (
+        <div className="absolute -right-2 -top-2 flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1 text-[10px] font-bold text-white shadow-lg">
+          <span>🎁</span>
+          <span className="tracking-wide">BONUS</span>
+        </div>
+      ) : null}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div
+            className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+              isSurprise
+                ? 'bg-amber-100'
+                : isAchieved
+                  ? 'bg-emerald-100'
+                  : activity.TodayLogged
+                    ? 'bg-rose-100'
+                    : 'bg-slate-200'
+            }`}
+          >
+            <span className="text-xl">
+              {isSurprise
+                ? activity.TodayLogged
+                  ? '🎉'
+                  : '🎁'
+                : isAchieved
+                  ? '✓'
+                  : activity.TodayLogged
+                    ? '✗'
+                    : '○'}
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className={`mb-0.5 text-sm font-semibold ${isSurprise ? 'text-amber-900' : 'text-gray-900'}`}>
+              {activity.label || 'Activity'}
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center rounded-md border border-gray-200 bg-white/60 px-2 py-0.5 text-xs font-medium text-gray-600">
+                Daily
+              </span>
+              <span className="text-xs text-gray-500">•</span>
+              <span className="text-xs font-medium text-gray-600">{activity.unit}</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-left sm:ml-3 sm:text-right">
+          <span
+            className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold ${progressBadgeClass(progress.tone)}`}
+          >
+            {progress.text}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WeeklyPendingCard({
+  activity,
+  weekEnd,
+}: {
+  activity: WeeklyPlanActivity;
+  weekEnd: string;
+}) {
+  const remainingDays = Math.max(
+    0,
+    Math.ceil((new Date(weekEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  );
+  const isSurprise = activity.isSurpriseActivity || false;
+  const progress = formatPlanActivityProgress(activity);
+  const progressPercent =
+    activity.targetValue > 0
+      ? Math.min(100, ((activity.achievedUnits || 0) / activity.targetValue) * 100)
+      : 0;
+
+  return (
+    <div
+      className={`relative rounded-lg p-4 shadow-sm transition-all duration-200 ${
+        isSurprise
+          ? 'border-l-4 border-amber-400 bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50'
+          : 'border-l-4 border-primary bg-gradient-to-br from-primary-soft to-surface'
+      }`}
+    >
+      {isSurprise ? (
+        <div className="absolute -right-2 -top-2 flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1 text-[10px] font-bold text-white shadow-lg">
+          <span>🎁</span>
+          <span className="tracking-wide">BONUS</span>
+        </div>
+      ) : null}
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div
+            className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+              isSurprise ? 'bg-amber-100' : 'bg-primary-soft'
+            }`}
+          >
+            <span className="text-xl">{isSurprise ? '🎁' : '○'}</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className={`mb-0.5 text-sm font-semibold ${isSurprise ? 'text-amber-900' : 'text-gray-900'}`}>
+              {activity.label || 'Activity'}
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center rounded-md border border-gray-200 bg-white/60 px-2 py-0.5 text-xs font-medium text-gray-600">
+                Weekly
+              </span>
+              <span className="text-xs text-gray-500">•</span>
+              <span className="text-xs font-medium text-gray-600">{activity.unit}</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-left sm:ml-3 sm:text-right">
+          <span
+            className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold ${progressBadgeClass(progress.tone)}`}
+          >
+            {progress.text}
+          </span>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-medium text-gray-600">Progress</span>
+          <span className="font-semibold text-gray-700">{Math.round(progressPercent)}%</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full border border-gray-200/50 bg-white/80">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              isSurprise
+                ? 'bg-gradient-to-r from-amber-400 to-orange-400'
+                : 'bg-gradient-to-r from-primary to-primary-hover'
+            }`}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2 pt-1 text-xs">
+          <span className="font-medium text-gray-600">
+            {remainingDays} day{remainingDays !== 1 ? 's' : ''} left
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompletedWeeklyCard({ activity }: { activity: WeeklyPlanActivity }) {
+  const progress = formatPlanActivityProgress(activity);
+
+  return (
+    <div className="rounded-lg border-l-4 border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 p-4 shadow-sm">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
+            <span className="text-xl text-emerald-600">✓</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="mb-0.5 text-sm font-semibold text-gray-900">{activity.label || 'Activity'}</p>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center rounded-md border border-gray-200 bg-white/60 px-2 py-0.5 text-xs font-medium text-gray-600">
+                Weekly
+              </span>
+              <span className="text-xs text-gray-500">•</span>
+              <span className="text-xs font-medium text-gray-600">{activity.unit}</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-left sm:ml-3 sm:text-right">
+          <span
+            className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold ${progressBadgeClass(progress.tone)}`}
+          >
+            {progress.text}
+          </span>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-2 overflow-hidden rounded-full border border-emerald-200/50 bg-emerald-100">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-green-500"
+            style={{ width: '100%' }}
+          />
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2 pt-1 text-xs">
+          <span className="font-medium text-emerald-600">100%</span>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -144,12 +144,7 @@ export function HomeCategoryCards({
               onCategoryChange?.(isSelected ? null : category.id)
             }
             aria-pressed={isSelected}
-            className={cn(
-              'flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl px-2 py-2.5 text-center transition-colors sm:py-3',
-              isSelected
-                ? 'bg-primary-soft'
-                : 'bg-transparent hover:bg-primary-soft/50'
-            )}
+            className="flex cursor-pointer flex-col items-center gap-1.5 bg-transparent px-2 py-2.5 text-center sm:py-3"
           >
             <CategoryProgressRing
               percent={percent}

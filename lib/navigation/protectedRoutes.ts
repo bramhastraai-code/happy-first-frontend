@@ -7,6 +7,7 @@ export const PROTECTED_APP_ROUTES = [
   '/feed',
   '/profile-setup',
   '/get-started',
+  '/welcome',
   '/select-profile',
   '/settings',
   '/create-plan',

@@ -1,7 +1,13 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { resolveProfileAvatarUrl } from '@/lib/utils/avatar';
+import {
+  AVATAR_STYLE,
+  buildDiceBearAvatarUrl,
+  isBrandAssetAvatarUrl,
+  resolveProfileAvatarUrl,
+} from '@/lib/utils/avatar';
 
 interface ProfileAvatarProps {
   name?: string | null;
@@ -35,13 +41,39 @@ export function ProfileAvatar({
   className,
   rounded = 'full',
 }: ProfileAvatarProps) {
-  const src = resolveProfileAvatarUrl({
-    avatarUrl,
-    avatarSeed,
-    avatarStyle,
-    name: name || undefined,
-  });
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const initial = (name || 'U').charAt(0).toUpperCase();
+
+  useEffect(() => {
+    setFailedSrc(null);
+  }, [avatarUrl, avatarSeed, avatarStyle, name]);
+
+  const src = useMemo(() => {
+    const resolved = resolveProfileAvatarUrl({
+      avatarUrl,
+      avatarSeed,
+      avatarStyle,
+      name: name || undefined,
+    });
+    if (resolved && resolved !== failedSrc && !isBrandAssetAvatarUrl(resolved)) {
+      return resolved;
+    }
+    if (failedSrc && (avatarSeed || name)) {
+      const fallback = buildDiceBearAvatarUrl(
+        avatarSeed || name || 'happy',
+        avatarStyle && avatarStyle !== 'uploaded' ? avatarStyle : AVATAR_STYLE
+      );
+      if (fallback !== failedSrc) return fallback;
+    }
+    return resolved && resolved !== failedSrc ? resolved : null;
+  }, [avatarUrl, avatarSeed, avatarStyle, name, failedSrc]);
+
+  const frameClass = cn(
+    'shrink-0 bg-primary-soft object-cover',
+    sizeClass[size],
+    roundedClass[rounded],
+    className
+  );
 
   if (src) {
     return (
@@ -49,12 +81,8 @@ export function ProfileAvatar({
       <img
         src={src}
         alt={name ? `${name} avatar` : 'Profile avatar'}
-        className={cn(
-          'shrink-0 bg-primary-soft object-cover',
-          sizeClass[size],
-          roundedClass[rounded],
-          className
-        )}
+        className={frameClass}
+        onError={() => setFailedSrc(src)}
       />
     );
   }

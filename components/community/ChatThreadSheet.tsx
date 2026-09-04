@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DateTime } from 'luxon';
-import { Loader2, Send, X } from 'lucide-react';
+import { ChevronLeft, Loader2, Send, X } from 'lucide-react';
 import { communityAPI, type CommunityMessage } from '@/lib/api/community';
 import { cn } from '@/lib/utils';
 
@@ -77,12 +77,33 @@ export function ChatThreadSheet({
   const replies = threadQuery.data?.replies ?? [];
 
   return createPortal(
-    <div className="fixed inset-0 z-[250] flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
-      <button type="button" className="absolute inset-0" aria-label="Close thread" onClick={onClose} />
-      <div className="relative z-10 flex h-[min(82vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
-        <div className="flex items-center justify-between border-b border-black/5 px-4 py-3">
-          <div>
-            <p className="text-sm font-bold text-[#111b21]">Thread</p>
+    <>
+      <button
+        type="button"
+        className="fixed inset-0 z-[249] hidden bg-black/40 md:block"
+        aria-label="Close thread"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-label="Thread"
+        className={cn(
+          'fixed z-[250] flex w-full flex-col overflow-hidden bg-white',
+          'inset-0 h-[100dvh]',
+          'md:inset-auto md:left-1/2 md:top-1/2 md:h-[min(82vh,640px)] md:w-full md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:shadow-xl'
+        )}
+      >
+        <div className="flex shrink-0 items-center gap-1 border-b border-black/5 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] md:px-3 md:pt-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#111b21] hover:bg-black/5"
+            aria-label="Back"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="text-[17px] font-semibold tracking-tight text-[#111b21]">Thread</p>
             <p className="text-[11px] text-[#667781]">
               {parent?.replyCount || replies.length} replies
             </p>
@@ -90,7 +111,8 @@ export function ChatThreadSheet({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-black/5"
+            className="hidden h-8 w-8 items-center justify-center rounded-full hover:bg-black/5 md:inline-flex"
+            aria-label="Close thread"
           >
             <X className="h-4 w-4" />
           </button>
@@ -131,7 +153,7 @@ export function ChatThreadSheet({
         </div>
 
         <form
-          className="flex items-end gap-2 border-t border-black/5 bg-[#f0f2f5] px-3 py-2"
+          className="flex items-end gap-2 border-t border-black/5 bg-[#f0f2f5] px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2"
           onSubmit={(e) => {
             e.preventDefault();
             if (!draft.trim() || sendMutation.isPending) return;
@@ -161,7 +183,7 @@ export function ChatThreadSheet({
           </button>
         </form>
       </div>
-    </div>,
+    </>,
     document.body
   );
 }

@@ -7,12 +7,10 @@ import { useAuthStore } from '@/lib/store/authStore';
 import { NotificationBell } from '@/components/feed/NotificationBell';
 import { AppPageHeader } from '@/components/ui/AppPageHeader';
 import { HeaderIconButton } from '@/components/ui/HeaderIconAction';
-import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
-import { cn } from '@/lib/utils';
+import { firstNameFrom } from '@/lib/utils/greeting';
+import { HeaderTodayMood } from '@/components/mood/HeaderTodayMood';
 
 interface DashboardHeaderProps {
-  subtitle?: string;
-  isActive?: boolean;
   isPaused?: boolean;
   onOpenMessages?: () => void;
   onOpenMessageFromNotification?: (conversationId: string) => void;
@@ -21,8 +19,6 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({
-  subtitle,
-  isActive = true,
   isPaused = false,
   onOpenMessages,
   onOpenMessageFromNotification,
@@ -45,33 +41,24 @@ export function DashboardHeader({
     <AppPageHeader
       className={className}
       showAvatar
-      subtitle={subtitle}
-      title={
-        <>
-          {getTimeGreeting()},{' '}
-          <span className="text-primary">{firstNameFrom(displayName)}</span>
-        </>
-      }
+      title={<span className="text-primary">{firstNameFrom(displayName)}</span>}
+      subtitle={<HeaderTodayMood profileId={selectedProfile?._id} />}
+      subtitleTone="plain"
       meta={
-        <>
-          <span
-            className={cn(
-              'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold sm:text-xs',
-              isPaused
-                ? 'bg-amber-100 text-amber-800'
-                : isActive
-                  ? 'bg-success-soft text-success'
-                  : 'bg-secondary text-muted-foreground'
-            )}
-          >
-            {isPaused ? 'Plan paused' : isActive ? 'Active' : 'Inactive'}
-          </span>
-          {!isMainProfile && user?.name ? (
-            <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
-              Managed by {firstNameFrom(user.name)}
-            </span>
-          ) : null}
-        </>
+        isPaused || (!isMainProfile && user?.name) ? (
+          <>
+            {isPaused ? (
+              <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 sm:text-xs">
+                Plan paused
+              </span>
+            ) : null}
+            {!isMainProfile && user?.name ? (
+              <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
+                Managed by {firstNameFrom(user.name)}
+              </span>
+            ) : null}
+          </>
+        ) : undefined
       }
       actions={
         <>

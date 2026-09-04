@@ -154,11 +154,6 @@ export function CommunityFeedTab({ communityId, readOnly = false }: CommunityFee
 
   return (
     <div className="relative space-y-3">
-      {readOnly ? (
-        <p className="rounded-xl border border-border bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
-          Previewing community posts — you can view likes and comments. Join to like, comment, or share your own.
-        </p>
-      ) : null}
       <div className="flex items-center gap-2">
         <label className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -166,14 +161,14 @@ export function CommunityFeedTab({ communityId, readOnly = false }: CommunityFee
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Search posts…"
-            className="h-10 w-full rounded-xl border border-input bg-secondary pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-ring"
+            className="h-10 w-full rounded-full border-0 bg-secondary pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-ring"
             inputMode="search"
             aria-label="Search posts"
           />
           {searchInput ? (
             <button
               type="button"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-surface"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground"
               onClick={() => setSearchInput('')}
               aria-label="Clear search"
             >
@@ -226,6 +221,7 @@ export function CommunityFeedTab({ communityId, readOnly = false }: CommunityFee
               post={post}
               liking={likingId === post.id}
               hideCommunityLabel
+              flush
               interactionsDisabled={readOnly}
               onToggleLike={readOnly ? () => undefined : handleToggleLike}
               onOpenComments={setActivePost}

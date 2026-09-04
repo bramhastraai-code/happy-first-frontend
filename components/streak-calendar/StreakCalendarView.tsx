@@ -15,7 +15,7 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import { PageHeader, StatCard } from '@/components/ui/PageHeader';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { ChipTabs } from '@/components/ui/ChipTabs';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -694,21 +694,23 @@ export function StreakCalendarView({
         subtitle="Activity streaks count only days where the daily target was achieved. Switch to Overall for activity totals by Mind, Body, and Soul."
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-        <StatCard
-          label="Current streak"
-          value={`${currentStreak} days`}
-          hint="Consecutive target-achieved days"
-          icon={Flame}
-          accent="orange"
-        />
-        <StatCard
-          label="Longest streak"
-          value={`${longestStreak} days`}
-          hint={`${totalLogged} target-achieved days total`}
-          icon={Trophy}
-          accent="green"
-        />
+      <div className="grid grid-cols-2 gap-2 px-1">
+        <div className="flex flex-col items-center gap-1 px-2 py-1 text-center">
+          <Flame className="h-5 w-5 text-primary" strokeWidth={2.25} />
+          <p className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
+            {currentStreak}
+          </p>
+          <p className="text-xs font-semibold text-foreground">Streak</p>
+          <p className="text-[10px] font-medium text-muted-foreground">Best {longestStreak} days</p>
+        </div>
+        <div className="flex flex-col items-center gap-1 px-2 py-1 text-center">
+          <CalendarDays className="h-5 w-5 text-primary" strokeWidth={2.25} />
+          <p className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
+            {totalLogged}
+          </p>
+          <p className="text-xs font-semibold text-foreground">Days logged</p>
+          <p className="text-[10px] font-medium text-muted-foreground">Target-achieved days</p>
+        </div>
       </div>
 
       <section className="section-card space-y-4 p-4 sm:p-5">

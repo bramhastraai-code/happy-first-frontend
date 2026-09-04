@@ -40,10 +40,6 @@ function StoryRingAvatar({
           className="h-[3.85rem] w-[3.85rem] rounded-[1.05rem] text-lg"
         />
       </span>
-      <span
-        aria-hidden
-        className="absolute right-[3px] top-[1px] z-10 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background"
-      />
       {showAddBadge && onAddStory ? (
         <span
           role="button"

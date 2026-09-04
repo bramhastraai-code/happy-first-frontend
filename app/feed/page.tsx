@@ -2,7 +2,7 @@
 
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, Plus } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/ui/LoadingScreen';
@@ -46,8 +46,10 @@ export default function FeedPage() {
 function FeedPageContent() {
   const { accessToken, isHydrated, selectedProfile, user } = useAuthStore();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const deepLinkPostId = searchParams.get('post');
+  const deepLinkDm = searchParams.get('dm');
   const [activePost, setActivePost] = useState<FeedPost | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
   const [repostingId, setRepostingId] = useState<string | null>(null);
@@ -162,6 +164,36 @@ function FeedPageContent() {
     [feedQuery.data]
   );
 
+  const deepLinkPostQuery = useQuery({
+    queryKey: ['feedPost', deepLinkPostId, selectedProfile?._id],
+    enabled: enabled && Boolean(deepLinkPostId),
+    queryFn: async () => {
+      const res = await feedAPI.getPost(deepLinkPostId!);
+      return res.data.data.post;
+    },
+    retry: false,
+  });
+
+  const openPostById = useCallback(
+    async (photoId: string) => {
+      const found = posts.find((item) => item.id === photoId);
+      if (found) {
+        setActivePost(found);
+        return;
+      }
+      try {
+        const res = await feedAPI.getPost(photoId);
+        const post = res.data.data.post;
+        if (post) setActivePost(post);
+      } catch {
+        if (deepLinkPostId !== photoId) {
+          router.push(`/feed?post=${encodeURIComponent(photoId)}`);
+        }
+      }
+    },
+    [deepLinkPostId, posts, router]
+  );
+
   const authorPostsQuery = useQuery({
     queryKey: ['profilePosts', authorViewer?.profileId],
     enabled: Boolean(authorViewer?.profileId),
@@ -201,10 +233,20 @@ function FeedPageContent() {
   }, [authorViewer, authorViewerPosts]);
 
   useEffect(() => {
-    if (!deepLinkPostId || !posts.length) return;
+    if (!deepLinkPostId) return;
     const found = posts.find((post) => post.id === deepLinkPostId);
-    if (found) setActivePost(found);
-  }, [deepLinkPostId, posts]);
+    if (found) {
+      setActivePost(found);
+      return;
+    }
+    if (deepLinkPostQuery.data) setActivePost(deepLinkPostQuery.data);
+  }, [deepLinkPostId, posts, deepLinkPostQuery.data]);
+
+  useEffect(() => {
+    if (!deepLinkDm) return;
+    setOpenConversationId(deepLinkDm);
+    setMessagesOpen(true);
+  }, [deepLinkDm]);
 
   const stories = storiesQuery.data ?? [];
   const ownStory = useMemo(() => {
@@ -448,7 +490,7 @@ function FeedPageContent() {
       {isMounted ? (
         <GuidedTour run={runTour} onFinish={handleTourFinish} steps={feedTourSteps} />
       ) : null}
-      <div className="feed-page w-full pb-4">
+      <div className="feed-page w-full">
         <div className={cn('feed-header', pageStickyHeaderClass)}>
           <FeedTopBar
           flush
@@ -463,8 +505,7 @@ function FeedPageContent() {
             setMessagesOpen(true);
           }}
           onOpenPost={(photoId) => {
-            const post = posts.find((item) => item.id === photoId);
-            if (post) setActivePost(post);
+            void openPostById(photoId);
           }}
         />
         </div>

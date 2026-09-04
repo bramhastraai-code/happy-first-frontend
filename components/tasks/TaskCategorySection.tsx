@@ -1,9 +1,12 @@
 'use client';
 
+import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import TaskActivityRow from '@/components/tasks/TaskActivityRow';
 import type { WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
 import type { Activity as ActivityType } from '@/lib/api/activity';
 import { resolveActivityId } from '@/lib/utils/activityId';
+import { cn } from '@/lib/utils';
 
 const CATEGORY_META: Record<
   string,
@@ -27,6 +30,7 @@ interface TaskCategorySectionProps {
   onCheckboxChange: (activityId: string, checked: boolean) => void;
   onPendingChange: (activityId: string, isPending: boolean) => void;
   getActivityInputMax: (activity: WeeklyPlanActivity, activityData?: ActivityType) => number;
+  defaultOpen?: boolean;
 }
 
 export default function TaskCategorySection({
@@ -42,7 +46,9 @@ export default function TaskCategorySection({
   onCheckboxChange,
   onPendingChange,
   getActivityInputMax,
+  defaultOpen = false,
 }: TaskCategorySectionProps) {
+  const [open, setOpen] = useState(defaultOpen);
   const meta = CATEGORY_META[category.toLowerCase()];
   if (!meta) return null;
 
@@ -59,39 +65,56 @@ export default function TaskCategorySection({
   if (categoryActivities.length === 0) return null;
 
   return (
-    <section id={category.toLowerCase()} className="section-card scroll-mt-24">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <span className="text-base">{meta.emoji}</span>
-        <h3 className="text-sm font-semibold text-foreground">{meta.label}</h3>
-        <span className="ml-auto text-xs text-muted-foreground">
-          {categoryActivities.length} {categoryActivities.length === 1 ? 'task' : 'tasks'}
+    <section id={category.toLowerCase()} className="scroll-mt-24">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 py-3 text-left"
+      >
+        <span className="text-base" aria-hidden>
+          {meta.emoji}
         </span>
-      </div>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {meta.label}
+        </h3>
+        <span className="text-[11px] text-muted-foreground">
+          {categoryActivities.length}
+        </span>
+        <ChevronDown
+          className={cn(
+            'ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200',
+            open && 'rotate-180'
+          )}
+        />
+      </button>
 
-      {categoryActivities.map((activity, index) => {
-        const activityId = resolveActivityId(activity);
-        const activityData = actlist.find((act) => act._id === activityId);
+      {open
+        ? categoryActivities.map((activity, index) => {
+            const activityId = resolveActivityId(activity);
+            const activityData = actlist.find((act) => act._id === activityId);
 
-        return (
-          <TaskActivityRow
-            key={activityId}
-            activity={activity}
-            activityData={activityData}
-            activityId={activityId}
-            isSurprise={Boolean(activity.isSurpriseActivity)}
-            isAfter6PM={isAfter6PM}
-            timeUntilMidnight={timeUntilMidnight}
-            value={activityValues[activityId] || 0}
-            checkboxChecked={checkboxActivities[activityId] || false}
-            isPending={pendingSliders[activityId] ?? true}
-            onActivityChange={onActivityChange}
-            onCheckboxChange={onCheckboxChange}
-            onPendingChange={onPendingChange}
-            getActivityInputMax={getActivityInputMax}
-            isLast={index === categoryActivities.length - 1}
-          />
-        );
-      })}
+            return (
+              <TaskActivityRow
+                key={activityId}
+                activity={activity}
+                activityData={activityData}
+                activityId={activityId}
+                isSurprise={Boolean(activity.isSurpriseActivity)}
+                isAfter6PM={isAfter6PM}
+                timeUntilMidnight={timeUntilMidnight}
+                value={activityValues[activityId] || 0}
+                checkboxChecked={checkboxActivities[activityId] || false}
+                isPending={pendingSliders[activityId] ?? true}
+                onActivityChange={onActivityChange}
+                onCheckboxChange={onCheckboxChange}
+                onPendingChange={onPendingChange}
+                getActivityInputMax={getActivityInputMax}
+                isLast={index === categoryActivities.length - 1}
+              />
+            );
+          })
+        : null}
     </section>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getAppSocket } from '@/lib/realtime/socketClient';
 import type { FeedComment, FeedPost } from '@/lib/api/feed';
+import { isAwaitingSparkAcceptance } from '@/lib/api/feed';
 import type { AppNotification } from '@/lib/api/notifications';
 import type { FeedChatMessage } from '@/lib/api/messages';
 
@@ -49,6 +50,7 @@ export function useFeedRealtime(
 
       const onNewPost = (payload: { post: FeedPost }) => {
         if (!matchesScope(payload.post.communityId)) return;
+        if (isAwaitingSparkAcceptance(payload.post)) return;
         queryClient.setQueryData<FeedPages>(queryKey, (old) => {
           if (!old?.pages?.length) return old;
           const exists = old.pages.some((p) => p.posts.some((post) => post.id === payload.post.id));

@@ -11,16 +11,23 @@ type PostMediaCarouselProps = {
   alt: string;
   className?: string;
   slideClassName?: string;
+  /** Stretch slides to the parent height instead of a fixed viewport box. */
+  fill?: boolean;
   onTap?: () => void;
   onDoubleTap?: () => void;
   children?: ReactNode;
 };
+
+const FEED_MEDIA_MAX =
+  'h-auto w-full max-h-[min(calc(100svh-14rem),36rem)] object-contain';
+const FILL_MEDIA = 'h-full w-full object-contain';
 
 export function PostMediaCarousel({
   items,
   alt,
   className,
   slideClassName,
+  fill = false,
   onTap,
   onDoubleTap,
   children,
@@ -112,11 +119,17 @@ export function PostMediaCarousel({
     }, 280);
   };
 
+  const sized = fill || Boolean(slideClassName);
+  const mediaClass = sized ? FILL_MEDIA : FEED_MEDIA_MAX;
+
   return (
-    <div className={cn('relative overflow-hidden bg-neutral-950', className)}>
+    <div className={cn('relative overflow-hidden bg-neutral-950', fill && 'h-full min-h-0', className)}>
       <div
         ref={scrollerRef}
-        className="flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain select-none [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
+        className={cn(
+          'flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain select-none [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden',
+          fill && 'h-full'
+        )}
         onScroll={syncIndexFromScroll}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -130,8 +143,8 @@ export function PostMediaCarousel({
             <div
               key={`${url}-${i}`}
               className={cn(
-                'relative flex h-[min(72dvh,32rem)] w-full min-w-full shrink-0 snap-center snap-always items-center justify-center',
-                slideClassName
+                'relative flex w-full min-w-full shrink-0 snap-center snap-always items-center justify-center',
+                fill ? 'h-full' : slideClassName
               )}
             >
               {isVideo ? (
@@ -140,7 +153,7 @@ export function PostMediaCarousel({
                   controls
                   playsInline
                   preload="metadata"
-                  className="h-full w-full object-contain"
+                  className={mediaClass}
                   onDoubleClick={(event) => {
                     event.preventDefault();
                     onDoubleTap?.();
@@ -150,7 +163,10 @@ export function PostMediaCarousel({
                 <div
                   role="button"
                   tabIndex={0}
-                  className="flex h-full w-full cursor-pointer items-center justify-center"
+                  className={cn(
+                    'flex w-full cursor-pointer items-center justify-center',
+                    sized && 'h-full'
+                  )}
                   onClick={handleActivate}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -165,7 +181,7 @@ export function PostMediaCarousel({
                     src={url}
                     alt={alt}
                     draggable={false}
-                    className="pointer-events-none h-full w-full object-contain"
+                    className={cn('pointer-events-none', mediaClass)}
                     loading={i === 0 ? 'eager' : 'lazy'}
                   />
                 </div>
@@ -177,32 +193,38 @@ export function PostMediaCarousel({
 
       {multi ? (
         <>
-          {index > 0 ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                goTo(index - 1);
-              }}
-              className="absolute left-2 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white"
-              aria-label="Previous photo"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-          ) : null}
-          {index < items.length - 1 ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                goTo(index + 1);
-              }}
-              className="absolute right-2 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white"
-              aria-label="Next photo"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          ) : null}
+          <button
+            type="button"
+            disabled={index <= 0}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (index <= 0) return;
+              goTo(index - 1);
+            }}
+            className={cn(
+              'absolute left-2 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white',
+              index <= 0 && 'opacity-40'
+            )}
+            aria-label="Previous photo"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            disabled={index >= items.length - 1}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (index >= items.length - 1) return;
+              goTo(index + 1);
+            }}
+            className={cn(
+              'absolute right-2 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white',
+              index >= items.length - 1 && 'opacity-40'
+            )}
+            aria-label="Next photo"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
           <div className="pointer-events-none absolute bottom-3 left-0 right-0 z-10 flex justify-center gap-1.5">
             {items.map((_, i) => (
               <span

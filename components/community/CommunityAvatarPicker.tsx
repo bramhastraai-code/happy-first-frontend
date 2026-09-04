@@ -353,13 +353,15 @@ interface CommunityAvatarProps {
   avatarSeed?: string | null;
   avatarStyle?: string | null;
   className?: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
 const sizeClass = {
   sm: 'h-10 w-10 text-sm',
   md: 'h-12 w-12 text-base',
   lg: 'h-14 w-14 text-lg',
+  xl: 'h-24 w-24 text-3xl',
+  '2xl': 'h-32 w-32 text-4xl',
 };
 
 export function CommunityAvatar({
@@ -394,7 +396,13 @@ export function CommunityAvatar({
         // eslint-disable-next-line @next/next/no-img-element
         <img src={preview.src} alt="" className="h-full w-full object-cover" />
       ) : preview.kind === 'icon' ? (
-        <span className={size === 'sm' ? 'text-lg' : 'text-2xl'}>{preview.icon}</span>
+        <span
+          className={
+            size === '2xl' ? 'text-5xl' : size === 'xl' ? 'text-4xl' : size === 'sm' ? 'text-lg' : 'text-2xl'
+          }
+        >
+          {preview.icon}
+        </span>
       ) : (
         preview.letter
       )}

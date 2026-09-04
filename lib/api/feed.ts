@@ -38,6 +38,20 @@ export interface FeedCollaborator {
   isMe?: boolean;
 }
 
+/** True while a Spark invite is waiting — post must not appear in the feed yet. */
+export function isAwaitingSparkAcceptance(post: {
+  collaborators?: FeedCollaborator[];
+  acceptedCollaborators?: FeedCollaborator[];
+} | null | undefined) {
+  const rows = post?.collaborators || [];
+  if (!rows.length) return false;
+  const hasAccepted =
+    rows.some((row) => row.status === 'accepted') ||
+    (post?.acceptedCollaborators || []).length > 0;
+  const hasPending = rows.some((row) => row.status === 'pending');
+  return hasPending && !hasAccepted;
+}
+
 export interface FeedPost {
   id: string;
   imageUrl: string;
@@ -172,6 +186,9 @@ export const feedAPI = {
     cursor?: string;
     communityId?: string;
   }) => api.get<ApiEnvelope<FeedSearchPage>>('/feed/search', { params }),
+
+  getPost: (photoId: string) =>
+    api.get<ApiEnvelope<{ post: FeedPost }>>(`/feed/${photoId}`),
 
   getStories: () =>
     api.get<ApiEnvelope<{ stories: FeedStory[] }>>('/feed/stories'),

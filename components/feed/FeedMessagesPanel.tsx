@@ -708,6 +708,21 @@ export function FeedMessagesPanel({
 
   if (!open) return null;
 
+  const overlay = (
+    <button
+      type="button"
+      aria-label="Close messages"
+      className="fixed inset-0 z-[209] hidden bg-black/40 md:block md:bg-black/20"
+      onClick={onClose}
+    />
+  );
+
+  const panelClassName = cn(
+    'fixed z-[210] flex w-full flex-col overflow-hidden bg-[#efeae2]',
+    'inset-0 h-[100dvh]',
+    'md:inset-auto md:left-1/2 md:top-[calc(4.5rem+env(safe-area-inset-top,0px))] md:h-[min(82dvh,44rem)] md:max-h-[calc(100dvh-5.5rem)] md:w-[24rem] md:-translate-x-1/2 md:rounded-2xl md:shadow-[var(--shadow-float)]'
+  );
+
   const confirmBusy =
     deleteMutation.isPending || clearMutation.isPending || deleteChatMutation.isPending;
 
@@ -736,16 +751,15 @@ export function FeedMessagesPanel({
               confirmLabel: 'Delete for me',
             };
 
-  if (activeCommunityId) {
-    return (
-      <div className="fixed inset-0 z-[210] flex items-end justify-center sm:items-center sm:p-4">
-        <button
-          type="button"
-          aria-label="Close messages"
-          className="absolute inset-0 bg-black/50"
-          onClick={onClose}
-        />
-        <div className="relative flex h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-[#efeae2] shadow-[var(--shadow-float)] sm:h-[78vh] sm:rounded-3xl">
+  const panel = (
+    <>
+      {overlay}
+      <div
+        role="dialog"
+        aria-label="Messages"
+        className={panelClassName}
+      >
+        {activeCommunityId ? (
           <CommunityChatTab
             communityId={activeCommunityId}
             canModerate={canModerateCommunity}
@@ -758,22 +772,10 @@ export function FeedMessagesPanel({
             onBack={() => setActiveCommunityId(null)}
             onClose={onClose}
           />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 z-[210] flex items-end justify-center sm:items-center sm:p-4">
-      <button
-        type="button"
-        aria-label="Close messages"
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
-      <div className="relative flex h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-[#efeae2] shadow-[var(--shadow-float)] sm:h-[78vh] sm:rounded-3xl">
+        ) : (
+          <>
         {/* Header */}
-        <div className="relative z-20 flex items-center gap-2 rounded-t-3xl border-b border-black/5 bg-[#f0f2f5] px-2 py-2.5 sm:rounded-t-3xl sm:px-3">
+        <div className="relative z-20 flex shrink-0 items-center gap-1 border-b border-black/5 bg-[#f0f2f5] px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] md:px-3 md:pt-3">
           {selectMode ? (
             <>
               <button
@@ -811,14 +813,20 @@ export function FeedMessagesPanel({
                 <button
                   type="button"
                   onClick={() => setActiveId(null)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-[#54656f] hover:bg-black/5"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#111b21] hover:bg-black/5"
+                  aria-label="Back to messages"
                 >
-                  <ChevronLeft className="h-5 w-5" />
+                  <ChevronLeft className="h-6 w-6" />
                 </button>
               ) : (
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-primary">
-                  <MessageSquare className="h-4 w-4" />
-                </span>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#111b21] hover:bg-black/5"
+                  aria-label="Close"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
               )}
               <div className="min-w-0 flex-1">
                 {activeId ? (
@@ -867,14 +875,9 @@ export function FeedMessagesPanel({
                     </div>
                   </div>
                 ) : (
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[#111b21]">Messages</p>
-                    <p className="truncate text-[11px] text-[#667781]">
-                      {inboxTab === 'communities'
-                        ? 'Community group chats'
-                        : 'Direct messages'}
-                    </p>
-                  </div>
+                  <h2 className="min-w-0 flex-1 text-[17px] font-semibold tracking-tight text-[#111b21]">
+                    Messages
+                  </h2>
                 )}
               </div>
               {activeId && (
@@ -981,7 +984,8 @@ export function FeedMessagesPanel({
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] hover:bg-black/5"
+                className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#54656f] hover:bg-black/5 md:inline-flex"
+                aria-label="Close messages"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1023,7 +1027,7 @@ export function FeedMessagesPanel({
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
               {inboxTab === 'direct' ? (
                 conversationsQuery.isLoading ? (
                   <div className="flex justify-center py-16">
@@ -1573,7 +1577,7 @@ export function FeedMessagesPanel({
 
             {/* Composer */}
             {!selectMode && (
-              <div className="relative z-20 border-t border-black/5 bg-[#f0f2f5] px-2 py-2">
+              <div className="relative z-20 border-t border-black/5 bg-[#f0f2f5] px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
                 {replyTarget && (
                   <div className="mb-2 flex items-start gap-2 rounded-xl border-l-4 border-primary bg-white px-3 py-2 shadow-sm">
                     <div className="min-w-0 flex-1">
@@ -1714,6 +1718,8 @@ export function FeedMessagesPanel({
                 )}
               </div>
             )}
+          </>
+        )}
           </>
         )}
       </div>
@@ -1933,6 +1939,8 @@ export function FeedMessagesPanel({
           else if (confirm.type === 'delete-everyone') deleteMutation.mutate('everyone');
         }}
       />
-    </div>
+    </>
   );
+
+  return createPortal(panel, document.body);
 }

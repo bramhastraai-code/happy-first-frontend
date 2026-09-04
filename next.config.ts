@@ -50,6 +50,26 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        source: '/icon',
+        destination: '/icon.png',
+      },
+      {
+        source: '/apple-icon',
+        destination: '/apple-icon.png',
+      },
+      {
+        source: '/icons/icon-192',
+        destination: '/icons/icon-192.png',
+      },
+      {
+        source: '/icons/icon-512',
+        destination: '/icons/icon-512.png',
+      },
+      {
+        source: '/icons/maskable-512',
+        destination: '/icons/maskable-512.png',
+      },
+      {
         source: '/api/v1/:path*',
         destination: `${apiBackendUrl}/api/v1/:path*`,
       },

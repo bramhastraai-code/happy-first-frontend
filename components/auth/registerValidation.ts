@@ -20,11 +20,15 @@ export function validateDateOfBirth(dob: string): string | null {
   const today = new Date();
   if (Number.isNaN(birth.getTime())) return 'Enter a valid birthday';
   if (birth > today) return 'Birthday cannot be in the future';
+  return null;
+}
 
-  const ageMs = today.getTime() - birth.getTime();
-  const ageYears = ageMs / (365.25 * 24 * 60 * 60 * 1000);
-  if (ageYears < 5) return 'You must be at least 5 years old to sign up';
-
+export function validateUsername(username: string): string | null {
+  const value = username.trim().toLowerCase();
+  if (!value) return 'Username is required';
+  if (!/^[a-z][a-z0-9_]{2,19}$/.test(value)) {
+    return '3–20 characters, start with a letter, letters/numbers/_ only';
+  }
   return null;
 }
 

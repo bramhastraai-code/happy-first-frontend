@@ -12,7 +12,6 @@ import {
   ChevronDown,
   Contact,
   Coins,
-  DoorOpen,
   Loader2,
   MessageCircle,
   MoreHorizontal,
@@ -21,7 +20,6 @@ import {
   UserMinus,
   X,
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { CommunityAddMembersPanel } from '@/components/community/CommunityAddMembersPanel';
 import { CommunityReportsPanel } from '@/components/community/CommunityReportsPanel';
@@ -46,8 +44,6 @@ interface CommunityMembersTabProps {
   isAdmin: boolean;
   isModerator: boolean;
   canInvite: boolean;
-  onRequestLeave?: () => void;
-  leaveBusy?: boolean;
 }
 
 function roleLabel(role: CommunityMemberRole) {
@@ -107,8 +103,6 @@ export function CommunityMembersTab({
   isAdmin,
   isModerator,
   canInvite,
-  onRequestLeave,
-  leaveBusy = false,
 }: CommunityMembersTabProps) {
   const { selectedProfile } = useAuthStore();
   const queryClient = useQueryClient();
@@ -453,7 +447,7 @@ export function CommunityMembersTab({
         <>
           <CommunityAddMembersPanel
             communityId={communityId}
-            title={community.type === 'private' ? 'Add member' : 'Invite member'}
+            title={community.type === 'private' ? 'Add' : 'Invite'}
           />
           {supportsContacts ? (
             <div className="section-card space-y-2 p-4">
@@ -472,11 +466,7 @@ export function CommunityMembersTab({
               </Button>
               {contactsMessage ? (
                 <p className="text-xs text-muted-foreground">{contactsMessage}</p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Match phone or name against Happy First members, then add them.
-                </p>
-              )}
+              ) : null}
             </div>
           ) : null}
         </>
@@ -669,7 +659,7 @@ export function CommunityMembersTab({
         </div>
       ) : null}
 
-      <div className="section-card">
+      <div className="section-card overflow-hidden">
         <div className="space-y-3 border-b border-border px-4 py-3">
           <p className="text-xs text-muted-foreground">
             {isAdmin
@@ -713,7 +703,7 @@ export function CommunityMembersTab({
             {searchQ ? 'No members match your search.' : 'No members yet.'}
           </p>
         ) : (
-          <ul className="divide-y divide-border">
+          <ul>
             {members.map((member) => {
               const isMe = String(member.profile.id) === String(selectedProfile?._id);
               const memberSinceLabel = formatJoinedDate(member.joinedAt);
@@ -724,7 +714,10 @@ export function CommunityMembersTab({
                 !isMe && (isAdmin || ((isAdmin || isModerator) && member.canRemind));
 
               return (
-                <li key={member.id} className="flex items-center gap-3 px-4 py-3">
+                <li
+                  key={member.id}
+                  className="flex items-center gap-3 px-4 py-3 shadow-[inset_0_-1px_0_0_var(--color-border)] last:shadow-none"
+                >
                   <Link href={`/feed/profile/${member.profile.id}`} className="shrink-0">
                     <ProfileAvatar
                       name={member.profile.name}
@@ -877,24 +870,6 @@ export function CommunityMembersTab({
         </div>
       ) : null}
 
-      {onRequestLeave ? (
-        <div className="section-card p-4">
-          <Button
-            variant="outline"
-            className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
-            disabled={leaveBusy}
-            onClick={onRequestLeave}
-          >
-            {leaveBusy ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <DoorOpen className="h-4 w-4" />
-            )}
-            Leave community
-          </Button>
-        </div>
-      ) : null}
-
       {typeof document !== 'undefined' && menuMemberId && menuPos
         ? createPortal(
             (() => {
@@ -911,25 +886,22 @@ export function CommunityMembersTab({
                 groups.find((g) => g.id === member.groupId)?.name || 'No group';
 
               return (
-                <AnimatePresence>
-                  <motion.div
-                    ref={menuRef}
-                    initial={{ opacity: 0, scale: 0.98, y: menuPos.openUp ? 4 : -4 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.98 }}
-                    style={{
-                      position: 'fixed',
-                      top: menuPos.top,
-                      bottom: menuPos.bottom,
-                      right: menuPos.right,
-                      maxHeight: menuPos.maxHeight,
-                      zIndex: 260,
-                    }}
-                    className="flex w-[min(16rem,calc(100vw-1.25rem))] flex-col overflow-hidden rounded-md border border-border bg-white shadow-[0_10px_40px_rgb(28_25_23/0.22)]"
-                    onMouseDown={(event) => event.stopPropagation()}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => event.stopPropagation()}
-                  >
+                <div
+                  ref={menuRef}
+                  style={{
+                    position: 'fixed',
+                    top: menuPos.top,
+                    bottom: menuPos.bottom,
+                    right: menuPos.right,
+                    maxHeight: menuPos.maxHeight,
+                    zIndex: 500,
+                    backgroundColor: '#ffffff',
+                  }}
+                  className="flex w-[min(16rem,calc(100vw-1.25rem))] flex-col overflow-hidden rounded-md border border-border bg-white shadow-[0_10px_40px_rgb(28_25_23/0.22)]"
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                >
                     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
                       {(isAdmin || isModerator) && member.canRemind && !isMe ? (
                         <button
@@ -953,7 +925,7 @@ export function CommunityMembersTab({
 
                       {isAdmin ? (
                         <>
-                          <div className="my-1 border-t border-border" />
+                          <div className="my-1 h-px bg-border" />
 
                           {/* Role — collapsible */}
                           <button
@@ -1019,7 +991,7 @@ export function CommunityMembersTab({
 
                           {groups.length > 0 ? (
                             <>
-                              <div className="my-1 border-t border-border" />
+                              <div className="my-1 h-px bg-border" />
                               {/* Group — collapsible */}
                               <button
                                 type="button"
@@ -1091,63 +1063,68 @@ export function CommunityMembersTab({
                             </>
                           ) : null}
 
-                          <div className="my-1 border-t border-border" />
-                          {canRemove ? (
-                            <button
-                              type="button"
-                              disabled={
-                                removeMutation.isPending || blacklistMutation.isPending
-                              }
-                              className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
-                              onClick={() => {
-                                setMenuMemberId(null);
-                                requestConfirm({
-                                  title: `Remove ${member.profile.name}?`,
-                                  description: 'They will be removed from this community.',
-                                  confirmLabel: 'Remove',
-                                  onConfirm: () =>
-                                    removeMutation.mutateAsync(member.profile.id),
-                                });
-                              }}
-                            >
-                              {removing ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <UserMinus className="h-4 w-4 shrink-0" />
-                              )}
-                              Remove
-                            </button>
-                          ) : null}
-                          {!isMe ? (
-                          <button
-                            type="button"
-                            disabled={removeMutation.isPending || blacklistMutation.isPending}
-                            className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
-                            onClick={() => {
-                              setMenuMemberId(null);
-                              requestConfirm({
-                                title: `Blacklist ${member.profile.name}?`,
-                                description:
-                                  'They will not be able to join again until unblocked.',
-                                confirmLabel: 'Blacklist',
-                                onConfirm: () =>
-                                  blacklistMutation.mutateAsync(member.profile.id),
-                              });
-                            }}
-                          >
-                            {blacklisting ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Ban className="h-4 w-4 shrink-0" />
-                            )}
-                            Blacklist
-                          </button>
+                          {canRemove || !isMe ? (
+                            <>
+                              <div className="my-1 h-px bg-border" />
+                              {canRemove ? (
+                                <button
+                                  type="button"
+                                  disabled={
+                                    removeMutation.isPending || blacklistMutation.isPending
+                                  }
+                                  className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                                  onClick={() => {
+                                    setMenuMemberId(null);
+                                    requestConfirm({
+                                      title: `Remove ${member.profile.name}?`,
+                                      description: 'They will be removed from this community.',
+                                      confirmLabel: 'Remove',
+                                      onConfirm: () =>
+                                        removeMutation.mutateAsync(member.profile.id),
+                                    });
+                                  }}
+                                >
+                                  {removing ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <UserMinus className="h-4 w-4 shrink-0" />
+                                  )}
+                                  Remove
+                                </button>
+                              ) : null}
+                              {!isMe ? (
+                                <button
+                                  type="button"
+                                  disabled={
+                                    removeMutation.isPending || blacklistMutation.isPending
+                                  }
+                                  className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                                  onClick={() => {
+                                    setMenuMemberId(null);
+                                    requestConfirm({
+                                      title: `Blacklist ${member.profile.name}?`,
+                                      description:
+                                        'They will not be able to join again until unblocked.',
+                                      confirmLabel: 'Blacklist',
+                                      onConfirm: () =>
+                                        blacklistMutation.mutateAsync(member.profile.id),
+                                    });
+                                  }}
+                                >
+                                  {blacklisting ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Ban className="h-4 w-4 shrink-0" />
+                                  )}
+                                  Blacklist
+                                </button>
+                              ) : null}
+                            </>
                           ) : null}
                         </>
                       ) : null}
                     </div>
-                  </motion.div>
-                </AnimatePresence>
+                </div>
               );
             })(),
             document.body

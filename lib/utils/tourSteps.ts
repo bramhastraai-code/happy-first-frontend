@@ -16,7 +16,7 @@ export const homeTourSteps: Step[] = [
     target: '.home-search',
     title: 'Search',
     content:
-      'Find people, communities, events, and tasks without leaving Happiness.',
+      'Open Explore to find people and posts. Same Search control as Social.',
     placement: 'bottom',
   },
   {
@@ -51,9 +51,9 @@ export const homeTourSteps: Step[] = [
   },
   {
     target: '.xp-coins-grid',
-    title: 'XP & Happy Coins',
+    title: 'Rewards & level',
     content:
-      'Tap XP for your level and daily goal, or Coins for balance and rewards. Logging consistently grows both.',
+      'Coins and XP sit together. The ring shows your level and progress to the next one — tap through to Coins or XP.',
     placement: 'bottom',
   },
   {
@@ -62,13 +62,6 @@ export const homeTourSteps: Step[] = [
     content:
       'A short happiness line for today. The same affirmation can also appear as a once-a-day popup.',
     placement: 'bottom',
-  },
-  {
-    target: '.pending-activities',
-    title: 'Pending activities',
-    content:
-      'What’s still open on your plan — daily goals and weekly progress. Expand this section anytime to see leftovers.',
-    placement: 'top',
   },
   {
     target: '.weekly-performance',
@@ -92,17 +85,10 @@ export const homeTourSteps: Step[] = [
     placement: 'top',
   },
   {
-    target: '#home-social',
-    title: 'My social',
+    target: '.pending-activities',
+    title: 'Pending activities',
     content:
-      'A peek at Social — posts from people you follow. Open Social in the bottom bar for the full feed, stories, and create.',
-    placement: 'top',
-  },
-  {
-    target: '#home-community',
-    title: 'My community',
-    content:
-      'Clubs you belong to. Open Club to discover groups, scan invite QR codes, chat, and track group goals.',
+      'What’s still open on your plan — daily goals and weekly progress. Expand this section anytime to see leftovers.',
     placement: 'top',
   },
   {

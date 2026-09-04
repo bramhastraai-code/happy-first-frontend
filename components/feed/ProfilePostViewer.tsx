@@ -20,12 +20,12 @@ import type { FeedPost } from '@/lib/api/feed';
 import { feedAPI, formatCollaborationLabel } from '@/lib/api/feed';
 import type { FeedPostEditExtras } from '@/components/feed/FeedPostCard';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
-import { headerBackBtnClass } from '@/components/ui/AppPageHeader';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { HappyIcon } from '@/components/ui/HappyIcon';
 import { PostMediaCarousel } from '@/components/feed/PostMediaCarousel';
 import { FeedCaption } from '@/components/feed/FeedCaption';
+import { DailyMoodInline } from '@/components/mood/DailyMoodInline';
 import {
   renderTextCardImage,
   textCardGradient,
@@ -155,8 +155,8 @@ function ViewerPostCard({
   };
 
   return (
-    <article className="border-b border-border bg-surface pb-4 pt-3 last:border-b-0">
-      <div className="mb-3 flex items-center gap-2.5 px-4">
+    <article className="grid min-h-full flex-1 grid-rows-[auto_minmax(0,1fr)_auto] border-b border-border bg-background last:border-b-0">
+      <div className="sticky top-0 z-10 mb-2 flex shrink-0 items-center gap-2.5 bg-background px-4 py-3">
         <Link
           href={`/feed/profile/${post.author.profileId}`}
           className="flex min-w-0 flex-1 items-center gap-2.5"
@@ -173,6 +173,7 @@ function ViewerPostCard({
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">
               {post.author.name}
+              <DailyMoodInline mood={post.author.dailyMood} />
               {accepted.length > 0 ? (
                 <span className="font-medium text-muted-foreground">
                   {' '}
@@ -267,10 +268,10 @@ function ViewerPostCard({
       </div>
 
       <PostMediaCarousel
+        fill
         items={mediaItems}
         alt={post.caption || post.author.name}
-        className="mx-3 rounded-2xl sm:mx-4"
-        slideClassName="h-[min(58dvh,26rem)]"
+        className="h-full min-h-0 w-full"
         onDoubleTap={triggerLikeBurst}
       >
         <AnimatePresence>
@@ -287,7 +288,7 @@ function ViewerPostCard({
         </AnimatePresence>
       </PostMediaCarousel>
 
-      <div className="px-4 pt-3 sm:px-5">
+      <div className="bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-5">
         <div className="flex items-center gap-5">
           <button
             type="button"
@@ -489,7 +490,10 @@ export function ProfilePostViewer({
       const root = scrollRef.current;
       if (!root) return;
       const el = root.querySelector<HTMLElement>(`[data-post-index="${targetIndex}"]`);
-      if (el) el.scrollIntoView({ block: 'start' });
+      if (!el) return;
+      const top =
+        el.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop;
+      root.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
     });
     return () => cancelAnimationFrame(frame);
   }, [open, startIndex, posts.length]);
@@ -516,7 +520,7 @@ export function ProfilePostViewer({
   if (typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[230] flex items-end justify-center sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-[230] flex items-stretch justify-center sm:items-center sm:p-4">
       <motion.button
         type="button"
         initial={{ opacity: 0 }}
@@ -531,34 +535,31 @@ export function ProfilePostViewer({
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
         className={cn(
-          'relative z-20 flex w-full flex-col overflow-hidden bg-background text-foreground',
-          'h-[100dvh] sm:h-[min(92vh,860px)] sm:max-w-lg sm:rounded-3xl sm:border sm:border-border sm:bg-surface sm:shadow-[var(--shadow-float)]'
+          'relative z-20 flex h-[100dvh] w-full flex-col overflow-hidden bg-background text-foreground',
+          'sm:h-[min(92vh,860px)] sm:max-w-lg sm:rounded-3xl sm:border sm:border-border sm:bg-surface sm:shadow-[var(--shadow-float)]'
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex shrink-0 items-center gap-2 bg-surface px-3 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] sm:rounded-t-3xl sm:px-4">
+        <header className="sticky top-0 z-30 flex shrink-0 items-center gap-1 border-b border-border bg-background px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:rounded-t-3xl sm:px-3 sm:pt-3">
           <button
             type="button"
             onClick={onClose}
-            className={headerBackBtnClass}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-secondary"
             aria-label="Back"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-6 w-6" />
           </button>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-foreground">Posts</p>
-            <p className="truncate text-[11px] text-muted-foreground">
-              {posts.length} {posts.length === 1 ? 'post' : 'posts'} 
-            </p>
-          </div>
+          <h2 className="min-w-0 flex-1 text-[17px] font-semibold tracking-tight text-foreground">
+            Posts
+          </h2>
         </header>
 
         <div
           ref={scrollRef}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-none"
         >
           {posts.map((post, i) => (
-            <div key={post.id} data-post-index={i} data-post-id={post.id}>
+            <div key={post.id} className="flex min-h-full flex-col" data-post-index={i} data-post-id={post.id}>
               <ViewerPostCard
                 post={post}
                 isOwner={isOwner}

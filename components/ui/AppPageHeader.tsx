@@ -1,9 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import Link from 'next/link';
 import { useAuthStore } from '@/lib/store/authStore';
-import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { BrandLogo } from '@/components/ui/BrandLogo';
+import { resolveDefaultLanding } from '@/lib/theme/mascotTheme';
 import { cn } from '@/lib/utils';
 
 /** Matches home DashboardHeader action buttons for consistency across pages. */
@@ -22,17 +22,17 @@ export const pageStickyHeaderClass =
   'sticky top-0 z-40 -mx-4 mb-5 -mt-[calc(1rem+env(safe-area-inset-top,0px))] border-b border-border bg-background/95 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] backdrop-blur-md sm:-mx-6 sm:px-6';
 
 interface AppPageHeaderProps {
-  title: ReactNode;
+  title?: ReactNode;
   subtitle?: ReactNode;
   /** Extra line under the title (chips, status, etc.) */
   meta?: ReactNode;
   /** Right-side actions — only thing that should differ per page */
   actions?: ReactNode;
-  /** Optional left leading (e.g. back). Defaults to profile avatar like home. */
+  /** Optional left leading (e.g. back). Defaults to Happy First logo. */
   leading?: ReactNode;
-  /** When false, hides the default profile avatar leading */
+  /** When false, hides the default Happy First logo */
   showAvatar?: boolean;
-  /** Link avatar to profile. `null` = not clickable. Default: own feed profile. */
+  /** Logo link. `null` = not clickable. Default: profile’s default landing. */
   avatarHref?: string | null;
   /** `label` = home-style uppercase eyebrow; `plain` = normal subtitle */
   subtitleTone?: 'label' | 'plain';
@@ -56,46 +56,17 @@ export function AppPageHeader({
   flush = false,
   className,
 }: AppPageHeaderProps) {
-  const { selectedProfile, user } = useAuthStore();
-  const displayName = selectedProfile?.name || user?.name || 'You';
-  const resolvedAvatarHref =
+  const { selectedProfile } = useAuthStore();
+  const defaultLanding = resolveDefaultLanding(selectedProfile?.preferences?.defaultLanding);
+  const logoHref =
     avatarHref === null
-      ? null
+      ? ''
       : typeof avatarHref === 'string'
         ? avatarHref
-        : selectedProfile?._id
-          ? `/feed/profile/${selectedProfile._id}`
-          : null;
+        : defaultLanding;
 
-  const avatar = showAvatar ? (
-    resolvedAvatarHref ? (
-      <Link
-        href={resolvedAvatarHref}
-        aria-label="Your profile"
-        title={displayName}
-        className="shrink-0 rounded-2xl transition-transform hover:scale-[1.02]"
-      >
-        <ProfileAvatar
-          name={displayName}
-          avatarUrl={selectedProfile?.avatarUrl}
-          avatarSeed={selectedProfile?.avatarSeed}
-          avatarStyle={selectedProfile?.avatarStyle}
-          size="lg"
-          rounded="2xl"
-          className="shadow-sm sm:h-12 sm:w-12 sm:text-lg"
-        />
-      </Link>
-    ) : (
-      <ProfileAvatar
-        name={displayName}
-        avatarUrl={selectedProfile?.avatarUrl}
-        avatarSeed={selectedProfile?.avatarSeed}
-        avatarStyle={selectedProfile?.avatarStyle}
-        size="lg"
-        rounded="2xl"
-        className="shadow-sm sm:h-12 sm:w-12 sm:text-lg"
-      />
-    )
+  const logo = showAvatar ? (
+    <BrandLogo href={logoHref} size="md" className="shrink-0" />
   ) : null;
 
   const titleBlock = (
@@ -105,13 +76,20 @@ export function AppPageHeader({
           {subtitle}
         </p>
       ) : null}
-      <h1 className="line-clamp-2 break-words text-base font-bold leading-snug tracking-tight text-foreground sm:text-lg">
-        {title}
-      </h1>
+      {title ? (
+        <h1 className="line-clamp-2 break-words text-base font-bold leading-snug tracking-tight text-foreground sm:text-lg">
+          {title}
+        </h1>
+      ) : null}
       {subtitle && subtitleTone === 'plain' ? (
-        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground sm:text-sm">
+        <div
+          className={cn(
+            'min-w-0 text-xs text-muted-foreground sm:text-sm',
+            title ? 'mt-0.5' : null
+          )}
+        >
           {subtitle}
-        </p>
+        </div>
       ) : null}
       {meta ? (
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
@@ -138,7 +116,7 @@ export function AppPageHeader({
       {actionsPlacement === 'stack' ? (
         <div className="flex min-w-0 flex-col gap-1.5 md:flex-row md:items-center md:gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
-            {leading ?? avatar}
+            {leading ?? logo}
             {titleBlock}
           </div>
           {actions ? (
@@ -150,7 +128,7 @@ export function AppPageHeader({
       ) : (
         <>
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
-            {leading ?? avatar}
+            {leading ?? logo}
             {titleBlock}
             {actionsPlacement === 'end' ? actionsRow : null}
           </div>

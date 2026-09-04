@@ -62,6 +62,10 @@ export interface Profile {
   memberSince?: string | null;
   createdAt: string;
   updatedAt: string;
+  happinessOnboarding?: {
+    completedAt?: string | null;
+    score?: number | null;
+  };
 }
 
 interface User {

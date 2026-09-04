@@ -25,8 +25,8 @@ interface CommunityAddMembersPanelProps {
 
 export function CommunityAddMembersPanel({
   communityId,
-  title = 'Invite members',
-  subtitle = 'Search by name or phone · invited people must accept before joining',
+  title = 'Invite',
+  subtitle,
 }: CommunityAddMembersPanelProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -77,7 +77,6 @@ export function CommunityAddMembersPanel({
   });
 
   const results: ProfileSearchResult[] = peopleQuery.data?.results ?? [];
-  const total = peopleQuery.data?.total ?? 0;
   const totalPages = peopleQuery.data?.totalPages ?? 1;
   const currentPage = peopleQuery.data?.page ?? page;
   const showInitialLoader = peopleQuery.isLoading && !peopleQuery.data;
@@ -89,6 +88,7 @@ export function CommunityAddMembersPanel({
       icon={UserPlus}
       expanded={open}
       onToggle={() => setOpen((value) => !value)}
+      className="!rounded-[1.5rem]"
       contentClassName="space-y-3"
     >
       <label className="relative block">
@@ -96,30 +96,20 @@ export function CommunityAddMembersPanel({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search by name or phone number…"
-          className="h-11 w-full rounded-xl border border-input bg-secondary pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+          placeholder="Name or phone"
+          className="h-10 w-full rounded-xl border border-border bg-secondary/70 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
           inputMode="search"
         />
       </label>
 
       {showInitialLoader ? (
-        <div className="flex justify-center py-8">
+        <div className="flex justify-center py-6">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : results.length === 0 ? (
-        <div className="space-y-2 rounded-xl bg-secondary/50 px-3 py-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            {debounced
-              ? `No Happy First account matches “${debounced}”.`
-              : 'Everyone available is already a member or invited'}
-          </p>
-          {debounced ? (
-            <p className="text-xs text-muted-foreground">
-              They need to register first. Share the community invite link / QR so they can join
-              after signing up. Try full name or phone (last 10 digits).
-            </p>
-          ) : null}
-        </div>
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          {debounced ? 'No matches' : 'No one to invite'}
+        </p>
       ) : (
         <>
           <ul
@@ -150,9 +140,6 @@ export function CommunityAddMembersPanel({
                     >
                       {person.name}
                     </Link>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {person.matchLabel || 'Tap add to invite'}
-                    </p>
                   </div>
                   <Button
                     size="sm"
@@ -165,19 +152,15 @@ export function CommunityAddMembersPanel({
                     ) : (
                       <UserPlus className="h-3.5 w-3.5" />
                     )}
-                    {adding ? 'Inviting…' : 'Invite'}
+                    {adding ? '…' : 'Invite'}
                   </Button>
                 </li>
               );
             })}
           </ul>
 
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <p className="text-[11px] text-muted-foreground">
-              Page {currentPage} of {totalPages} · {total} people
-              {peopleQuery.isFetching ? ' · updating…' : ''}
-            </p>
-            <div className="flex items-center gap-1.5">
+          {totalPages > 1 ? (
+            <div className="flex items-center justify-end gap-1.5">
               <Button
                 size="sm"
                 variant="outline"
@@ -197,7 +180,7 @@ export function CommunityAddMembersPanel({
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-          </div>
+          ) : null}
         </>
       )}
     </CollapsibleSection>
