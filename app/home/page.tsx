@@ -672,6 +672,132 @@ function HomePageContent() {
               )}
         </CollapsibleSection>
 
+        <Card className="week-tracker section-card app-card-hover overflow-visible">
+          <CardContent className="p-4 sm:p-5">
+            <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex shrink-0 rounded-lg bg-primary-soft p-1.5 text-primary">
+                  <Calendar className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-semibold text-foreground">This week</span>
+                <span className="chip shrink-0 text-[10px] text-muted-foreground">
+                  {daysLoggedThisWeek}/7 logged
+                </span>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                {upcomingPlan?._id && (
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 text-[11px]"
+                  >
+                    <Link href={`/create-plan?edit=${upcomingPlan._id}`}>Edit upcoming</Link>
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
+              {weekDays.map((day, index) => (
+                <div
+                  key={index}
+                  onClick={() => !day.isFuture && handleBarClick(day.date)}
+                  className={`
+                    flex flex-col items-center justify-center rounded-xl p-1 transition-colors sm:p-2
+                    ${day.isToday ? 'bg-primary-soft ring-2 ring-primary ring-offset-1 ring-offset-surface' : ''}
+                    ${day.isFuture ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}
+                  `}
+                >
+                  <div className="mb-0.5 text-xs font-semibold tracking-wide text-gray-700 sm:mb-1">
+                    {day.dayName}
+                  </div>
+                  <div
+                    className={`
+                      flex h-10 w-10 items-center justify-center rounded-2xl transition-colors sm:h-11 sm:w-11 md:h-12 md:w-12
+                      ${day.hasLog
+                        ? 'bg-gradient-to-br from-primary to-primary-hover shadow-md'
+                        : day.isFuture
+                        ? 'border-2 border-gray-200 bg-gray-100'
+                        : 'border-2 border-border bg-white hover:border-primary'
+                      }
+                    `}
+                  >
+                    {day.hasLog ? (
+                      <Flame className="h-4 w-4 text-white animate-pulse sm:h-6 sm:w-6 md:h-7 md:w-7" />
+                    ) : (
+                      <Flame className="h-4 w-4 text-gray-300 sm:h-6 sm:w-6 md:h-7 md:w-7" />
+                    )}
+                  </div>
+                  <div className={`
+                    mt-0.5 text-xs font-bold tracking-tight sm:mt-1
+                    ${day.isToday ? 'text-primary' : 'text-gray-600'}
+                  `}>
+                    {day.dayNumber}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex items-end gap-3 border-t border-border pt-3">
+              <div className="min-w-0 flex-1">
+                <div
+                  className="h-1.5 overflow-hidden rounded-full bg-secondary"
+                  role="progressbar"
+                  aria-valuenow={daysLoggedThisWeek}
+                  aria-valuemin={0}
+                  aria-valuemax={7}
+                  aria-label={`${daysLoggedThisWeek} of 7 days logged this week`}
+                >
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-primary-hover transition-all duration-500"
+                    style={{ width: `${(daysLoggedThisWeek / 7) * 100}%` }}
+                  />
+                </div>
+                {isShowingPreviousWeek ? (
+                  <p className="mt-1.5 text-[11px] font-medium text-muted-foreground">
+                    No logs yet this week · showing last week
+                  </p>
+                ) : null}
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-lg font-bold leading-none tabular-nums text-foreground">
+                  {stats.points.toFixed(2)}%
+                </p>
+                <p className="mt-1 text-[11px] font-semibold text-muted-foreground">
+                  {isShowingPreviousWeek ? 'Last week' : 'Week score'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => router.push('/streak-calendar')}
+              className="home-streak mt-3 grid w-full grid-cols-2 gap-2 border-t border-border pt-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+              aria-label="Open streak calendar and activity totals"
+            >
+              <span className="flex flex-col items-center gap-1 px-2 text-center">
+                <Flame className="h-5 w-5 text-primary" strokeWidth={2.25} />
+                <span className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
+                  {streakData?.overallStreak.currentStreak || 0}
+                </span>
+                <span className="text-xs font-semibold text-foreground">Streak</span>
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  Best {streakData?.overallStreak.longestStreak || 0} days
+                </span>
+              </span>
+              <span className="flex flex-col items-center gap-1 px-2 text-center">
+                <CalendarDays className="h-5 w-5 text-primary" strokeWidth={2.25} />
+                <span className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
+                  {totalDaysLogged}
+                </span>
+                <span className="text-xs font-semibold text-foreground">Days logged</span>
+                <span className="text-[10px] font-medium text-muted-foreground">{daysLoggedHint}</span>
+              </span>
+            </button>
+          </CardContent>
+        </Card>
+
+        <HomeEconomyCards economy={economy} />
+
         <CollapsibleSection
           id="log-tracker"
           className="log-tracker"
@@ -894,132 +1020,6 @@ function HomePageContent() {
                 </p>
               )}
         </CollapsibleSection>
-
-        <Card className="week-tracker section-card app-card-hover overflow-visible">
-          <CardContent className="p-4 sm:p-5">
-            <button
-              type="button"
-              onClick={() => router.push('/streak-calendar')}
-              className="home-streak grid w-full grid-cols-2 gap-2 pb-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-              aria-label="Open streak calendar and activity totals"
-            >
-              <span className="flex flex-col items-center gap-1 px-2 text-center">
-                <Flame className="h-5 w-5 text-primary" strokeWidth={2.25} />
-                <span className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
-                  {streakData?.overallStreak.currentStreak || 0}
-                </span>
-                <span className="text-xs font-semibold text-foreground">Streak</span>
-                <span className="text-[10px] font-medium text-muted-foreground">
-                  Best {streakData?.overallStreak.longestStreak || 0} days
-                </span>
-              </span>
-              <span className="flex flex-col items-center gap-1 px-2 text-center">
-                <CalendarDays className="h-5 w-5 text-primary" strokeWidth={2.25} />
-                <span className="text-2xl font-bold leading-none tabular-nums text-foreground sm:text-[1.75rem]">
-                  {totalDaysLogged}
-                </span>
-                <span className="text-xs font-semibold text-foreground">Days logged</span>
-                <span className="text-[10px] font-medium text-muted-foreground">{daysLoggedHint}</span>
-              </span>
-            </button>
-
-            <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-border pt-3">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex shrink-0 rounded-lg bg-primary-soft p-1.5 text-primary">
-                  <Calendar className="h-4 w-4" />
-                </span>
-                <span className="text-sm font-semibold text-foreground">This week</span>
-                <span className="chip shrink-0 text-[10px] text-muted-foreground">
-                  {daysLoggedThisWeek}/7 logged
-                </span>
-              </div>
-              <div className="ml-auto flex items-center gap-2">
-                {upcomingPlan?._id && (
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2.5 text-[11px]"
-                  >
-                    <Link href={`/create-plan?edit=${upcomingPlan._id}`}>Edit upcoming</Link>
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
-              {weekDays.map((day, index) => (
-                <div
-                  key={index}
-                  onClick={() => !day.isFuture && handleBarClick(day.date)}
-                  className={`
-                    flex flex-col items-center justify-center rounded-xl p-1 transition-colors sm:p-2
-                    ${day.isToday ? 'bg-primary-soft ring-2 ring-primary ring-offset-1 ring-offset-surface' : ''}
-                    ${day.isFuture ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}
-                  `}
-                >
-                  <div className="mb-0.5 text-xs font-semibold tracking-wide text-gray-700 sm:mb-1">
-                    {day.dayName}
-                  </div>
-                  <div
-                    className={`
-                      flex h-10 w-10 items-center justify-center rounded-2xl transition-colors sm:h-11 sm:w-11 md:h-12 md:w-12
-                      ${day.hasLog
-                        ? 'bg-gradient-to-br from-primary to-primary-hover shadow-md'
-                        : day.isFuture
-                        ? 'border-2 border-gray-200 bg-gray-100'
-                        : 'border-2 border-border bg-white hover:border-primary'
-                      }
-                    `}
-                  >
-                    {day.hasLog ? (
-                      <Flame className="h-4 w-4 text-white animate-pulse sm:h-6 sm:w-6 md:h-7 md:w-7" />
-                    ) : (
-                      <Flame className="h-4 w-4 text-gray-300 sm:h-6 sm:w-6 md:h-7 md:w-7" />
-                    )}
-                  </div>
-                  <div className={`
-                    mt-0.5 text-xs font-bold tracking-tight sm:mt-1
-                    ${day.isToday ? 'text-primary' : 'text-gray-600'}
-                  `}>
-                    {day.dayNumber}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 flex items-end gap-3 border-t border-border pt-3">
-              <div className="min-w-0 flex-1">
-                <div
-                  className="h-1.5 overflow-hidden rounded-full bg-secondary"
-                  role="progressbar"
-                  aria-valuenow={daysLoggedThisWeek}
-                  aria-valuemin={0}
-                  aria-valuemax={7}
-                  aria-label={`${daysLoggedThisWeek} of 7 days logged this week`}
-                >
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-primary to-primary-hover transition-all duration-500"
-                    style={{ width: `${(daysLoggedThisWeek / 7) * 100}%` }}
-                  />
-                </div>
-                {isShowingPreviousWeek ? (
-                  <p className="mt-1.5 text-[11px] font-medium text-muted-foreground">
-                    No logs yet this week · showing last week
-                  </p>
-                ) : null}
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-lg font-bold leading-none tabular-nums text-foreground">
-                  {stats.points.toFixed(2)}%
-                </p>
-                <p className="mt-1 text-[11px] font-semibold text-muted-foreground">
-                  {isShowingPreviousWeek ? 'Last week' : 'Week score'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <HomeEconomyCards economy={economy} />
 
         <HomeMotivationCard />
 
