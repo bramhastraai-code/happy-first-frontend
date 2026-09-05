@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CalendarClock, ChevronDown, ChevronUp } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { MissedLogDaysData } from '@/lib/api/dailyLog';
 
@@ -24,70 +23,57 @@ export function MissedDaysCard({ data, className }: MissedDaysCardProps) {
   const firstMissed = data.days[0];
 
   return (
-    <section
-      className={cn(
-        'rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 sm:p-4',
-        className
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-800">
-          <CalendarClock className="h-4 w-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-foreground">
-            Submit log for {count} missed {dayLabel}
-          </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Only the last {data.withinDays} days are shown here. Older pending logs are not listed.
+    <section className={cn('px-0.5', className)}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">
+            {count} missed {dayLabel}
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Last {data.withinDays} days
           </p>
         </div>
-        <Button
+        <button
           type="button"
-          variant="outline"
-          size="sm"
-          className="shrink-0 border-amber-200 bg-background"
+          className="shrink-0 text-xs font-semibold text-primary"
           onClick={() => setExpanded((open) => !open)}
         >
           {expanded ? (
-            <>
-              Hide dates
+            <span className="inline-flex items-center gap-1">
+              Hide
               <ChevronUp className="h-3.5 w-3.5" />
-            </>
+            </span>
           ) : (
-            <>
-              Show dates
+            <span className="inline-flex items-center gap-1">
+              Show
               <ChevronDown className="h-3.5 w-3.5" />
-            </>
+            </span>
           )}
-        </Button>
+        </button>
       </div>
 
-      {expanded && (
-        <ul className="mt-3 space-y-1.5 border-t border-amber-200/60 pt-3">
+      {expanded ? (
+        <ul className="mt-2 space-y-1">
           {data.days.map((day) => (
             <li key={day.date}>
               <Link
                 href={`/previous-log?date=${day.date}`}
-                className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm transition-colors hover:bg-secondary/60"
+                className="flex items-center justify-between py-1.5 text-sm"
               >
                 <span className="font-medium text-foreground">{day.label}</span>
-                <span className="text-xs font-semibold text-primary">Submit log</span>
+                <span className="text-xs font-semibold text-primary">Submit</span>
               </Link>
             </li>
           ))}
         </ul>
-      )}
-
-      {!expanded && firstMissed && (
-        <div className="mt-3">
-          <Button asChild size="sm" className="w-full sm:w-auto">
-            <Link href={`/previous-log?date=${firstMissed.date}`}>
-              Start with {firstMissed.label}
-            </Link>
-          </Button>
-        </div>
-      )}
+      ) : firstMissed ? (
+        <Link
+          href={`/previous-log?date=${firstMissed.date}`}
+          className="mt-1.5 inline-block text-xs font-semibold text-primary"
+        >
+          Start with {firstMissed.label}
+        </Link>
+      ) : null}
     </section>
   );
 }

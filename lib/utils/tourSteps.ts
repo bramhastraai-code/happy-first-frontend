@@ -16,7 +16,14 @@ export const homeTourSteps: Step[] = [
     target: '.home-search',
     title: 'Search',
     content:
-      'Find people, communities, events, and tasks without leaving Happiness.',
+      'Open Explore to find people and posts. Same Search control as Social.',
+    placement: 'bottom',
+  },
+  {
+    target: '.home-mood',
+    title: 'Select mood',
+    content:
+      'Start with today’s mood. After you pick a face, you’ll get a short punch line that matches how you feel.',
     placement: 'bottom',
   },
   {
@@ -27,20 +34,18 @@ export const homeTourSteps: Step[] = [
     placement: 'bottom',
   },
   {
-    target: '.my-happiness',
-    title: 'My happiness',
+    target: '.pending-activities',
+    title: 'Pending activities',
     content:
-      'Your daily log at a glance — this week’s days, streak progress, and week score. Tap a day to jump to that date in the log tracker.',
-    placement: 'bottom',
+      'What’s still open on your plan — the badge shows the total count. Expand anytime to see leftovers.',
+    placement: 'top',
   },
   {
-    target: '.create-plan-fab',
-    title: 'Create a plan',
+    target: '.log-tracker',
+    title: 'Daily log',
     content:
-      'This button on the bottom-right opens Create Plan — pick activities, set weekly targets, and start (or refresh) your week.',
+      'Your named daily log — browse the calendar, pick a date, review what you logged, or submit a missing day.',
     placement: 'top',
-    isFixed: true,
-    disableScrolling: true,
   },
   {
     target: '.home-streak',
@@ -51,9 +56,9 @@ export const homeTourSteps: Step[] = [
   },
   {
     target: '.xp-coins-grid',
-    title: 'XP & Happy Coins',
+    title: 'Coins & XP',
     content:
-      'Tap XP for your level and daily goal, or Coins for balance and rewards. Logging consistently grows both.',
+      'Coins and XP in a simple row — tap through to Coins or XP. Your level sits next to your name in the header.',
     placement: 'bottom',
   },
   {
@@ -64,10 +69,10 @@ export const homeTourSteps: Step[] = [
     placement: 'bottom',
   },
   {
-    target: '.pending-activities',
-    title: 'Pending activities',
+    target: '.leaderboard-section',
+    title: 'Weekly consistency leaderboard',
     content:
-      'What’s still open on your plan — daily goals and weekly progress. Expand this section anytime to see leftovers.',
+      'Compare your weekly % with others for the selected week. Use the arrows to look at past weeks.',
     placement: 'top',
   },
   {
@@ -78,32 +83,13 @@ export const homeTourSteps: Step[] = [
     placement: 'top',
   },
   {
-    target: '.leaderboard-section',
-    title: 'Weekly consistency leaderboard',
+    target: '.create-plan-fab',
+    title: 'Create a plan',
     content:
-      'Compare your weekly % with others for the selected week. Use the arrows to look at past weeks.',
+      'This button on the bottom-right opens Create Plan — pick activities, set weekly targets, and start (or refresh) your week.',
     placement: 'top',
-  },
-  {
-    target: '.log-tracker',
-    title: 'Daily log tracker',
-    content:
-      'Browse months, pick a date, review what you logged, or submit a missing day.',
-    placement: 'top',
-  },
-  {
-    target: '#home-social',
-    title: 'My social',
-    content:
-      'A peek at Social — posts from people you follow. Open Social in the bottom bar for the full feed, stories, and create.',
-    placement: 'top',
-  },
-  {
-    target: '#home-community',
-    title: 'My community',
-    content:
-      'Clubs you belong to. Open Club to discover groups, scan invite QR codes, chat, and track group goals.',
-    placement: 'top',
+    isFixed: true,
+    disableScrolling: true,
   },
   {
     target: '.bottom-nav',

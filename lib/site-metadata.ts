@@ -55,11 +55,13 @@ export const siteMetadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/icon', type: 'image/png' },
-      { url: '/icons/icon-192', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512', sizes: '512x512', type: 'image/png' },
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icons/icon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
-    apple: [{ url: '/apple-icon', type: 'image/png', sizes: '180x180' }],
+    apple: [{ url: '/icons/apple-touch-icon.png', type: 'image/png', sizes: '180x180' }],
+    shortcut: '/favicon.ico',
   },
   manifest: '/manifest.webmanifest',
 };

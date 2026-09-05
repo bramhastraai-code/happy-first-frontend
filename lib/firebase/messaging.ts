@@ -21,13 +21,19 @@ export async function getFirebaseMessaging(): Promise<Messaging | null> {
 export async function getPushServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null;
 
-  const existing = await navigator.serviceWorker.getRegistration();
+  const existing =
+    (await navigator.serviceWorker.getRegistration('/')) ||
+    (await navigator.serviceWorker.getRegistration('/serwist/sw.js'));
   if (existing) return existing;
 
   try {
     return await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
   } catch {
-    return null;
+    try {
+      return await navigator.serviceWorker.ready;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -52,24 +58,28 @@ export async function getFcmDeviceToken(): Promise<string | null> {
 }
 
 export async function listenForForegroundFcm(
-  onPayload: (payload: { title: string; body: string; url: string }) => void
+  onPayload: (payload: {
+    title: string;
+    body: string;
+    url: string;
+    notificationId: string;
+  }) => void
 ): Promise<() => void> {
   const messaging = await getFirebaseMessaging();
   if (!messaging) return () => {};
 
   return onMessage(messaging, (payload) => {
-    let title =
+    const title =
       payload.notification?.title?.trim() ||
       payload.data?.title?.trim() ||
       'Happy First';
-    let body =
+    const body =
       payload.notification?.body?.trim() ||
       payload.data?.body?.trim() ||
-      '';
-    if (!body) {
-      body = 'Tap to open Happy First.';
-    }
+      title;
     const url = payload.data?.url || payload.fcmOptions?.link || '/feed';
-    onPayload({ title, body, url });
+    const notificationId =
+      payload.data?.notificationId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    onPayload({ title, body, url, notificationId });
   });
 }

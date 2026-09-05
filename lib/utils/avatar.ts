@@ -84,6 +84,29 @@ export function buildDiceBearAvatarUrl(
   return `https://api.dicebear.com/9.x/${safeStyle}/svg?${params.toString()}`;
 }
 
+/** Site brand files — never use these as a person's profile photo. */
+export function isBrandAssetAvatarUrl(url?: string | null): boolean {
+  if (!url) return false;
+  try {
+    const path = url.startsWith('http://') || url.startsWith('https://')
+      ? new URL(url).pathname
+      : url.split('?')[0];
+    return (
+      path === '/logo.png' ||
+      path === '/logo-dark.png' ||
+      path === '/icon' ||
+      path === '/icon.png' ||
+      path === '/apple-icon' ||
+      path === '/apple-icon.png' ||
+      path === '/favicon.ico' ||
+      path.startsWith('/icons/') ||
+      path.startsWith('/brand/')
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function resolveProfileAvatarUrl(profile?: {
   avatarUrl?: string | null;
   avatarSeed?: string | null;
@@ -92,7 +115,10 @@ export function resolveProfileAvatarUrl(profile?: {
   _id?: string;
 } | null): string | null {
   if (!profile) return null;
-  if (profile.avatarUrl) return resolveMediaUrl(profile.avatarUrl);
+  const uploaded = profile.avatarUrl?.trim();
+  if (uploaded && !isBrandAssetAvatarUrl(uploaded)) {
+    return resolveMediaUrl(uploaded);
+  }
   if (profile.avatarSeed) {
     return buildDiceBearAvatarUrl(
       profile.avatarSeed,
@@ -116,7 +142,9 @@ export function randomAvatarSeed(prefix = 'hf'): string {
 
 export function isUploadedAvatarUrl(url?: string | null): boolean {
   if (!url) return false;
-  return !url.includes('api.dicebear.com');
+  if (url.includes('api.dicebear.com')) return false;
+  if (isBrandAssetAvatarUrl(url)) return false;
+  return true;
 }
 
 export function hasUploadedProfileAvatar(

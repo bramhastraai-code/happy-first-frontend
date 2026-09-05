@@ -5,12 +5,15 @@ export interface RegisterData {
   phoneNumber: string;
   countryCode: string;
   name: string;
-  email: string;
+  username?: string;
+  email?: string;
   city?: string;
   area?: string;
+  state?: string;
   country?: string;
   locationPin?: string;
   dateOfBirth?: string;
+  gender?: 'male' | 'female' | 'other' | '';
   referredBy?: string;
   password?: string;
   timezone?: string;
@@ -94,6 +97,18 @@ export interface UpdateProfileData {
   bio?: string;
   website?: string;
   publicHighlight?: string;
+  gender?: 'male' | 'female' | 'other';
+  happinessOnboarding?: {
+    completedAt?: string | null;
+    body?: number | null;
+    mind?: number | null;
+    happiness?: number | null;
+    connected?: number | null;
+    stress?: number | null;
+    sleep?: number | null;
+    todayHappiness?: number | null;
+    score?: number | null;
+  };
   profile?: {
     health?: string;
     family?: string;
@@ -184,6 +199,11 @@ export const authAPI = {
         redirectTo?: string;
       };
     }>('/userAuth/check-phone', data),
+
+  checkUsername: (username: string) =>
+    api.get<{ data: { username: string; available: boolean } }>('/userAuth/check-username', {
+      params: { username },
+    }),
   
   addFamilyMember: (data: AddFamilyMemberData) => api.post('/userAuth/add-family-member', data),
   

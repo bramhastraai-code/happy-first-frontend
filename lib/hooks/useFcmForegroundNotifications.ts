@@ -19,12 +19,14 @@ export function useFcmForegroundNotifications() {
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
 
-    void listenForForegroundFcm(({ title, body, url }) => {
+    void listenForForegroundFcm(({ title, body, url, notificationId }) => {
       if (document.visibilityState === 'visible') return;
+      const origin = window.location.origin;
       const notification = new Notification(title, {
         body,
-        icon: '/icons/icon-192',
-        badge: '/icons/icon-192',
+        icon: `${origin}/icons/icon-192.png`,
+        badge: `${origin}/icons/icon-192.png`,
+        tag: `hf-${notificationId}`,
       });
       notification.onclick = () => {
         window.focus();

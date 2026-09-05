@@ -66,8 +66,7 @@ function ProgressBar({
   percent: number;
   size?: 'sm' | 'lg';
 }) {
-  const width = Math.min(Math.max(percent, 0), 100);
-  const over = percent > 100;
+  const width = Math.min(Math.max(Number(percent) || 0, 0), 100);
   return (
     <div
       className={cn(
@@ -76,12 +75,7 @@ function ProgressBar({
       )}
     >
       <div
-        className={cn(
-          'relative h-full rounded-full transition-[width] duration-700 ease-out',
-          over
-            ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-            : 'bg-gradient-to-r from-primary via-primary to-primary-hover'
-        )}
+        className="relative h-full rounded-full bg-gradient-to-r from-primary via-primary to-primary-hover transition-[width] duration-700 ease-out"
         style={{ width: `${width}%` }}
       >
         <span className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white/35 to-transparent" />
@@ -99,15 +93,14 @@ function ScoreRing({
   size?: 'md' | 'lg';
   color?: string;
 }) {
-  const value = Math.max(0, Number(percent) || 0);
-  const capped = Math.min(value, 100);
+  const capped = Math.min(100, Math.max(0, Number(percent) || 0));
   const radius = size === 'lg' ? 46 : 38;
   const view = size === 'lg' ? 112 : 96;
   const stroke = size === 'lg' ? 9 : 8;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (capped / 100) * circumference;
   const center = view / 2;
-  const strokeColor = color || (value > 100 ? '#6CBC5A' : '#EA580C');
+  const strokeColor = color || '#EA580C';
 
   return (
     <div
@@ -146,7 +139,7 @@ function ScoreRing({
             size === 'lg' ? 'text-2xl' : 'text-xl'
           )}
         >
-          {Math.round(value)}%
+          {Math.round(capped)}%
         </p>
       </div>
     </div>
@@ -190,7 +183,7 @@ function RankingRow({
   return (
     <li
       className={cn(
-        'flex items-center gap-3 px-4 py-3',
+        'flex items-center gap-3 px-4 py-2.5',
         highlightYou && 'bg-primary-soft/40'
       )}
     >
@@ -207,15 +200,10 @@ function RankingRow({
             href={`/feed/profile/${row.profileId}`}
             className="truncate text-sm font-semibold text-foreground hover:underline"
           >
-            {row.name}
-            {isMe ? ' (you)' : ''}
+            {isMe ? 'You' : row.name}
           </Link>
           {showTopMedals && !showUploadedPhoto ? <ContributionMedal rank={row.rank} /> : null}
         </div>
-        <p className="text-[11px] capitalize text-muted-foreground">
-          {row.role}
-          {highlightYou ? ' · your rank' : ''}
-        </p>
       </div>
       <div className="shrink-0 text-right">
         {valueLabel === 'contribution' ? (
@@ -233,7 +221,7 @@ function RankingRow({
               {formatValue(row.totalValue ?? 0)}
             </p>
             <p className="text-[10px] tabular-nums text-muted-foreground">
-              {Math.round(row.contributionPercent ?? 0)}% contrib.
+              {Math.round(row.contributionPercent ?? 0)}%
             </p>
           </>
         )}
@@ -312,53 +300,42 @@ function MemberContributionList({
   }, [ranking, debounced]);
 
   const total = filtered.length;
-  const myRow = useMemo(() => {
-    if (!selectedProfileId) return null;
-    return ranking.find((row) => String(row.profileId) === String(selectedProfileId)) || null;
-  }, [ranking, selectedProfileId]);
 
   return (
     <div>
-      <div className="px-4 pb-2 pt-3 sm:px-5">
+      <div className="px-4 pb-2 pt-1 sm:px-5">
         <label className="relative block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search members…"
-            className="h-11 w-full rounded-none border border-[#dbdbdb] bg-[#fafafa] pl-10 pr-3 text-sm outline-none focus:border-neutral-400"
+            placeholder="Search"
+            className="h-10 w-full rounded-xl border border-border bg-secondary/70 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
             inputMode="search"
           />
         </label>
       </div>
 
       {loading && total === 0 ? (
-        <div className="flex items-center justify-center gap-2 px-4 py-8 text-sm text-muted-foreground sm:px-5">
+        <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-muted-foreground sm:px-5">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading members…
         </div>
       ) : total === 0 ? (
-        <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
-          {debounced ? `No members found for “${debounced}”` : emptyLabel}
+        <p className="px-4 py-6 text-center text-sm text-muted-foreground sm:px-5">
+          {debounced ? 'No matches' : emptyLabel}
         </p>
       ) : (
-        <>
-          <ul className="divide-y divide-border">
-            {filtered.map((row) => (
-              <RankingRow
-                key={row.profileId}
-                row={row}
-                selectedProfileId={selectedProfileId}
-                valueLabel="contribution"
-                showTopMedals
-              />
-            ))}
-          </ul>
-          <p className="px-4 py-3 text-[11px] text-muted-foreground sm:px-5">
-            {total} {total === 1 ? 'member' : 'members'}
-            {myRow ? ` · you #${myRow.rank}` : ''}
-          </p>
-        </>
+        <ul className="divide-y divide-border">
+          {filtered.map((row) => (
+            <RankingRow
+              key={row.profileId}
+              row={row}
+              selectedProfileId={selectedProfileId}
+              valueLabel="contribution"
+              showTopMedals
+            />
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -550,16 +527,8 @@ export function CommunityDashboardTab({
     const activityOptions = (dashboard?.byActivity || []).map((row) => ({
       value: row.activity.id,
       label: row.activity.name,
-      description: 'Contribution for this activity only',
     }));
-    return [
-      {
-        value: 'overall',
-        label: 'All activities',
-        description: 'Overall share across every community activity',
-      },
-      ...activityOptions,
-    ];
+    return [{ value: 'overall', label: 'All' }, ...activityOptions];
   }, [dashboard?.byActivity]);
 
   const contributionRanking = useMemo(() => {
@@ -613,23 +582,6 @@ export function CommunityDashboardTab({
     membersLoggedCount,
   ]);
 
-  const contributionSubtitle = useMemo(() => {
-    if (contributionActivityId === 'overall') {
-      if (membersLoggedCount === 0) {
-        return 'No logs yet this week · members shown A–Z';
-      }
-      return 'Overall share of all community activity units this week · sorted by contribution';
-    }
-    const activityRow = dashboard?.byActivity.find(
-      (row) => row.activity.id === contributionActivityId
-    );
-    const activityName = activityRow?.activity.name || 'activity';
-    const unit = activityRow?.unit || activityRow?.activity.baseUnit || '';
-    const communityTarget = activityRow?.communityTarget ?? 0;
-    const weeklyTarget = activityRow?.weeklyTarget ?? 0;
-    return `Share of ${activityName} this week · community target ${formatValue(communityTarget, unit)} (per member ${formatValue(weeklyTarget, unit)})`;
-  }, [contributionActivityId, dashboard?.byActivity]);
-
   const activityProgressRows = useMemo(() => {
     const fromAnalytics = analytics?.activities?.length ? analytics.activities : null;
     if (fromAnalytics) return fromAnalytics;
@@ -661,16 +613,8 @@ export function CommunityDashboardTab({
   const canGoNext = weekOffset < 0;
 
   const modeOptions = [
-    {
-      value: 'weekly',
-      label: 'Weekly mode',
-      description: 'Mon–Sun week (same as home points)',
-    },
-    {
-      value: 'monthly',
-      label: 'Monthly mode',
-      description: 'Current month (restart resets season)',
-    },
+    { value: 'weekly', label: 'Weekly' },
+    { value: 'monthly', label: 'Monthly' },
   ];
 
   if (detailActivity) {
@@ -690,7 +634,7 @@ export function CommunityDashboardTab({
               {detailActivity.activity.name}
             </h2>
             <p className="text-xs text-muted-foreground">
-              {weekLabel || 'This week'} · member contributions
+              {weekLabel || 'This week'}
             </p>
           </div>
         </div>
@@ -700,7 +644,7 @@ export function CommunityDashboardTab({
             <div>
               <p className="text-xs font-medium text-muted-foreground">Progress</p>
               <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                {Math.round(detailActivity.progressPercent ?? 0)}%
+                {Math.round(Math.min(100, detailActivity.progressPercent ?? 0))}%
               </p>
             </div>
             <p className="text-right text-xs text-muted-foreground">
@@ -710,16 +654,11 @@ export function CommunityDashboardTab({
             </p>
           </div>
           <ProgressBar percent={detailActivity.progressPercent ?? 0} />
-          <p className="text-[11px] text-muted-foreground">
-            Per-member weekly target {formatValue(detailActivity.weeklyTarget ?? 0, detailActivity.unit)}{' '}
-            · community target scales with {dashboard?.memberCount ?? 0} members
-          </p>
         </div>
 
         <div className="section-card overflow-hidden">
           <div className="border-b border-border px-4 py-3">
-            <p className="text-sm font-semibold text-foreground">Member leaderboard</p>
-            <p className="text-xs text-muted-foreground">Contribution % of this activity’s total</p>
+            <p className="text-sm font-semibold text-foreground">Members</p>
           </div>
           <RankingList
             ranking={detailActivity.ranking}
@@ -753,9 +692,7 @@ export function CommunityDashboardTab({
             {weekLabel || 'This week'}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            {isCurrent
-              ? `Current week · ${community.leaderboardMode} season`
-              : 'Historical week'}
+            {isCurrent ? 'This week' : 'Past week'}
           </p>
         </div>
         <Button
@@ -778,8 +715,7 @@ export function CommunityDashboardTab({
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
             <div>
-              <p className="text-sm font-semibold text-foreground">Upcoming events</p>
-              <p className="text-xs text-muted-foreground">From the community calendar</p>
+              <p className="text-sm font-semibold text-foreground">Upcoming</p>
             </div>
           </div>
           <ul className="divide-y divide-border">
@@ -806,7 +742,7 @@ export function CommunityDashboardTab({
               <HeartHandshake className="h-5 w-5" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground">Buddy for the week</p>
+                  <p className="text-sm font-semibold text-foreground">Buddy</p>
               {buddyQuery.isLoading ? (
                 <p className="mt-1 text-xs text-muted-foreground">Finding your buddy…</p>
               ) : buddyQuery.data?.buddy ? (
@@ -824,7 +760,7 @@ export function CommunityDashboardTab({
                         {buddyQuery.data.buddy.name}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
-                        Motivate each other to stay consistent
+                        Stay consistent together
                       </p>
                     </div>
                   </div>
@@ -853,11 +789,11 @@ export function CommunityDashboardTab({
                 </>
               ) : buddyQuery.data?.isBye ? (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  You have a bye this week (odd member count). Cheer on the community instead!
+                  Bye this week
                 </p>
               ) : (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  No buddy assigned yet. Add members or ask an admin to reshuffle.
+                  No buddy yet
                 </p>
               )}
               {isAdmin ? (
@@ -869,8 +805,7 @@ export function CommunityDashboardTab({
                   onClick={() => {
                     void requestConfirm({
                       title: 'Reshuffle buddies?',
-                      description:
-                        'This re-pairs all active members for the current week. Existing pairs will change.',
+                      description: 'Pairs will change for this week.',
                       confirmLabel: 'Reshuffle',
                       destructive: false,
                       onConfirm: () => reassignBuddies.mutateAsync(),
@@ -882,7 +817,7 @@ export function CommunityDashboardTab({
                   ) : (
                     <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
                   )}
-                  Reshuffle pairs
+                  Reshuffle
                 </Button>
               ) : null}
               {buddyMessage ? (
@@ -958,8 +893,7 @@ export function CommunityDashboardTab({
                       <ScoreRing percent={overallScore} size="lg" color={mood.color} />
                     </div>
                     <p className="mt-3 text-center text-xs text-muted-foreground">
-                      {membersLogged}/{memberCount} members logged · {participationRate}%
-                      participation
+                      {membersLogged}/{memberCount} logged · {participationRate}%
                     </p>
                   </div>
                   <div className="mt-5 grid grid-cols-4 gap-2">
@@ -986,27 +920,26 @@ export function CommunityDashboardTab({
                 </section>
 
                 <section className="overflow-hidden rounded-[1.5rem] border border-border bg-surface shadow-[var(--shadow-card)]">
-                  <div className="px-4 pt-4 sm:px-5">
+                  <div className="flex items-center justify-between gap-3 px-4 pt-4 sm:px-5">
                     <h2 className="font-serif text-lg font-semibold leading-tight text-foreground">
                       Everyone
                     </h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {contributionSubtitle}
-                    </p>
-                    <div className="mt-3">
-                      <MembersStrip
-                        ranking={contributionRanking}
-                        selectedProfileId={selectedProfile?._id}
-                      />
-                    </div>
-                    <div className="mt-3">
-                      <CustomDropdown
-                        value={contributionActivityId}
-                        options={contributionFilterOptions}
-                        disabled={weekViewQuery.isFetching || contributionFilterOptions.length <= 1}
-                        onChange={(value) => setContributionActivityId(value)}
-                      />
-                    </div>
+                    <CustomDropdown
+                      value={contributionActivityId}
+                      options={contributionFilterOptions}
+                      disabled={weekViewQuery.isFetching || contributionFilterOptions.length <= 1}
+                      onChange={(value) => setContributionActivityId(value)}
+                      variant="pill"
+                      align="right"
+                      className="w-auto min-w-[7.5rem]"
+                      aria-label="Filter"
+                    />
+                  </div>
+                  <div className="px-4 pt-3 sm:px-5">
+                    <MembersStrip
+                      ranking={contributionRanking}
+                      selectedProfileId={selectedProfile?._id}
+                    />
                   </div>
                   <MemberContributionList
                     ranking={contributionRanking}
@@ -1017,11 +950,7 @@ export function CommunityDashboardTab({
                       (membersFallbackQuery.isLoading ||
                         (membersFallbackQuery.isFetching && contributionRanking.length === 0))
                     }
-                    emptyLabel={
-                      contributionActivityId === 'overall'
-                        ? 'No active members to show yet.'
-                        : 'No logs for this activity yet.'
-                    }
+                    emptyLabel="No members yet"
                   />
                 </section>
               </>
@@ -1059,13 +988,10 @@ export function CommunityDashboardTab({
           ) : null}
 
           <section className="overflow-hidden rounded-[1.5rem] border border-border bg-surface shadow-[var(--shadow-card)]">
-            <div className="px-4 py-4 sm:px-5">
+            <div className="px-4 pt-4 pb-1 sm:px-5">
               <h2 className="font-serif text-lg font-semibold leading-tight text-foreground">
                 Activities
               </h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Logged vs community weekly targets · tap for members
-              </p>
             </div>
             {activityProgressRows.length ? (
               <ul className="divide-y divide-border">
@@ -1077,37 +1003,25 @@ export function CommunityDashboardTab({
                     <li key={activity.activityId}>
                       <button
                         type="button"
-                        className="flex w-full flex-col gap-2 px-4 py-3.5 text-left transition-colors hover:bg-secondary/50 sm:px-5"
+                        className="flex w-full flex-col gap-1.5 px-4 py-3 text-left transition-colors hover:bg-secondary/50 sm:px-5"
                         onClick={() => setDetailActivityId(activity.activityId)}
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-foreground">
-                              {activity.name}
-                            </p>
-                            <p className="text-[11px] capitalize text-muted-foreground">
-                              {activity.level} · logged{' '}
-                              {formatValue(activity.currentValue, activity.unit)}
-                            </p>
-                            <p className="mt-0.5 text-[11px] text-muted-foreground">
-                              Community weekly target{' '}
-                              <span className="font-medium text-foreground/80">
-                                {formatValue(activity.communityTarget, activity.unit)}
-                              </span>
-                              <span className="mx-1">·</span>
-                              Per member{' '}
-                              <span className="font-medium text-foreground/80">
-                                {formatValue(activity.weeklyTarget, activity.unit)}
-                              </span>
-                            </p>
-                          </div>
-                          <p className="shrink-0 font-serif text-lg font-semibold tabular-nums text-foreground">
-                            {Math.round(activity.progressPercent)}%
+                          <p className="min-w-0 truncate text-sm font-semibold text-foreground">
+                            {activity.name}
+                          </p>
+                          <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                            {Math.round(Math.min(100, activity.progressPercent))}%
                           </p>
                         </div>
                         <ProgressBar percent={activity.progressPercent} />
+                        <p className="text-[11px] tabular-nums text-muted-foreground">
+                          {formatValue(activity.currentValue, activity.unit)}
+                          {' / '}
+                          {formatValue(activity.communityTarget, activity.unit)}
+                        </p>
                         {aiNote ? (
-                          <p className="text-[11px] leading-snug text-muted-foreground">{aiNote}</p>
+                          <p className="line-clamp-1 text-[11px] text-muted-foreground">{aiNote}</p>
                         ) : null}
                       </button>
                     </li>
@@ -1115,8 +1029,8 @@ export function CommunityDashboardTab({
                 })}
               </ul>
             ) : (
-              <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
-                No community activities configured.
+              <p className="px-4 py-6 text-center text-sm text-muted-foreground sm:px-5">
+                No activities yet
               </p>
             )}
           </section>
@@ -1126,33 +1040,30 @@ export function CommunityDashboardTab({
       {isAdmin && isCurrent && community.status !== 'deleted' ? (
         <>
           <CollapsibleSection
-            title="Admin controls"
-            subtitle="Season mode and monthly board reset"
+            title="Admin"
             icon={Settings2}
             expanded={adminOpen}
             onToggle={() => setAdminOpen((value) => !value)}
             overflowVisible
+            className="!rounded-[1.5rem]"
             contentClassName="space-y-3"
           >
-            <div className="space-y-1.5">
-              <p className="text-[11px] font-medium text-muted-foreground">Season mode</p>
-              <CustomDropdown
-                value={community.leaderboardMode}
-                options={modeOptions}
-                disabled={updateMode.isPending}
-                onChange={(value) => updateMode.mutate(value as 'weekly' | 'monthly')}
-              />
-            </div>
+            <CustomDropdown
+              value={community.leaderboardMode}
+              options={modeOptions}
+              disabled={updateMode.isPending}
+              onChange={(value) => updateMode.mutate(value as 'weekly' | 'monthly')}
+              aria-label="Season"
+            />
             <Button
               variant="outline"
               className="w-full justify-center"
               disabled={restart.isPending}
               onClick={() => {
                 requestConfirm({
-                  title: 'Restart monthly season board?',
-                  description:
-                    'New monthly “current” scores will count from now. Weekly community analytics are not affected. This cannot be undone.',
-                  confirmLabel: 'Restart',
+                  title: 'Reset the board?',
+                  description: 'Monthly scores start over from now. Weekly stats stay the same.',
+                  confirmLabel: 'Reset',
                   onConfirm: () => restart.mutateAsync(),
                 });
               }}
@@ -1162,7 +1073,7 @@ export function CommunityDashboardTab({
               ) : (
                 <RotateCcw className="h-4 w-4" />
               )}
-              Restart overall board
+              Reset board
             </Button>
           </CollapsibleSection>
 
@@ -1171,7 +1082,7 @@ export function CommunityDashboardTab({
       ) : null}
 
       <p className="px-1 text-center text-[11px] text-muted-foreground">
-        {DateTime.now().setZone('Asia/Kolkata').toFormat('ccc d LLL')} · community targets only
+        {DateTime.now().setZone('Asia/Kolkata').toFormat('ccc d LLL')}
       </p>
       <FeedMessagesPanel
         open={buddyChatOpen}

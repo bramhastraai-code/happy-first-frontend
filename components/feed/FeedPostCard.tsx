@@ -67,6 +67,8 @@ interface FeedPostCardProps {
   hideCommunityLabel?: boolean;
   /** Discover visitor mode — disable like/comment/share actions */
   interactionsDisabled?: boolean;
+  /** No card chrome — Instagram-style open post */
+  flush?: boolean;
   /** Single-tap media opens this instead of the one-photo preview */
   onOpenPost?: (post: FeedPost) => void;
 }
@@ -88,6 +90,7 @@ export function FeedPostCard({
   isOwner = false,
   hideCommunityLabel = false,
   interactionsDisabled = false,
+  flush = false,
   onOpenPost,
 }: FeedPostCardProps) {
   const queryClient = useQueryClient();
@@ -401,7 +404,14 @@ export function FeedPostCard({
   });
 
   return (
-    <article className="feed-post w-full border-b border-border bg-background px-0 py-4 sm:rounded-2xl sm:border sm:bg-surface sm:px-5 sm:py-5 sm:shadow-[var(--shadow-card)]">
+    <article
+      className={cn(
+        'feed-post w-full bg-background px-0 pb-2 pt-3',
+        flush
+          ? 'border-0 shadow-none'
+          : 'border-b border-border sm:rounded-2xl sm:border sm:bg-surface sm:px-5 sm:py-5 sm:shadow-[var(--shadow-card)]'
+      )}
+    >
       {post.repostOf ? (
         <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
           <Repeat2 className="h-3.5 w-3.5" />
@@ -599,7 +609,9 @@ export function FeedPostCard({
       <PostMediaCarousel
         items={mediaItems}
         alt={post.caption || `${post.author.name} activity`}
-        className="rounded-2xl"
+        className={cn(
+          flush ? 'rounded-none' : '-mx-4 rounded-none sm:mx-0 sm:rounded-2xl'
+        )}
         onTap={handleMediaTap}
         onDoubleTap={triggerLikeBurst}
       >
@@ -1019,7 +1031,7 @@ export function FeedPostCard({
 
       {previewOpen
         ? createPortal(
-            <div className="fixed inset-0 z-[240] flex items-center justify-center bg-black/90 p-3 pt-16 sm:p-6 sm:pt-16">
+            <div className="fixed inset-0 z-[240] flex items-center justify-center bg-black/90 p-3 pt-20 sm:p-6 sm:pt-20">
               <button
                 type="button"
                 aria-label="Close preview"
@@ -1032,7 +1044,7 @@ export function FeedPostCard({
                   event.stopPropagation();
                   setPreviewOpen(false);
                 }}
-                className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+                className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-30 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/30 hover:bg-black/70"
                 aria-label="Back"
               >
                 <ArrowLeft className="h-5 w-5" />

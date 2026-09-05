@@ -38,7 +38,8 @@ import {
   type LogSuccessEntry,
 } from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
-import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
+import { HeaderTodayMood } from '@/components/mood/HeaderTodayMood';
+import { firstNameFrom } from '@/lib/utils/greeting';
 
 export default function TasksPage() {
   const router = useRouter();
@@ -73,6 +74,12 @@ export default function TasksPage() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const focusCategory =
+    typeof window !== 'undefined' &&
+    ['body', 'mind', 'soul'].includes(window.location.hash.replace('#', '').toLowerCase())
+      ? window.location.hash.replace('#', '').toLowerCase()
+      : 'body';
 
   // Deep-link from home Body / Mind / Soul cards (#body, #mind, #soul)
   useEffect(() => {
@@ -528,19 +535,12 @@ export default function TasksPage() {
         <AppPageHeader
           className="mb-0"
           title={
-            <>
-              {getTimeGreeting()},{' '}
-              <span className="text-primary">
-                {firstNameFrom(selectedProfile?.name || user?.name)}
-              </span>
-            </>
+            <span className="text-primary">
+              {firstNameFrom(selectedProfile?.name || user?.name)}
+            </span>
           }
-          subtitle={new Date().toLocaleDateString('en-US', {
-            weekday: 'long',
-            month: 'short',
-            day: 'numeric',
-          })}
-          subtitleTone="label"
+          subtitle={<HeaderTodayMood profileId={selectedProfile?._id} />}
+          subtitleTone="plain"
           meta={
             <span className="inline-flex rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary sm:text-xs">
               Today&apos;s log
@@ -724,13 +724,13 @@ export default function TasksPage() {
               className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full"
               style={{
                 background: `conic-gradient(${
-                  progress.percentage === 100 ? 'var(--color-success)' : 'var(--color-primary)'
-                } ${progress.percentage * 3.6}deg, var(--color-secondary) 0deg)`,
+                  progress.percentage >= 100 ? 'var(--color-success)' : 'var(--color-primary)'
+                } ${Math.min(100, progress.percentage) * 3.6}deg, var(--color-secondary) 0deg)`,
               }}
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface shadow-sm">
                 <span className="text-sm font-bold tabular-nums text-foreground">
-                  {Math.round(progress.percentage)}%
+                  {Math.round(Math.min(100, progress.percentage))}%
                 </span>
               </div>
             </div>
@@ -748,7 +748,7 @@ export default function TasksPage() {
                 className={`h-full rounded-full transition-all duration-500 ${
                   progress.percentage === 100 ? 'bg-success' : 'bg-primary'
                 }`}
-                style={{ width: `${progress.percentage}%` }}
+                style={{ width: `${Math.min(100, progress.percentage)}%` }}
               />
             </div>
           </div>
@@ -849,6 +849,7 @@ export default function TasksPage() {
                       onCheckboxChange={handleCheckboxChange}
                       onPendingChange={handlePendingChange}
                       getActivityInputMax={getActivityInputMax}
+                      defaultOpen={category === focusCategory}
                     />
                   ))
                 : null}
@@ -993,7 +994,7 @@ export default function TasksPage() {
         )}
       </div>
 
-      {planChoice?.weekendPrompt?.show ? (
+      {planChoice?.weekendPrompt?.show && !runTour ? (
         <WeekendPlanPromptModal
           weekendPrompt={planChoice.weekendPrompt}
           onResolved={() => {

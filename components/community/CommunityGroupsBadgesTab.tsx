@@ -214,7 +214,7 @@ export function CommunityGroupsBadgesTab({
               <li key={a.activityId} className="flex justify-between text-sm">
                 <span className="text-muted-foreground">{a.name}</span>
                 <span className="font-semibold tabular-nums">
-                  {Math.round(a.progressPercent)}%
+                  {Math.round(Math.min(100, a.progressPercent))}%
                 </span>
               </li>
             ))}

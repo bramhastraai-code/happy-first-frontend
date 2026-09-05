@@ -123,7 +123,8 @@ function formatPoints(value: number): string {
 
 function formatPercentValue(value: string | number | null | undefined): string {
   const n = Number(value);
-  return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+  if (!Number.isFinite(n)) return '0.00';
+  return Math.min(100, Math.max(0, n)).toFixed(2);
 }
 
 function progressTone(percent: number) {
@@ -166,7 +167,7 @@ function ActivityPerformanceCard({ activity }: { activity: ActivityAnalytics }) 
         <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-border">
           <div
             className={cn('h-full rounded-full transition-all', progressTone(activity.achievementPercentage))}
-            style={{ width: `${Math.min(activity.achievementPercentage, 100)}%` }}
+            style={{ width: `${Math.min(100, activity.achievementPercentage)}%` }}
           />
         </div>
         <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
@@ -249,7 +250,10 @@ function DailyLossCard({ activity }: { activity: DailyActivityLoss }) {
                 </div>
                 <p className="mt-0.5 text-[10px] text-muted-foreground">
                   {day.achieved} / {day.target} {day.unit} (
-                  {day.target > 0 ? ((day.achieved / day.target) * 100).toFixed(0) : 0}%)
+                  {day.target > 0
+                    ? Math.min(100, Math.round((day.achieved / day.target) * 100))
+                    : 0}
+                  %)
                 </p>
               </div>
             ))}
@@ -261,7 +265,10 @@ function DailyLossCard({ activity }: { activity: DailyActivityLoss }) {
 }
 
 function WeeklyLossCard({ activity }: { activity: WeeklyActivityLoss }) {
-  const percent = activity.target > 0 ? (activity.achieved / activity.target) * 100 : 0;
+  const percent =
+    activity.target > 0
+      ? Math.min(100, (activity.achieved / activity.target) * 100)
+      : 0;
 
   return (
     <article className="rounded-lg border border-border bg-background px-2.5 py-2">

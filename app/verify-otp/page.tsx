@@ -96,7 +96,7 @@ function VerifyOTPContent() {
         setSelectedProfile(primary);
       }
 
-      router.push('/get-started');
+      router.push('/welcome');
     } catch (err) {
       setError(
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||

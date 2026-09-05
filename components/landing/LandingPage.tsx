@@ -73,7 +73,7 @@ export default function LandingPage() {
         />
 
         <header className="relative z-10 flex items-center justify-between px-5 py-5 sm:px-8 sm:py-6">
-          <BrandLogo href="/" variant="light" size="md" className="shadow-none" />
+          <BrandLogo href="/" variant="light" size="lg" className="shadow-none" />
 
           <nav className="flex items-center gap-2 sm:gap-3">
             <Button asChild variant="ghost" className="text-white/90 hover:bg-white/10 hover:text-white">

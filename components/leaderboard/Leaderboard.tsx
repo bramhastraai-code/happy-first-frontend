@@ -7,8 +7,7 @@ import type { LeaderboardData } from '@/lib/api/leaderboard';
 import { activityAPI, Activity } from '@/lib/api/activity';
 import { useAuthStore } from '@/lib/store/authStore';
 import ActivitySelect from '@/components/ui/ActivitySelect';
-import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Loader2, Trophy, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveProfileTimezone } from '@/lib/utils/profileTime';
 import { LeaderboardRankBadge } from '@/components/leaderboard/LeaderboardRankBadge';
@@ -124,19 +123,19 @@ export default function Leaderboard({
   const endRank = pagination ? Math.min(pagination.page * pagination.limit, totalLeaders) : 0;
 
   return (
-    <div className="space-y-3 overflow-visible">
-      <div className="space-y-2">
-        <div className="flex items-center gap-1 rounded-2xl border border-input bg-surface px-1.5 py-1.5">
+    <div className="space-y-4 overflow-visible pt-2">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
           <button
             type="button"
             disabled={weekOffset <= -MAX_PAST_WEEKS || loading}
             onClick={() => setWeekOffset((value) => value - 1)}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Previous week"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <div className="min-w-0 flex-1 px-1 text-center">
+          <div className="min-w-0 flex-1 text-center">
             <p className="text-sm font-semibold leading-tight text-foreground">{week.label}</p>
             <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{week.rangeLabel}</p>
           </div>
@@ -144,7 +143,7 @@ export default function Leaderboard({
             type="button"
             disabled={weekOffset >= 0 || loading}
             onClick={() => setWeekOffset((value) => Math.min(0, value + 1))}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Next week"
           >
             <ChevronRight className="h-4 w-4" />
@@ -172,48 +171,48 @@ export default function Leaderboard({
               type="button"
               disabled={loading}
               onClick={() => setWeekOffset(0)}
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary-soft px-3 text-xs font-semibold text-primary transition-colors hover:bg-accent disabled:opacity-50 sm:h-9"
+              className="shrink-0 text-xs font-semibold text-primary disabled:opacity-50"
             >
-              <Calendar className="h-3.5 w-3.5" />
               This week
             </button>
           ) : null}
         </div>
       </div>
       {loading && !leaderboard && (
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+        <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
           Loading ranks…
         </div>
       )}
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        <p className="py-2 text-center text-sm text-destructive">{error}</p>
       )}
 
       {!error && userRank && (
-        <div className="rounded-2xl border border-primary/20 bg-primary-soft p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Your rank on this page</p>
-          <div className="mt-1 flex items-end justify-between gap-3">
-            <p className="text-2xl font-bold text-foreground">#{userRank.rank}</p>
-            <p className="text-sm font-semibold text-foreground">
-              {formatScore(userRank.value, asPercent)}{' '}
-              {!asPercent && <span className="font-normal text-muted-foreground">{unit}</span>}
-            </p>
+        <div className="flex items-end justify-between gap-3 px-1">
+          <div>
+            <p className="text-2xl font-bold tabular-nums text-foreground">#{userRank.rank}</p>
+            <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Your rank</p>
           </div>
+          <p className="text-right text-sm font-semibold tabular-nums text-foreground">
+            {formatScore(userRank.value, asPercent)}
+            {!asPercent ? (
+              <span className="ml-1 font-normal text-muted-foreground">{unit}</span>
+            ) : null}
+          </p>
         </div>
       )}
 
       {!error && (
-        <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
+        <ul>
           {loading && leaderboard ? (
-            <li className="flex items-center justify-center gap-2 px-4 py-8 text-sm text-muted-foreground">
+            <li className="flex items-center justify-center gap-2 px-1 py-8 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               Updating ranks…
             </li>
           ) : ranks.length === 0 ? (
-            <li className="px-4 py-10 text-center">
-              <Trophy className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
+            <li className="px-1 py-8 text-center">
               <p className="text-sm font-medium text-foreground">No rankings yet</p>
               <p className="mt-1 text-xs text-muted-foreground">Complete activities to appear here.</p>
             </li>
@@ -224,10 +223,7 @@ export default function Leaderboard({
               return (
                 <li
                   key={`${entry.user._id}-${entry.rank}`}
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-3',
-                    isYou && 'bg-accent/70'
-                  )}
+                  className="flex items-center gap-3 px-1 py-2.5"
                 >
                   <LeaderboardRankBadge
                     rank={entry.rank}
@@ -237,9 +233,9 @@ export default function Leaderboard({
                     avatarStyle={entry.user.avatarStyle}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className={cn('truncate font-medium', isYou ? 'text-primary' : 'text-foreground')}>
+                    <p className={cn('truncate text-sm font-medium', isYou ? 'text-primary' : 'text-foreground')}>
                       {entry.user.name}
-                      {isYou && <span className="ml-2 text-xs font-semibold text-primary">(you)</span>}
+                      {isYou ? <span className="ml-1.5 text-xs font-semibold text-primary">(you)</span> : null}
                     </p>
                   </div>
                   <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
@@ -253,36 +249,32 @@ export default function Leaderboard({
       )}
 
       {!error && pagination && totalLeaders > 0 && (
-        <div className="flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-muted-foreground">
-            Showing {startRank}–{endRank} of {totalLeaders}
+        <div className="flex items-center justify-between gap-3 px-1 pt-1">
+          <p className="text-[11px] text-muted-foreground">
+            {startRank}–{endRank} of {totalLeaders}
           </p>
-          <div className="flex items-center gap-2">
-            <Button
+          <div className="flex items-center gap-1">
+            <button
               type="button"
-              variant="outline"
-              size="sm"
               disabled={!pagination.hasPreviousPage || loading}
               onClick={() => setPage((current) => current - 1)}
-              className="gap-1"
+              className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Previous page"
             >
               <ChevronLeft className="h-4 w-4" />
-              Previous
-            </Button>
-            <span className="min-w-[4.5rem] text-center text-xs font-medium text-muted-foreground">
-              Page {pagination.page} / {pagination.totalPages}
+            </button>
+            <span className="min-w-[3.5rem] text-center text-[11px] font-medium text-muted-foreground">
+              {pagination.page}/{pagination.totalPages}
             </span>
-            <Button
+            <button
               type="button"
-              variant="outline"
-              size="sm"
               disabled={!pagination.hasNextPage || loading}
               onClick={() => setPage((current) => current + 1)}
-              className="gap-1"
+              className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Next page"
             >
-              Next
               <ChevronRight className="h-4 w-4" />
-            </Button>
+            </button>
           </div>
         </div>
       )}

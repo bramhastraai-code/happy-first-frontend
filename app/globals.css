@@ -46,6 +46,7 @@ html {
   scroll-behavior: smooth;
   overflow-x: clip;
   overflow-y: auto;
+  overscroll-behavior-y: none;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -56,6 +57,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100dvh;
+  overscroll-behavior-y: none;
 }
 
 html.hf-tour-active {
@@ -161,6 +163,10 @@ html.hf-tour-active {
 
 .page-container {
   @apply mx-auto w-full max-w-lg px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] pt-[calc(1rem+env(safe-area-inset-top,0px))] sm:max-w-3xl sm:px-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom,0px))] lg:max-w-4xl;
+}
+
+.page-container-flush-top {
+  padding-top: 0;
 }
 
 .bottom-nav {

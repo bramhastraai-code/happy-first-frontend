@@ -1083,7 +1083,7 @@ export function CommunityChatTab({
       <div
         className={cn(
           'relative z-20 flex items-center gap-2 border-b border-black/5 bg-[#f0f2f5] px-2 py-2',
-          embedded ? 'rounded-t-3xl sm:rounded-t-3xl' : 'rounded-t-2xl'
+          embedded ? 'pt-[max(0.5rem,env(safe-area-inset-top))]' : 'rounded-t-2xl'
         )}
       >
         {selectMode ? (
@@ -1146,10 +1146,10 @@ export function CommunityChatTab({
               <button
                 type="button"
                 onClick={onBack}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-[#54656f] hover:bg-black/5"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#111b21] hover:bg-black/5"
                 aria-label="Back to chats"
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-6 w-6" />
               </button>
             ) : null}
             <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
@@ -1261,7 +1261,7 @@ export function CommunityChatTab({
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#54656f] hover:bg-black/5"
+                className="hidden h-9 w-9 items-center justify-center rounded-full text-[#54656f] hover:bg-black/5 md:inline-flex"
                 aria-label="Close"
               >
                 <X className="h-5 w-5" />
@@ -1846,7 +1846,12 @@ export function CommunityChatTab({
       </div>
 
       {!selectMode && (
-        <div className="relative z-20 border-t border-black/5 bg-[#f0f2f5] px-2 py-2">
+        <div
+          className={cn(
+            'relative z-20 border-t border-black/5 bg-[#f0f2f5] px-2 pt-2',
+            embedded ? 'pb-[max(0.5rem,env(safe-area-inset-bottom))]' : 'pb-2'
+          )}
+        >
           {replyTarget && (
             <div className="mb-2 flex items-start gap-2 rounded-xl border-l-4 border-primary bg-white px-3 py-2 shadow-sm">
               <div className="min-w-0 flex-1">

@@ -51,6 +51,8 @@ interface PushPayload {
   url?: string;
   notificationId?: string;
   type?: string;
+  icon?: string;
+  badge?: string;
   notification?: { title?: string; body?: string };
   data?: Record<string, string>;
   from?: string;
@@ -63,29 +65,52 @@ function resolvePushContent(payload: PushPayload) {
     payload.data?.title?.trim() ||
     payload.title?.trim() ||
     'Happy First';
-  let body =
+  const body =
     payload.notification?.body?.trim() ||
     payload.data?.body?.trim() ||
     payload.body?.trim() ||
-    '';
-  if (!body) {
-    body = 'Tap to open Happy First.';
-  }
+    title;
   const url = payload.data?.url || payload.url || '/feed';
-  const tag = payload.data?.notificationId || payload.notificationId || undefined;
+  const tag = `hf-${
+    payload.data?.notificationId ||
+    payload.notificationId ||
+    `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  }`;
   return { title, body, url, tag };
+}
+
+function assetUrl(path: string) {
+  try {
+    return new URL(path, self.location.origin).href;
+  } catch {
+    return path;
+  }
 }
 
 function showPushNotification(payload: PushPayload) {
   const { title, body, url, tag } = resolvePushContent(payload);
+  const icon = payload.data?.icon || payload.icon || assetUrl('/icons/icon-192.png');
+  const badge = payload.data?.badge || payload.badge || assetUrl('/icons/icon-192.png');
 
-  return self.registration.showNotification(title, {
+  const options: NotificationOptions & {
+    renotify?: boolean;
+    timestamp?: number;
+  } = {
     body,
-    icon: '/icons/icon-192',
-    badge: '/icons/icon-192',
+    icon,
+    badge,
     tag,
-    data: { url },
-  });
+    renotify: true,
+    lang: 'en',
+    timestamp: Date.now(),
+    data: {
+      url,
+      type: payload.data?.type || payload.type || '',
+      notificationId: payload.data?.notificationId || payload.notificationId || '',
+    },
+  };
+
+  return self.registration.showNotification(title, options);
 }
 
 self.addEventListener('push', (event) => {

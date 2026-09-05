@@ -7,7 +7,7 @@ export function OrganizationJsonLd() {
     '@type': 'Organization',
     name: BRAND_NAME,
     url: siteUrl,
-    logo: `${siteUrl}/icon`,
+    logo: `${siteUrl}/logo.png`,
     description: BRAND_DESCRIPTION,
   };
 

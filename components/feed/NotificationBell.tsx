@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -75,6 +75,66 @@ function groupNotifications(items: AppNotification[]) {
     .filter((group) => group.items.length > 0);
 }
 
+const COMMUNITY_TYPES = new Set<AppNotification['type']>([
+  'community_announcement',
+  'community_week_summary',
+  'community_nudge',
+  'community_event',
+  'community_event_reminder',
+  'community_appreciation',
+  'community_mention',
+  'community_reply',
+  'community_invite',
+  'community_join_request',
+]);
+
+function notificationHref(item: AppNotification): string | null {
+  if (item.type === 'community_invite' && item.communityId) {
+    return `/community/join/${item.communityId}`;
+  }
+  if (item.type === 'community_join_request' && item.communityId) {
+    return `/community/${item.communityId}?tab=members`;
+  }
+  if (COMMUNITY_TYPES.has(item.type) && item.communityId) {
+    return `/community/${item.communityId}`;
+  }
+  if (item.type === 'message' && item.conversationId) {
+    return `/feed?dm=${item.conversationId}`;
+  }
+  if (item.type === 'follow' && item.actor.profileId) {
+    return `/feed/profile/${item.actor.profileId}`;
+  }
+  if (item.photoId) {
+    return `/feed?post=${item.photoId}`;
+  }
+  if (item.actor.profileId) {
+    return `/feed/profile/${item.actor.profileId}`;
+  }
+  return '/feed';
+}
+
+function isPendingSparkInvite(item: AppNotification) {
+  if (item.type !== 'post_collaboration' || !item.photoId) return false;
+  const title = item.title.toLowerCase();
+  if (
+    title.includes('accepted your spark') ||
+    title.includes('declined your spark') ||
+    title.includes('removed you') ||
+    title.includes('left your spark')
+  ) {
+    return false;
+  }
+  return /invited/i.test(item.title);
+}
+
+function apiErrorMessage(error: unknown) {
+  const fromApi = (error as { response?: { data?: { message?: string } } })?.response?.data
+    ?.message;
+  if (fromApi) return fromApi;
+  if (error instanceof Error && error.message) return error.message;
+  return 'Could not update this Spark invite.';
+}
+
 export function NotificationBell({
   onOpenMessage,
   onOpenPost,
@@ -83,6 +143,8 @@ export function NotificationBell({
 }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [sparkDone, setSparkDone] = useState<Record<string, 'accept' | 'decline'>>({});
+  const [sparkError, setSparkError] = useState<{ id: string; message: string } | null>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -124,11 +186,21 @@ export function NotificationBell({
       notificationId: string;
     }) => feedAPI.respondToCollaboration(photoId, action),
     onSuccess: (_data, variables) => {
+      setSparkDone((prev) => ({ ...prev, [variables.notificationId]: variables.action }));
+      setSparkError(null);
       void notificationsAPI.markRead(variables.notificationId);
       void queryClient.invalidateQueries({ queryKey: ['notifications'] });
       void queryClient.invalidateQueries({ queryKey: ['feed'] });
+      void queryClient.invalidateQueries({ queryKey: ['feedPost'] });
       void queryClient.invalidateQueries({ queryKey: ['profilePosts'] });
       void queryClient.invalidateQueries({ queryKey: ['publicProfile'] });
+      if (variables.action === 'accept') {
+        router.push(`/feed?post=${encodeURIComponent(variables.photoId)}`);
+        setOpen(false);
+      }
+    },
+    onError: (error, variables) => {
+      setSparkError({ id: variables.notificationId, message: apiErrorMessage(error) });
     },
   });
 
@@ -148,18 +220,11 @@ export function NotificationBell({
 
   useEffect(() => {
     if (!open) return;
-    const onPointer = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
-      setOpen(false);
-    };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
-    window.addEventListener('mousedown', onPointer);
     window.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener('mousedown', onPointer);
       window.removeEventListener('keydown', onKey);
     };
   }, [open]);
@@ -176,48 +241,34 @@ export function NotificationBell({
 
   const openNotification = (item: AppNotification) => {
     if (!item.readAt) markOne.mutate(item.id);
-    if (
-      (item.type === 'community_announcement' ||
-        item.type === 'community_week_summary' ||
-        item.type === 'community_nudge' ||
-        item.type === 'community_invite' ||
-        item.type === 'community_join_request' ||
-        item.type === 'community_event' ||
-        item.type === 'community_event_reminder' ||
-        item.type === 'community_appreciation' ||
-        item.type === 'community_mention' ||
-        item.type === 'community_reply') &&
-      item.communityId
-    ) {
-      router.push(
-        item.type === 'community_invite'
-          ? `/community/join/${item.communityId}`
-          : item.type === 'community_join_request'
-            ? `/community/${item.communityId}?tab=members`
-            : `/community/${item.communityId}`
-      );
+    if (item.type === 'message' && item.conversationId && onOpenMessage) {
+      onOpenMessage(item.conversationId);
       setOpen(false);
       return;
     }
-    if (item.type === 'message' && item.conversationId) {
-      onOpenMessage?.(item.conversationId);
-      setOpen(false);
-      return;
+    if (item.photoId && onOpenPost) {
+      onOpenPost(item.photoId);
     }
-    if (item.type === 'follow' && item.actor.profileId) {
-      router.push(`/feed/profile/${item.actor.profileId}`);
-      setOpen(false);
-      return;
-    }
-    if (item.photoId) {
-      onOpenPost?.(item.photoId);
-      setOpen(false);
-      return;
-    }
-    if (item.actor.profileId) {
-      router.push(`/feed/profile/${item.actor.profileId}`);
-      setOpen(false);
-    }
+    const href = notificationHref(item);
+    if (href) router.push(href);
+    setOpen(false);
+  };
+
+  const respondToSpark = (
+    event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>,
+    item: AppNotification,
+    action: 'accept' | 'decline'
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!item.photoId || collabMutation.isPending) return;
+    setSparkError(null);
+    if (!item.readAt) markOne.mutate(item.id);
+    collabMutation.mutate({
+      photoId: item.photoId,
+      action,
+      notificationId: item.id,
+    });
   };
 
   const panel =
@@ -343,43 +394,50 @@ export function NotificationBell({
                                   ) : null}
                                 </p>
                               </button>
-                              {item.type === 'post_collaboration' &&
-                              item.photoId &&
-                              /invited you to spark/i.test(item.title) ? (
-                                <div className="mt-2 flex gap-2">
-                                  <button
-                                    type="button"
-                                    disabled={collabMutation.isPending}
-                                    className="rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      if (!item.readAt) markOne.mutate(item.id);
-                                      collabMutation.mutate({
-                                        photoId: item.photoId!,
-                                        action: 'accept',
-                                        notificationId: item.id,
-                                      });
-                                    }}
-                                  >
-                                    Accept
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={collabMutation.isPending}
-                                    className="rounded-lg bg-secondary px-3 py-1 text-xs font-semibold text-foreground"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      if (!item.readAt) markOne.mutate(item.id);
-                                      collabMutation.mutate({
-                                        photoId: item.photoId!,
-                                        action: 'decline',
-                                        notificationId: item.id,
-                                      });
-                                    }}
-                                  >
-                                    Decline
-                                  </button>
+                              {isPendingSparkInvite(item) && !sparkDone[item.id] ? (
+                                <div className="relative z-10 mt-2 flex flex-col gap-1.5">
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={collabMutation.isPending}
+                                      className="touch-manipulation rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                                      onPointerDown={(event) => event.stopPropagation()}
+                                      onClick={(event) => respondToSpark(event, item, 'accept')}
+                                    >
+                                      {collabMutation.isPending &&
+                                      collabMutation.variables?.notificationId === item.id &&
+                                      collabMutation.variables?.action === 'accept'
+                                        ? 'Accepting…'
+                                        : 'Accept'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={collabMutation.isPending}
+                                      className="touch-manipulation rounded-lg px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-60"
+                                      onPointerDown={(event) => event.stopPropagation()}
+                                      onClick={(event) => respondToSpark(event, item, 'decline')}
+                                    >
+                                      {collabMutation.isPending &&
+                                      collabMutation.variables?.notificationId === item.id &&
+                                      collabMutation.variables?.action === 'decline'
+                                        ? 'Declining…'
+                                        : 'Decline'}
+                                    </button>
+                                  </div>
+                                  {sparkError?.id === item.id ? (
+                                    <p className="text-[11px] font-medium text-destructive">
+                                      {sparkError.message}
+                                    </p>
+                                  ) : null}
                                 </div>
+                              ) : sparkDone[item.id] === 'accept' ? (
+                                <p className="mt-1.5 text-[11px] font-medium text-primary">
+                                  Spark accepted
+                                </p>
+                              ) : sparkDone[item.id] === 'decline' ? (
+                                <p className="mt-1.5 text-[11px] font-medium text-muted-foreground">
+                                  Invite declined
+                                </p>
                               ) : null}
                             </div>
                             {!item.readAt ? (

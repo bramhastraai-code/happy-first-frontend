@@ -26,10 +26,31 @@ import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 import { todayInProfileZone } from '@/lib/utils/profileTime';
+import { HeaderTodayMood } from '@/components/mood/HeaderTodayMood';
+import { MoodFace } from '@/components/mood/MoodFace';
+import { getDaylioMoodOption, isDailyMoodActive } from '@/lib/utils/dailyMood';
+import type { DailyMoodView } from '@/lib/utils/dailyMood';
 
 function displayWebsite(url?: string | null) {
   if (!url) return '';
   return url.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+}
+
+function ProfileMoodLine({ mood }: { mood?: DailyMoodView | null }) {
+  if (!isDailyMoodActive(mood)) return null;
+  const daylio = getDaylioMoodOption(mood?.mood);
+  if (!daylio) return null;
+  return (
+    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <span
+        className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full"
+        style={{ backgroundColor: daylio.color }}
+      >
+        <MoodFace kind={daylio.face} className="h-2.5 w-2.5" />
+      </span>
+      Feeling {daylio.label}
+    </p>
+  );
 }
 
 export default function FeedProfilePage() {
@@ -80,18 +101,21 @@ export default function FeedProfilePage() {
 
   const data = profileQuery.data;
   const thisWeekPercent = (() => {
-    if (
-      isOwnProfile &&
-      ownWeekQuery.data &&
-      typeof ownWeekQuery.data.totalPoints === 'number' &&
-      !Number.isNaN(ownWeekQuery.data.totalPoints)
-    ) {
-      return Number(ownWeekQuery.data.totalPoints.toFixed(2));
-    }
-    if (data?.thisWeekCompletionPercent != null && !Number.isNaN(Number(data.thisWeekCompletionPercent))) {
-      return Number(Number(data.thisWeekCompletionPercent).toFixed(2));
-    }
-    return 0;
+    const raw = (() => {
+      if (
+        isOwnProfile &&
+        ownWeekQuery.data &&
+        typeof ownWeekQuery.data.totalPoints === 'number' &&
+        !Number.isNaN(ownWeekQuery.data.totalPoints)
+      ) {
+        return Number(ownWeekQuery.data.totalPoints.toFixed(2));
+      }
+      if (data?.thisWeekCompletionPercent != null && !Number.isNaN(Number(data.thisWeekCompletionPercent))) {
+        return Number(Number(data.thisWeekCompletionPercent).toFixed(2));
+      }
+      return 0;
+    })();
+    return Math.min(100, Math.max(0, raw));
   })();
 
   const postsQuery = useQuery({
@@ -113,6 +137,7 @@ export default function FeedProfilePage() {
         avatarUrl: post.author.avatarUrl ?? data.profile.avatarUrl,
         avatarSeed: post.author.avatarSeed ?? data.profile.avatarSeed,
         avatarStyle: post.author.avatarStyle ?? data.profile.avatarStyle,
+        dailyMood: post.author.dailyMood ?? data.dailyMood,
       },
     }));
   }, [postsQuery.data?.posts, data?.profile]);
@@ -280,8 +305,13 @@ export default function FeedProfilePage() {
                 </div>
               </div>
 
-              <div className="mt-3 space-y-1">
+              <div className="mt-3 flex flex-col gap-1">
                 <h1 className="text-sm font-semibold text-foreground">{data.profile.name}</h1>
+                {isMe ? (
+                  <HeaderTodayMood profileId={profileId} />
+                ) : (
+                  <ProfileMoodLine mood={data.dailyMood} />
+                )}
                 {data.profile.city ? (
                   <p className="text-xs text-muted-foreground">{data.profile.city}</p>
                 ) : null}
@@ -296,7 +326,7 @@ export default function FeedProfilePage() {
                   <button
                     type="button"
                     onClick={() => setEditOpen(true)}
-                    className="text-sm text-muted-foreground"
+                    className="block w-full text-left text-sm text-muted-foreground"
                   >
                     Add a public highlight…
                   </button>
@@ -309,7 +339,7 @@ export default function FeedProfilePage() {
                   <button
                     type="button"
                     onClick={() => setEditOpen(true)}
-                    className="text-sm text-muted-foreground"
+                    className="block w-full text-left text-sm text-muted-foreground"
                   >
                     Add a bio…
                   </button>
@@ -327,7 +357,7 @@ export default function FeedProfilePage() {
                   <button
                     type="button"
                     onClick={() => setEditOpen(true)}
-                    className="block text-sm text-muted-foreground"
+                    className="block w-full text-left text-sm text-muted-foreground"
                   >
                     Add a link…
                   </button>
@@ -429,6 +459,7 @@ export default function FeedProfilePage() {
                   </>
                 )}
               </div>
+              {isMe ? <ReferralPromoCard className="mt-2" /> : null}
             </section>
 
             {(data.communities?.length ?? 0) > 0 ? (
@@ -510,12 +541,6 @@ export default function FeedProfilePage() {
                   ))}
                 </ul>
               </section>
-            ) : null}
-
-            {isMe ? (
-              <div className="mt-5 px-1">
-                <ReferralPromoCard compact />
-              </div>
             ) : null}
 
             <div

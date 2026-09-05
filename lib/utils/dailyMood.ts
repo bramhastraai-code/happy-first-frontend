@@ -130,6 +130,42 @@ export function getDaylioMoodOption(value?: string | null) {
   return DAYLIO_MOOD_OPTIONS.find((option) => option.value === mapped) ?? null;
 }
 
+/** Short journal prompt shown after picking a face (Daylio-style follow-up). */
+export function getMoodJournalPrompt(value?: string | null): string {
+  switch (mapToDaylioMood(value)) {
+    case 'happy':
+      return "What's making today feel rad?";
+    case 'good':
+      return "What's going well today?";
+    case 'neutral':
+      return "What's on your mind?";
+    case 'sad':
+      return 'Why are you feeling sad?';
+    case 'stressed':
+      return "What's making today feel awful?";
+    default:
+      return 'What have you been up to?';
+  }
+}
+
+/** Short punch line under the Select mood card once a mood is set. */
+export function getMoodSpreadText(value?: string | null): string {
+  switch (mapToDaylioMood(value)) {
+    case 'happy':
+      return 'Ride the high.';
+    case 'good':
+      return 'Keep the glow going.';
+    case 'neutral':
+      return 'Small steps still count.';
+    case 'sad':
+      return 'Be gentle with yourself.';
+    case 'stressed':
+      return 'One breath at a time.';
+    default:
+      return 'Check in, then move.';
+  }
+}
+
 /** Map any stored mood onto the five check-in faces. */
 export function mapToDaylioMood(value?: string | null): DailyMoodValue | null {
   switch (value) {

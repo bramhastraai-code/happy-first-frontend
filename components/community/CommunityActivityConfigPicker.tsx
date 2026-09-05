@@ -142,7 +142,7 @@ export function CommunityActivityConfigPicker({
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : !discussionOnly ? (
-        <ul className="max-h-[50vh] space-y-2 overflow-y-auto">
+        <ul className="max-h-[50vh] space-y-2 overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {sortedActivities.map((activity) => {
             const active = Boolean(selectedLevels[activity._id]);
             const level = selectedLevels[activity._id] || 'active';

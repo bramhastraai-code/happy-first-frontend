@@ -10,6 +10,7 @@ import { DailyMoodJournalStep } from '@/components/mood/DailyMoodJournalStep';
 import { MoodFace } from '@/components/mood/MoodFace';
 import {
   getDaylioMoodOption,
+  getMoodJournalPrompt,
   hydrateMoodStickers,
   mapToDaylioMood,
   moodStickerStorageKey,
@@ -162,6 +163,7 @@ export function DailyMoodPickerSheet({
 
   const busy = saveMutation.isPending || removeMutation.isPending;
   const daylio = getDaylioMoodOption(selected);
+  const journalPrompt = getMoodJournalPrompt(selected);
 
   const handleClose = () => {
     if (busy) return;
@@ -229,7 +231,7 @@ export function DailyMoodPickerSheet({
       ) : (
         <div
           role="dialog"
-          aria-label="What have you been up to?"
+          aria-label={journalPrompt}
           className="relative z-[1] flex h-dvh w-full max-w-lg flex-col overflow-hidden bg-background sm:h-[min(92dvh,760px)] sm:rounded-[1.5rem] sm:shadow-[var(--shadow-float)]"
         >
           <header className="flex shrink-0 items-center gap-1.5 border-b border-border px-2 py-2.5 pt-[max(0.65rem,env(safe-area-inset-top))] sm:gap-2 sm:px-3">
@@ -250,7 +252,7 @@ export function DailyMoodPickerSheet({
               </span>
             ) : null}
             <h2 className="flex-1 text-center font-serif text-[15px] font-semibold leading-tight text-foreground sm:text-lg">
-              What have you been up to?
+              {journalPrompt}
             </h2>
             <button
               type="button"

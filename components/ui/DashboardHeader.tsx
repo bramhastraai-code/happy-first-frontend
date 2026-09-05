@@ -7,27 +7,26 @@ import { useAuthStore } from '@/lib/store/authStore';
 import { NotificationBell } from '@/components/feed/NotificationBell';
 import { AppPageHeader } from '@/components/ui/AppPageHeader';
 import { HeaderIconButton } from '@/components/ui/HeaderIconAction';
-import { firstNameFrom, getTimeGreeting } from '@/lib/utils/greeting';
-import { cn } from '@/lib/utils';
+import { firstNameFrom } from '@/lib/utils/greeting';
+import { HeaderTodayMood } from '@/components/mood/HeaderTodayMood';
 
 interface DashboardHeaderProps {
-  subtitle?: string;
-  isActive?: boolean;
   isPaused?: boolean;
   onOpenMessages?: () => void;
   onOpenMessageFromNotification?: (conversationId: string) => void;
   className?: string;
   extraActions?: ReactNode;
+  /** Level label shown next to the name, e.g. "Lv 4 · Builder" */
+  levelLabel?: string | null;
 }
 
 export function DashboardHeader({
-  subtitle,
-  isActive = true,
   isPaused = false,
   onOpenMessages,
   onOpenMessageFromNotification,
   className,
   extraActions,
+  levelLabel = null,
 }: DashboardHeaderProps) {
   const router = useRouter();
   const { user, selectedProfile, profiles, setProfileSelectedInSession } = useAuthStore();
@@ -45,33 +44,37 @@ export function DashboardHeader({
     <AppPageHeader
       className={className}
       showAvatar
-      subtitle={subtitle}
       title={
-        <>
-          {getTimeGreeting()},{' '}
+        <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="text-primary">{firstNameFrom(displayName)}</span>
-        </>
-      }
-      meta={
-        <>
-          <span
-            className={cn(
-              'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold sm:text-xs',
-              isPaused
-                ? 'bg-amber-100 text-amber-800'
-                : isActive
-                  ? 'bg-success-soft text-success'
-                  : 'bg-secondary text-muted-foreground'
-            )}
-          >
-            {isPaused ? 'Plan paused' : isActive ? 'Active' : 'Inactive'}
-          </span>
-          {!isMainProfile && user?.name ? (
-            <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
-              Managed by {firstNameFrom(user.name)}
-            </span>
+          {levelLabel ? (
+            <button
+              type="button"
+              onClick={() => router.push('/xp')}
+              className="text-xs font-semibold tabular-nums text-muted-foreground transition-colors hover:text-primary sm:text-sm"
+            >
+              {levelLabel}
+            </button>
           ) : null}
-        </>
+        </span>
+      }
+      subtitle={<HeaderTodayMood profileId={selectedProfile?._id} />}
+      subtitleTone="plain"
+      meta={
+        isPaused || (!isMainProfile && user?.name) ? (
+          <>
+            {isPaused ? (
+              <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 sm:text-xs">
+                Plan paused
+              </span>
+            ) : null}
+            {!isMainProfile && user?.name ? (
+              <span className="truncate text-[11px] text-muted-foreground sm:text-xs">
+                Managed by {firstNameFrom(user.name)}
+              </span>
+            ) : null}
+          </>
+        ) : undefined
       }
       actions={
         <>

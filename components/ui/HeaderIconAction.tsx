@@ -93,6 +93,7 @@ interface HeaderOverflowMenuProps {
   caption?: string;
   /** Icon-only trigger (Daylio-style headers). */
   iconOnly?: boolean;
+  triggerClassName?: string;
 }
 
 /** Collapses secondary header actions into a single More control. */
@@ -100,6 +101,7 @@ export function HeaderOverflowMenu({
   items,
   caption = 'More',
   iconOnly = false,
+  triggerClassName,
 }: HeaderOverflowMenuProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -227,7 +229,7 @@ export function HeaderOverflowMenu({
       {iconOnly ? (
         <button
           type="button"
-          className={headerActionBtnClass}
+          className={cn(headerActionBtnClass, triggerClassName)}
           aria-label={caption}
           aria-expanded={open}
           aria-haspopup="menu"

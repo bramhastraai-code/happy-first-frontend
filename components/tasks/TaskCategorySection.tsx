@@ -27,6 +27,8 @@ interface TaskCategorySectionProps {
   onCheckboxChange: (activityId: string, checked: boolean) => void;
   onPendingChange: (activityId: string, isPending: boolean) => void;
   getActivityInputMax: (activity: WeeklyPlanActivity, activityData?: ActivityType) => number;
+  /** Kept for call-site compatibility; sections are always expanded. */
+  defaultOpen?: boolean;
 }
 
 export default function TaskCategorySection({
@@ -59,13 +61,15 @@ export default function TaskCategorySection({
   if (categoryActivities.length === 0) return null;
 
   return (
-    <section id={category.toLowerCase()} className="section-card scroll-mt-24">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <span className="text-base">{meta.emoji}</span>
-        <h3 className="text-sm font-semibold text-foreground">{meta.label}</h3>
-        <span className="ml-auto text-xs text-muted-foreground">
-          {categoryActivities.length} {categoryActivities.length === 1 ? 'task' : 'tasks'}
+    <section id={category.toLowerCase()} className="scroll-mt-24">
+      <div className="flex items-center gap-2 py-3">
+        <span className="text-base" aria-hidden>
+          {meta.emoji}
         </span>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {meta.label}
+        </h3>
+        <span className="text-[11px] text-muted-foreground">{categoryActivities.length}</span>
       </div>
 
       {categoryActivities.map((activity, index) => {
