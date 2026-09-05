@@ -1,25 +1,20 @@
 export const DAILY_MOOD_OPTIONS = [
-  { value: 'happy', label: 'Happy', emoji: '😊' },
+  { value: 'joyful', label: 'Joyful', emoji: '😊' },
   { value: 'good', label: 'Good', emoji: '🙂' },
-  { value: 'neutral', label: 'Neutral', emoji: '😐' },
-  { value: 'sad', label: 'Sad', emoji: '😔' },
-  { value: 'angry', label: 'Angry', emoji: '😡' },
-  { value: 'motivated', label: 'Motivated', emoji: '🔥' },
-  { value: 'tired', label: 'Tired', emoji: '😴' },
-  { value: 'energetic', label: 'Energetic', emoji: '⚡' },
-  { value: 'stressed', label: 'Stressed', emoji: '😫' },
-  { value: 'excited', label: 'Excited', emoji: '🤩' },
+  { value: 'okay', label: 'Okay', emoji: '😐' },
+  { value: 'low', label: 'Low', emoji: '😔' },
+  { value: 'heavy', label: 'Heavy', emoji: '😫' },
 ] as const;
 
 export type DailyMoodValue = (typeof DAILY_MOOD_OPTIONS)[number]['value'];
 
 /** Five-face check-in shown on Happiness (maps onto stored mood values). */
 export const DAYLIO_MOOD_OPTIONS = [
-  { value: 'happy' as const, label: 'rad', face: 'rad' as const, color: '#C6D63C' },
+  { value: 'joyful' as const, label: 'joyful', face: 'rad' as const, color: '#F5C842' },
   { value: 'good' as const, label: 'good', face: 'good' as const, color: '#6CBC5A' },
-  { value: 'neutral' as const, label: 'meh', face: 'meh' as const, color: '#4DB6A8' },
-  { value: 'sad' as const, label: 'bad', face: 'bad' as const, color: '#7E9AAB' },
-  { value: 'stressed' as const, label: 'awful', face: 'awful' as const, color: '#6B5E56' },
+  { value: 'okay' as const, label: 'okay', face: 'meh' as const, color: '#5BA3D9' },
+  { value: 'low' as const, label: 'low', face: 'bad' as const, color: '#8B7EC8' },
+  { value: 'heavy' as const, label: 'heavy', face: 'awful' as const, color: '#4A5568' },
 ] as const;
 
 export type DaylioMoodFace = (typeof DAYLIO_MOOD_OPTIONS)[number]['face'];
@@ -108,10 +103,11 @@ export interface DailyMoodMedia {
 }
 
 export interface DailyMoodView {
-  mood: DailyMoodValue;
+  mood: string;
   label: string;
   emoji: string;
   expiresAt: string;
+  setAt?: string | null;
   updatedAt?: string | null;
   emotions?: MoodEmotionSticker[] | string[];
   note?: string;
@@ -133,16 +129,16 @@ export function getDaylioMoodOption(value?: string | null) {
 /** Short journal prompt shown after picking a face (Daylio-style follow-up). */
 export function getMoodJournalPrompt(value?: string | null): string {
   switch (mapToDaylioMood(value)) {
-    case 'happy':
-      return "What's making today feel rad?";
+    case 'joyful':
+      return "What's making today feel joyful?";
     case 'good':
       return "What's going well today?";
-    case 'neutral':
+    case 'okay':
       return "What's on your mind?";
-    case 'sad':
-      return 'Why are you feeling sad?';
-    case 'stressed':
-      return "What's making today feel awful?";
+    case 'low':
+      return "What's weighing on you?";
+    case 'heavy':
+      return 'What feels heavy right now?';
     default:
       return 'What have you been up to?';
   }
@@ -151,39 +147,43 @@ export function getMoodJournalPrompt(value?: string | null): string {
 /** Short punch line under the Select mood card once a mood is set. */
 export function getMoodSpreadText(value?: string | null): string {
   switch (mapToDaylioMood(value)) {
-    case 'happy':
+    case 'joyful':
       return 'Ride the high.';
     case 'good':
       return 'Keep the glow going.';
-    case 'neutral':
+    case 'okay':
       return 'Small steps still count.';
-    case 'sad':
+    case 'low':
       return 'Be gentle with yourself.';
-    case 'stressed':
+    case 'heavy':
       return 'One breath at a time.';
     default:
       return 'Check in, then move.';
   }
 }
 
-/** Map any stored mood onto the five check-in faces. */
+/** Map any stored mood onto the five default check-in faces. */
 export function mapToDaylioMood(value?: string | null): DailyMoodValue | null {
   switch (value) {
+    case 'joyful':
     case 'happy':
     case 'excited':
     case 'energetic':
     case 'motivated':
-      return 'happy';
+      return 'joyful';
     case 'good':
       return 'good';
+    case 'okay':
     case 'neutral':
     case 'tired':
-      return 'neutral';
+      return 'okay';
+    case 'low':
     case 'sad':
-      return 'sad';
+      return 'low';
+    case 'heavy':
     case 'angry':
     case 'stressed':
-      return 'stressed';
+      return 'heavy';
     default:
       return null;
   }

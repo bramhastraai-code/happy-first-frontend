@@ -174,6 +174,27 @@ export function useFeedRealtime(
         );
       };
 
+      const onNotificationRemoved = (payload: { notificationIds?: string[] }) => {
+        const ids = payload?.notificationIds || [];
+        if (!ids.length) return;
+        const idSet = new Set(ids.map(String));
+        queryClient.setQueryData<{ notifications: AppNotification[]; unread: number }>(
+          ['notifications'],
+          (old) => {
+            if (!old) return old;
+            const next = old.notifications.filter((n) => !idSet.has(String(n.id)));
+            if (next.length === old.notifications.length) return old;
+            const removedUnread = old.notifications.filter(
+              (n) => idSet.has(String(n.id)) && !n.readAt
+            ).length;
+            return {
+              notifications: next,
+              unread: Math.max(0, (old.unread || 0) - removedUnread),
+            };
+          }
+        );
+      };
+
       const onNewStory = () => {
         if (communityId) return;
         void queryClient.invalidateQueries({ queryKey: ['feedStories'] });
@@ -270,6 +291,7 @@ export function useFeedRealtime(
       socket.on('feed:post_updated', onPostUpdated);
       socket.on('feed:post_deleted', onPostDeleted);
       socket.on('notification:new', onNotification);
+      socket.on('notification:removed', onNotificationRemoved);
       socket.on('dm:message', onDm);
       socket.on('dm:messages_deleted', onDmDeleted);
       socket.on('dm:chat_cleared', onDmCleared);
@@ -284,6 +306,7 @@ export function useFeedRealtime(
         socket.off('feed:post_updated', onPostUpdated);
         socket.off('feed:post_deleted', onPostDeleted);
         socket.off('notification:new', onNotification);
+        socket.off('notification:removed', onNotificationRemoved);
         socket.off('dm:message', onDm);
         socket.off('dm:messages_deleted', onDmDeleted);
         socket.off('dm:chat_cleared', onDmCleared);

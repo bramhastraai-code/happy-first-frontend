@@ -8,7 +8,6 @@ import { NotificationBell } from '@/components/feed/NotificationBell';
 import { AppPageHeader } from '@/components/ui/AppPageHeader';
 import { HeaderIconButton } from '@/components/ui/HeaderIconAction';
 import { firstNameFrom } from '@/lib/utils/greeting';
-import { HeaderTodayMood } from '@/components/mood/HeaderTodayMood';
 
 interface DashboardHeaderProps {
   isPaused?: boolean;
@@ -58,7 +57,11 @@ export function DashboardHeader({
           ) : null}
         </span>
       }
-      subtitle={<HeaderTodayMood profileId={selectedProfile?._id} />}
+      subtitle={new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+      })}
       subtitleTone="plain"
       meta={
         isPaused || (!isMainProfile && user?.name) ? (

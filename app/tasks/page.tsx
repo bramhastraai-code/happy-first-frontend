@@ -38,7 +38,6 @@ import {
   type LogSuccessEntry,
 } from '@/lib/utils/logSubmit';
 import LogSuccessOverlay from '@/components/ui/LogSuccessOverlay';
-import { HeaderTodayMood } from '@/components/mood/HeaderTodayMood';
 import { firstNameFrom } from '@/lib/utils/greeting';
 
 export default function TasksPage() {
@@ -539,7 +538,11 @@ export default function TasksPage() {
               {firstNameFrom(selectedProfile?.name || user?.name)}
             </span>
           }
-          subtitle={<HeaderTodayMood profileId={selectedProfile?._id} />}
+          subtitle={new Date().toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'short',
+            day: 'numeric',
+          })}
           subtitleTone="plain"
           meta={
             <span className="inline-flex rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary sm:text-xs">

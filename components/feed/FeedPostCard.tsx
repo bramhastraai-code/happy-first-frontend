@@ -450,6 +450,11 @@ export function FeedPostCard({
                 {post.author.name}
               </Link>
               <DailyMoodInline mood={post.author.dailyMood} />
+              {post.dailyMoodPost ? (
+                <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                  {post.dailyMoodPost.emoji || '🙂'} Mood
+                </span>
+              ) : null}
               {accepted.length > 0 ? (
                 <span className="font-medium text-muted-foreground">
                   {' '}

@@ -26,9 +26,7 @@ import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
 import { useAuthStore } from '@/lib/store/authStore';
 import { cn } from '@/lib/utils';
 import { todayInProfileZone } from '@/lib/utils/profileTime';
-import { HeaderTodayMood } from '@/components/mood/HeaderTodayMood';
-import { MoodFace } from '@/components/mood/MoodFace';
-import { getDaylioMoodOption, isDailyMoodActive } from '@/lib/utils/dailyMood';
+import { isDailyMoodActive } from '@/lib/utils/dailyMood';
 import type { DailyMoodView } from '@/lib/utils/dailyMood';
 
 function displayWebsite(url?: string | null) {
@@ -38,18 +36,34 @@ function displayWebsite(url?: string | null) {
 
 function ProfileMoodLine({ mood }: { mood?: DailyMoodView | null }) {
   if (!isDailyMoodActive(mood)) return null;
-  const daylio = getDaylioMoodOption(mood?.mood);
-  if (!daylio) return null;
   return (
     <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-      <span
-        className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full"
-        style={{ backgroundColor: daylio.color }}
-      >
-        <MoodFace kind={daylio.face} className="h-2.5 w-2.5" />
+      <span className="text-base leading-none" aria-hidden>
+        {mood?.emoji}
       </span>
-      Feeling {daylio.label}
+      Feeling {mood?.label}
     </p>
+  );
+}
+
+function OwnMoodLink({ mood }: { mood?: DailyMoodView | null }) {
+  const active = isDailyMoodActive(mood);
+  return (
+    <Link
+      href="/mood"
+      className="inline-flex max-w-full items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-primary"
+    >
+      {active ? (
+        <>
+          <span className="text-base leading-none" aria-hidden>
+            {mood?.emoji}
+          </span>
+          <span className="truncate">Feeling {mood?.label}</span>
+        </>
+      ) : (
+        <span>Set today&apos;s mood</span>
+      )}
+    </Link>
   );
 }
 
@@ -308,7 +322,7 @@ export default function FeedProfilePage() {
               <div className="mt-3 flex flex-col gap-1">
                 <h1 className="text-sm font-semibold text-foreground">{data.profile.name}</h1>
                 {isMe ? (
-                  <HeaderTodayMood profileId={profileId} />
+                  <OwnMoodLink mood={data.dailyMood} />
                 ) : (
                   <ProfileMoodLine mood={data.dailyMood} />
                 )}
@@ -385,36 +399,51 @@ export default function FeedProfilePage() {
                     {
                       label: 'This week',
                       display: `${thisWeekPercent.toFixed(2)}%`,
+                      href: null as string | null,
                     },
                     {
                       label: 'Activities',
                       display: Number(data.totalActivitiesTotal ?? 0).toLocaleString(),
+                      href: null,
                     },
                     {
                       label: 'XP',
                       display: Number(data.xpTotal ?? 0).toLocaleString(),
+                      href: isMe ? '/xp' : null,
                     },
                     {
                       label: 'Coins',
                       display: Number(data.coinsBalance ?? 0).toLocaleString(),
+                      href: isMe ? '/coins' : null,
                     },
                   ] as const
-                ).map((stat, i) => (
-                  <div
-                    key={stat.label}
-                    className={cn(
-                      'px-2 py-2.5 text-center',
-                      i % 2 === 0 && 'border-r border-[#efefef]',
-                      i < 2 && 'border-b border-[#efefef] sm:border-b-0',
-                      i < 3 && 'sm:border-r sm:border-[#efefef]'
-                    )}
-                  >
-                    <p className="text-sm font-semibold tabular-nums text-foreground">
-                      {stat.display}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-neutral-400">{stat.label}</p>
-                  </div>
-                ))}
+                ).map((stat, i) => {
+                  const cellClass = cn(
+                    'px-2 py-2.5 text-center',
+                    i % 2 === 0 && 'border-r border-[#efefef]',
+                    i < 2 && 'border-b border-[#efefef] sm:border-b-0',
+                    i < 3 && 'sm:border-r sm:border-[#efefef]',
+                    stat.href &&
+                      'transition-colors hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/25'
+                  );
+                  const content = (
+                    <>
+                      <p className="text-sm font-semibold tabular-nums text-foreground">
+                        {stat.display}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-neutral-400">{stat.label}</p>
+                    </>
+                  );
+                  return stat.href ? (
+                    <Link key={stat.label} href={stat.href} className={cellClass}>
+                      {content}
+                    </Link>
+                  ) : (
+                    <div key={stat.label} className={cellClass}>
+                      {content}
+                    </div>
+                  );
+                })}
               </div>
               <div className="mt-3 flex gap-2">
                 {isMe ? (

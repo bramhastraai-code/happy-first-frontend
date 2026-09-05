@@ -74,6 +74,15 @@ export interface FeedPost {
     fontId: string;
     kind: 'post' | 'story';
   } | null;
+  /** Present when this Feed post was auto-published from Daily Mood. */
+  source?: 'whatsapp' | 'app' | 'dailyMood' | string;
+  moodExpiresAt?: string | null;
+  dailyMoodPost?: {
+    mood?: string | null;
+    label?: string | null;
+    emoji?: string | null;
+    expiresAt?: string | null;
+  } | null;
   author: FeedAuthor;
   repostOf?: FeedRepostRef | null;
   repostCount?: number;

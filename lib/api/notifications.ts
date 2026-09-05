@@ -23,6 +23,7 @@ export interface AppNotification {
   title: string;
   body: string;
   photoId?: string | null;
+  commentId?: string | null;
   conversationId?: string | null;
   communityId?: string | null;
   announcementId?: string | null;

@@ -18,6 +18,7 @@ export const PROTECTED_APP_ROUTES = [
   '/tracker',
   '/coins',
   '/xp',
+  '/mood',
 ] as const;
 
 export const AUTH_ROUTES = ['/login', '/register', '/verify-otp'] as const;

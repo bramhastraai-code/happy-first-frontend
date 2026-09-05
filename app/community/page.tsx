@@ -36,12 +36,20 @@ function activityPreview(community: Community) {
 function roleSubtitle(community: Community) {
   if (community.status === 'deleted') return 'Deleted · history available';
   if (community.status === 'disabled') return 'Disabled';
-  if (community.myRole === 'admin') return 'Admin';
-  if (community.myRole === 'moderator') return 'Moderator';
-  return 'Member';
+  const members = `${community.memberCount} members`;
+  if (community.myRole === 'admin') return members;
+  if (community.myRole === 'moderator') return `Moderator · ${members}`;
+  return `Member · ${members}`;
 }
 
 function CommunityListItem({ community }: { community: Community }) {
+  const isAdmin = community.myRole === 'admin';
+  const statusLabel =
+    community.status === 'deleted'
+      ? 'Deleted'
+      : community.status === 'disabled'
+        ? 'Disabled'
+        : null;
   return (
     <li key={community.id}>
       <Link
@@ -56,17 +64,19 @@ function CommunityListItem({ community }: { community: Community }) {
           avatarStyle={community.avatarStyle}
         />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{community.name}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {roleSubtitle(community)}
-            {community.status !== 'deleted' && community.status !== 'disabled'
-              ? ` · ${community.memberCount} members`
-              : null}
-          </p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="truncate text-sm font-semibold">{community.name}</p>
+            {isAdmin && !statusLabel ? (
+              <span className="shrink-0 rounded-full bg-primary-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                Admin
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">{roleSubtitle(community)}</p>
         </div>
-        {community.status === 'deleted' || community.status === 'disabled' ? (
+        {statusLabel ? (
           <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-            {community.status === 'deleted' ? 'Deleted' : 'Disabled'}
+            {statusLabel}
           </span>
         ) : (
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -145,6 +155,20 @@ export default function CommunityPage() {
     [myCommunitiesAll]
   );
 
+  /** Single list: admins first, then moderators, then members. */
+  const myClubsUnified = useMemo(() => {
+    const rank = (role?: string | null) => {
+      if (role === 'admin') return 0;
+      if (role === 'moderator') return 1;
+      return 2;
+    };
+    return [...myCommunitiesAll].sort((a, b) => {
+      const byRole = rank(a.myRole) - rank(b.myRole);
+      if (byRole !== 0) return byRole;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+  }, [myCommunitiesAll]);
+
   const filtered = useMemo(() => {
     if (category === 'All') return communities;
     const cat = category.toLowerCase();
@@ -158,38 +182,6 @@ export default function CommunityPage() {
     0
   );
   const hasAnyMembership = myCommunitiesAll.length > 0;
-
-  function CommunitySection({
-    title,
-    subtitle,
-    items,
-    emptyMessage,
-  }: {
-    title: string;
-    subtitle?: string;
-    items: Community[];
-    emptyMessage?: string;
-  }) {
-    return (
-      <section className="space-y-3">
-        <div>
-          <h2 className="section-title">{title}</h2>
-          {subtitle ? <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p> : null}
-        </div>
-        {items.length > 0 ? (
-          <ul className="section-card divide-y divide-border">
-            {items.map((community) => (
-              <CommunityListItem key={community.id} community={community} />
-            ))}
-          </ul>
-        ) : emptyMessage ? (
-          <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-            {emptyMessage}
-          </p>
-        ) : null}
-      </section>
-    );
-  }
 
   return (
     <MainLayout>
@@ -271,27 +263,19 @@ export default function CommunityPage() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : hasAnyMembership ? (
-              <div className="space-y-6">
-                <CommunitySection
-                  title="My Communities"
-                  subtitle="Where you are admin"
-                  items={myAdminCommunities}
-                  emptyMessage="You are not an admin of any community yet. Create one or ask to be promoted."
-                />
-                {myModeratorGroups.length > 0 ? (
-                  <CommunitySection
-                    title="Moderating"
-                    subtitle="Communities you help manage"
-                    items={myModeratorGroups}
-                  />
-                ) : null}
-                <CommunitySection
-                  title="My Groups"
-                  subtitle="Communities where you are a member"
-                  items={myMemberGroups}
-                  emptyMessage="No member-only groups yet — discover communities to join."
-                />
-              </div>
+              <section className="space-y-3">
+                <div>
+                  <h2 className="section-title">My Club</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Communities you belong to — Admin badge where you lead
+                  </p>
+                </div>
+                <ul className="section-card divide-y divide-border">
+                  {myClubsUnified.map((community) => (
+                    <CommunityListItem key={community.id} community={community} />
+                  ))}
+                </ul>
+              </section>
             ) : (
               <div className="section-card p-6 text-center">
                 <div className="mx-auto mb-3 flex justify-center">

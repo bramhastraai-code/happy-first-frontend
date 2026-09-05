@@ -23,7 +23,7 @@ export const homeTourSteps: Step[] = [
     target: '.home-mood',
     title: 'Select mood',
     content:
-      'Start with today’s mood. After you pick a face, you’ll get a short punch line that matches how you feel.',
+      'Tap to check in how you feel. Use Mood page in the sheet for history, photos, and settings.',
     placement: 'bottom',
   },
   {

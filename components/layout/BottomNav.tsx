@@ -32,7 +32,9 @@ const baseNavigation = [
       pathname === '/home' ||
       pathname.startsWith('/home/') ||
       pathname === '/tasks' ||
-      pathname.startsWith('/tasks/'),
+      pathname.startsWith('/tasks/') ||
+      pathname === '/mood' ||
+      pathname.startsWith('/mood/'),
   },
   {
     name: 'Club',

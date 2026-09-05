@@ -19,6 +19,8 @@ interface CollapsibleSectionProps {
   overflowVisible?: boolean;
   /** `list` = Instagram settings row (no rounded card). */
   variant?: 'card' | 'list';
+  /** Extra control beside the badge (e.g. Log shortcut). Clicks do not toggle. */
+  actions?: React.ReactNode;
 }
 
 export function CollapsibleSection({
@@ -34,6 +36,7 @@ export function CollapsibleSection({
   id,
   overflowVisible = false,
   variant = 'card',
+  actions,
 }: CollapsibleSectionProps) {
   const isList = variant === 'list';
   const header = (
@@ -68,6 +71,18 @@ export function CollapsibleSection({
       {badge && (
         <span className="chip chip-active shrink-0 text-[10px]">{badge}</span>
       )}
+      {actions ? (
+        <span
+          className="shrink-0"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          {actions}
+        </span>
+      ) : null}
       <ChevronDown
         className={cn(
           'h-5 w-5 shrink-0 text-neutral-300 transition-transform duration-200',

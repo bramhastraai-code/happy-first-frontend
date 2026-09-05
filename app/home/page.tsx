@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/authStore';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trophy, Flame, Calendar, Loader2, BarChart3, ListChecks, CalendarDays, X, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Trophy, Flame, Calendar, Loader2, BarChart3, ListChecks, CalendarDays, X, ChevronLeft, ChevronRight, Search, ClipboardList } from 'lucide-react';
 import { economyAPI, type EconomySummary } from '@/lib/api/economy';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { Button } from '@/components/ui/button';
@@ -21,13 +21,13 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 import ActivityChart from '@/components/charts/ActivityChart';
 import { useHomePageData } from '@/lib/queries/useHomePageData';
 import { HomeCategoryCards } from '@/components/home/HomeCategoryCards';
+import { HomeMoodCard } from '@/components/mood/HomeMoodCard';
 import { HomeEconomyCards } from '@/components/home/HomeEconomyCards';
 import { MissedDaysCard } from '@/components/home/MissedDaysCard';
 import { ActivityCategoryCollapse } from '@/components/home/ActivityCategoryCollapse';
 import { resolveActivityId } from '@/lib/utils/activityId';
 import { DailyMotivationQuote } from '@/components/home/DailyMotivationQuote';
 import { HomeMotivationCard } from '@/components/home/HomeMotivationCard';
-import { HomeMoodCard } from '@/components/mood/HomeMoodCard';
 import { WeekendPlanPromptModal } from '@/components/plan/WeekendPlanPromptModal';
 import { CommunityInvitePromptCard } from '@/components/community/CommunityInvitePromptCard';
 import { weeklyPlanAPI, type PlanChoiceState, type WeeklyPlanActivity } from '@/lib/api/weeklyPlan';
@@ -77,7 +77,7 @@ function HomePageContent() {
     activityGoals: false,
     pendingActivities: false,
     leaderboard: false,
-    logTracker: true,
+    logTracker: false,
   });
   // Empty until mount — avoids Vercel SSR (UTC) baking the wrong calendar day into state.
   const [logDateFilter, setLogDateFilter] = useState<string>('');
@@ -479,7 +479,6 @@ function HomePageContent() {
         />
 
         <HomeMoodCard
-          className="home-mood"
           profileId={selectedProfile?._id}
           suppressed={blockOverlaysForTour || Boolean(weekendPrompt?.show)}
         />
@@ -632,6 +631,7 @@ function HomePageContent() {
                               <DailyPendingCard
                                 key={resolveActivityId(activity)}
                                 activity={activity}
+                                onLog={() => router.push('/tasks')}
                               />
                             ))}
                             {group.weeklyOpen.map((activity) => (
@@ -639,6 +639,7 @@ function HomePageContent() {
                                 key={resolveActivityId(activity)}
                                 activity={activity}
                                 weekEnd={weeklyPlan.weekEnd}
+                                onLog={() => router.push('/tasks')}
                               />
                             ))}
                             {group.weeklyDone.map((activity) => (
@@ -1197,7 +1198,27 @@ function HomePageContent() {
   );
 }
 
-function DailyPendingCard({ activity }: { activity: WeeklyPlanActivity }) {
+function PendingLogButton({ onLog }: { onLog: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onLog}
+      className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary-soft px-2 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+      aria-label="Open log page"
+    >
+      <ClipboardList className="h-3 w-3" strokeWidth={2.25} />
+      Log
+    </button>
+  );
+}
+
+function DailyPendingCard({
+  activity,
+  onLog,
+}: {
+  activity: WeeklyPlanActivity;
+  onLog: () => void;
+}) {
   const isSurprise = activity.isSurpriseActivity || false;
   const progress = formatPlanActivityProgress(activity);
   const isAchieved = progress.tone === 'achieved';
@@ -1258,12 +1279,13 @@ function DailyPendingCard({ activity }: { activity: WeeklyPlanActivity }) {
             </div>
           </div>
         </div>
-        <div className="text-left sm:ml-3 sm:text-right">
+        <div className="flex flex-wrap items-center gap-2 sm:ml-3 sm:justify-end">
           <span
             className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold ${progressBadgeClass(progress.tone)}`}
           >
             {progress.text}
           </span>
+          <PendingLogButton onLog={onLog} />
         </div>
       </div>
     </div>
@@ -1273,9 +1295,11 @@ function DailyPendingCard({ activity }: { activity: WeeklyPlanActivity }) {
 function WeeklyPendingCard({
   activity,
   weekEnd,
+  onLog,
 }: {
   activity: WeeklyPlanActivity;
   weekEnd: string;
+  onLog: () => void;
 }) {
   const remainingDays = Math.max(
     0,
@@ -1324,12 +1348,13 @@ function WeeklyPendingCard({
             </div>
           </div>
         </div>
-        <div className="text-left sm:ml-3 sm:text-right">
+        <div className="flex flex-wrap items-center gap-2 sm:ml-3 sm:justify-end">
           <span
             className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold ${progressBadgeClass(progress.tone)}`}
           >
             {progress.text}
           </span>
+          <PendingLogButton onLog={onLog} />
         </div>
       </div>
       <div className="space-y-2">

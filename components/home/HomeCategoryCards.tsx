@@ -95,10 +95,13 @@ export function HomeCategoryCards({
   onCategoryChange,
 }: HomeCategoryCardsProps) {
   const stats = useMemo(() => {
-    const byCategory: Record<string, { achieved: number; target: number; percent: number }> = {
-      body: { achieved: 0, target: 0, percent: 0 },
-      mind: { achieved: 0, target: 0, percent: 0 },
-      soul: { achieved: 0, target: 0, percent: 0 },
+    const byCategory: Record<
+      string,
+      { weightedProgress: number; weight: number; percent: number }
+    > = {
+      body: { weightedProgress: 0, weight: 0, percent: 0 },
+      mind: { weightedProgress: 0, weight: 0, percent: 0 },
+      soul: { weightedProgress: 0, weight: 0, percent: 0 },
     };
 
     if (!weeklyPlan?.activities?.length) return byCategory;
@@ -116,14 +119,21 @@ export function HomeCategoryCards({
       seenIds.add(id);
 
       const target = weekTargetUnits(activity);
-      // Cap each activity at its own week target so overlogging can't push category past 100%.
-      byCategory[category].achieved += Math.min(achievedUnits(activity), target);
-      byCategory[category].target += target;
+      if (target <= 0) continue;
+
+      // Per-activity week completion (0–1). Do NOT sum raw units across activities —
+      // steps (thousands) would drown out run (km) / yoga (minutes) and show ~100%.
+      const fraction = Math.min(1, achievedUnits(activity) / target);
+      const weight =
+        Number(activity.pointsAllocated) > 0 ? Number(activity.pointsAllocated) : 1;
+
+      byCategory[category].weightedProgress += fraction * weight;
+      byCategory[category].weight += weight;
     }
 
     for (const key of Object.keys(byCategory)) {
       const row = byCategory[key];
-      row.percent = ratioToPercent(row.achieved, row.target);
+      row.percent = ratioToPercent(row.weightedProgress, row.weight);
     }
 
     return byCategory;

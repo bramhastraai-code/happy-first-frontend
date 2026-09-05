@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { dailyMoodAPI, dailyMoodQueryKeys } from '@/lib/api/dailyMood';
 import { DailyMoodPickerSheet } from '@/components/mood/DailyMoodPickerSheet';
-import { MoodFace } from '@/components/mood/MoodFace';
+import { MoodIconBadge } from '@/components/mood/MoodIconBadge';
 import { BrandLogo } from '@/components/ui/BrandLogo';
 import {
   getDaylioMoodOption,
@@ -45,6 +45,7 @@ export function HomeMoodCard({
 
   const mood: DailyMoodView | null = isDailyMoodActive(moodQuery.data) ? moodQuery.data! : null;
   const daylio = getDaylioMoodOption(mood?.mood);
+  const moodLabel = mood?.label || daylio?.label || mood?.mood || '';
 
   useEffect(() => {
     if (suppressed || !profileId || moodQuery.isLoading) return;
@@ -67,15 +68,10 @@ export function HomeMoodCard({
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
-          className="flex w-full items-center gap-3 rounded-[1.5rem] border border-border bg-surface px-4 py-3.5 text-left shadow-[var(--shadow-card)] transition-colors hover:bg-secondary/40"
+          className="home-mood flex w-full items-center gap-3 rounded-[1.5rem] border border-border bg-surface px-4 py-3.5 text-left shadow-[var(--shadow-card)] transition-colors hover:bg-secondary/40"
         >
-          {daylio ? (
-            <span
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
-              style={{ backgroundColor: daylio.color }}
-            >
-              <MoodFace kind={daylio.face} className="h-7 w-7" />
-            </span>
+          {mood ? (
+            <MoodIconBadge mood={mood.mood} emoji={mood.emoji} size="md" />
           ) : (
             <BrandLogo
               href=""
@@ -85,19 +81,19 @@ export function HomeMoodCard({
           )}
           <span className="min-w-0 flex-1">
             <span className="block font-serif text-lg font-semibold leading-tight text-foreground">
-              {daylio ? getMoodSpreadText(mood?.mood) : 'How are you ?'}
+              {mood ? getMoodSpreadText(mood.mood) : 'How are you ?'}
             </span>
             <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-              {daylio
-                ? mood?.emotions?.length
-                  ? `Feeling ${daylio.label} · ${
+              {mood
+                ? mood.emotions?.length
+                  ? `Feeling ${moodLabel} · ${
                       mood.emotions
                         .map((item) => (typeof item === 'string' ? item : item.name))
                         .filter(Boolean)
                         .slice(0, 3)
                         .join(', ')
                     }`
-                  : `Feeling ${daylio.label}`
+                  : `Feeling ${moodLabel}`
                 : 'Tap to choose today’s mood'}
             </span>
           </span>

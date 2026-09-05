@@ -6,6 +6,29 @@ import { getAppSocket } from '@/lib/realtime/socketClient';
 import type { AppNotification } from '@/lib/api/notifications';
 import { useAuthStore } from '@/lib/store/authStore';
 
+function removeNotificationsFromCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  notificationIds: string[]
+) {
+  if (!notificationIds?.length) return;
+  const idSet = new Set(notificationIds.map(String));
+  queryClient.setQueryData<{ notifications: AppNotification[]; unread: number }>(
+    ['notifications'],
+    (old) => {
+      if (!old) return old;
+      const next = old.notifications.filter((n) => !idSet.has(String(n.id)));
+      if (next.length === old.notifications.length) return old;
+      const removedUnread = old.notifications.filter(
+        (n) => idSet.has(String(n.id)) && !n.readAt
+      ).length;
+      return {
+        notifications: next,
+        unread: Math.max(0, (old.unread || 0) - removedUnread),
+      };
+    }
+  );
+}
+
 /**
  * Keep the notifications query updated app-wide (not only on /feed).
  * Mentions and other in-app alerts emit `notification:new` to the user room.
@@ -41,9 +64,15 @@ export function useNotificationRealtime() {
         );
       };
 
+      const onNotificationRemoved = (payload: { notificationIds?: string[] }) => {
+        removeNotificationsFromCache(queryClient, payload?.notificationIds || []);
+      };
+
       socket.on('notification:new', onNotification);
+      socket.on('notification:removed', onNotificationRemoved);
       cleanup = () => {
         socket.off('notification:new', onNotification);
+        socket.off('notification:removed', onNotificationRemoved);
       };
     });
 

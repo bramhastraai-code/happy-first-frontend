@@ -2,25 +2,32 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronLeft, Loader2, X } from 'lucide-react';
-import { dailyMoodAPI, dailyMoodInvalidationKeys } from '@/lib/api/dailyMood';
-import { HowAreYouMoodRow } from '@/components/mood/HowAreYouMoodRow';
+import {
+  dailyMoodAPI,
+  dailyMoodInvalidationKeys,
+  dailyMoodQueryKeys,
+  type MoodCatalogItem,
+} from '@/lib/api/dailyMood';
 import { DailyMoodJournalStep } from '@/components/mood/DailyMoodJournalStep';
 import { MoodFace } from '@/components/mood/MoodFace';
 import {
+  DAILY_MOOD_OPTIONS,
+  DAYLIO_MOOD_OPTIONS,
   getDaylioMoodOption,
   getMoodJournalPrompt,
   hydrateMoodStickers,
-  mapToDaylioMood,
   moodStickerStorageKey,
   MOOD_JOURNAL_EMOTIONS,
-  type DailyMoodValue,
+  MOOD_STICKER_COLORS,
   type DailyMoodView,
   type MoodEmotionSticker,
 } from '@/lib/utils/dailyMood';
 import { cn } from '@/lib/utils';
 import { useOverlayHistory } from '@/lib/hooks/useOverlayHistory';
+import { Button } from '@/components/ui/button';
 
 interface DailyMoodPickerSheetProps {
   open: boolean;
@@ -28,6 +35,12 @@ interface DailyMoodPickerSheetProps {
   currentMood?: DailyMoodView | null;
   profileId?: string;
   onSaved?: (mood: DailyMoodView | null) => void;
+}
+
+function moodCircleColor(moodId: string, index: number) {
+  const daylio = DAYLIO_MOOD_OPTIONS.find((row) => row.value === moodId);
+  if (daylio) return daylio.color;
+  return MOOD_STICKER_COLORS[index % MOOD_STICKER_COLORS.length];
 }
 
 function readStoredStickers(profileId?: string): MoodEmotionSticker[] {
@@ -70,6 +83,15 @@ function mergeLibrary(
   return Array.from(byId.values());
 }
 
+function defaultCatalog(): MoodCatalogItem[] {
+  return DAILY_MOOD_OPTIONS.map((row, index) => ({
+    id: row.value,
+    name: row.label,
+    emoji: row.emoji,
+    sortOrder: index,
+  }));
+}
+
 export function DailyMoodPickerSheet({
   open,
   onClose,
@@ -77,21 +99,40 @@ export function DailyMoodPickerSheet({
   profileId,
   onSaved,
 }: DailyMoodPickerSheetProps) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<'mood' | 'journal'>('mood');
-  const [selected, setSelected] = useState<DailyMoodValue | ''>(
-    mapToDaylioMood(currentMood?.mood) ?? ''
-  );
+  const [selectedId, setSelectedId] = useState<string>(currentMood?.mood || '');
   const [library, setLibrary] = useState<MoodEmotionSticker[]>(MOOD_JOURNAL_EMOTIONS);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [error, setError] = useState('');
+
+  const settingsQuery = useQuery({
+    queryKey: dailyMoodQueryKeys.settings(profileId),
+    enabled: Boolean(open && profileId),
+    queryFn: async () => {
+      const res = await dailyMoodAPI.getSettings();
+      return res.data.data.moods;
+    },
+    staleTime: 60_000,
+  });
+
+  const catalog = useMemo(() => {
+    if (settingsQuery.data?.length) return settingsQuery.data;
+    return defaultCatalog();
+  }, [settingsQuery.data]);
+
+  const selectedMood = useMemo(
+    () => catalog.find((row) => row.id === selectedId) || null,
+    [catalog, selectedId]
+  );
 
   useEffect(() => setMounted(true), []);
 
   const resetFromCurrent = () => {
     setStep('mood');
-    setSelected(mapToDaylioMood(currentMood?.mood) ?? '');
+    setSelectedId(currentMood?.mood || '');
     const moodStickers = hydrateMoodStickers(currentMood?.emotions);
     setLibrary(mergeLibrary(readStoredStickers(profileId), moodStickers));
     setSelectedIds(moodStickers.map((row) => row.id));
@@ -123,9 +164,11 @@ export function DailyMoodPickerSheet({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!selected) throw new Error('Pick a mood first');
-      const res = await dailyMoodAPI.saveJournal({
-        mood: selected,
+      if (!selectedMood) throw new Error('Pick a mood first');
+      const res = await dailyMoodAPI.save({
+        mood: selectedMood.id,
+        label: selectedMood.name,
+        emoji: selectedMood.emoji,
         emotions: selectedStickers,
       });
       return res.data.data;
@@ -162,12 +205,24 @@ export function DailyMoodPickerSheet({
   });
 
   const busy = saveMutation.isPending || removeMutation.isPending;
-  const daylio = getDaylioMoodOption(selected);
-  const journalPrompt = getMoodJournalPrompt(selected);
+  const journalPrompt = selectedMood
+    ? getMoodJournalPrompt(selectedMood.id)
+    : 'What have you been up to?';
 
   const handleClose = () => {
     if (busy) return;
     onClose();
+  };
+
+  const goToMoodPage = () => {
+    if (
+      typeof window !== 'undefined' &&
+      window.history.state?.__hfOverlay === 'daily-mood-picker'
+    ) {
+      window.history.replaceState({}, '');
+    }
+    onClose();
+    router.push('/mood');
   };
 
   if (!mounted || !open || typeof document === 'undefined') return null;
@@ -203,30 +258,105 @@ export function DailyMoodPickerSheet({
             How are you?
           </h2>
           <p className="mt-1 text-center text-[11px] text-muted-foreground">
-            Tap a face, then pick emojis that fit today
+            Tap a mood, then pick emojis that fit today
           </p>
 
           <div className="mt-6">
-            <HowAreYouMoodRow
-              selected={selected}
-              disabled={busy}
-              onSelect={(value) => {
-                setSelected(value);
-                setError('');
-                setStep('journal');
-              }}
-            />
+            {settingsQuery.isLoading && !settingsQuery.data ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                Loading your moods…
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  '-mx-1 overflow-x-auto overscroll-x-contain px-1 pb-1',
+                  'snap-x snap-mandatory scroll-smooth',
+                  '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+                )}
+              >
+                <div
+                  className="flex items-start"
+                  style={{
+                    width: `${(Math.max(catalog.length, 5) / 5) * 100}%`,
+                  }}
+                >
+                  {catalog.map((mood, index) => {
+                    const selected = selectedId === mood.id;
+                    const color = moodCircleColor(mood.id, index);
+                    const daylio = getDaylioMoodOption(mood.id);
+                    return (
+                      <button
+                        key={mood.id}
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setSelectedId(mood.id);
+                          setError('');
+                          setStep('journal');
+                        }}
+                        className="flex shrink-0 snap-start flex-col items-center gap-1.5 disabled:opacity-60"
+                        style={{ width: `${100 / Math.max(catalog.length, 5)}%` }}
+                      >
+                        <span
+                          className={cn(
+                            'flex h-12 w-12 items-center justify-center rounded-full transition-transform sm:h-14 sm:w-14',
+                            selected && 'scale-110 ring-2 ring-foreground/15 ring-offset-2'
+                          )}
+                          style={{ backgroundColor: color }}
+                        >
+                          {daylio ? (
+                            <MoodFace kind={daylio.face} className="h-8 w-8 sm:h-9 sm:w-9" />
+                          ) : (
+                            <span className="text-[1.65rem] leading-none sm:text-3xl" aria-hidden>
+                              {mood.emoji}
+                            </span>
+                          )}
+                        </span>
+                        <span
+                          className="max-w-full truncate px-0.5 text-[11px] font-medium capitalize leading-none sm:text-xs"
+                          style={{ color }}
+                        >
+                          {mood.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
-          {currentMood && !busy ? (
-            <button
-              type="button"
-              className="mt-4 w-full text-center text-xs font-medium text-muted-foreground hover:text-foreground"
-              onClick={() => removeMutation.mutate()}
-            >
-              Remove mood
-            </button>
+          {error ? (
+            <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {error}
+            </p>
           ) : null}
+
+          <div className="mt-4 space-y-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="relative z-10 h-11 w-full rounded-xl text-sm font-semibold"
+              disabled={busy}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                goToMoodPage();
+              }}
+            >
+              Mood page
+            </Button>
+            {currentMood && !busy ? (
+              <button
+                type="button"
+                className="w-full py-1.5 text-center text-xs font-medium text-muted-foreground hover:text-foreground"
+                onClick={() => removeMutation.mutate()}
+              >
+                Remove mood
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : (
         <div
@@ -243,20 +373,42 @@ export function DailyMoodPickerSheet({
             >
               <ChevronLeft className="h-6 w-6" />
             </button>
-            {daylio ? (
-              <span
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-                style={{ backgroundColor: daylio.color }}
-              >
-                <MoodFace kind={daylio.face} className="h-5 w-5" />
-              </span>
+            {selectedMood ? (
+              getDaylioMoodOption(selectedMood.id) ? (
+                <span
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                  style={{
+                    backgroundColor: moodCircleColor(
+                      selectedMood.id,
+                      catalog.findIndex((row) => row.id === selectedMood.id)
+                    ),
+                  }}
+                >
+                  <MoodFace
+                    kind={getDaylioMoodOption(selectedMood.id)!.face}
+                    className="h-5 w-5"
+                  />
+                </span>
+              ) : (
+                <span
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg leading-none"
+                  style={{
+                    backgroundColor: moodCircleColor(
+                      selectedMood.id,
+                      catalog.findIndex((row) => row.id === selectedMood.id)
+                    ),
+                  }}
+                >
+                  {selectedMood.emoji}
+                </span>
+              )
             ) : null}
             <h2 className="flex-1 text-center font-serif text-[15px] font-semibold leading-tight text-foreground sm:text-lg">
               {journalPrompt}
             </h2>
             <button
               type="button"
-              disabled={busy || !selected}
+              disabled={busy || !selectedMood}
               onClick={() => saveMutation.mutate()}
               className="inline-flex h-10 shrink-0 items-center justify-center gap-1 px-1.5 text-sm font-semibold text-primary disabled:opacity-50"
               aria-label="Save"
