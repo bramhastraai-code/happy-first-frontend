@@ -162,22 +162,26 @@ function ViewerPostCard({
   return (
     <article className="grid min-h-full flex-1 grid-rows-[auto_minmax(0,1fr)_auto] border-b border-border bg-background last:border-b-0">
       <div className="sticky top-0 z-10 mb-2 flex shrink-0 items-center gap-2.5 bg-background px-4 py-3">
-        <Link
-          href={`/feed/profile/${post.author.profileId}`}
-          className="flex min-w-0 flex-1 items-center gap-2.5"
-        >
-          <ProfileAvatar
-            name={post.author.name}
-            avatarUrl={post.author.avatarUrl}
-            avatarSeed={post.author.avatarSeed}
-            avatarStyle={post.author.avatarStyle}
-            size="sm"
-            rounded="xl"
-            className="h-9 w-9 ring-1 ring-border"
-          />
-          <div className="min-w-0">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <Link href={`/feed/profile/${post.author.profileId}`} className="shrink-0">
+            <ProfileAvatar
+              name={post.author.name}
+              avatarUrl={post.author.avatarUrl}
+              avatarSeed={post.author.avatarSeed}
+              avatarStyle={post.author.avatarStyle}
+              size="sm"
+              rounded="xl"
+              className="h-9 w-9 ring-1 ring-border"
+            />
+          </Link>
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-foreground">
-              {post.author.name}
+              <Link
+                href={`/feed/profile/${post.author.profileId}`}
+                className="hover:underline"
+              >
+                {post.author.name}
+              </Link>
               <DailyMoodInline mood={post.author.dailyMood} />
               {accepted.length > 0 ? (
                 <span className="font-medium text-muted-foreground">
@@ -189,6 +193,17 @@ function ViewerPostCard({
                 </span>
               ) : null}
             </p>
+            {post.communityId && post.communityName ? (
+              <p className="truncate text-xs text-muted-foreground">
+                on Club:{' '}
+                <Link
+                  href={`/community/${post.communityId}`}
+                  className="font-medium text-primary hover:underline"
+                >
+                  {post.communityName}
+                </Link>
+              </p>
+            ) : null}
             <p className="flex items-center gap-1.5 truncate text-[11px] text-muted-foreground">
               {accepted.length > 0 ? (
                 <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
@@ -202,7 +217,7 @@ function ViewerPostCard({
               </span>
             </p>
           </div>
-        </Link>
+        </div>
         <div className="relative" ref={menuRef}>
           <button
             type="button"

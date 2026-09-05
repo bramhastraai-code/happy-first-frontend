@@ -4,7 +4,15 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Grid3X3, Loader2, MessageSquare, Sparkles } from 'lucide-react';
+import {
+  ChevronLeft,
+  Grid3X3,
+  Loader2,
+  MessageSquare,
+  Repeat2,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
@@ -17,6 +25,8 @@ import { FeedMessagesPanel } from '@/components/feed/FeedMessagesPanel';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { ProfilePostViewer } from '@/components/feed/ProfilePostViewer';
 import { ProfileEditSheet } from '@/components/feed/ProfileEditSheet';
+import { PullToRefresh } from '@/components/ui/PullToRefresh';
+import { ActivityTotalsPanel } from '@/components/streak-calendar/ActivityTotalsPanel';
 import ReferralPromoCard from '@/components/profile/ReferralPromoCard';
 import { followAPI } from '@/lib/api/follow';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
@@ -67,7 +77,9 @@ export default function FeedProfilePage() {
   const [repostingId, setRepostingId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [joiningId, setJoiningId] = useState<string | null>(null);
-  const [gridTab, setGridTab] = useState<'posts' | 'spark'>('posts');
+  const [gridTab, setGridTab] = useState<'posts' | 'spark' | 'reposts' | 'community'>('posts');
+  const [activityMonth, setActivityMonth] = useState(() => new Date().getMonth() + 1);
+  const [activityYear, setActivityYear] = useState(() => new Date().getFullYear());
 
   const enabled = isHydrated && !!accessToken && !!profileId;
   const postsKey = ['profilePosts', profileId, gridTab] as const;
@@ -98,6 +110,40 @@ export default function FeedProfilePage() {
       return res.data.data as WeeklySummary;
     },
   });
+
+  const activityCalendarQuery = useQuery({
+    queryKey: ['profileActivityCalendar', profileId, activityMonth, activityYear],
+    enabled,
+    queryFn: async () => {
+      const res = await dailyLogAPI.getCalendar(profileId, {
+        month: activityMonth,
+        year: activityYear,
+        includeAnalytics: false,
+        includeMonthlyLeaderboard: false,
+        includeAllTimeLeaderboard: false,
+      });
+      return res.data.data;
+    },
+  });
+  const activityCalendar = activityCalendarQuery.data;
+
+  const handlePreviousActivityMonth = () => {
+    if (!activityCalendar?.pagination.canGoPrevious) return;
+    setActivityMonth(activityCalendar.pagination.previousMonth.month);
+    setActivityYear(activityCalendar.pagination.previousMonth.year);
+  };
+
+  const handleNextActivityMonth = () => {
+    if (!activityCalendar?.pagination.canGoNext) return;
+    setActivityMonth(activityCalendar.pagination.nextMonth.month);
+    setActivityYear(activityCalendar.pagination.nextMonth.year);
+  };
+
+  const handleJumpToCurrentActivityMonth = () => {
+    const now = new Date();
+    setActivityMonth(now.getMonth() + 1);
+    setActivityYear(now.getFullYear());
+  };
 
   const data = profileQuery.data;
   const thisWeekPercent = (() => {
@@ -143,6 +189,15 @@ export default function FeedProfilePage() {
   }, [postsQuery.data?.posts, data?.profile]);
   const isMe = Boolean(data?.isMe || selectedProfile?._id === profileId);
   const overlayOpen = viewerIndex !== null || Boolean(activePost) || editOpen;
+
+  const handleRefresh = async () => {
+    await Promise.all([
+      profileQuery.refetch(),
+      postsQuery.refetch(),
+      activityCalendarQuery.refetch(),
+      ...(isOwnProfile ? [ownWeekQuery.refetch()] : []),
+    ]);
+  };
 
   const patchPost = (postId: string, patch: Partial<FeedPost>) => {
     queryClient.setQueryData<{ posts: FeedPost[]; nextCursor: string | null }>(
@@ -236,6 +291,7 @@ export default function FeedProfilePage() {
 
   return (
     <MainLayout hideBottomNav={overlayOpen}>
+      <PullToRefresh onRefresh={handleRefresh} disabled={overlayOpen}>
       <div className="relative w-full pb-6">
         <div className={cn(pageStickyHeaderClass, 'mb-2 flex items-center justify-between gap-2')}>
           <button
@@ -379,7 +435,7 @@ export default function FeedProfilePage() {
                 ) : null}
               </div>
 
-              <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-none border border-[#dbdbdb] bg-white sm:grid-cols-4">
+              <div className="section-card mt-3 grid grid-cols-2 overflow-hidden sm:grid-cols-4">
                 {(
                   [
                     {
@@ -403,19 +459,36 @@ export default function FeedProfilePage() {
                   <div
                     key={stat.label}
                     className={cn(
-                      'px-2 py-2.5 text-center',
-                      i % 2 === 0 && 'border-r border-[#efefef]',
-                      i < 2 && 'border-b border-[#efefef] sm:border-b-0',
-                      i < 3 && 'sm:border-r sm:border-[#efefef]'
+                      'px-3 py-3 text-center',
+                      i % 2 === 0 && 'border-r border-border',
+                      i < 2 && 'border-b border-border sm:border-b-0',
+                      i < 3 && 'sm:border-r sm:border-border'
                     )}
                   >
-                    <p className="text-sm font-semibold tabular-nums text-foreground">
+                    <p className="text-base font-bold tabular-nums text-foreground">
                       {stat.display}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-neutral-400">{stat.label}</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">{stat.label}</p>
                   </div>
                 ))}
               </div>
+
+              <div className="mt-3">
+                <ActivityTotalsPanel
+                  monthItems={activityCalendar?.activityTotals?.month ?? []}
+                  lifetime={activityCalendar?.activityTotals?.lifetime ?? []}
+                  monthLabel={activityCalendar?.monthName || 'This month'}
+                  month={activityMonth}
+                  year={activityYear}
+                  canGoPreviousMonth={Boolean(activityCalendar?.pagination.canGoPrevious)}
+                  canGoNextMonth={Boolean(activityCalendar?.pagination.canGoNext)}
+                  isLoading={activityCalendarQuery.isFetching}
+                  onPreviousMonth={handlePreviousActivityMonth}
+                  onNextMonth={handleNextActivityMonth}
+                  onJumpToCurrentMonth={handleJumpToCurrentActivityMonth}
+                />
+              </div>
+
               <div className="mt-3 flex gap-2">
                 {isMe ? (
                   <>
@@ -545,7 +618,7 @@ export default function FeedProfilePage() {
 
             <div
               id="profile-posts-grid"
-              className="mt-4 flex items-center justify-center gap-1 border-b border-border"
+              className="mt-4 flex items-center justify-center gap-1 overflow-x-auto border-b border-border"
             >
               <button
                 type="button"
@@ -553,15 +626,17 @@ export default function FeedProfilePage() {
                   setGridTab('posts');
                   setViewerIndex(null);
                 }}
+                aria-label={isMe ? 'My posts' : 'Posts'}
                 className={cn(
-                  'inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide',
+                  'inline-flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide',
                   gridTab === 'posts'
                     ? 'border-t border-foreground text-foreground'
                     : 'border-t border-transparent text-muted-foreground'
                 )}
               >
-                <Grid3X3 className="h-3.5 w-3.5" />
-                {isMe ? 'My posts' : 'Posts'} ({data.postsCount})
+                <Grid3X3 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                <span className="hidden sm:inline">{isMe ? 'My posts' : 'Posts'}</span>
+                <span>({data.postsCount})</span>
               </button>
               <button
                 type="button"
@@ -569,15 +644,53 @@ export default function FeedProfilePage() {
                   setGridTab('spark');
                   setViewerIndex(null);
                 }}
+                aria-label="Spark"
                 className={cn(
-                  'inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide',
+                  'inline-flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide',
                   gridTab === 'spark'
                     ? 'border-t border-foreground text-foreground'
                     : 'border-t border-transparent text-muted-foreground'
                 )}
               >
-                <Sparkles className="h-3.5 w-3.5" />
-                Spark ({data.sparkCount || 0})
+                <Sparkles className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                <span className="hidden sm:inline">Spark</span>
+                <span>({data.sparkCount || 0})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGridTab('reposts');
+                  setViewerIndex(null);
+                }}
+                aria-label="Reposts"
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide',
+                  gridTab === 'reposts'
+                    ? 'border-t border-foreground text-foreground'
+                    : 'border-t border-transparent text-muted-foreground'
+                )}
+              >
+                <Repeat2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                <span className="hidden sm:inline">Reposts</span>
+                <span>({data.repostsCount || 0})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGridTab('community');
+                  setViewerIndex(null);
+                }}
+                aria-label="Community"
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide',
+                  gridTab === 'community'
+                    ? 'border-t border-foreground text-foreground'
+                    : 'border-t border-transparent text-muted-foreground'
+                )}
+              >
+                <Users className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                <span className="hidden sm:inline">Community</span>
+                <span>({data.communityPostsCount || 0})</span>
               </button>
             </div>
 
@@ -591,7 +704,15 @@ export default function FeedProfilePage() {
                   ? isMe
                     ? 'No Sparks yet. Invite someone when you post — it shows here after they accept.'
                     : 'No Sparks yet'
-                  : 'No posts yet'}
+                  : gridTab === 'reposts'
+                    ? isMe
+                      ? 'No reposts yet. Reposts you share from others will show up here.'
+                      : 'No reposts yet'
+                    : gridTab === 'community'
+                      ? isMe
+                        ? 'No community posts yet.'
+                        : 'No community posts yet'
+                      : 'No posts yet'}
               </p>
             ) : (
               <div className="mt-3 grid grid-cols-3 gap-0.5 sm:gap-2">
@@ -636,6 +757,17 @@ export default function FeedProfilePage() {
                           <Sparkles className="h-3 w-3" />
                         </span>
                       ) : null}
+                      {gridTab === 'reposts' ? (
+                        <span className="absolute left-1.5 top-1.5 rounded bg-black/55 p-1 text-white">
+                          <Repeat2 className="h-3 w-3" />
+                        </span>
+                      ) : null}
+                      {gridTab === 'community' && post.communityName ? (
+                        <span className="absolute inset-x-0 bottom-0 flex items-center gap-1 truncate bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-[10px] font-semibold text-white">
+                          <Users className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{post.communityName}</span>
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}
@@ -644,6 +776,7 @@ export default function FeedProfilePage() {
           </>
         )}
       </div>
+      </PullToRefresh>
 
       <FollowListSheet
         open={listMode !== null}

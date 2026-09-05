@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, Plus } from 'lucide-react';
@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import GuidedTour from '@/components/ui/GuidedTour';
 import TourStartButton from '@/components/ui/TourStartButton';
 import { PageFabColumn, pageFabCircleClass } from '@/components/ui/PageFabColumn';
+import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { usePageTour } from '@/lib/hooks/usePageTour';
 import { feedTourSteps } from '@/lib/utils/tourSteps';
 import { pageStickyHeaderClass } from '@/components/ui/AppPageHeader';
@@ -76,18 +77,29 @@ function FeedPageContent() {
   const enabled = isHydrated && !!accessToken && !!selectedProfile?._id;
   useFeedRealtime(enabled, selectedProfile?._id);
 
+  type FeedPageParam = { cursor?: string; feedSessionId?: string } | undefined;
+  /** Set right before a pull-to-refresh triggers page 1's refetch; read once, then cleared. */
+  const pullRefreshRef = useRef(false);
+
   const feedQuery = useInfiniteQuery({
     queryKey: ['feed', selectedProfile?._id],
     enabled,
-    initialPageParam: undefined as string | undefined,
+    initialPageParam: undefined as FeedPageParam,
     queryFn: async ({ pageParam }) => {
+      const isRefresh = !pageParam && pullRefreshRef.current;
+      pullRefreshRef.current = false;
       const response = await feedAPI.getFeed({
         limit: 12,
-        cursor: pageParam,
+        cursor: pageParam?.cursor,
+        feedSessionId: pageParam?.feedSessionId,
+        refresh: isRefresh || undefined,
       });
       return response.data.data;
     },
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    getNextPageParam: (lastPage): FeedPageParam =>
+      lastPage.nextCursor
+        ? { cursor: lastPage.nextCursor, feedSessionId: lastPage.feedSessionId ?? undefined }
+        : undefined,
   });
 
   const storiesQuery = useQuery({
@@ -462,6 +474,23 @@ function FeedPageContent() {
     setCreateOpen(true);
   };
 
+  const overlaysOpen =
+    Boolean(authorViewer) ||
+    Boolean(activePost) ||
+    messagesOpen ||
+    createOpen ||
+    storyViewerOpen;
+
+  const handleRefresh = useCallback(async () => {
+    pullRefreshRef.current = true;
+    // resetQueries (not refetch) — a ranked refresh starts a new session and should
+    // replace the whole feed, not re-fetch every previously-loaded page in place.
+    await Promise.all([
+      queryClient.resetQueries({ queryKey: ['feed', selectedProfile?._id], exact: true }),
+      storiesQuery.refetch(),
+    ]);
+  }, [queryClient, selectedProfile?._id, storiesQuery]);
+
   useEffect(() => {
     if (!feedQuery.hasNextPage || feedQuery.isFetchingNextPage) return;
 
@@ -510,6 +539,7 @@ function FeedPageContent() {
         />
         </div>
 
+        <PullToRefresh onRefresh={handleRefresh} disabled={overlaysOpen}>
         <div className="overflow-x-clip">
         <div className="mt-3 overflow-visible border-b border-border/60 pb-3 sm:mt-4 sm:rounded-2xl sm:border sm:border-border sm:bg-surface sm:p-3 sm:pb-3 sm:pt-4 sm:shadow-[var(--shadow-card)]">
           <FeedStories
@@ -586,6 +616,7 @@ function FeedPageContent() {
           )}
         </div>
         </div>
+        </PullToRefresh>
 
         {isMounted ? (
           <PageFabColumn>

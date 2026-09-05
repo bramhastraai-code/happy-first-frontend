@@ -304,7 +304,7 @@ export function FeedCommentsSheet({
             {comment.author.name}
           </Link>{' '}
           <span className="text-foreground/90">
-            {renderCaptionWithMentions(comment.text)}
+            {renderCaptionWithMentions(comment.text, { inline: true })}
           </span>
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">

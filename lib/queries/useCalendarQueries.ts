@@ -8,6 +8,7 @@ import {
   fetchActivityCalendar,
   fetchAllTimeLeaderboard,
 } from '@/lib/queries/fetchers';
+import type { ActivityCalendarData, CalendarData } from '@/lib/api/dailyLog';
 
 type FilterType = 'overall' | 'activity';
 
@@ -49,7 +50,7 @@ export function useCalendarData(
           leaderboardPage,
           allTimeLeaderboardPage
         ),
-    queryFn: () =>
+    queryFn: (): Promise<CalendarData | ActivityCalendarData> =>
       isActivity
         ? fetchActivityCalendar(
             profileId!,
@@ -104,7 +105,7 @@ export function prefetchCalendarMonth(
 
   return queryClient.prefetchQuery({
     queryKey,
-    queryFn: () =>
+    queryFn: (): Promise<CalendarData | ActivityCalendarData> =>
       isActivity
         ? fetchActivityCalendar(profileId, activityId, month, year, 1, 1, {
             includeAllTimeLeaderboard: false,

@@ -63,7 +63,7 @@ interface FeedPostCardProps {
   liking?: boolean;
   canMessage?: boolean;
   isOwner?: boolean;
-  /** Hide “Community: …” badge (e.g. inside community feed tab) */
+  /** Hide “on Club: …” badge (e.g. inside community feed tab) */
   hideCommunityLabel?: boolean;
   /** Discover visitor mode — disable like/comment/share actions */
   interactionsDisabled?: boolean;
@@ -468,17 +468,6 @@ export function FeedPostCard({
                     Spark
                   </span>
                 </span>
-              ) : !hideCommunityLabel && post.communityId && post.communityName ? (
-                <span className="font-medium text-muted-foreground">
-                  {' '}
-                  on Community:{' '}
-                  <Link
-                    href={`/community/${post.communityId}`}
-                    className="font-semibold text-primary hover:underline"
-                  >
-                    {post.communityName}
-                  </Link>
-                </span>
               ) : null}
             </p>
             {!isOwner && !post.author.isFollowing ? (
@@ -491,12 +480,9 @@ export function FeedPostCard({
               />
             ) : null}
           </div>
-          {accepted.length > 0 &&
-          !hideCommunityLabel &&
-          post.communityId &&
-          post.communityName ? (
+          {!hideCommunityLabel && post.communityId && post.communityName ? (
             <p className="truncate text-xs text-muted-foreground">
-              on Community:{' '}
+              on Club:{' '}
               <Link
                 href={`/community/${post.communityId}`}
                 className="font-medium text-primary hover:underline"

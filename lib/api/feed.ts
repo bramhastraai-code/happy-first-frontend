@@ -136,6 +136,13 @@ export interface FeedComment {
 export interface FeedPage {
   posts: FeedPost[];
   nextCursor: string | null;
+  /**
+   * Present while paginating a ranked "pull to refresh" session — `cursor` is an
+   * offset into that session's ranked order rather than a chronological date.
+   * Absent/null once the session is exhausted; the client should then send plain
+   * chronological cursors again.
+   */
+  feedSessionId?: string | null;
 }
 
 export interface FeedSearchPage extends FeedPage {
@@ -176,8 +183,15 @@ export function formatCollaborationLabel(
 }
 
 export const feedAPI = {
-  getFeed: (params?: { limit?: number; cursor?: string; communityId?: string }) =>
-    api.get<ApiEnvelope<FeedPage>>('/feed', { params }),
+  getFeed: (params?: {
+    limit?: number;
+    cursor?: string;
+    communityId?: string;
+    /** Pull-to-refresh: start a new ranked session instead of chronological paging. */
+    refresh?: boolean;
+    /** Continue a previously-returned ranked session (pass alongside its offset `cursor`). */
+    feedSessionId?: string;
+  }) => api.get<ApiEnvelope<FeedPage>>('/feed', { params }),
 
   getExploreFeed: (params?: { limit?: number; cursor?: string }) =>
     api.get<ApiEnvelope<FeedPage>>('/feed/explore', { params }),

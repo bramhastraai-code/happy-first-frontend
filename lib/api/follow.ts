@@ -57,6 +57,8 @@ export interface PublicProfileData {
   followingCount: number;
   postsCount: number;
   sparkCount?: number;
+  repostsCount?: number;
+  communityPostsCount?: number;
   lastPostAt?: string | null;
   daysSinceLastPost?: number | null;
   thisWeekActivitiesTotal?: number;
@@ -102,7 +104,11 @@ export const followAPI = {
 
   getPosts: (
     profileId: string,
-    params?: { limit?: number; cursor?: string; tab?: 'posts' | 'spark' | 'all' }
+    params?: {
+      limit?: number;
+      cursor?: string;
+      tab?: 'posts' | 'spark' | 'reposts' | 'community' | 'all';
+    }
   ) =>
     api.get<Envelope<{ posts: FeedPost[]; nextCursor: string | null }>>(
       `/follow/${profileId}/posts`,

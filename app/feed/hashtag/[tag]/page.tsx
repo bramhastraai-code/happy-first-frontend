@@ -7,6 +7,7 @@ import { ChevronLeft, Copy, Hash, Loader2, Play } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { ProfilePostViewer } from '@/components/feed/ProfilePostViewer';
+import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { headerBackBtnClass, pageStickyHeaderClass } from '@/components/ui/AppPageHeader';
 import { hashtagAPI } from '@/lib/api/hashtag';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
@@ -182,6 +183,12 @@ export default function HashtagFeedPage() {
           </div>
         </div>
 
+        <PullToRefresh
+          onRefresh={async () => {
+            await feedQuery.refetch();
+          }}
+          disabled={Boolean(activePost) || viewerIndex !== null}
+        >
         {feedQuery.isLoading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -209,6 +216,7 @@ export default function HashtagFeedPage() {
             ) : null}
           </>
         )}
+        </PullToRefresh>
       </div>
 
       <ProfilePostViewer

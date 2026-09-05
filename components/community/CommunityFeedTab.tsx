@@ -7,6 +7,7 @@ import { FeedPostCard } from '@/components/feed/FeedPostCard';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { FeedEmpty } from '@/components/feed/FeedEmpty';
 import { FeedCreateSheet } from '@/components/feed/FeedCreateSheet';
+import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
 import { useAuthStore } from '@/lib/store/authStore';
 import { useFeedRealtime } from '@/lib/hooks/useFeedRealtime';
@@ -45,19 +46,30 @@ export function CommunityFeedTab({ communityId, readOnly = false }: CommunityFee
 
   useFeedRealtime(enabled, selectedProfile?._id, communityId);
 
+  type FeedPageParam = { cursor?: string; feedSessionId?: string } | undefined;
+  /** Set right before a pull-to-refresh triggers page 1's refetch; read once, then cleared. */
+  const pullRefreshRef = useRef(false);
+
   const feedQuery = useInfiniteQuery({
     queryKey: feedKey,
     enabled: enabled && !isSearching,
-    initialPageParam: undefined as string | undefined,
+    initialPageParam: undefined as FeedPageParam,
     queryFn: async ({ pageParam }) => {
+      const isRefresh = !pageParam && pullRefreshRef.current;
+      pullRefreshRef.current = false;
       const response = await feedAPI.getFeed({
         limit: 12,
-        cursor: pageParam,
+        cursor: pageParam?.cursor,
+        feedSessionId: pageParam?.feedSessionId,
+        refresh: isRefresh || undefined,
         communityId,
       });
       return response.data.data;
     },
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    getNextPageParam: (lastPage): FeedPageParam =>
+      lastPage.nextCursor
+        ? { cursor: lastPage.nextCursor, feedSessionId: lastPage.feedSessionId ?? undefined }
+        : undefined,
   });
 
   const searchQuery = useInfiniteQuery({
@@ -190,8 +202,23 @@ export function CommunityFeedTab({ communityId, readOnly = false }: CommunityFee
 
       <div
         ref={scrollRef}
-        className="max-h-[min(72vh,720px)] space-y-3 overflow-y-auto pr-0.5 sm:space-y-4"
+        className="max-h-[min(72vh,720px)] overflow-y-auto pr-0.5"
       >
+        <PullToRefresh
+          onRefresh={async () => {
+            if (isSearching) {
+              await searchQuery.refetch();
+              return;
+            }
+            pullRefreshRef.current = true;
+            // resetQueries (not refetch) — a ranked refresh starts a new session and should
+            // replace the whole feed, not re-fetch every previously-loaded page in place.
+            await queryClient.resetQueries({ queryKey: feedKey, exact: true });
+          }}
+          scrollContainerRef={scrollRef}
+          contentClassName="space-y-3 sm:space-y-4"
+          disabled={Boolean(activePost) || createOpen}
+        >
         {activeQuery.isLoading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="h-7 w-7 animate-spin text-primary" />
@@ -282,6 +309,7 @@ export function CommunityFeedTab({ communityId, readOnly = false }: CommunityFee
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : null}
+        </PullToRefresh>
       </div>
 
       {activePost ? (

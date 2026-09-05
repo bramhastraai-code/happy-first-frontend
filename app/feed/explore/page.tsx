@@ -10,6 +10,7 @@ import { FollowButton } from '@/components/feed/FollowButton';
 import { FeedCommentsSheet } from '@/components/feed/FeedCommentsSheet';
 import { ProfilePostViewer } from '@/components/feed/ProfilePostViewer';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { PullToRefresh } from '@/components/ui/PullToRefresh';
 import { headerBackBtnClass, pageStickyHeaderClass } from '@/components/ui/AppPageHeader';
 import { followAPI, type FollowPerson } from '@/lib/api/follow';
 import { feedAPI, type FeedPost } from '@/lib/api/feed';
@@ -299,6 +300,19 @@ export default function FeedExplorePage() {
     viewerPost && selectedProfile?._id && viewerPost.author.profileId === selectedProfile._id
   );
 
+  const handleRefresh = async () => {
+    const tasks: Promise<unknown>[] = [];
+    if (tab === 'people') {
+      if (!isSearching) tasks.push(suggestionsQuery.refetch());
+      tasks.push((isSearching ? searchQuery : browsingQuery).refetch());
+    } else if (tab === 'posts') {
+      tasks.push(activePostsQuery.refetch());
+    } else {
+      tasks.push((isSearching ? tagsSearchQuery : trendingTagsQuery).refetch());
+    }
+    await Promise.all(tasks);
+  };
+
   return (
     <MainLayout>
       <div className="space-y-4 pb-6">
@@ -359,6 +373,10 @@ export default function FeedExplorePage() {
           </div>
         </div>
 
+        <PullToRefresh
+          onRefresh={handleRefresh}
+          disabled={Boolean(activePost) || viewerIndex !== null}
+        >
         {tab === 'people' ? (
           <>
             {!isSearching ? (
@@ -482,6 +500,7 @@ export default function FeedExplorePage() {
             )}
           </section>
         )}
+        </PullToRefresh>
       </div>
 
       <ProfilePostViewer
