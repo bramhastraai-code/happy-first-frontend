@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEven
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  AtSign,
   Bell,
   CheckCheck,
   ChevronLeft,
@@ -37,6 +38,7 @@ function iconFor(type: AppNotification['type']) {
   if (type === 'follow' || type === 'post_collaboration' || type === 'community_invite' || type === 'community_join_request') {
     return UserPlus;
   }
+  if (type === 'post_mention') return AtSign;
   if (
     type === 'community_announcement' ||
     type === 'community_week_summary' ||

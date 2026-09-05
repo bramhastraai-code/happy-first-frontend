@@ -119,6 +119,11 @@ export const followAPI = {
       params: { q, limit },
     }),
 
+  searchMentionCandidates: (q: string, limit = 16) =>
+    api.get<Envelope<{ people: FollowPerson[]; query: string }>>('/follow/mention-search', {
+      params: { q, limit },
+    }),
+
   follow: (profileId: string) =>
     api.post<Envelope<FollowActionResult>>(`/follow/${profileId}`),
 

@@ -32,16 +32,17 @@ export function renderCaptionWithMentions(
     .filter((c) => c.name)
     .sort((a, b) => b.name.length - a.name.length);
 
-  // Match known collaborator names first, then generic @First Last / @Name tokens
+  // Match known collaborator names first, then generic @First Last / @Name tokens, then #hashtags
   const knownPattern = known.length
     ? known
         .map((c) => `@${c.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
         .join('|')
     : null;
   const genericPattern = '@[A-Z][a-zA-Z]*(?:\\s+[A-Z][a-zA-Z]*)*';
+  const hashtagPattern = '#[\\p{L}0-9_]+';
   const pattern = knownPattern
-    ? new RegExp(`(${knownPattern}|${genericPattern})`, 'g')
-    : new RegExp(`(${genericPattern})`, 'g');
+    ? new RegExp(`(${knownPattern}|${genericPattern}|${hashtagPattern})`, 'gu')
+    : new RegExp(`(${genericPattern}|${hashtagPattern})`, 'gu');
 
   const parts = text.split(pattern);
   const mentionClass =
@@ -49,6 +50,20 @@ export function renderCaptionWithMentions(
 
   const content = parts.map((part, index) => {
     if (!part) return null;
+    const isHashtag = /^#[\p{L}0-9_]+$/u.test(part);
+    if (isHashtag) {
+      return (
+        <Link
+          key={`${index}-${part}`}
+          href={`/feed/hashtag/${encodeURIComponent(part.slice(1).toLowerCase())}`}
+          className={mentionClass}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {part}
+        </Link>
+      );
+    }
+
     const isKnown = known.some(
       (c) => part.toLowerCase() === `@${c.name}`.toLowerCase()
     );

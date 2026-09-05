@@ -9,6 +9,7 @@ import type { FeedStory } from '@/lib/api/feed';
 import { feedAPI } from '@/lib/api/feed';
 import { messagesAPI } from '@/lib/api/messages';
 import { resolveMediaUrl } from '@/lib/utils/resolveMediaUrl';
+import { renderCaptionWithMentions } from '@/lib/utils/renderCaptionWithMentions';
 import { useAuthStore } from '@/lib/store/authStore';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
@@ -370,15 +371,18 @@ export function StoryViewer({
       </div>
 
       {current.caption ? (
-        <p
-          className={`absolute inset-x-0 z-10 px-6 text-center text-sm text-white ${
+        <div
+          className={`absolute inset-x-0 z-10 px-6 ${
             canReply
               ? 'bottom-[calc(6.75rem+env(safe-area-inset-bottom,0px))]'
               : 'bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))]'
           }`}
         >
-          {current.caption}
-        </p>
+          {renderCaptionWithMentions(current.caption, {
+            className: 'text-center text-sm text-white',
+            mentionClassName: 'font-semibold text-white underline',
+          })}
+        </div>
       ) : null}
 
       {isOwner ? (

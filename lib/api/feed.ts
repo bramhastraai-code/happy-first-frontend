@@ -66,6 +66,8 @@ export interface FeedPost {
   postedFromCommunity?: boolean;
   collaborators?: FeedCollaborator[];
   acceptedCollaborators?: FeedCollaborator[];
+  /** People @mentioned by name in the caption — independent of Spark collaborators. */
+  mentions?: { profileId: string; name: string }[];
   textCard?: {
     text: string;
     backgroundId: string;

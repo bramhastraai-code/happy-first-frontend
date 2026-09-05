@@ -1,20 +1,12 @@
 'use client';
 
-import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { Hash } from 'lucide-react';
+import type { HashtagSummary } from '@/lib/api/hashtag';
 import { cn } from '@/lib/utils';
 
-export type MentionSuggestionPerson = {
-  profileId: string;
-  name: string;
-  avatarUrl?: string | null;
-  avatarSeed?: string | null;
-  avatarStyle?: string | null;
-  subtitle?: string;
-};
-
-interface MentionSuggestionListProps {
-  people: MentionSuggestionPerson[];
-  onSelect: (person: MentionSuggestionPerson) => void;
+interface HashtagSuggestionListProps {
+  hashtags: HashtagSummary[];
+  onSelect: (hashtag: HashtagSummary) => void;
   /**
    * 'above'/'below' float the list with `position: absolute`, which gets
    * clipped by any scrollable ancestor (e.g. a modal's `overflow-y-auto`
@@ -27,13 +19,19 @@ interface MentionSuggestionListProps {
   className?: string;
 }
 
-export function MentionSuggestionList({
-  people,
+function formatPostCount(count: number) {
+  if (count <= 0) return 'New hashtag';
+  if (count < 1000) return `${count} post${count === 1 ? '' : 's'}`;
+  return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k posts`;
+}
+
+export function HashtagSuggestionList({
+  hashtags,
   onSelect,
   placement = 'above',
   className,
-}: MentionSuggestionListProps) {
-  if (!people.length) return null;
+}: HashtagSuggestionListProps) {
+  if (!hashtags.length) return null;
 
   return (
     <ul
@@ -47,28 +45,22 @@ export function MentionSuggestionList({
         className
       )}
     >
-      {people.map((person) => (
-        <li key={person.profileId} className="border-b border-[#efefef] last:border-b-0">
+      {hashtags.map((hashtag) => (
+        <li key={hashtag.id} className="border-b border-[#efefef] last:border-b-0">
           <button
             type="button"
             className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-neutral-50 active:bg-neutral-100"
-            onClick={() => onSelect(person)}
+            onClick={() => onSelect(hashtag)}
           >
-            <ProfileAvatar
-              name={person.name}
-              avatarUrl={person.avatarUrl}
-              avatarSeed={person.avatarSeed}
-              avatarStyle={person.avatarStyle}
-              size="sm"
-              rounded="full"
-              className="h-9 w-9"
-            />
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500">
+              <Hash className="h-4 w-4" />
+            </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold leading-tight text-[#262626]">
-                {person.name}
+                #{hashtag.name}
               </span>
               <span className="mt-0.5 block truncate text-xs leading-tight text-[#737373]">
-                {person.subtitle || `@${person.name}`}
+                {formatPostCount(hashtag.postCount)}
               </span>
             </span>
           </button>
